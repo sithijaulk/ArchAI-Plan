@@ -29,7 +29,7 @@ def analyze_shadows(footprint: Polygon, height_m: float | None, solar_samples: S
             item.update({"status": "building_height_unavailable", "shadow_length_m": None, "shadow_vector_m": None, "geometry": None})
         else:
             length = float(height_m) / tan(radians(elevation))
-            local_azimuth = azimuth - float(north_angle_degrees or 0.0)
+            local_azimuth = azimuth + float(north_angle_degrees or 0.0)
             dx = -sin(radians(local_azimuth)) * length
             dy = -cos(radians(local_azimuth)) * length
             translated = affinity.translate(footprint, xoff=dx, yoff=dy)

@@ -1,4 +1,4 @@
-from shapely.geometry import box
+from shapely.geometry import Polygon, box
 
 from app.components.elia_engine.gate_garage import plan_gate, plan_garage
 from app.components.elia_engine.utility_safety import validate_utilities
@@ -69,6 +69,13 @@ def test_garage_capacity_changes_parking_geometry():
                                                min(point[1] for point in garage["polygon"]),
                                                max(point[0] for point in garage["polygon"]),
                                                max(point[1] for point in garage["polygon"]))]).area > 21
+
+
+def test_required_garage_returns_no_candidate_for_empty_residual_space():
+    garage = plan_garage(box(0, 0, 20, 20), Polygon(), {"access_point": [10, 0.75]}, {},
+                         {"garage_required": True, "garage_capacity": 1}, 1.0)
+
+    assert garage is None
 
 
 def test_vertical_planter_needs_contained_footprint_and_positive_elevation():

@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any
 from datetime import datetime
 
@@ -13,6 +13,7 @@ class ProjectUpdate(BaseModel):
     description: Optional[str] = None
     current_component: Optional[str] = None
     master_json: Optional[Dict[str, Any]] = None
+    expected_revision: int | None = Field(default=None, ge=1)
 
 
 class ProjectResponse(BaseModel):

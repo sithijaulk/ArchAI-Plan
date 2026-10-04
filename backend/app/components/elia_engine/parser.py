@@ -46,9 +46,16 @@ def _first(document: Mapping[str, Any], paths: Sequence[tuple[str, ...]]) -> Any
 def _coordinates(value: Any, field: str) -> Any:
     if isinstance(value, Mapping):
         if value.get("type") in {"Polygon", "MultiPolygon"}:
-            geometry = shape(value)
+            try:
+                geometry = shape(value)
+            except Exception as exc:
+                raise ELIAError("ELIA_INVALID_POLYGON", f"{field} has malformed GeoJSON geometry.") from exc
             if geometry.geom_type != "Polygon":
                 raise ELIAError("ELIA_INVALID_POLYGON", f"{field} must be a single Polygon.")
+            for ring in (geometry.exterior, *geometry.interiors):
+                for coordinate in ring.coords:
+                    if len(coordinate) != 2 or not all(math.isfinite(float(part)) for part in coordinate):
+                        raise ELIAError("ELIA_INVALID_POLYGON", f"{field} coordinates must be finite x/y pairs.")
             return geometry
         for key in ("coordinates", "points", "vertices", "boundary_points", "polygon"):
             if key in value:
@@ -68,7 +75,7 @@ def _coordinates(value: Any, field: str) -> Any:
     for point in value:
         if isinstance(point, Mapping):
             x, y = point.get("x"), point.get("y")
-        elif isinstance(point, (list, tuple)) and len(point) >= 2:
+        elif isinstance(point, (list, tuple)) and len(point) == 2:
             x, y = point[0], point[1]
         else:
             raise ELIAError("ELIA_INVALID_POLYGON", f"{field} contains an invalid point.")

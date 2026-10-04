@@ -1,19 +1,21 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, time
+from math import isfinite
 from typing import Any, Mapping
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .adapter import normalize_master_json
 from .exceptions import ELIAError
 from .parser import UNIT_TO_METERS
-from .rule_repository import elia_rules, vehicle_profiles
+from .rule_repository import elia_rules, lighting_rules, vehicle_profiles
 
 
 def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str, Any], source_units: str) -> dict[str, Any]:
     """Resolve requirement defaults and convert all dimensional inputs to meters."""
     master = normalize_master_json(master)
     normalized = dict(requirements)
-    input_units = str(requirements.get("units", source_units)).lower()
+    input_units = str(requirements.get("units", "m")).lower()
     if input_units not in UNIT_TO_METERS:
         raise ELIAError("ELIA_INVALID_UNITS", f"Unsupported requirement unit: {input_units!r}.")
     scale = UNIT_TO_METERS[input_units]
@@ -46,7 +48,16 @@ def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str,
     access.setdefault("preferred_driveway_width", config["default_driveway_width_m"])
     for key in ("preferred_gate_location", "preferred_garage_location"):
         if access.get(key) is not None:
-            access[key] = [float(coordinate) * scale for coordinate in access[key]]
+            coordinates = access[key]
+            if not isinstance(coordinates, (list, tuple)) or len(coordinates) != 2:
+                raise ELIAError("ELIA_INVALID_COORDINATES", f"{key} must contain exactly x and y.")
+            try:
+                coordinates = [float(coordinate) for coordinate in coordinates]
+            except (TypeError, ValueError) as exc:
+                raise ELIAError("ELIA_INVALID_COORDINATES", f"{key} coordinates must be numeric.") from exc
+            if not all(isfinite(coordinate) for coordinate in coordinates):
+                raise ELIAError("ELIA_INVALID_COORDINATES", f"{key} coordinates must be finite.")
+            access[key] = [coordinate * scale for coordinate in coordinates]
     profile_config = vehicle_profiles()["profiles"]
     profiles = []
     source_profiles = access.get("vehicle_profiles") or []
@@ -84,16 +95,35 @@ def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str,
     access["vehicle_profiles"] = profiles
 
     landscape = dict(requirements.get("landscape") or {})
+    greenery_density = landscape.get("greenery_density", requirements.get("greenery_level", "medium"))
+    if greenery_density not in elia_rules()["vegetation"]["density_targets"]:
+        raise ELIAError("ELIA_INVALID_GREENERY_DENSITY", "Greenery density must be low, medium, or high.")
+    landscape_priority = requirements.get("landscape_priority", "balanced")
+    if landscape_priority not in {"balanced", "maximum_open_space", "maximum_greenery"}:
+        raise ELIAError("ELIA_INVALID_LANDSCAPE_PRIORITY", "Landscape priority must be balanced, maximum_open_space, or maximum_greenery.")
     if landscape.get("boundary_wall_height") is not None:
         landscape["boundary_wall_height"] = float(landscape["boundary_wall_height"]) * scale
     lighting = dict(requirements.get("lighting") or {})
     if lighting.get("preferred_spacing") is not None:
         lighting["preferred_spacing"] = float(lighting["preferred_spacing"]) * scale
+    lighting_config = lighting_rules()
+    if lighting.get("style", "minimal") not in lighting_config["render_types"]:
+        raise ELIAError("ELIA_INVALID_LIGHTING_STYLE", "Lighting style must be one of the configured ELIA styles.")
+    zones = lighting.get("zones")
+    if zones is not None and any(zone not in lighting_config["mounting_height_m"] for zone in zones):
+        raise ELIAError("ELIA_INVALID_LIGHTING_ZONE", "Lighting zones must be configured ELIA placement zones.")
+    if lighting.get("required") and zones is not None and not zones:
+        raise ELIAError("ELIA_INVALID_LIGHTING_ZONE", "At least one lighting zone is required when lighting is requested.")
+    if (lighting.get("preferred_spacing") is not None and
+            lighting["preferred_spacing"] < float(lighting_config["minimum_spacing_m"])):
+        raise ELIAError("ELIA_INVALID_LIGHTING_SPACING", "Preferred light spacing must meet the configured minimum.")
 
     requested_date = requirements.get("solar_analysis_date")
     if requested_date is not None:
         try:
-            date.fromisoformat(requested_date)
+            parsed_date = date.fromisoformat(str(requested_date))
+            if parsed_date.isoformat() != requested_date:
+                raise ValueError("date must use YYYY-MM-DD")
         except (TypeError, ValueError) as exc:
             raise ELIAError("ELIA_INVALID_SOLAR_DATE", "solar_analysis_date must use YYYY-MM-DD.") from exc
     else:
@@ -109,11 +139,28 @@ def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str,
     if north_angle is None:
         raise ELIAError("ELIA_MISSING_NORTH_ORIENTATION", "ELIA requires the north bearing already marked in the upstream Master JSON.")
 
+    timezone = (location.get("timezone") or requirements.get("timezone") or
+                master_location.get("timezone") or elia_rules()["solar"]["default_timezone"])
+    try:
+        ZoneInfo(str(timezone))
+    except (ZoneInfoNotFoundError, TypeError, ValueError) as exc:
+        raise ELIAError("ELIA_INVALID_TIMEZONE", f"Unknown IANA timezone {timezone!r}.") from exc
+    time_range = requirements.get("solar_analysis_time_range")
+    if time_range is not None:
+        if not isinstance(time_range, (list, tuple)) or not time_range:
+            raise ELIAError("ELIA_INVALID_SOLAR_TIME", "solar_analysis_time_range must contain at least one local time.")
+        try:
+            for value in time_range:
+                hour_minute = str(value).split(":")
+                time(int(hour_minute[0]), int(hour_minute[1]) if len(hour_minute) > 1 else 0)
+        except (TypeError, ValueError, IndexError) as exc:
+            raise ELIAError("ELIA_INVALID_SOLAR_TIME", "Solar analysis times must use valid local HH:MM values.") from exc
+
     normalized.update({
         "location": {
             "latitude": latitude,
             "longitude": longitude,
-            "timezone": location.get("timezone") or requirements.get("timezone") or master_location.get("timezone") or elia_rules()["solar"]["default_timezone"],
+            "timezone": timezone,
             "city": location.get("city") or location.get("name"),
         },
         "solar_analysis_date": requested_date,

@@ -115,6 +115,20 @@ def test_non_finite_hole_coordinates_are_rejected():
     assert error.value.code == "ELIA_INVALID_POLYGON"
 
 
+def test_polygon_coordinates_must_be_two_dimensional_pairs():
+    document = {
+        "units": "m",
+        "land_info": {"mathematical_polygon": [[0, 0, 0], [30, 0, 0], [30, 20, 0], [0, 20, 0]],
+                      "calculated_north_bearing": 0},
+        "house_exterior_polygon": [[10, 8], [20, 8], [20, 15], [10, 15]],
+    }
+
+    with pytest.raises(ELIAError) as error:
+        parse_exterior_context(document)
+
+    assert error.value.code == "ELIA_INVALID_POLYGON"
+
+
 def test_buildable_zone_is_not_accepted_as_house_exterior():
     document = {
         "land_info": {"mathematical_polygon": [[0, 0], [30, 0], [30, 20], [0, 20]]},

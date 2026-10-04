@@ -27,6 +27,8 @@ def _afternoon_sun_score(point: Point, shadows: Sequence[Mapping[str, Any]]) -> 
 
 def place_vegetation(residual: BaseGeometry, land: BaseGeometry, blocked: BaseGeometry,
                      requirements: Mapping[str, Any], shadows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    if residual is None or residual.is_empty:
+        return []
     landscape = requirements.get("landscape", {})
     if not (landscape.get("garden_required") or landscape.get("preferred_vegetation_categories") or
             landscape.get("shade_tree_preference")):

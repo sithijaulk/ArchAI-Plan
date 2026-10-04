@@ -32,6 +32,14 @@ class UtilityInput(ELIAInputModel):
     known: bool = False
     position: list[FiniteFloat] | dict[str, FiniteFloat] | None = None
 
+    @model_validator(mode="after")
+    def validate_position_pair(self):
+        if isinstance(self.position, list) and len(self.position) != 2:
+            raise ValueError("Utility position must contain exactly x and y")
+        if isinstance(self.position, dict) and not {"x", "y"} <= self.position.keys():
+            raise ValueError("Utility position must contain x and y")
+        return self
+
 
 class AccessRequirements(ELIAInputModel):
     road_side: str | None = None
@@ -51,6 +59,14 @@ class AccessRequirements(ELIAInputModel):
     driveway_style: str = "auto"
     driveway_surface: str | None = None
     turning_space_required: bool = True
+
+    @model_validator(mode="after")
+    def validate_preferred_coordinate_pairs(self):
+        for name in ("preferred_gate_location", "preferred_garage_location"):
+            value = getattr(self, name)
+            if value is not None and len(value) != 2:
+                raise ValueError(f"{name} must contain exactly x and y")
+        return self
 
 
 class LandscapeRequirements(ELIAInputModel):

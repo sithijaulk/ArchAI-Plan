@@ -34,12 +34,6 @@ from .vertical_greenery import plan_vertical_greenery
 logger = logging.getLogger(__name__)
 
 
-def _record_failed_requirement(validation: dict[str, Any], violation: str) -> None:
-    if violation not in validation["violations"]:
-        validation["violations"].append(violation)
-        validation["checks_total"] += 1
-
-
 def _auxiliary_polygons(master: Mapping[str, Any], scale: float) -> list[BaseGeometry]:
     restrictions = master.get("exterior_restrictions") or master.get("restricted_zones") or []
     restrictions = list(restrictions) if isinstance(restrictions, (list, tuple)) else [restrictions]
@@ -50,15 +44,18 @@ def _auxiliary_polygons(master: Mapping[str, Any], scale: float) -> list[BaseGeo
         raw = item.get("polygon") or item.get("geometry") or item.get("coordinates") if isinstance(item, Mapping) else item
         if raw is None and isinstance(item, Mapping):
             raw = item.get("footprint")
-        if isinstance(raw, Mapping):
-            geometry = shape(raw)
-        else:
-            if raw is None:
-                continue
-            coordinates = raw
-            if coordinates and isinstance(coordinates[0], (list, tuple)) and coordinates[0] and isinstance(coordinates[0][0], (list, tuple)):
-                coordinates = coordinates[0]
-            geometry = Polygon(coordinates)
+        if raw is None:
+            continue
+        try:
+            if isinstance(raw, Mapping):
+                geometry = shape(raw)
+            else:
+                rings = raw if (isinstance(raw, (list, tuple)) and raw and
+                                isinstance(raw[0], (list, tuple)) and raw[0] and
+                                isinstance(raw[0][0], (list, tuple))) else [raw]
+                geometry = Polygon(rings[0], rings[1:])
+        except Exception as exc:
+            raise ELIAError("ELIA_INVALID_POLYGON", "An exterior restriction has malformed polygon geometry.") from exc
         if not geometry.is_valid or geometry.is_empty:
             raise ELIAError("ELIA_INVALID_POLYGON", "An exterior restriction has invalid polygon geometry.")
         result.append(affinity.scale(geometry, xfact=scale, yfact=scale, origin=(0, 0)))
@@ -217,7 +214,7 @@ def run_elia(master_json: Mapping[str, Any], raw_requirements: Mapping[str, Any]
     requirements = normalize_requirements(raw_requirements, master_json, context.source_units)
     logger.info("ELIA spatial run started")
     utilities = validate_utilities(master_json, raw_requirements, context.source_units,
-                                   str(raw_requirements.get("units", context.source_units)).lower())
+                                   str(raw_requirements.get("units", "m")).lower())
     restrictions = _auxiliary_polygons(master_json, context.unit_scale)
     restrictions.extend(utilities.buffers)
     residual_result = calculate_residual_space(context.land, context.house, restrictions)
@@ -233,8 +230,10 @@ def run_elia(master_json: Mapping[str, Any], raw_requirements: Mapping[str, Any]
     gate = plan_gate(context.land, context.house, master_json, requirements["access"], context.unit_scale, utility_obstacles)
     if gate is None:
         violations = ["gate_candidate_or_road_access"]
-        if utilities.status != "passed":
+        if utilities.status == "failed":
             violations.append("well_septic_separation")
+        elif utilities.status == "unknown":
+            violations.append("utility_locations_unknown")
         output = _empty_result(context, requirements, utilities, solar_samples, shadows, violations,
                                "No valid gate lies on a road-accessible land-boundary segment.", started)
         output["run_id"] = run_id
@@ -340,13 +339,6 @@ def run_elia(master_json: Mapping[str, Any], raw_requirements: Mapping[str, Any]
                                  "polygon": list(driveway_polygon.exterior.coords) if driveway_polygon.geom_type == "Polygon" else None,
                                  "width_m": drive_width, "length_m": driveway_line.length, "turning_validation": turning}
 
-    access_violations = []
-    if requirements["access"].get("driveway_required") and driveway_line is None:
-        access_violations.append("gate_to_garage_path")
-    elif driveway_polygon is not None and (not context.land.covers(driveway_polygon) or driveway_polygon.intersects(fixed_obstacles)):
-        access_violations.append("driveway_clearance_or_containment")
-    if turning is not None and not turning["valid"]:
-        access_violations.append("vehicle_turning_radius_or_width")
     driveway_obstacle = driveway_polygon if driveway_polygon is not None else Polygon()
     garage_obstacle = Polygon(garage["polygon"]) if garage else Polygon()
     vegetation_blocked = unary_union([fixed_obstacles, driveway_obstacle, garage_obstacle])
@@ -388,25 +380,10 @@ def run_elia(master_json: Mapping[str, Any], raw_requirements: Mapping[str, Any]
     validation = validate_layout(context.land, context.house, gate, garage, driveway_polygon, driveway_line,
                                  turning, {"status": utilities.status}, vegetation, lighting, vertical, outdoor,
                                  solar_samples, obstacles, master_json, context.unit_scale,
-                                 requirements["access"]["vehicle_profiles"], drive_width)
-    if requirements.get("lighting", {}).get("required") and not lighting:
-        _record_failed_requirement(validation, "required_outdoor_lighting_unavailable")
-    for zone in missing_lighting_zones:
-        _record_failed_requirement(validation, f"requested_lighting_zone_unfulfilled:{zone}")
-    if int(gate.get("planned_gate_count", 1)) != int(requirements["access"].get("gate_count", 1)):
-        _record_failed_requirement(validation, "requested_gate_count_not_fulfilled")
-    access_preferences = raw_requirements.get("access") or {}
-    preferred_gate = requirements["access"].get("preferred_gate_location")
-    if preferred_gate and Point(gate["position"]).distance(Point(preferred_gate)) > 0.5:
-        _record_failed_requirement(validation, "requested_gate_position_unfulfilled")
-    if vertical.get("requested") and vertical.get("status") != "placed":
-        _record_failed_requirement(validation, "requested_vertical_greenery_unfulfilled")
-    for violation in access_violations:
-        _record_failed_requirement(validation, violation)
-    validation["violations"] = sorted(set(validation["violations"]))
+                                 requirements["access"]["vehicle_profiles"], drive_width, requirements)
     validation["valid"] = not validation["violations"]
-    if validation["checks_total"]:
-        validation["constraint_satisfaction_rate"] = validation["checks_passed"] / validation["checks_total"]
+    validation["constraint_satisfaction_rate"] = (validation["checks_passed"] / validation["checks_total"]
+                                                   if validation["checks_total"] else 1.0)
     outcome = "valid" if validation["valid"] else "infeasible"
     used_area = (driveway_polygon.area if driveway_polygon else 0.0) + sum(3.14159 * node["canopy_radius_m"] ** 2 for node in vegetation)
     metrics = collect_metrics(started, context.land.area, residual_result.available_area,

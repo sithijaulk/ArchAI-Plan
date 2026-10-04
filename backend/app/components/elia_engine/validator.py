@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Sequence
 
+from shapely import affinity
 from shapely.geometry import LineString, Point, Polygon, shape
 from shapely.geometry.base import BaseGeometry
 
@@ -17,8 +18,13 @@ def validate_layout(land: Polygon, house: Polygon, gate: Mapping[str, Any] | Non
                     outdoor_elements: Sequence[Mapping[str, Any]], solar_samples: Sequence[Mapping[str, Any]],
                     obstacles: BaseGeometry, master: Mapping[str, Any] | None = None,
                     support_scale: float = 1.0, vehicle_profiles: Sequence[Mapping[str, Any]] = (),
-                    driveway_width: float | None = None) -> dict[str, Any]:
+                    driveway_width: float | None = None,
+                    requirements: Mapping[str, Any] | None = None) -> dict[str, Any]:
     checks: list[tuple[str, bool]] = []
+    requirements = requirements or {}
+    access_requirements = requirements.get("access", {})
+    landscape_requirements = requirements.get("landscape", {})
+    lighting_requirements = requirements.get("lighting", {})
     ground_obstacles = obstacles.union(Polygon(garage["polygon"])) if garage is not None else obstacles
     if gate is not None:
         gates = [gate, *gate.get("additional_gates", [])]
@@ -28,10 +34,22 @@ def validate_layout(land: Polygon, house: Polygon, gate: Mapping[str, Any] | Non
         checks.extend((f"{item['json_id']}_clear_of_fixed_obstacles",
                    not obstacles.buffer(float(elia_rules()["access"]["gate_obstacle_clearance_m"])).covers(Point(item["position"])))
                   for item in gates)
-        checks.append(("requested_gate_count_satisfied", len(gates) == int(gate.get("planned_gate_count", 1))))
+        checks.append(("gate_plan_count_consistent", len(gates) == int(gate.get("planned_gate_count", 1))))
+        checks.append(("requested_gate_count_satisfied",
+                       len(gates) == int(access_requirements.get("gate_count", 1))))
+        preferred_gate = access_requirements.get("preferred_gate_location")
+        if preferred_gate:
+            checks.append(("requested_gate_position_satisfied",
+                           Point(gate["position"]).distance(Point(preferred_gate)) <= 0.5))
     if garage is not None:
         garage_polygon = Polygon(garage["polygon"])
         checks.extend((("garage_inside_land", land.covers(garage_polygon)), ("garage_not_in_restricted_space", not garage_polygon.intersects(obstacles))))
+        if access_requirements.get("garage_required"):
+            bay_area = float(elia_rules()["access"]["default_garage_width_m"]) * float(elia_rules()["access"]["default_garage_length_m"])
+            checks.append(("requested_garage_capacity_satisfied",
+                           int(garage_polygon.area // bay_area) >= int(access_requirements.get("garage_capacity", 1))))
+    elif access_requirements.get("garage_required"):
+        checks.append(("requested_garage_available", False))
     if driveway is not None:
         checks.extend((("driveway_inside_land", land.covers(driveway)), ("driveway_avoids_house_and_restrictions", not driveway.intersects(obstacles))))
         if garage is not None:
@@ -48,7 +66,9 @@ def validate_layout(land: Polygon, house: Polygon, gate: Mapping[str, Any] | Non
             vehicle_checks = [validate_vehicle_route(list(centerline.coords), dict(profile), driveway_width,
                               float(elia_rules()["access"]["driveway_clearance_m"]))
                               for profile in vehicle_profiles]
-            checks.append(("vehicle_turning_feasibility", all(item["valid"] for item in vehicle_checks)))
+            checks.append(("vehicle_turning_radius_or_width", all(item["valid"] for item in vehicle_checks)))
+    elif access_requirements.get("driveway_required"):
+        checks.append(("required_driveway_available", False))
     checks.append(("utility_safety", utilities.get("status") in {"passed", "not_applicable"}))
     checks.append(("solar_analysis_completed", bool(solar_samples)))
     for node in vegetation:
@@ -72,6 +92,7 @@ def validate_layout(land: Polygon, house: Polygon, gate: Mapping[str, Any] | Non
         checks.append((f"{node['json_id']}_furniture_clearance", furniture_clear))
         if driveway is not None and node.get("zone") != "driveway":
             checks.append((f"{node['json_id']}_driveway_clearance", point.distance(driveway) > 0))
+    vertical_support_checks = []
     for element in vertical.get("elements", []):
         footprint = Polygon(element.get("footprint", [])) if element.get("footprint") else Polygon()
         position = element.get("position", {})
@@ -90,19 +111,37 @@ def validate_layout(land: Polygon, house: Polygon, gate: Mapping[str, Any] | Non
                     if support:
                         floor_id = support.get("floor_id") or support.get("floor")
                         raw = support.get("polygon") or support.get("coordinates")
-                        if isinstance(raw, Mapping):
-                            raw = raw.get("coordinates", [[]])[0]
-                        if isinstance(raw, (list, tuple)) and len(raw) >= 3:
-                            support = {**support, "_geometry": Polygon([(float(point[0]) * support_scale,
-                                                                            float(point[1]) * support_scale)
-                                                                           for point in raw])}
+                        try:
+                            if isinstance(raw, Mapping):
+                                support_geometry = shape(raw)
+                            elif isinstance(raw, (list, tuple)) and raw:
+                                rings = raw if (isinstance(raw[0], (list, tuple)) and raw[0] and
+                                                isinstance(raw[0][0], (list, tuple))) else [raw]
+                                support_geometry = Polygon(rings[0], rings[1:])
+                            else:
+                                support_geometry = None
+                            if support_geometry is not None and support_scale != 1:
+                                support_geometry = affinity.scale(support_geometry, xfact=support_scale,
+                                                                  yfact=support_scale, origin=(0, 0))
+                            if support_geometry is not None and support_geometry.is_valid:
+                                support = {**support, "_geometry": support_geometry}
+                            else:
+                                support = None
+                        except (TypeError, ValueError):
+                            support = None
                         break
         support_geometry = support.get("_geometry") if isinstance(support, Mapping) else None
         support_valid = (support_geometry is not None and support_geometry.is_valid and
                          support_geometry.covers(footprint) and bool(element.get("support_json_id")) and
                          bool(element.get("floor_id")) and str(element.get("floor_id")) == str(floor_id))
         elevation_valid = isinstance(position, Mapping) and isinstance(position.get("z"), (int, float)) and position["z"] > 0
-        checks.append((f"{element.get('json_id', 'vertical_object')}_support", bool(support_valid and elevation_valid and footprint.is_valid)))
+        independently_valid = bool(support_valid and elevation_valid and footprint.is_valid)
+        vertical_support_checks.append(independently_valid)
+        checks.append((f"{element.get('json_id', 'vertical_object')}_support", independently_valid))
+    if vertical.get("requested"):
+        checks.append(("requested_vertical_greenery_fulfilled",
+                       vertical.get("status") == "placed" and
+                       any(vertical_support_checks)))
     for element in outdoor_elements:
         object_id = element.get("json_id", "outdoor_object")
         geometry = None
@@ -128,6 +167,21 @@ def validate_layout(land: Polygon, house: Polygon, gate: Mapping[str, Any] | Non
             checks.append((f"{object_id}_route", valid))
         elif element.get("type") in {"boundary_wall", "garden_zone", "lawn_zone"}:
             checks.append((f"{object_id}_geometry", geometry is not None and geometry.is_valid and land.covers(geometry)))
+    output_types = {str(element.get("type")) for element in outdoor_elements}
+    for field, feature in (("garden_required", "garden_zone"), ("lawn_required", "lawn_zone"),
+                           ("garden_seating_required", "garden_seating"),
+                           ("garden_table_set_required", "garden_table_set"),
+                           ("pedestrian_path_required", "pedestrian_path"),
+                           ("garden_path_required", "garden_path"),
+                           ("boundary_wall_required", "boundary_wall")):
+        if landscape_requirements.get(field):
+            checks.append((f"required_{feature}_present", feature in output_types))
+    if lighting_requirements.get("required"):
+        zones = lighting_requirements.get("zones") or ["gate", "driveway", "garden"]
+        checks.append(("required_outdoor_lighting_present", bool(lighting)))
+        for zone in zones:
+            checks.append((f"requested_lighting_zone_{zone}_fulfilled",
+                           any(node.get("zone") == zone for node in lighting)))
     violations = [name for name, passed in checks if not passed]
     return {"valid": not violations, "violations": violations,
             "checks_passed": sum(passed for _, passed in checks), "checks_total": len(checks),

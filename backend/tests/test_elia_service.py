@@ -5,6 +5,7 @@ from app.components.elia_engine.output import build_updated_master
 from app.components.elia_engine.exceptions import ELIAError
 from app.components.elia_engine.model_adapter import run_model_generation
 from app.components.elia_engine.requirements import normalize_requirements
+from app.components.elia_engine.schemas import ELIARequirements
 from app.components.elia_engine.service import _building_height, run_elia
 
 
@@ -57,6 +58,9 @@ def test_complete_run_returns_explainable_layout_without_mutating_master(master_
     assert not exterior["validation_summary"]["valid"]
     assert "vehicle_turning_radius_or_width" in exterior["validation_summary"]["violations"]
     assert exterior["validation_summary"]["constraint_satisfaction_rate"] < 1.0
+    assert exterior["validation_summary"]["checks_passed"] + len(exterior["validation_summary"]["violations"]) == exterior["validation_summary"]["checks_total"]
+    assert exterior["metrics"]["constraint_satisfaction_rate"] == exterior["validation_summary"]["constraint_satisfaction_rate"]
+    assert exterior["metrics"]["constraint_violation_count"] == len(exterior["validation_summary"]["violations"])
     assert tuple(exterior["access"]["driveway"]["centerline"][-1]) == tuple(exterior["access"]["garage"]["entry_point"])
 
 
@@ -99,6 +103,50 @@ def test_meter_and_feet_requirement_dimensions_normalize_equivalently(master_jso
     defaults_m = normalize_requirements({"units": "m"}, master_json, "m")
     defaults_ft = normalize_requirements({"units": "ft"}, master_json, "m")
     assert defaults_ft["access"]["vehicle_profiles"] == defaults_m["access"]["vehicle_profiles"]
+
+
+def test_omitted_requirement_units_default_to_meters_for_feet_master(master_json):
+    master_json["units"] = "ft"
+    request = ELIARequirements(access={"gate_width": 4})
+    requirements = request.model_dump(mode="json", exclude_none=True, exclude_unset=True)
+    assert "units" not in requirements
+    normalized = normalize_requirements(requirements, master_json, "ft")
+    explicit_feet = normalize_requirements({"units": "ft", "access": {"gate_width": 4}}, master_json, "ft")
+
+    assert normalized["access"]["gate_width"] == pytest.approx(4.0)
+    assert explicit_feet["access"]["gate_width"] == pytest.approx(1.2192)
+
+
+def test_request_utility_positions_default_to_meters_with_feet_master(master_json):
+    master_json["units"] = "ft"
+    exterior, outcome = run_elia(master_json, {
+        "access": {"road_side": "south", "garage_required": False, "driveway_required": False},
+        "utilities": {
+            "well": {"known": True, "position": [1, 2]},
+            "septic_tank": {"known": True, "position": [20, 2]},
+        },
+    }, "request-utility-units")
+
+    assert exterior["utility_safety"]["status"] == "passed"
+    assert exterior["utility_safety"]["checks"][0]["actual_distance_ft"] == pytest.approx(19 / 0.3048)
+    assert outcome in {"valid", "infeasible"}
+
+
+@pytest.mark.parametrize(("requirements", "code"), [
+    ({"location": {"timezone": "Mars/NotAZone"}}, "ELIA_INVALID_TIMEZONE"),
+    ({"solar_analysis_date": "2026-02-30"}, "ELIA_INVALID_SOLAR_DATE"),
+    ({"solar_analysis_time_range": ["25:00"]}, "ELIA_INVALID_SOLAR_TIME"),
+    ({"lighting": {"required": True, "style": "neon"}}, "ELIA_INVALID_LIGHTING_STYLE"),
+    ({"lighting": {"required": True, "zones": ["roof"]}}, "ELIA_INVALID_LIGHTING_ZONE"),
+    ({"lighting": {"preferred_spacing": 2}}, "ELIA_INVALID_LIGHTING_SPACING"),
+    ({"greenery_level": "lush"}, "ELIA_INVALID_GREENERY_DENSITY"),
+    ({"landscape_priority": "fast"}, "ELIA_INVALID_LANDSCAPE_PRIORITY"),
+])
+def test_invalid_solar_and_lighting_preferences_are_typed(master_json, requirements, code):
+    with pytest.raises(ELIAError) as error:
+        normalize_requirements(requirements, master_json, "m")
+
+    assert error.value.code == code
 
 
 def test_explicit_meter_house_height_is_not_scaled_for_feet_site():

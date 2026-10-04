@@ -142,6 +142,8 @@ def plan_garage(land: Polygon, residual: BaseGeometry, gate: Mapping[str, Any], 
     if garage is None:
         if not access.get("garage_required", False):
             return None
+        if residual.is_empty:
+            return None
         source = "candidate"
         config = elia_rules()["access"]
         width = config["default_garage_width_m"] * int(access.get("garage_capacity", 1))

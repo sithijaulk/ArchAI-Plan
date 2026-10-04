@@ -1,3 +1,6 @@
+from math import cos, radians, sin
+
+import pytest
 from shapely.geometry import LineString, box
 
 from app.components.elia_engine.lighting import place_lighting
@@ -27,14 +30,19 @@ def test_low_sun_and_missing_height_are_reported_not_fabricated():
     assert no_height["status"] == "building_height_unavailable"
 
 
-def test_shadow_projection_uses_site_north_angle():
+@pytest.mark.parametrize(("north_angle", "expected_shadow"), [
+    (0, (0.0, -5.0)),
+    (90, (-5.0, 0.0)),
+    (180, (0.0, 5.0)),
+    (270, (5.0, 0.0)),
+    (37, (-5.0 * sin(radians(37)), -5.0 * cos(radians(37)))),
+])
+def test_shadow_projection_uses_documented_north_angle(north_angle, expected_shadow):
     footprint = box(2, 2, 8, 8)
     sample = [{"timestamp": "2026-03-20T12:00:00+00:00", "solar_azimuth_degrees": 0,
                "solar_elevation_degrees": 45}]
-    geographic = analyze_shadows(footprint, 5, sample)[0]
-    rotated = analyze_shadows(footprint, 5, sample, north_angle_degrees=90)[0]
-    assert geographic["shadow_vector_m"][1] < 0
-    assert rotated["shadow_vector_m"][0] > 0
+    result = analyze_shadows(footprint, 5, sample, north_angle_degrees=north_angle)[0]
+    assert result["shadow_vector_m"] == pytest.approx(expected_shadow)
 
 
 def test_vertical_trigger_and_no_support_are_explicit():
@@ -75,3 +83,20 @@ def test_lighting_nodes_are_outside_driveway_surface():
                             "access": {"preferred_driveway_width": 3.0}})
     assert nodes
     assert all(__import__("shapely").geometry.Point(node["position"]).distance(driveway) >= 1.5 for node in nodes)
+
+
+def test_lighting_is_opt_in_and_honors_supported_style_zone_and_spacing():
+    land = box(0, 0, 100, 100)
+    disabled = place_lighting(land, land, None, None, None,
+                              {"lighting": {"required": False, "zones": ["boundary"]}})
+    closer = place_lighting(land, land, None, None, None,
+                            {"lighting": {"required": True, "style": "architectural",
+                                          "zones": ["boundary"], "preferred_spacing": 8}})
+    wider = place_lighting(land, land, None, None, None,
+                           {"lighting": {"required": True, "style": "architectural",
+                                         "zones": ["boundary"], "preferred_spacing": 16}})
+
+    assert disabled == []
+    assert closer and wider
+    assert all(node["zone"] == "boundary" and node["type"] == "wall_light" for node in closer + wider)
+    assert len(closer) > len(wider)
