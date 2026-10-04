@@ -83,7 +83,13 @@ def plan_gate(land: Polygon, house: Polygon, master: Mapping[str, Any], access: 
     interior = land.representative_point()
     separation = float(elia_rules()["access"]["gate_separation_m"])
     group_length = gate_count * width + max(0, gate_count - 1) * separation
-    start_distance = (line.length - group_length) / 2
+    preferred = access.get("preferred_gate_location")
+    if preferred:
+        start_distance = line.project(Point(float(preferred[0]), float(preferred[1]))) - width / 2
+        if start_distance < 0 or start_distance + group_length > line.length:
+            return None
+    else:
+        start_distance = (line.length - group_length) / 2
     gates = []
     for index in range(gate_count):
         distance = start_distance + width / 2 + index * (width + separation)
@@ -117,7 +123,8 @@ def _existing_garage(value: Any, scale: float) -> Polygon | None:
     center = point_xy(value, scale)
     if center:
         config = elia_rules()["access"]
-        width, length = config["default_garage_width_m"], config["default_garage_length_m"]
+        width = config["default_garage_width_m"] * int(value.get("capacity", 1))
+        length = config["default_garage_length_m"]
         return box(center[0] - width / 2, center[1] - length / 2, center[0] + width / 2, center[1] + length / 2)
     return None
 
@@ -137,7 +144,8 @@ def plan_garage(land: Polygon, residual: BaseGeometry, gate: Mapping[str, Any], 
             return None
         source = "candidate"
         config = elia_rules()["access"]
-        width, length = config["default_garage_width_m"], config["default_garage_length_m"]
+        width = config["default_garage_width_m"] * int(access.get("garage_capacity", 1))
+        length = config["default_garage_length_m"]
         preferred = access.get("preferred_garage_location")
         if preferred:
             preferred_center = Point(float(preferred[0]), float(preferred[1]))
@@ -170,10 +178,16 @@ def plan_garage(land: Polygon, residual: BaseGeometry, gate: Mapping[str, Any], 
         access_points = _garage_access(garage, land, gate_point, approach_distance, obstacles)
     if access_points is None:
         return None
+    config = elia_rules()["access"]
+    bay_area = float(config["default_garage_width_m"]) * float(config["default_garage_length_m"])
+    actual_capacity = int(garage.area // bay_area)
+    requested_capacity = int(access.get("garage_capacity", 1))
+    if actual_capacity < requested_capacity:
+        return None
     entry, approach = access_points
     return {"json_id": "GARAGE_001", "polygon": list(garage.exterior.coords), "entry_point": list(entry),
             "access_point": list(approach),
-            "capacity": int(access.get("garage_capacity", 1)), "source": source, "valid": True}
+            "capacity": actual_capacity, "source": source, "valid": True}
 
 
 def _garage_access(garage: Polygon, land: Polygon, gate_point: Point, distance: float,

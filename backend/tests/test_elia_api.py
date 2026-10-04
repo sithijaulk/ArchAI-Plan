@@ -1,7 +1,9 @@
 from fastapi.testclient import TestClient
+from types import SimpleNamespace
 
 from app.main import app
 from app.routers import elia
+from app.dependencies import get_current_user
 
 
 def test_elia_reference_endpoints_are_registered_and_rules_are_available():
@@ -22,6 +24,53 @@ def test_project_elia_run_requires_existing_authentication():
     with TestClient(app) as client:
         response = client.post("/api/projects/private-project/elia-engine/run", json={})
     assert response.status_code == 401
+
+
+def test_project_crud_and_master_json_require_admin_authentication():
+    with TestClient(app) as client:
+        responses = [
+            client.post("/api/projects", json={"project_name": "private"}),
+            client.get("/api/projects"),
+            client.get("/api/projects/private-project"),
+            client.put("/api/projects/private-project", json={"project_name": "changed"}),
+            client.delete("/api/projects/private-project"),
+            client.get("/api/projects/private-project/master-json"),
+        ]
+
+    assert [response.status_code for response in responses] == [401] * len(responses)
+
+
+def test_project_endpoints_forbid_non_admin_authenticated_users():
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(role="user")
+    try:
+        with TestClient(app) as client:
+            response = client.get("/api/projects")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 403
+
+
+def test_preview_reports_model_unavailable_without_falling_back_to_baseline():
+    app.dependency_overrides[elia.require_admin] = lambda: None
+    payload = {
+        "master_json": {
+            "units": "m", "location": {"latitude": 6.9, "longitude": 79.8},
+            "land_info": {"mathematical_polygon": [[0, 0], [30, 0], [30, 20], [0, 20]],
+                          "calculated_north_bearing": 10},
+            "house_exterior_polygon": [[10, 5], [20, 5], [20, 15], [10, 15]],
+        },
+        "requirements": {"access": {"driveway_required": False}},
+    }
+    try:
+        with TestClient(app) as client:
+            response = client.post("/api/elia-engine/preview", json=payload)
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "ELIA_MODEL_UNAVAILABLE"
+    assert response.json()["detail"]["generation_status"] == "model_unavailable"
 
 
 def test_project_current_solar_uses_master_location_and_provider(monkeypatch):

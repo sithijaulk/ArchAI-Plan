@@ -2,7 +2,10 @@ from copy import deepcopy
 import pytest
 
 from app.components.elia_engine.output import build_updated_master
-from app.components.elia_engine.service import run_elia
+from app.components.elia_engine.exceptions import ELIAError
+from app.components.elia_engine.model_adapter import run_model_generation
+from app.components.elia_engine.requirements import normalize_requirements
+from app.components.elia_engine.service import _building_height, run_elia
 
 
 @pytest.fixture
@@ -12,7 +15,8 @@ def master_json():
         "project_name": "Courtyard home",
         "units": "m",
         "location": {"latitude": 6.9, "longitude": 79.8, "timezone": "Asia/Colombo"},
-        "land_info": {"boundary_points": [[0, 0], [40, 0], [40, 30], [0, 30]], "road_facing": "south"},
+        "land_info": {"boundary_points": [[0, 0], [40, 0], [40, 30], [0, 30]],
+                   "road_facing": "south", "calculated_north_bearing": 0},
         "house_exterior_polygon": [[10, 8], [22, 8], [22, 22], [10, 22]],
         "house_height_m": 6,
         "utilities": {"well": {"known": True, "position": [2, 27]},
@@ -41,16 +45,19 @@ def test_complete_run_returns_explainable_layout_without_mutating_master(master_
     exterior, outcome = run_elia(master_json, requirements, "run-1")
 
     assert master_json == before
-    assert outcome == "valid", {"validation": exterior["validation_summary"],
-                                 "gate": exterior["access"]["gate"], "garage": exterior["access"]["garage"],
-                                 "metrics": exterior["metrics"]}
+    assert outcome == "infeasible", {"validation": exterior["validation_summary"],
+                                     "gate": exterior["access"]["gate"], "garage": exterior["access"]["garage"],
+                                     "metrics": exterior["metrics"]}
     assert exterior["access"]["gate"]["json_id"] == "GATE_001"
     assert exterior["utility_safety"]["required_separation_ft"] == 50
     assert exterior["environment"]["solar_samples"]
     assert exterior["metrics"]["solar_analysis_completed"]
     assert exterior["access"]["garage"]["json_id"] == "GARAGE_001"
     assert exterior["access"]["driveway"]["pathfinding"] == "A*"
-    assert exterior["validation_summary"]["valid"]
+    assert not exterior["validation_summary"]["valid"]
+    assert "vehicle_turning_radius_or_width" in exterior["validation_summary"]["violations"]
+    assert exterior["validation_summary"]["constraint_satisfaction_rate"] < 1.0
+    assert tuple(exterior["access"]["driveway"]["centerline"][-1]) == tuple(exterior["access"]["garage"]["entry_point"])
 
 
 def test_updated_master_preserves_prior_layers_structurally(master_json):
@@ -62,6 +69,88 @@ def test_updated_master_preserves_prior_layers_structurally(master_json):
     assert updated["processing"]["esai_engine"] == master_json["processing"]["esai_engine"]
     assert updated["exterior_landscape"] == exterior
     assert updated["processing"]["elia_engine"]["outcome"] == "valid"
+
+
+def test_infeasible_candidate_does_not_replace_accepted_exterior(master_json):
+    master_json["exterior_landscape"] = {"accepted_run": "previous"}
+    candidate = {"run_id": "candidate", "validation_summary": {"valid": False}}
+
+    updated = build_updated_master(master_json, candidate, "candidate", "infeasible")
+
+    assert updated["exterior_landscape"] == {"accepted_run": "previous"}
+    assert updated["processing"]["elia_engine"]["outcome"] == "infeasible"
+
+
+def test_meter_and_feet_requirement_dimensions_normalize_equivalently(master_json):
+    meters = {"units": "m", "access": {"vehicle_profiles": [{"vehicle_type": "car", "length": 4.5,
+             "width": 1.8, "minimum_turning_radius": 5.0}]},
+              "landscape": {"boundary_wall_height": 2.0}, "lighting": {"preferred_spacing": 5.0}}
+    feet = {"units": "ft", "access": {"vehicle_profiles": [{"vehicle_type": "car", "length": 4.5 / 0.3048,
+             "width": 1.8 / 0.3048, "minimum_turning_radius": 5.0 / 0.3048}]},
+            "landscape": {"boundary_wall_height": 2.0 / 0.3048},
+            "lighting": {"preferred_spacing": 5.0 / 0.3048}}
+
+    normalized_m = normalize_requirements(meters, master_json, "m")
+    normalized_ft = normalize_requirements(feet, master_json, "m")
+
+    assert normalized_ft["access"]["vehicle_profiles"] == pytest.approx(normalized_m["access"]["vehicle_profiles"])
+    assert normalized_ft["landscape"]["boundary_wall_height"] == pytest.approx(2.0)
+    assert normalized_ft["lighting"]["preferred_spacing"] == pytest.approx(5.0)
+    defaults_m = normalize_requirements({"units": "m"}, master_json, "m")
+    defaults_ft = normalize_requirements({"units": "ft"}, master_json, "m")
+    assert defaults_ft["access"]["vehicle_profiles"] == defaults_m["access"]["vehicle_profiles"]
+
+
+def test_explicit_meter_house_height_is_not_scaled_for_feet_site():
+    assert _building_height({"house_height_m": 6}, 0.3048) == 6
+    assert _building_height({"building": {"height_m": 6}}, 0.3048) == 6
+
+
+def test_trained_model_is_explicitly_unavailable_until_adapter_exists(master_json, requirements):
+    with pytest.raises(ELIAError) as error:
+        run_model_generation(master_json, requirements, "model-run")
+
+    assert error.value.code == "ELIA_MODEL_UNAVAILABLE"
+    assert error.value.status_code == 503
+
+
+def test_model_validity_flags_do_not_override_house_overlap(master_json):
+    class MockAdapter:
+        model_version = "mock-v1"
+
+        def infer(self, prepared_input):
+            return {
+                "schema_version": "1.0", "coordinate_reference": "local meters", "access": {},
+                "site_analysis": {}, "utility_safety": {}, "environment": {}, "metrics": {},
+                "outdoor_elements": [{"json_id": "SEAT_001", "type": "garden_seating",
+                                      "position": [11, 10], "units": "m",
+                                      "validation": {"valid": True}}],
+                "validation_summary": {"valid": True},
+            }
+
+    exterior, outcome = run_model_generation(master_json, {"access": {"driveway_required": False}},
+                                             "mock-run", MockAdapter())
+
+    assert outcome == "infeasible"
+    assert "fixed_obstacle_overlap:SEAT_001" in exterior["validation_summary"]["violations"]
+    assert exterior["outdoor_elements"][0]["validation"]["valid"] is False
+
+
+def test_malformed_model_output_is_rejected_and_kept_for_run_history(master_json):
+    class MockAdapter:
+        model_version = "mock-v1"
+
+        def infer(self, prepared_input):
+            return {"schema_version": "1.0", "coordinate_reference": "local meters", "access": {},
+                    "site_analysis": {}, "utility_safety": {}, "environment": {}, "metrics": {},
+                    "outdoor_elements": [{"json_id": "BAD_001", "type": "garden_seating",
+                                          "position": [float("nan"), 1], "units": "m"}]}
+
+    with pytest.raises(ELIAError) as error:
+        run_model_generation(master_json, {"access": {"driveway_required": False}}, "bad-run", MockAdapter())
+
+    assert error.value.code == "ELIA_INVALID_MODEL_OUTPUT"
+    assert error.value.candidate_output["outdoor_elements"][0]["json_id"] == "BAD_001"
 
 
 def test_requested_outdoor_features_are_emitted_with_validation(master_json, requirements):
@@ -92,7 +181,7 @@ def test_live_solar_is_opt_in_and_provider_failure_is_reported_without_fake_data
     })
     requirements["include_live_solar"] = True
     exterior, outcome = run_elia(master_json, requirements, "run-live-solar")
-    assert outcome == "valid"
+    assert outcome == "infeasible"
     assert exterior["environment"]["live_solar_conditions"]["irradiance_w_m2"]["shortwave_radiation"] == 500
 
     def unavailable(latitude, longitude, timezone=None):
@@ -100,6 +189,6 @@ def test_live_solar_is_opt_in_and_provider_failure_is_reported_without_fake_data
 
     monkeypatch.setattr(service, "fetch_live_solar_conditions", unavailable)
     exterior, outcome = run_elia(master_json, requirements, "run-live-solar-unavailable")
-    assert outcome == "valid"
+    assert outcome == "infeasible"
     assert exterior["environment"]["live_solar_conditions"]["status"] == "unavailable"
     assert exterior["environment"]["live_solar_conditions"]["error_code"] == "ELIA_SOLAR_API_UNAVAILABLE"

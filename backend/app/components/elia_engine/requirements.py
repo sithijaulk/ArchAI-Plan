@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any, Mapping
 
+from .adapter import normalize_master_json
 from .exceptions import ELIAError
 from .parser import UNIT_TO_METERS
 from .rule_repository import elia_rules, vehicle_profiles
@@ -10,6 +11,7 @@ from .rule_repository import elia_rules, vehicle_profiles
 
 def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str, Any], source_units: str) -> dict[str, Any]:
     """Resolve requirement defaults and convert all dimensional inputs to meters."""
+    master = normalize_master_json(master)
     normalized = dict(requirements)
     input_units = str(requirements.get("units", source_units)).lower()
     if input_units not in UNIT_TO_METERS:
@@ -60,12 +62,14 @@ def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str,
             raise ELIAError("ELIA_INVALID_VEHICLE_PROFILE", f"Unknown vehicle profile {vehicle_type!r}; provide custom dimensions.")
         for input_key, default_key in (("length", "length_m"), ("width", "width_m")):
             raw = profile.get(input_key)
-            if raw is None:
+            is_default = raw is None
+            if is_default:
                 raw = defaults.get(default_key)
             if raw is None or float(raw) <= 0:
                 raise ELIAError("ELIA_INVALID_VEHICLE_PROFILE", f"A positive vehicle {input_key} is required.")
-            profile[input_key] = float(raw) * scale
+            profile[input_key] = float(raw) * (1.0 if is_default else scale)
         radius = profile.get("minimum_turning_radius")
+        radius_is_default = radius is None
         if radius is None:
             radius = defaults.get("minimum_turning_radius_m")
             profile["turning_radius_source"] = "configured_project_default"
@@ -73,10 +77,18 @@ def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str,
             profile["turning_radius_source"] = "user"
         if radius is None:
             radius = config["default_turning_radius_m"]
-        profile["minimum_turning_radius"] = float(radius) * scale
+            radius_is_default = True
+        profile["minimum_turning_radius"] = float(radius) * (1.0 if radius_is_default else scale)
         profile["vehicle_type"] = vehicle_type
         profiles.append(profile)
     access["vehicle_profiles"] = profiles
+
+    landscape = dict(requirements.get("landscape") or {})
+    if landscape.get("boundary_wall_height") is not None:
+        landscape["boundary_wall_height"] = float(landscape["boundary_wall_height"]) * scale
+    lighting = dict(requirements.get("lighting") or {})
+    if lighting.get("preferred_spacing") is not None:
+        lighting["preferred_spacing"] = float(lighting["preferred_spacing"]) * scale
 
     requested_date = requirements.get("solar_analysis_date")
     if requested_date is not None:
@@ -86,6 +98,16 @@ def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str,
             raise ELIAError("ELIA_INVALID_SOLAR_DATE", "solar_analysis_date must use YYYY-MM-DD.") from exc
     else:
         requested_date = elia_rules()["solar"]["default_analysis_date"]
+
+    upstream_north = master.get("north_angle")
+    requested_north = requirements.get("north_angle")
+    if upstream_north is not None and requested_north is not None:
+        upstream_north, requested_north = float(upstream_north) % 360.0, float(requested_north) % 360.0
+        if min(abs(upstream_north - requested_north), 360.0 - abs(upstream_north - requested_north)) > 1e-6:
+            raise ELIAError("ELIA_CONFLICTING_NORTH_ORIENTATION", "The requested north angle conflicts with the inherited Master JSON orientation.")
+    north_angle = upstream_north if upstream_north is not None else requested_north
+    if north_angle is None:
+        raise ELIAError("ELIA_MISSING_NORTH_ORIENTATION", "ELIA requires the north bearing already marked in the upstream Master JSON.")
 
     normalized.update({
         "location": {
@@ -99,7 +121,10 @@ def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str,
         "normalized_units": "m",
         "property_orientation": requirements.get("property_orientation") or master.get("property_orientation") or
                        (master.get("land_info", {}).get("orientation") if isinstance(master.get("land_info"), Mapping) else None),
-        "north_angle": requirements.get("north_angle", master.get("north_angle")),
+        "north_angle": float(north_angle) % 360.0,
+        "north_orientation_convention": "degrees clockwise from local +Y toward local +X; 0 means local +Y is north",
         "access": access,
+        "landscape": landscape,
+        "lighting": lighting,
     })
     return normalized

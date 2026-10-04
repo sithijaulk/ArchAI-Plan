@@ -38,6 +38,8 @@ class NavigationGrid:
 def build_navigation_grid(navigable: BaseGeometry, resolution: float, max_cells: int) -> NavigationGrid:
     if resolution <= 0:
         raise ELIAError("ELIA_INVALID_GRID_RESOLUTION", "A positive A* grid resolution is required.")
+    if navigable is None or navigable.is_empty:
+        return NavigationGrid(0.0, 0.0, resolution, 0, 0, frozenset())
     min_x, min_y, max_x, max_y = navigable.bounds
     width = max(1, ceil((max_x - min_x) / resolution))
     height = max(1, ceil((max_y - min_y) / resolution))

@@ -21,6 +21,7 @@ class ProjectResponse(BaseModel):
     description: Optional[str]
     current_component: Optional[str]
     master_json: Optional[Dict[str, Any]]
+    revision: int
     created_at: datetime
     updated_at: datetime
 

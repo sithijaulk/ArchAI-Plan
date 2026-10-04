@@ -10,6 +10,7 @@ from shapely.geometry import LineString, Point, Polygon, shape
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
 
+from .adapter import normalize_master_json
 from .exceptions import ELIAError
 from .gate_garage import plan_garage, plan_gate
 from .geometry import point_xy
@@ -21,7 +22,7 @@ from .parser import ExteriorContext, UNIT_TO_METERS, parse_exterior_context
 from .pathfinding import astar_path
 from .requirements import normalize_requirements
 from .residual_space import calculate_residual_space
-from .rule_repository import elia_rules
+from .rule_repository import elia_rules, vegetation_catalog
 from .shadow import analyze_shadows
 from .solar import calculate_solar_samples, fetch_live_solar_conditions
 from .utility_safety import validate_utilities
@@ -31,6 +32,12 @@ from .vegetation import place_vegetation
 from .vertical_greenery import plan_vertical_greenery
 
 logger = logging.getLogger(__name__)
+
+
+def _record_failed_requirement(validation: dict[str, Any], violation: str) -> None:
+    if violation not in validation["violations"]:
+        validation["violations"].append(violation)
+        validation["checks_total"] += 1
 
 
 def _auxiliary_polygons(master: Mapping[str, Any], scale: float) -> list[BaseGeometry]:
@@ -68,15 +75,23 @@ def _auxiliary_polygons(master: Mapping[str, Any], scale: float) -> list[BaseGeo
 
 
 def _building_height(master: Mapping[str, Any], scale: float) -> float | None:
-    value = master.get("house_height_m") or master.get("building_height")
-    if value is None and isinstance(master.get("building"), Mapping):
-        value = master["building"].get("height")
+    explicit_meters = master.get("house_height_m", master.get("building_height_m"))
+    building = master.get("building")
+    if explicit_meters is None and isinstance(building, Mapping):
+        explicit_meters = building.get("height_m")
+    if explicit_meters is not None:
+        return float(explicit_meters)
+    value = master.get("building_height")
+    if value is None and isinstance(building, Mapping):
+        value = building.get("height")
     if value is None:
         floors = master.get("floors")
         if isinstance(floors, list):
             floor_heights = [floor.get("height_m", floor.get("height")) for floor in floors if isinstance(floor, Mapping)]
             if floor_heights and all(height is not None for height in floor_heights):
-                value = sum(float(height) for height in floor_heights)
+                return sum(float(floor["height_m"]) if floor.get("height_m") is not None
+                           else float(floor["height"]) * scale
+                           for floor in floors if isinstance(floor, Mapping))
     return float(value) * scale if value is not None else None
 
 
@@ -197,6 +212,7 @@ def _empty_result(context: ExteriorContext, requirements: Mapping[str, Any], uti
 
 def run_elia(master_json: Mapping[str, Any], raw_requirements: Mapping[str, Any], run_id: str) -> tuple[dict[str, Any], str]:
     started = time.perf_counter()
+    master_json = normalize_master_json(master_json)
     context = parse_exterior_context(master_json, default_units=elia_rules()["units"]["default_input"])
     requirements = normalize_requirements(raw_requirements, master_json, context.source_units)
     logger.info("ELIA spatial run started")
@@ -267,12 +283,31 @@ def run_elia(master_json: Mapping[str, Any], raw_requirements: Mapping[str, Any]
             grid = build_navigation_grid(navigable, resolution,
                                          int(elia_rules()["access"]["max_grid_cells"]))
             best_safe_route = None
+            direct_route = None
+            if garage:
+                direct_line = LineString([tuple(gate["access_point"]), tuple(garage["entry_point"])])
+                direct_polygon = direct_line.buffer(drive_width / 2, cap_style="flat", join_style="mitre")
+                direct_safe = (context.land.covers(direct_polygon) and
+                               not direct_polygon.intersects(fixed_obstacles) and
+                               direct_polygon.intersection(Polygon(garage["polygon"])).area <= 1e-6)
+                direct_turning = {"valid": False, "vehicles": []}
+                if direct_safe:
+                    checks = [validate_vehicle_route(list(direct_line.coords), profile, drive_width, clearance)
+                              for profile in requirements["access"]["vehicle_profiles"]]
+                    direct_turning = {"valid": all(check["valid"] for check in checks), "vehicles": checks}
+                    if direct_turning["valid"]:
+                        direct_route = (direct_line, direct_polygon, direct_turning, "direct")
             for turn_penalty in (0.0, float(access_rules["astar_turn_penalty_m"])):
                 route = astar_path(grid, tuple(gate["access_point"]), tuple(goal), turn_penalty=turn_penalty)
                 explored += route["explored_nodes"]
                 if not route["found"]:
                     continue
-                raw_line = LineString(route["coordinates"])
+                route_coordinates = list(route["coordinates"])
+                if garage:
+                    if Point(route_coordinates[-1]).distance(Point(goal)) > 1e-6:
+                        route_coordinates.append(tuple(goal))
+                    route_coordinates.append(tuple(garage["entry_point"]))
+                raw_line = LineString(route_coordinates)
                 for multiplier in access_rules["route_smoothing_multipliers"]:
                     tolerance = resolution * float(multiplier)
                     candidate_line = raw_line.simplify(tolerance, preserve_topology=True)
@@ -295,9 +330,12 @@ def run_elia(master_json: Mapping[str, Any], raw_requirements: Mapping[str, Any]
                         break
                 if best_safe_route is not None and best_safe_route[2]["valid"]:
                     break
+            if direct_route is not None:
+                best_safe_route = direct_route
             if best_safe_route is not None:
                 driveway_line, driveway_polygon, turning, used_turn_penalty = best_safe_route
-                path_metadata = {"pathfinding": "A*", "turn_penalty_cost": used_turn_penalty,
+                path_metadata = {"pathfinding": "direct_validated_connector" if used_turn_penalty == "direct" else "A*",
+                                 "turn_penalty_cost": None if used_turn_penalty == "direct" else used_turn_penalty,
                                  "explored_nodes": explored, "centerline": list(driveway_line.coords),
                                  "polygon": list(driveway_polygon.exterior.coords) if driveway_polygon.geom_type == "Polygon" else None,
                                  "width_m": drive_width, "length_m": driveway_line.length, "turning_validation": turning}
@@ -313,12 +351,30 @@ def run_elia(master_json: Mapping[str, Any], raw_requirements: Mapping[str, Any]
     garage_obstacle = Polygon(garage["polygon"]) if garage else Polygon()
     vegetation_blocked = unary_union([fixed_obstacles, driveway_obstacle, garage_obstacle])
     vegetation = place_vegetation(residual, context.land, vegetation_blocked, requirements, shadows)
-    vertical = plan_vertical_greenery(residual_result.available_ratio, requirements, master_json, context.unit_scale)
-    lighting = place_lighting(context.land, residual, driveway_line, gate, garage, requirements, fixed_obstacles)
-    outdoor = place_outdoor_elements(residual, vegetation_blocked, requirements, gate, context.land,
-                                    driveway_polygon, _requested_paths(context, master_json, gate, garage,
-                                                                       driveway_polygon, driveway_line, fixed_obstacles,
-                                                                       residual, requirements))
+    requested_paths = _requested_paths(context, master_json, gate, garage, driveway_polygon,
+                                        driveway_line, fixed_obstacles, residual, requirements)
+    allocated_access = [driveway_obstacle, garage_obstacle]
+    allocated_access.extend(Polygon(path["polygon"]) for path in requested_paths.values()
+                            if path.get("valid") and path.get("polygon"))
+    access_area = unary_union([geometry for geometry in allocated_access if not geometry.is_empty])
+    plantable_ground = residual.difference(access_area)
+    usable_planting_ratio = plantable_ground.area / context.land.area if context.land.area else 0.0
+    vertical = plan_vertical_greenery(usable_planting_ratio, requirements, master_json, context.unit_scale)
+    outdoor_obstacles = [vegetation_blocked]
+    outdoor_obstacles.extend(Point(node["position"]).buffer(float(node["canopy_radius_m"])) for node in vegetation)
+    outdoor_blocked = unary_union(outdoor_obstacles)
+    outdoor = place_outdoor_elements(residual, outdoor_blocked, requirements, gate, context.land,
+                                     driveway_polygon, requested_paths)
+    lighting_obstacles = [fixed_obstacles, garage_obstacle]
+    lighting_obstacles.extend(Point(node["position"]).buffer(float(node["canopy_radius_m"])) for node in vegetation)
+    lighting_obstacles.extend(Polygon(item["polygon"]) for item in outdoor
+                              if item.get("type") in {"garden_seating", "garden_table_set"} and item.get("polygon"))
+    lighting = place_lighting(context.land, residual, driveway_line, gate, garage, requirements,
+                              unary_union(lighting_obstacles))
+    requested_lighting_zones = raw_requirements.get("lighting", {}).get("zones", [])
+    missing_lighting_zones = [zone for zone in requested_lighting_zones
+                              if requirements.get("lighting", {}).get("required") and
+                              not any(node.get("zone") == zone for node in lighting)]
     live_solar = None
     if requirements.get("include_live_solar", False):
         try:
@@ -331,21 +387,63 @@ def run_elia(master_json: Mapping[str, Any], raw_requirements: Mapping[str, Any]
     obstacles = fixed_obstacles
     validation = validate_layout(context.land, context.house, gate, garage, driveway_polygon, driveway_line,
                                  turning, {"status": utilities.status}, vegetation, lighting, vertical, outdoor,
-                                 solar_samples, obstacles)
+                                 solar_samples, obstacles, master_json, context.unit_scale,
+                                 requirements["access"]["vehicle_profiles"], drive_width)
     if requirements.get("lighting", {}).get("required") and not lighting:
-        validation["violations"].append("required_outdoor_lighting_unavailable")
+        _record_failed_requirement(validation, "required_outdoor_lighting_unavailable")
+    for zone in missing_lighting_zones:
+        _record_failed_requirement(validation, f"requested_lighting_zone_unfulfilled:{zone}")
     if int(gate.get("planned_gate_count", 1)) != int(requirements["access"].get("gate_count", 1)):
-        validation["violations"].append("requested_gate_count_not_fulfilled")
-    validation["violations"] = sorted(set(validation["violations"] + access_violations))
+        _record_failed_requirement(validation, "requested_gate_count_not_fulfilled")
+    access_preferences = raw_requirements.get("access") or {}
+    preferred_gate = requirements["access"].get("preferred_gate_location")
+    if preferred_gate and Point(gate["position"]).distance(Point(preferred_gate)) > 0.5:
+        _record_failed_requirement(validation, "requested_gate_position_unfulfilled")
+    if vertical.get("requested") and vertical.get("status") != "placed":
+        _record_failed_requirement(validation, "requested_vertical_greenery_unfulfilled")
+    for violation in access_violations:
+        _record_failed_requirement(validation, violation)
+    validation["violations"] = sorted(set(validation["violations"]))
     validation["valid"] = not validation["violations"]
     if validation["checks_total"]:
-        validation["constraint_satisfaction_rate"] = max(0.0, (validation["checks_passed"] - len(access_violations)) / validation["checks_total"])
+        validation["constraint_satisfaction_rate"] = validation["checks_passed"] / validation["checks_total"]
     outcome = "valid" if validation["valid"] else "infeasible"
     used_area = (driveway_polygon.area if driveway_polygon else 0.0) + sum(3.14159 * node["canopy_radius_m"] ** 2 for node in vegetation)
     metrics = collect_metrics(started, context.land.area, residual_result.available_area,
                               driveway_line.length if driveway_line else 0.0, explored, utilities.status,
                               bool(turning and turning["valid"]), bool(solar_samples), vertical["triggered"],
                               validation, used_area)
+    landscape_preferences = raw_requirements.get("landscape", {})
+    access_preferences = raw_requirements.get("access", {})
+    unsupported_preferences = [
+        name for name, value in (
+            ("preferred_garden_zone", landscape_preferences.get("preferred_garden_zone")),
+            ("preferred_open_space_ratio", landscape_preferences.get("preferred_open_space_ratio")),
+            ("low_maintenance_preference", landscape_preferences.get("low_maintenance_preference")),
+            ("driveway_style", access_preferences.get("driveway_style")),
+            ("driveway_surface", access_preferences.get("driveway_surface")),
+            ("entrance_priority", access_preferences.get("entrance_priority")),
+            ("property_orientation", raw_requirements.get("property_orientation")),
+            ("design_style_geometry", raw_requirements.get("design_style")),
+            ("utility_relocation_allowed", raw_requirements.get("utility_relocation_allowed")),
+            ("additional_requirements", raw_requirements.get("additional_requirements")),
+        ) if value is not None and value is not False and value != "" and value != {} and value != []
+    ]
+    requested_categories = landscape_preferences.get("preferred_vegetation_categories", [])
+    produced_categories = {node.get("category") for node in vegetation}
+    unfulfilled_preferences = []
+    if requested_categories and any(category not in produced_categories for category in requested_categories):
+        unfulfilled_preferences.append("preferred_vegetation_categories")
+    if landscape_preferences.get("shade_tree_preference") and "shade_tree" not in produced_categories:
+        unfulfilled_preferences.append("shade_tree_preference")
+    if raw_requirements.get("utility_relocation_allowed"):
+        unfulfilled_preferences.append("utility_relocation_allowed")
+    if access_preferences.get("gate_type") and gate.get("type") != access_preferences["gate_type"]:
+        unfulfilled_preferences.append("gate_type")
+    preferred_garage = requirements["access"].get("preferred_garage_location")
+    if preferred_garage and garage and Point(preferred_garage).distance(Polygon(garage["polygon"]).centroid) > 0.5:
+        unfulfilled_preferences.append("preferred_garage_location")
+    unfulfilled_preferences.extend(f"lighting_zone:{zone}" for zone in missing_lighting_zones)
     result = {
         "version": "1.0", "run_id": run_id, "theme_concept": requirements.get("design_style"),
         "spatial_strategy": "vertical" if vertical["status"] == "placed" else "horizontal",
@@ -364,11 +462,21 @@ def run_elia(master_json: Mapping[str, Any], raw_requirements: Mapping[str, Any]
                "garage": garage, "driveway": path_metadata},
         "environment": {"location": requirements["location"], "property_orientation": requirements.get("property_orientation"),
                 "north_angle": requirements.get("north_angle"), "solar_analysis_date": requirements["solar_analysis_date"],
+            "north_orientation_convention": requirements["north_orientation_convention"],
                 "solar_samples": solar_samples, "shadow_analysis": shadows,
                 "live_solar_conditions": live_solar or {"status": "not_requested"}},
         "vegetation_nodes": vegetation, "vertical_greenery": vertical,
         "outdoor_lighting": {"nodes": lighting, "style": requirements.get("lighting", {}).get("style")},
         "outdoor_elements": outdoor,
+        "preference_fulfillment": {"unsupported_preferences": unsupported_preferences,
+                       "unfulfilled_preferences": unfulfilled_preferences,
+                       "label_only_preferences": ["design_style"] if raw_requirements.get("design_style") else []},
+        "overlap_policy": {"elevated_canopy_access_overlap": "not_permitted_without_verified_clearance",
+                   "furniture_access_overlap": "prohibited",
+                   "trunk_radius_assessment": "unavailable; no trunk-radius input is modeled",
+                   "structural_load_assessed": False},
+        "vehicle_feasibility_scope": "2D centerline turning-radius estimate only; swept-path and full vehicle maneuverability are not established",
+        "structural_load_assessed": False,
         "validation_summary": validation, "metrics": metrics,
         "input_traceability": {"requirements": dict(raw_requirements), "source_units": context.source_units,
                                "normalized_units": "m", "normalized_polygon_rings": list(context.normalized_rings)},

@@ -7,6 +7,7 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from ..components.elia_engine.exceptions import ELIAError
@@ -16,8 +17,8 @@ from ..components.elia_engine.requirements import normalize_requirements
 from ..components.elia_engine.rule_repository import elia_rules, lighting_rules, vehicle_profiles, vegetation_catalog
 from ..components.elia_engine.schemas import ELIARequest, ELIAResponse
 from ..components.elia_engine.solar import extract_master_location, fetch_live_solar_conditions, search_sri_lanka_locations
-from ..components.elia_engine.service import run_elia
-from ..components.elia_engine.output import build_updated_master
+from ..components.elia_engine.generation import generate_exterior
+from ..components.elia_engine.output import build_processing_master, build_updated_master
 from ..database import get_db
 from ..dependencies import require_admin
 from ..models.component_run import ComponentRun
@@ -42,7 +43,9 @@ def _set_processing(project: Project, metadata: dict[str, Any]) -> None:
 
 
 def _record_failure(db: Session, run_id: str, project_id: str, code: str, message: str,
-                    should_persist: bool) -> None:
+                    should_persist: bool, expected_revision: int | None = None,
+                    candidate_output: dict[str, Any] | None = None,
+                    source_revision: int | None = None) -> None:
     db.rollback()
     run = db.query(ComponentRun).filter(ComponentRun.id == run_id).first()
     project = db.query(Project).filter(Project.id == project_id).first()
@@ -50,9 +53,41 @@ def _record_failure(db: Session, run_id: str, project_id: str, code: str, messag
         run.status = "failed"
         run.error_message = f"{code}: {message}"[:4000]
         run.completed_at = datetime.utcnow()
+        if candidate_output is not None:
+            run.output_json = candidate_output
     if should_persist and project is not None:
-        _set_processing(project, {"status": "failed", "run_id": run_id, "version": "1.0",
-                                  "completed_at": datetime.now(timezone.utc).isoformat(), "error_code": code})
+        revision = expected_revision if expected_revision is not None else project.revision
+        if revision is not None:
+            document = build_processing_master(project.master_json or {}, {
+                "status": "failed", "run_id": run_id, "version": "1.0", "schema_version": "1.0",
+                "completed_at": datetime.now(timezone.utc).isoformat(), "error_code": code,
+                "source_revision": source_revision if source_revision is not None else revision,
+            })
+            db.execute(update(Project).where(Project.id == project_id, Project.revision == revision).values(
+                master_json=document, revision=revision + 1))
+    db.commit()
+
+
+def _record_stale_conflict(db: Session, run_id: str, project_id: str, source_revision: int,
+                           candidate_output: dict[str, Any]) -> None:
+    db.rollback()
+    run = db.query(ComponentRun).filter(ComponentRun.id == run_id).first()
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if run is not None:
+        run.status = "failed"
+        run.output_json = candidate_output
+        run.error_message = "ELIA_STALE_SOURCE_REVISION: Project changed while ELIA was running."
+        run.completed_at = datetime.utcnow()
+    if project is not None and project.revision is not None:
+        latest_revision = int(project.revision)
+        document = build_processing_master(project.master_json or {}, {
+            "status": "failed", "run_id": run_id, "version": "1.0", "schema_version": "1.0",
+            "error_code": "ELIA_STALE_SOURCE_REVISION", "source_revision": source_revision,
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+        })
+        db.execute(update(Project).where(
+            Project.id == project_id, Project.revision == latest_revision
+        ).values(master_json=document, revision=latest_revision + 1))
     db.commit()
 
 
@@ -60,49 +95,103 @@ def _record_failure(db: Session, run_id: str, project_id: str, code: str, messag
 def run_project_elia(project_id: str, request: ELIARequest,
                      db: Session = Depends(get_db), _admin=Depends(require_admin)):
     project = _project_or_404(db, project_id)
+    source_revision = int(project.revision or 1)
     source_is_supplied = request.master_json is not None
     should_persist = not source_is_supplied or request.apply_to_project
-    source_master = request.master_json if source_is_supplied else project.master_json
+    source_master = deepcopy(request.master_json if source_is_supplied else project.master_json)
     if not isinstance(source_master, dict):
         raise HTTPException(status_code=422, detail={"code": "ELIA_INVALID_MASTER_JSON", "message": "Project has no valid Master JSON object."})
+    if should_persist and source_is_supplied:
+        if request.source_revision is None:
+            raise HTTPException(status_code=422, detail={"code": "ELIA_SOURCE_REVISION_REQUIRED",
+                                                        "message": "source_revision is required when applying a supplied Master JSON snapshot."})
+        if request.source_revision != source_revision or source_master != (project.master_json or {}):
+            raise HTTPException(status_code=409, detail={"code": "ELIA_STALE_SOURCE_REVISION",
+                                                        "message": "The supplied Master JSON does not match the current project revision."})
 
+    requirements = request.requirements.model_dump(mode="json", exclude_none=True, exclude_unset=True)
+    run_input = {"requirements": requirements, "master_json_snapshot": source_master,
+                 "source_revision": source_revision,
+                 "master_json_source": "request" if source_is_supplied else "project_database",
+                 "generation_mode": request.generation_mode, "model_version": None,
+                 "schema_version": "1.0", "applied_to_project": should_persist}
     run = ComponentRun(
         project_id=project_id,
         component_name="elia_engine",
         status="processing",
         started_at=datetime.utcnow(),
-        input_json={"requirements": request.requirements.model_dump(mode="json", exclude_none=True),
-                    "master_json_source": "request" if source_is_supplied else "project_database",
-                    "applied_to_project": should_persist},
+        input_json=run_input,
     )
     db.add(run)
     db.flush()
+    expected_revision = source_revision
     if should_persist:
-        _set_processing(project, {"status": "processing", "run_id": run.id, "version": "1.0",
-                                  "started_at": datetime.now(timezone.utc).isoformat()})
+        processing_master = build_processing_master(project.master_json or {}, {
+            "status": "processing", "run_id": run.id, "version": "1.0", "schema_version": "1.0",
+            "generation_mode": request.generation_mode, "source_revision": source_revision,
+            "started_at": datetime.now(timezone.utc).isoformat(),
+        })
+        changed = db.execute(update(Project).where(
+            Project.id == project_id, Project.revision == source_revision
+        ).values(master_json=processing_master, revision=source_revision + 1))
+        if changed.rowcount != 1:
+            db.rollback()
+            run.status = "failed"
+            run.error_message = "ELIA_STALE_SOURCE_REVISION: Project changed before ELIA started."
+            run.completed_at = datetime.utcnow()
+            db.add(run)
+            db.commit()
+            raise HTTPException(status_code=409, detail={"code": "ELIA_STALE_SOURCE_REVISION",
+                                                        "message": "Project changed before the ELIA run started."})
+        expected_revision = source_revision + 1
     db.commit()
     db.refresh(run)
+    if should_persist:
+        db.refresh(project)
 
     try:
-        requirements = request.requirements.model_dump(mode="json", exclude_none=True)
-        exterior, outcome = run_elia(source_master, requirements, run.id)
+        exterior, outcome = generate_exterior(source_master, requirements, run.id, request.generation_mode)
         exterior["started_at"] = run.started_at.replace(tzinfo=timezone.utc).isoformat() if run.started_at else None
         run.status = "completed"
         run.output_json = exterior
         run.completed_at = datetime.utcnow()
+        run.input_json = {**(run.input_json or {}), "model_version": exterior.get("model_version")}
         if should_persist:
-            project.master_json = build_updated_master(source_master, exterior, run.id, outcome)
-            project.current_component = "elia_engine"
+            current_master = project.master_json or {}
+            updated_master = build_updated_master(
+                current_master, exterior, run.id, outcome,
+                generation_mode=request.generation_mode,
+                source_revision=source_revision,
+                model_version=exterior.get("model_version"),
+            )
+            values: dict[str, Any] = {"master_json": updated_master, "revision": expected_revision + 1}
+            if outcome == "valid":
+                values["current_component"] = "elia_engine"
+            changed = db.execute(update(Project).where(
+                Project.id == project_id, Project.revision == expected_revision
+            ).values(**values))
+            if changed.rowcount != 1:
+                _record_stale_conflict(db, run.id, project_id, source_revision, exterior)
+                raise HTTPException(status_code=409, detail={"code": "ELIA_STALE_SOURCE_REVISION",
+                                                            "message": "Project changed while ELIA was running; the candidate was saved to run history."})
         db.commit()
         return ELIAResponse(project_id=project_id, run_id=run.id,
                             status="completed" if outcome == "valid" else "infeasible",
-                            outcome=outcome, exterior_landscape=exterior, master_json_updated=should_persist)
+                            outcome=outcome, exterior_landscape=exterior, master_json_updated=should_persist,
+                            generation_mode=request.generation_mode)
+    except HTTPException:
+        raise
     except ELIAError as exc:
-        _record_failure(db, run.id, project_id, exc.code, exc.message, should_persist)
-        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+        _record_failure(db, run.id, project_id, exc.code, exc.message, should_persist,
+                        expected_revision, getattr(exc, "candidate_output", None), source_revision)
+        detail = {"code": exc.code, "message": exc.message}
+        if exc.code == "ELIA_MODEL_UNAVAILABLE":
+            detail["generation_status"] = "model_unavailable"
+        raise HTTPException(status_code=exc.status_code, detail=detail) from exc
     except Exception as exc:
         logger.exception("ELIA processing failed for project %s", project_id)
-        _record_failure(db, run.id, project_id, "ELIA_PROCESSING_FAILED", "ELIA processing failed; see server logs.", should_persist)
+        _record_failure(db, run.id, project_id, "ELIA_PROCESSING_FAILED", "ELIA processing failed; see server logs.",
+                        should_persist, expected_revision, getattr(exc, "candidate_output", None), source_revision)
         raise HTTPException(status_code=500, detail={"code": "ELIA_PROCESSING_FAILED", "message": "ELIA processing failed."}) from exc
 
 
@@ -119,12 +208,14 @@ def validate_elia_input(project_id: str, request: ELIARequest,
     master = request.master_json if request.master_json is not None else project.master_json
     try:
         context = parse_exterior_context(master, default_units=elia_rules()["units"]["default_input"])
-        normalized = normalize_requirements(request.requirements.model_dump(mode="json", exclude_none=True), master, context.source_units)
+        normalized = normalize_requirements(request.requirements.model_dump(mode="json", exclude_none=True, exclude_unset=True), master, context.source_units)
     except ELIAError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
     return {"valid": True, "project_id": project_id, "normalized_requirements": normalized,
             "geometry": {"land_area_m2": context.land.area, "house_footprint_area_m2": context.house.area,
-                         "source_units": context.source_units}}
+                 "source_units": context.source_units},
+            "orientation": {"north_angle_degrees": normalized["north_angle"],
+                    "convention": normalized["north_orientation_convention"]}}
 
 
 @router.post("/elia-engine/preview")
@@ -134,14 +225,21 @@ def preview_standalone_elia(request: ELIARequest, _admin=Depends(require_admin))
         raise HTTPException(status_code=422, detail={"code": "ELIA_INVALID_MASTER_JSON", "message": "A Master JSON object is required for preview."})
     run_id = str(uuid4())
     try:
-        exterior, outcome = run_elia(request.master_json,
-                                     request.requirements.model_dump(mode="json", exclude_none=True), run_id)
+        exterior, outcome = generate_exterior(request.master_json,
+                                              request.requirements.model_dump(mode="json", exclude_none=True, exclude_unset=True),
+                                              run_id, request.generation_mode)
     except ELIAError as exc:
-        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
-    updated = build_updated_master(request.master_json, exterior, run_id, outcome)
+        detail = {"code": exc.code, "message": exc.message}
+        if exc.code == "ELIA_MODEL_UNAVAILABLE":
+            detail["generation_status"] = "model_unavailable"
+        raise HTTPException(status_code=exc.status_code, detail=detail) from exc
+    updated = build_updated_master(request.master_json, exterior, run_id, outcome,
+                                   generation_mode=request.generation_mode,
+                                   source_revision=request.source_revision,
+                                   model_version=exterior.get("model_version"))
     return {"run_id": run_id, "status": "completed" if outcome == "valid" else "infeasible",
             "outcome": outcome, "exterior_landscape": exterior, "master_json": updated,
-            "persisted": False}
+            "generation_mode": request.generation_mode, "persisted": False}
 
 
 @router.get("/projects/{project_id}/elia-engine/result")

@@ -1,4 +1,4 @@
-from shapely.geometry import box
+from shapely.geometry import Polygon, box
 
 from app.components.elia_engine.grid import build_navigation_grid
 from app.components.elia_engine.pathfinding import astar_path
@@ -25,3 +25,20 @@ def test_turning_check_passes_straight_route_and_rejects_tight_curve():
     vehicle = {"minimum_turning_radius": 5.0, "width": 1.8}
     assert validate_vehicle_route([(0, 0), (4, 0), (8, 0)], vehicle, 3.0, 0.25)["valid"]
     assert not validate_vehicle_route([(0, 0), (1, 0), (1, 1)], vehicle, 3.0, 0.25)["turning_valid"]
+
+
+def test_turning_check_rejects_collinear_reversal():
+    vehicle = {"minimum_turning_radius": 1.0, "width": 1.8}
+
+    result = validate_vehicle_route([(0, 0), (4, 0), (1, 0)], vehicle, 3.0, 0.25)
+
+    assert not result["turning_valid"]
+    assert result["observed_minimum_radius_m"] == 0.0
+
+
+def test_empty_navigation_geometry_returns_no_route_without_exception():
+    grid = build_navigation_grid(Polygon(), 1, 1000)
+
+    result = astar_path(grid, (0, 0), (1, 1))
+
+    assert not result["found"]

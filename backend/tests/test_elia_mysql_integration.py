@@ -26,7 +26,8 @@ def test_mysql_run_persists_same_master_and_component_history():
     project = Project(project_name="ELIA persistence integration", master_json={
         "project_name": "ELIA persistence integration", "units": "m",
         "location": {"latitude": 6.9, "longitude": 79.8},
-        "land_info": {"boundary_points": [[0, 0], [40, 0], [40, 30], [0, 30]], "road_facing": "south"},
+        "land_info": {"boundary_points": [[0, 0], [40, 0], [40, 30], [0, 30]],
+                   "road_facing": "south", "calculated_north_bearing": 0},
         "house_exterior_polygon": [[10, 8], [22, 8], [22, 22], [10, 22]],
         "utilities": {"well": {"known": True, "position": [2, 27]},
                       "septic_tank": {"known": True, "position": [22, 27]}},
@@ -37,8 +38,8 @@ def test_mysql_run_persists_same_master_and_component_history():
         session.add(project)
         session.commit()
         project_id = project.id
-        request = ELIARequest(requirements=ELIARequirements(
-            access={"road_side": "south", "garage_required": True, "driveway_required": True}))
+        request = ELIARequest(generation_mode="baseline", requirements=ELIARequirements(
+            access={"road_side": "south", "garage_required": False, "driveway_required": False}))
         response = run_project_elia(project_id, request, session, _admin=None)
         session.expire_all()
         stored = session.query(Project).filter(Project.id == project_id).one()

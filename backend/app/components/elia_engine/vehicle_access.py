@@ -8,8 +8,12 @@ from shapely.geometry import LineString
 
 def _turn_radius(a: tuple[float, float], b: tuple[float, float], c: tuple[float, float]) -> float:
     ab, bc, ca = hypot(b[0] - a[0], b[1] - a[1]), hypot(c[0] - b[0], c[1] - b[1]), hypot(a[0] - c[0], a[1] - c[1])
-    twice_area = abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]))
-    return float("inf") if twice_area < 1e-9 else ab * bc * ca / (2 * twice_area)
+    incoming = (b[0] - a[0], b[1] - a[1])
+    outgoing = (c[0] - b[0], c[1] - b[1])
+    twice_area = abs(incoming[0] * outgoing[1] - incoming[1] * outgoing[0])
+    if twice_area < 1e-9:
+        return float("inf") if incoming[0] * outgoing[0] + incoming[1] * outgoing[1] > 0 else 0.0
+    return ab * bc * ca / (2 * twice_area)
 
 
 def validate_vehicle_route(coordinates: Sequence[tuple[float, float]], vehicle: dict[str, Any], driveway_width: float, clearance: float) -> dict[str, Any]:

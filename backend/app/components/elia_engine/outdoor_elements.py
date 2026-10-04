@@ -27,7 +27,7 @@ def place_outdoor_elements(residual: BaseGeometry, blocked: BaseGeometry, requir
     requested = []
     if landscape.get("garden_table_set_required"):
         requested.append(("garden_table_set", dimensions["garden_table_set_width_m"], dimensions["garden_table_set_depth_m"]))
-    elif landscape.get("garden_seating_required"):
+    if landscape.get("garden_seating_required"):
         requested.append(("garden_seating", dimensions["garden_seating_width_m"], dimensions["garden_seating_depth_m"]))
     for name, width, depth in requested:
         placement = _find_footprint(residual, blocked, width, depth)

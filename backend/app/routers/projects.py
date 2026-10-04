@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 from typing import List
 
 from ..database import get_db
+from ..dependencies import require_admin
 from ..models.project import Project
 from ..models.component_run import ComponentRun
 from ..schemas.project import ProjectCreate, ProjectUpdate, ProjectResponse
@@ -11,7 +12,7 @@ from ..services.master_json import VALID_COMPONENTS, merge_master_json, new_mast
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
 @router.post("", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
-def create_project(data: ProjectCreate, db: Session = Depends(get_db)):
+def create_project(data: ProjectCreate, db: Session = Depends(get_db), _admin=Depends(require_admin)):
     project = Project(project_name=data.project_name, description=data.description)
     db.add(project)
     db.flush()
@@ -22,12 +23,12 @@ def create_project(data: ProjectCreate, db: Session = Depends(get_db)):
 
 
 @router.get("", response_model=List[ProjectResponse])
-def list_projects(db: Session = Depends(get_db)):
+def list_projects(db: Session = Depends(get_db), _admin=Depends(require_admin)):
     return db.query(Project).order_by(Project.created_at.desc()).all()
 
 
 @router.get("/{project_id}", response_model=ProjectResponse)
-def get_project(project_id: str, db: Session = Depends(get_db)):
+def get_project(project_id: str, db: Session = Depends(get_db), _admin=Depends(require_admin)):
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -35,7 +36,7 @@ def get_project(project_id: str, db: Session = Depends(get_db)):
 
 
 @router.put("/{project_id}", response_model=ProjectResponse)
-def update_project(project_id: str, data: ProjectUpdate, db: Session = Depends(get_db)):
+def update_project(project_id: str, data: ProjectUpdate, db: Session = Depends(get_db), _admin=Depends(require_admin)):
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -46,13 +47,14 @@ def update_project(project_id: str, data: ProjectUpdate, db: Session = Depends(g
         setattr(project, key, value)
     if master_json is not None:
         project.master_json = merge_master_json(project.master_json, master_json)
+    project.revision = (project.revision or 1) + 1
     db.commit()
     db.refresh(project)
     return project
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_project(project_id: str, db: Session = Depends(get_db)):
+def delete_project(project_id: str, db: Session = Depends(get_db), _admin=Depends(require_admin)):
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -61,15 +63,17 @@ def delete_project(project_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{project_id}/master-json")
-def get_master_json(project_id: str, db: Session = Depends(get_db)):
+def get_master_json(project_id: str, response: Response, db: Session = Depends(get_db), _admin=Depends(require_admin)):
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+    response.headers["ETag"] = f'"{project.revision}"'
+    response.headers["X-Project-Revision"] = str(project.revision)
     return project.master_json
 
 
 @router.post("/{project_id}/skip/{component}")
-def skip_component(project_id: str, component: str, db: Session = Depends(get_db)):
+def skip_component(project_id: str, component: str, db: Session = Depends(get_db), _admin=Depends(require_admin)):
     if component not in VALID_COMPONENTS:
         raise HTTPException(status_code=400, detail=f"Invalid component. Valid: {VALID_COMPONENTS}")
 
@@ -82,6 +86,7 @@ def skip_component(project_id: str, component: str, db: Session = Depends(get_db
         project.master_json,
         {"processing": {component: {"status": "skipped"}}},
     )
+    project.revision = (project.revision or 1) + 1
     run = ComponentRun(project_id=project_id, component_name=component, status="skipped")
     db.add(run)
     db.commit()
@@ -96,15 +101,15 @@ def _component_not_implemented(project_id: str, component: str, db: Session):
 
 
 @router.post("/{project_id}/gab-gen/run")
-def run_gab_gen(project_id: str, db: Session = Depends(get_db)):
+def run_gab_gen(project_id: str, db: Session = Depends(get_db), _admin=Depends(require_admin)):
     return _component_not_implemented(project_id, "gab_gen", db)
 
 
 @router.post("/{project_id}/vsai-rectifier/run")
-def run_vsai(project_id: str, db: Session = Depends(get_db)):
+def run_vsai(project_id: str, db: Session = Depends(get_db), _admin=Depends(require_admin)):
     return _component_not_implemented(project_id, "vsai_rectifier", db)
 
 
 @router.post("/{project_id}/esai-engine/run")
-def run_esai(project_id: str, db: Session = Depends(get_db)):
+def run_esai(project_id: str, db: Session = Depends(get_db), _admin=Depends(require_admin)):
     return _component_not_implemented(project_id, "esai_engine", db)

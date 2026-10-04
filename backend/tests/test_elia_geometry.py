@@ -2,6 +2,7 @@ import pytest
 from shapely.geometry import Polygon, box
 
 from app.components.elia_engine.geometry import feet_to_meters, meters_to_feet
+from app.components.elia_engine.exceptions import ELIAError
 from app.components.elia_engine.residual_space import calculate_residual_space
 from app.components.elia_engine.utility_safety import validate_utilities
 from app.components.elia_engine.requirements import normalize_requirements
@@ -37,16 +38,27 @@ def test_requirement_normalization_rejects_missing_location_and_converts_footage
     with pytest.raises(Exception, match="requires latitude and longitude"):
         normalize_requirements({}, {}, "m")
     normalized = normalize_requirements({"latitude": 6.9, "longitude": 79.8, "units": "ft",
-                                         "access": {"gate_width": 12}}, {}, "m")
+                                         "north_angle": 0, "access": {"gate_width": 12}}, {}, "m")
     assert normalized["access"]["gate_width"] == pytest.approx(3.6576)
     assert normalized["solar_analysis_date"] == "2026-03-20"
 
 
 def test_custom_vehicle_dimensions_and_configured_turning_default_are_supported():
-    normalized = normalize_requirements({"latitude": 6.9, "longitude": 79.8, "access": {
+    normalized = normalize_requirements({"latitude": 6.9, "longitude": 79.8, "north_angle": 0, "access": {
         "vehicle_profiles": [{"vehicle_type": "custom", "length": 5.0, "width": 2.0}]}}, {}, "m")
     profile = normalized["access"]["vehicle_profiles"][0]
     assert profile["length"] == 5.0
     assert profile["width"] == 2.0
     assert profile["minimum_turning_radius"] == 5.5
     assert profile["turning_radius_source"] == "configured_project_default"
+
+
+def test_requirement_normalization_never_guesses_north_orientation():
+    with pytest.raises(ELIAError) as missing:
+        normalize_requirements({"latitude": 6.9, "longitude": 79.8}, {}, "m")
+    with pytest.raises(ELIAError) as conflicting:
+        normalize_requirements({"latitude": 6.9, "longitude": 79.8, "north_angle": 90},
+                               {"land_info": {"calculated_north_bearing": 0}}, "m")
+
+    assert missing.value.code == "ELIA_MISSING_NORTH_ORIENTATION"
+    assert conflicting.value.code == "ELIA_CONFLICTING_NORTH_ORIENTATION"
