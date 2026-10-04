@@ -1,0 +1,81 @@
+{
+  "version": "1.0",
+  "units": {
+    "default_input": "m",
+    "internal": "m"
+  },
+  "utility_rules": {
+    "well_septic_min_distance": {"value": 50, "unit": "ft"},
+    "fixed_utility_buffer": {"value": 1.0, "unit": "m"}
+  },
+  "access": {
+    "default_gate_width_m": 3.5,
+    "gate_separation_m": 1.0,
+    "gate_boundary_tolerance_m": 0.5,
+    "gate_obstacle_clearance_m": 0.25,
+    "gate_access_inset_m": 0.75,
+    "road_edge_alignment_min_distance_m": 0.25,
+    "road_edge_alignment_ratio": 0.1,
+    "default_driveway_width_m": 3.0,
+    "driveway_clearance_m": 0.25,
+    "boundary_clearance_m": 0.15,
+    "garage_clearance_m": 0.2,
+    "default_garage_approach_distance_m": 2.0,
+    "grid_resolution_m": 0.5,
+    "astar_turn_penalty_m": 1.0,
+    "route_smoothing_multipliers": [0.75, 1.5, 2.5],
+    "pedestrian_driveway_lateral_clearance_m": 0.15,
+    "pedestrian_gate_radial_samples": 32,
+    "default_garage_width_m": 3.5,
+    "default_garage_length_m": 6.0,
+    "default_turning_radius_m": 5.5,
+    "max_grid_cells": 200000
+  },
+  "vertical_greenery": {
+    "trigger_ground_space_ratio": 0.2,
+    "default_mode": "automatic",
+    "minimum_support_length_m": 0.8,
+    "planter_dimensions_m": {"width": 0.8, "depth": 0.3, "height": 0.25}
+  },
+  "vegetation": {
+    "candidate_grid_spacing_m": 1.0,
+    "afternoon_start_hour": 14,
+    "density_targets": {"low": 2, "medium": 4, "high": 8},
+    "generic_planning_envelopes_m": {
+      "shade_tree": {"height": 4.0, "canopy_radius": 2.0, "clearance": 2.0},
+      "small_tree": {"height": 2.5, "canopy_radius": 1.2, "clearance": 1.0},
+      "shrub": {"height": 0.8, "canopy_radius": 0.5, "clearance": 0.4},
+      "ground_cover": {"height": 0.15, "canopy_radius": 0.25, "clearance": 0.15},
+      "planter": {"height": 0.6, "canopy_radius": 0.35, "clearance": 0.2}
+    },
+    "minimum_spacing_m": {"shade_tree": 4.0, "small_tree": 2.5, "shrub": 1.2, "ground_cover": 0.5, "planter": 0.8}
+  },
+  "outdoor_elements": {
+    "garden_table_set_width_m": 2.0,
+    "garden_table_set_depth_m": 2.0,
+    "garden_seating_width_m": 1.8,
+    "garden_seating_depth_m": 1.2,
+    "pedestrian_path_width_m": 1.2,
+    "garden_path_width_m": 0.9,
+    "candidate_grid_spacing_m": 0.5
+  },
+  "solar": {
+    "default_analysis_date": "2026-03-20",
+    "sample_hours": [9, 12, 15],
+    "default_timezone": "UTC",
+    "minimum_elevation_degrees": 2.0
+  },
+  "live_solar_api": {
+    "provider": "Open-Meteo",
+    "base_url": "https://api.open-meteo.com/v1/forecast",
+    "timeout_seconds": 5.0,
+    "cache_ttl_seconds": 900,
+    "location_search_provider": "OpenStreetMap Nominatim",
+    "geocoding_url": "https://nominatim.openstreetmap.org/search",
+    "geocoding_cache_ttl_seconds": 86400,
+    "geocoding_result_count": 6,
+    "geocoding_country_code": "lk",
+    "geocoding_min_interval_seconds": 1.0,
+    "geocoding_user_agent": "ArchAI-Plan-ELIA/1.0 (residential planning location search)"
+  }
+}

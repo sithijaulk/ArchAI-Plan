@@ -1,0 +1,89 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ArchAI-Plan Master JSON",
+  "description": "Centralized data contract propagated through all four AI components",
+  "type": "object",
+  "properties": {
+    "project_id": { "type": "string" },
+    "project_name": { "type": "string" },
+    "land_info": {
+      "type": "object",
+      "description": "GAB-Gen: Land deed and survey information",
+      "properties": {
+        "boundary_points": { "type": "array" },
+        "area_sqft": { "type": "number" },
+        "orientation": { "type": "string" },
+        "road_facing": { "type": "string" }
+      }
+    },
+    "buildable_footprint": {
+      "type": "object",
+      "description": "GAB-Gen: Computed buildable zone polygon"
+    },
+    "floor_plan": {
+      "type": "object",
+      "description": "GAB-Gen: Initial room layout from spatial geometry"
+    },
+    "structural_rectification": {
+      "type": "object",
+      "description": "VSAI-Rectifier: Vastu-compliant structural modifications"
+    },
+    "interior_layout": {
+      "type": "object",
+      "description": "ESAI-Engine: Furniture and asset placement"
+    },
+    "exterior_landscape": {
+      "type": "object",
+      "description": "ELIA-Engine: Exterior planning, greenery, solar vectors",
+      "properties": {
+        "version": { "type": "string" },
+        "site_analysis": { "type": "object" },
+        "utility_safety": { "type": "object" },
+        "access": { "type": "object" },
+        "environment": { "type": "object" },
+        "vegetation_nodes": { "type": "array" },
+        "vertical_greenery": { "type": "object" },
+        "outdoor_lighting": { "type": "object" },
+        "outdoor_elements": { "type": "array" },
+        "validation_summary": { "type": "object" },
+        "metrics": { "type": "object" }
+      }
+    },
+    "processing": {
+      "type": "object",
+      "properties": {
+        "gab_gen": {
+          "type": "object",
+          "properties": {
+            "status": { "type": "string", "enum": ["pending", "processing", "completed", "failed", "skipped"] }
+          }
+        },
+        "vsai_rectifier": {
+          "type": "object",
+          "properties": {
+            "status": { "type": "string", "enum": ["pending", "processing", "completed", "failed", "skipped"] }
+          }
+        },
+        "esai_engine": {
+          "type": "object",
+          "properties": {
+            "status": { "type": "string", "enum": ["pending", "processing", "completed", "failed", "skipped"] }
+          }
+        },
+        "elia_engine": {
+          "type": "object",
+          "properties": {
+            "status": { "type": "string", "enum": ["pending", "processing", "completed", "failed", "skipped"] },
+            "run_id": { "type": "string" },
+            "version": { "type": "string" },
+            "started_at": { "type": ["string", "null"] },
+            "completed_at": { "type": ["string", "null"] },
+            "outcome": { "type": "string", "enum": ["valid", "infeasible"] },
+            "error_code": { "type": "string" }
+          }
+        }
+      }
+    }
+  },
+  "required": ["project_id", "project_name", "processing"]
+}

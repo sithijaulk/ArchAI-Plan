@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "car": {"length_m": 4.5, "width_m": 1.8, "minimum_turning_radius_m": null},
+    "compact_car": {"length_m": 4.2, "width_m": 1.75, "minimum_turning_radius_m": null},
+    "suv": {"length_m": 4.8, "width_m": 1.95, "minimum_turning_radius_m": null},
+    "van": {"length_m": 5.4, "width_m": 2.0, "minimum_turning_radius_m": null}
+  },
+  "turning_radius_fallback": "elia_rules.access.default_turning_radius_m",
+  "note": "Profile dimensions are configurable planning inputs; users should supply vehicle-specific turning data when known."
+}

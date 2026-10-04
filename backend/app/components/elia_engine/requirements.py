@@ -1,0 +1,105 @@
+from __future__ import annotations
+
+from datetime import date
+from typing import Any, Mapping
+
+from .exceptions import ELIAError
+from .parser import UNIT_TO_METERS
+from .rule_repository import elia_rules, vehicle_profiles
+
+
+def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str, Any], source_units: str) -> dict[str, Any]:
+    """Resolve requirement defaults and convert all dimensional inputs to meters."""
+    normalized = dict(requirements)
+    input_units = str(requirements.get("units", source_units)).lower()
+    if input_units not in UNIT_TO_METERS:
+        raise ELIAError("ELIA_INVALID_UNITS", f"Unsupported requirement unit: {input_units!r}.")
+    scale = UNIT_TO_METERS[input_units]
+    location = dict(requirements.get("location") or {})
+    latitude = requirements.get("latitude", location.get("latitude"))
+    longitude = requirements.get("longitude", location.get("longitude"))
+    master_location = master.get("location") or master.get("site_location") or master.get("geolocation") or {}
+    if not isinstance(master_location, Mapping) or not master_location:
+        site = master.get("site") or master.get("property") or {}
+        master_location = site.get("location", site) if isinstance(site, Mapping) else {}
+    if latitude is None:
+        latitude = master_location.get("latitude") if isinstance(master_location, Mapping) else None
+    if longitude is None:
+        longitude = master_location.get("longitude") if isinstance(master_location, Mapping) else None
+    if latitude is None or longitude is None:
+        raise ELIAError("ELIA_INVALID_LOCATION", "ELIA solar analysis requires latitude and longitude from the request or Master JSON.")
+    try:
+        latitude, longitude = float(latitude), float(longitude)
+    except (TypeError, ValueError) as exc:
+        raise ELIAError("ELIA_INVALID_LOCATION", "Latitude and longitude must be numeric.") from exc
+    if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+        raise ELIAError("ELIA_INVALID_LOCATION", "Latitude or longitude is outside its valid range.")
+
+    access = dict(requirements.get("access") or {})
+    config = elia_rules()["access"]
+    for key in ("gate_width", "preferred_driveway_width"):
+        if access.get(key) is not None:
+            access[key] = float(access[key]) * scale
+    access.setdefault("gate_width", config["default_gate_width_m"])
+    access.setdefault("preferred_driveway_width", config["default_driveway_width_m"])
+    for key in ("preferred_gate_location", "preferred_garage_location"):
+        if access.get(key) is not None:
+            access[key] = [float(coordinate) * scale for coordinate in access[key]]
+    profile_config = vehicle_profiles()["profiles"]
+    profiles = []
+    source_profiles = access.get("vehicle_profiles") or []
+    if not source_profiles:
+        source_profiles = [{"vehicle_type": "car"}]
+    for supplied in source_profiles:
+        profile = dict(supplied)
+        vehicle_type = str(profile.get("vehicle_type", "car")).lower()
+        defaults = profile_config.get(vehicle_type)
+        if defaults is None and profile.get("length") is not None and profile.get("width") is not None:
+            defaults = {}
+        if defaults is None:
+            raise ELIAError("ELIA_INVALID_VEHICLE_PROFILE", f"Unknown vehicle profile {vehicle_type!r}; provide custom dimensions.")
+        for input_key, default_key in (("length", "length_m"), ("width", "width_m")):
+            raw = profile.get(input_key)
+            if raw is None:
+                raw = defaults.get(default_key)
+            if raw is None or float(raw) <= 0:
+                raise ELIAError("ELIA_INVALID_VEHICLE_PROFILE", f"A positive vehicle {input_key} is required.")
+            profile[input_key] = float(raw) * scale
+        radius = profile.get("minimum_turning_radius")
+        if radius is None:
+            radius = defaults.get("minimum_turning_radius_m")
+            profile["turning_radius_source"] = "configured_project_default"
+        else:
+            profile["turning_radius_source"] = "user"
+        if radius is None:
+            radius = config["default_turning_radius_m"]
+        profile["minimum_turning_radius"] = float(radius) * scale
+        profile["vehicle_type"] = vehicle_type
+        profiles.append(profile)
+    access["vehicle_profiles"] = profiles
+
+    requested_date = requirements.get("solar_analysis_date")
+    if requested_date is not None:
+        try:
+            date.fromisoformat(requested_date)
+        except (TypeError, ValueError) as exc:
+            raise ELIAError("ELIA_INVALID_SOLAR_DATE", "solar_analysis_date must use YYYY-MM-DD.") from exc
+    else:
+        requested_date = elia_rules()["solar"]["default_analysis_date"]
+
+    normalized.update({
+        "location": {
+            "latitude": latitude,
+            "longitude": longitude,
+            "timezone": location.get("timezone") or requirements.get("timezone") or master_location.get("timezone") or elia_rules()["solar"]["default_timezone"],
+            "city": location.get("city") or location.get("name"),
+        },
+        "solar_analysis_date": requested_date,
+        "source_units": input_units,
+        "normalized_units": "m",
+        "property_orientation": requirements.get("property_orientation") or master.get("property_orientation") or
+                       (master.get("land_info", {}).get("orientation") if isinstance(master.get("land_info"), Mapping) else None),
+        "north_angle": requirements.get("north_angle", master.get("north_angle")),
+        "access": access,
+    })
+    return normalized
