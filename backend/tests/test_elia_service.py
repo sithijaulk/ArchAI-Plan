@@ -34,7 +34,7 @@ def requirements():
         "design_style": "modern",
         "units": "m",
         "access": {"road_side": "south", "garage_required": True, "garage_capacity": 1,
-                   "driveway_required": True, "vehicle_profiles": [{"vehicle_type": "car", "minimum_turning_radius": 5.5}]},
+                   "driveway_required": True, "vehicle_profiles": [{"vehicle_type": "car", "minimum_turning_radius_m": 5.5}]},
         "landscape": {"garden_required": False},
         "lighting": {"required": False},
         "vertical_greenery": {"mode": "automatic"},
@@ -98,8 +98,8 @@ def test_meter_and_feet_requirement_dimensions_normalize_equivalently(master_jso
     normalized_ft = normalize_requirements(feet, master_json, "m")
 
     assert normalized_ft["access"]["vehicle_profiles"] == pytest.approx(normalized_m["access"]["vehicle_profiles"])
-    assert normalized_ft["landscape"]["boundary_wall_height"] == pytest.approx(2.0)
-    assert normalized_ft["lighting"]["preferred_spacing"] == pytest.approx(5.0)
+    assert normalized_ft["landscape"]["boundary_wall_height_m"] == pytest.approx(2.0)
+    assert normalized_ft["lighting"]["preferred_spacing_m"] == pytest.approx(5.0)
     defaults_m = normalize_requirements({"units": "m"}, master_json, "m")
     defaults_ft = normalize_requirements({"units": "ft"}, master_json, "m")
     assert defaults_ft["access"]["vehicle_profiles"] == defaults_m["access"]["vehicle_profiles"]
@@ -113,22 +113,25 @@ def test_omitted_requirement_units_default_to_meters_for_feet_master(master_json
     normalized = normalize_requirements(requirements, master_json, "ft")
     explicit_feet = normalize_requirements({"units": "ft", "access": {"gate_width": 4}}, master_json, "ft")
 
-    assert normalized["access"]["gate_width"] == pytest.approx(4.0)
-    assert explicit_feet["access"]["gate_width"] == pytest.approx(1.2192)
+    assert normalized["access"]["gate_width_m"] == pytest.approx(4.0)
+    assert explicit_feet["access"]["gate_width_m"] == pytest.approx(1.2192)
 
 
 def test_request_utility_positions_default_to_meters_with_feet_master(master_json):
     master_json["units"] = "ft"
+    # master well=[2,27]ft -> [0.6096, 8.2296]m, septic=[22,27]ft -> [6.7056, 8.2296]m
+    # Request must match master (no relocation allowed) and be in meters (no units key = m).
+    # Separation = (22-2)*0.3048 = 6.096 m = 20 ft < 50 ft minimum → should FAIL safety check.
     exterior, outcome = run_elia(master_json, {
         "access": {"road_side": "south", "garage_required": False, "driveway_required": False},
         "utilities": {
-            "well": {"known": True, "position": [1, 2]},
-            "septic_tank": {"known": True, "position": [20, 2]},
+            "well": {"known": True, "position": [0.6096, 8.2296]},
+            "septic_tank": {"known": True, "position": [6.7056, 8.2296]},
         },
     }, "request-utility-units")
 
-    assert exterior["utility_safety"]["status"] == "passed"
-    assert exterior["utility_safety"]["checks"][0]["actual_distance_ft"] == pytest.approx(19 / 0.3048)
+    assert exterior["utility_safety"]["status"] == "failed"
+    assert exterior["utility_safety"]["checks"][0]["actual_distance_ft"] == pytest.approx(20.0)
     assert outcome in {"valid", "infeasible"}
 
 

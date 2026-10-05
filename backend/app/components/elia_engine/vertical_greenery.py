@@ -24,13 +24,24 @@ def plan_vertical_greenery(ground_ratio: float, requirements: Mapping[str, Any],
     config = elia_rules()["vertical_greenery"]
     preference = requirements.get("vertical_greenery", {})
     mode = preference.get("mode", config["default_mode"])
-    enabled = bool(preference.get("enabled", True) and requirements.get("vertical_greenery_enabled", True))
+    
+    # Explicit disabling at top-level or nested level overrides automatic mode.
+    # Top-level vertical_greenery_enabled=False takes precedence over nested enabled=True.
+    enabled_nested = preference.get("enabled")
+    enabled_top = requirements.get("vertical_greenery_enabled")
+    
+    is_enabled = True
+    if enabled_top is False or enabled_nested is False or mode == "disabled":
+        is_enabled = False
+        mode = "disabled"
+
     triggered = mode == "automatic" and ground_ratio < float(config["trigger_ground_space_ratio"])
     requested = mode == "preferred" or triggered
+    
     result = {"triggered": triggered, "requested": requested, "mode": mode,
               "trigger_ratio": config["trigger_ground_space_ratio"], "elements": [],
-              "status": "disabled" if not enabled or mode == "disabled" else "not_triggered"}
-    if not enabled or mode == "disabled" or not requested:
+              "status": "disabled" if not is_enabled else "not_triggered"}
+    if not is_enabled or not requested:
         return result
 
     allowed_types = set(preference.get("preferred_types") or ["balcony_planter", "slab_planter", "cascading_creeper"])

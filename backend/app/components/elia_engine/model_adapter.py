@@ -354,11 +354,11 @@ def validate_model_output(result: dict[str, Any], master: Mapping[str, Any],
             violations.append("requested_gate_count_unfulfilled")
     if requirements["access"].get("garage_required"):
         garage = access.get("garage") if isinstance(access, Mapping) else None
-        garage_polygon = Polygon(garage.get("polygon", [])) if isinstance(garage, Mapping) and garage.get("polygon") else Polygon()
-        bay_config = elia_rules()["access"]
-        bay_area = float(bay_config["default_garage_width_m"]) * float(bay_config["default_garage_length_m"])
-        actual_capacity = int(garage_polygon.area // bay_area) if garage_polygon.is_valid else 0
-        if not garage_polygon.is_valid or actual_capacity < int(requirements["access"].get("garage_capacity", 1)):
+        from .gate_garage import _bay_dimensions, _count_fitting_bays, garage_polygon
+        garage_shape = garage_polygon(garage) if isinstance(garage, Mapping) and garage.get("polygon") else Polygon()
+        bay_w, bay_l = _bay_dimensions(requirements["access"], 1.0)
+        actual_capacity = _count_fitting_bays(garage_shape, bay_w, bay_l) if garage_shape.is_valid else 0
+        if not garage_shape.is_valid or actual_capacity < int(requirements["access"].get("garage_capacity", 1)):
             violations.append("required_garage_capacity_unfulfilled")
     driveway = access.get("driveway") if isinstance(access, Mapping) else None
     if requirements["access"].get("driveway_required") and not isinstance(driveway, Mapping):
@@ -377,7 +377,7 @@ def validate_model_output(result: dict[str, Any], master: Mapping[str, Any],
                 if Point(coordinates[-1]).distance(Point(garage["entry_point"])) > 0.25:
                     violations.append("driveway_garage_connection_missing")
             width = float(driveway.get("width_m", 0))
-            if width + 1e-9 < float(requirements["access"].get("preferred_driveway_width", 0)):
+            if width + 1e-9 < float(requirements["access"].get("preferred_driveway_width_m", 0)):
                 violations.append("driveway_width_unfulfilled")
             turning_checks = [validate_vehicle_route(coordinates, profile, width,
                                float(elia_rules()["access"]["driveway_clearance_m"]))
@@ -431,7 +431,8 @@ def validate_model_output(result: dict[str, Any], master: Mapping[str, Any],
     preferred_garage = requirements["access"].get("preferred_garage_location")
     garage = access.get("garage") if isinstance(access, Mapping) else None
     if preferred_garage and isinstance(garage, Mapping) and garage.get("polygon"):
-        garage_geometry = Polygon(garage["polygon"])
+        from .gate_garage import garage_polygon
+        garage_geometry = garage_polygon(garage)
         if Point(preferred_garage).distance(garage_geometry.centroid) > 0.5:
             unfulfilled_preferences.append("preferred_garage_location")
     result["preference_fulfillment"] = {

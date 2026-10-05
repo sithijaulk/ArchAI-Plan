@@ -9,7 +9,7 @@ def test_gate_uses_road_frontage_boundary_only():
     land = box(0, 0, 30, 20)
     house = box(10, 5, 20, 15)
     gate = plan_gate(land, house, {"land_info": {"road_facing": "south"}},
-                     {"gate_width": 4, "gate_type": "sliding"}, 1.0)
+                     {"gate_width_m": 4, "gate_type": "sliding"}, 1.0)
     assert gate is not None
     assert gate["position"][1] == 0
     assert gate["boundary_edge_index"] == 3
@@ -23,7 +23,7 @@ def test_multiple_gates_are_spaced_on_road_boundary():
     land = box(0, 0, 60, 30)
     house = box(15, 8, 40, 24)
     gate = plan_gate(land, house, {"land_info": {"road_facing": "south"}},
-                     {"gate_count": 2, "gate_width": 4}, 1.0)
+                     {"gate_count": 2, "gate_width_m": 4}, 1.0)
     assert gate["planned_gate_count"] == 2
     assert len(gate["additional_gates"]) == 1
     assert gate["additional_gates"][0]["position"][1] == 0
@@ -48,7 +48,7 @@ def test_requested_gate_position_is_preserved():
     house = box(20, 8, 40, 24)
 
     gate = plan_gate(land, house, {"land_info": {"road_facing": "south"}},
-                     {"road_side": "south", "preferred_gate_location": [10, 0], "gate_width": 4}, 1.0)
+                     {"road_side": "south", "preferred_gate_location": [10, 0], "gate_width_m": 4}, 1.0)
 
     assert gate is not None
     assert gate["position"][0] == 10
