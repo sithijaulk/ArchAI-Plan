@@ -187,7 +187,7 @@ def test_baseline_http_endpoints_use_inherited_orientation_and_meter_defaults(tm
         engine.dispose()
 
     assert validated.status_code == 200, validated.text
-    assert validated.json()["normalized_requirements"]["access"]["gate_width"] == 4.0
+    assert validated.json()["normalized_requirements"]["access"]["gate_width_m"] == 4.0
     assert validated.json()["orientation"]["north_angle_degrees"] == 90
     assert preview.status_code == 200, preview.text
     assert preview.json()["exterior_landscape"]["access"]["gate"]["width"] == 4.0

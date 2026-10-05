@@ -22,13 +22,13 @@ def test_astar_reports_disconnected_grid():
 
 
 def test_turning_check_passes_straight_route_and_rejects_tight_curve():
-    vehicle = {"minimum_turning_radius": 5.0, "width": 1.8}
+    vehicle = {"minimum_turning_radius_m": 5.0, "width_m": 1.8}
     assert validate_vehicle_route([(0, 0), (4, 0), (8, 0)], vehicle, 3.0, 0.25)["valid"]
     assert not validate_vehicle_route([(0, 0), (1, 0), (1, 1)], vehicle, 3.0, 0.25)["turning_valid"]
 
 
 def test_turning_check_rejects_collinear_reversal():
-    vehicle = {"minimum_turning_radius": 1.0, "width": 1.8}
+    vehicle = {"minimum_turning_radius_m": 1.0, "width_m": 1.8}
 
     result = validate_vehicle_route([(0, 0), (4, 0), (1, 0)], vehicle, 3.0, 0.25)
 

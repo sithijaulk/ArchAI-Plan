@@ -184,7 +184,7 @@ def test_non_finite_baseline_response_is_rejected_before_design_commit(database,
     assert error.value.status_code == 500
     assert stored.master_json["exterior_landscape"] == {"accepted_run": "old"}
     assert run.status == "failed"
-    assert run.output_json["metrics"]["unexpected"] != run.output_json["metrics"]["unexpected"]
+    assert run.output_json["metrics"]["unexpected"] == "<non_finite>"
 
 
 def test_project_master_update_rejects_stale_revision_across_sessions(concurrent_database):

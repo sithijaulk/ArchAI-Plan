@@ -35,6 +35,7 @@ def place_outdoor_elements(residual: BaseGeometry, blocked: BaseGeometry, requir
             elements.append({"json_id": f"{name.upper()}_001", "type": name, "validation": {"valid": False, "reason": "no_residual_space"}})
         else:
             center, footprint = placement
+            blocked = blocked.union(footprint)
             elements.append({"json_id": f"{name.upper()}_001", "type": name,
                              "position": [center.x, center.y], "dimensions": {"width_m": width, "depth_m": depth},
                              "polygon": list(footprint.exterior.coords), "validation": {"valid": True},
@@ -57,7 +58,7 @@ def place_outdoor_elements(residual: BaseGeometry, blocked: BaseGeometry, requir
                 wall = wall.difference(Point(gate_item["position"]).buffer(float(gate_item["width"]) / 2))
         elements.append({"json_id": "BOUNDARY_WALL_001", "type": "boundary_wall",
                          "geometry": None if wall is None else mapping(wall),
-                         "boundary": "land_polygon.exterior", "height_m": landscape.get("boundary_wall_height"),
+                         "boundary": "land_polygon.exterior", "height_m": landscape.get("boundary_wall_height_m"),
                          "wall_type": landscape.get("boundary_wall_type"),
                          "gate_openings": [] if gate is None else [
                              {"gate_json_id": item["json_id"], "width_m": item["width"]}
@@ -72,6 +73,12 @@ def _find_footprint(residual: BaseGeometry, blocked: BaseGeometry, width: float,
         return None
     min_x, min_y, max_x, max_y = residual.bounds
     step = max(width / 2, float(elia_rules()["outdoor_elements"]["candidate_grid_spacing_m"]))
+    
+    estimated_cells = ((max_x - min_x) / step) * ((max_y - min_y) / step)
+    if estimated_cells > elia_rules()["access"].get("max_grid_cells", 200000):
+        from .exceptions import ELIAError
+        raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Search budget exhausted for outdoor elements.")
+        
     candidates = []
     y = min_y + depth / 2
     while y <= max_y - depth / 2:

@@ -28,6 +28,40 @@ def _canonical_alias(document: Mapping[str, Any], paths: Sequence[Sequence[str]]
     return first
 
 
+def resolve_upstream_road(document: Mapping[str, Any]) -> tuple[str | None, int | None]:
+    """Resolve the authoritative upstream road side and boundary edge."""
+    land_info = document.get("land_info") if isinstance(document.get("land_info"), Mapping) else {}
+    road_values = []
+    for path in (("road_access",), ("road",), ("access",), ("land_info", "road_access")):
+        value = _value(document, path)
+        if isinstance(value, Mapping):
+            road_values.append(value)
+    sides = [value.get("side", value.get("road_side", value.get("road_facing"))) for value in road_values]
+    sides.extend([document.get("road_facing"), land_info.get("road_facing")])
+    sides = [str(value).strip().lower() for value in sides if value is not None]
+    canonical_side = sides[0] if sides else None
+    if canonical_side is not None and any(value != canonical_side for value in sides[1:]):
+        raise ELIAError("ELIA_CONFLICTING_ROAD_ACCESS", "Conflicting upstream road-side aliases were supplied.")
+
+    edges = []
+    for value in road_values:
+        for key in ("edge_index", "road_edge_index", "road_access_edge"):
+            if value.get(key) is not None:
+                edges.append(value[key])
+    for key in ("road_access_edge", "road_edge_index", "edge_index"):
+        if document.get(key) is not None:
+            edges.append(document[key])
+        if land_info.get(key) is not None:
+            edges.append(land_info[key])
+    try:
+        canonical_edge = int(edges[0]) if edges else None
+        if canonical_edge is not None and any(int(value) != canonical_edge for value in edges[1:]):
+            raise ELIAError("ELIA_CONFLICTING_ROAD_ACCESS", "Conflicting upstream road edge aliases were supplied.")
+    except (TypeError, ValueError) as exc:
+        raise ELIAError("ELIA_INVALID_ROAD_ACCESS", "Upstream road edge indices must be integers.") from exc
+    return canonical_side, canonical_edge
+
+
 def _utility_position(value: Any) -> tuple[float, float] | None:
     if isinstance(value, (list, tuple)):
         if len(value) < 2:

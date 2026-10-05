@@ -24,20 +24,26 @@ class LocationInput(ELIAInputModel):
 class VehicleProfileInput(ELIAInputModel):
     vehicle_type: str = "custom"
     length: FiniteFloat | None = Field(default=None, gt=0)
+    length_m: FiniteFloat | None = Field(default=None, gt=0)
     width: FiniteFloat | None = Field(default=None, gt=0)
+    width_m: FiniteFloat | None = Field(default=None, gt=0)
     minimum_turning_radius: FiniteFloat | None = Field(default=None, gt=0)
+    minimum_turning_radius_m: FiniteFloat | None = Field(default=None, gt=0)
 
 
 class UtilityInput(ELIAInputModel):
     known: bool = False
     position: list[FiniteFloat] | dict[str, FiniteFloat] | None = None
+    position_m: list[FiniteFloat] | dict[str, FiniteFloat] | None = None
 
     @model_validator(mode="after")
     def validate_position_pair(self):
-        if isinstance(self.position, list) and len(self.position) != 2:
-            raise ValueError("Utility position must contain exactly x and y")
-        if isinstance(self.position, dict) and not {"x", "y"} <= self.position.keys():
-            raise ValueError("Utility position must contain x and y")
+        for attr in ("position", "position_m"):
+            pos = getattr(self, attr)
+            if isinstance(pos, list) and len(pos) != 2:
+                raise ValueError(f"Utility {attr} must contain exactly x and y")
+            if isinstance(pos, dict) and not {"x", "y"} <= pos.keys():
+                raise ValueError(f"Utility {attr} must contain x and y")
         return self
 
 
@@ -45,24 +51,29 @@ class AccessRequirements(ELIAInputModel):
     road_side: str | None = None
     road_access_edge: int | None = Field(default=None, ge=0)
     preferred_gate_location: list[FiniteFloat] | None = None
+    preferred_gate_location_m: list[FiniteFloat] | None = None
     gate_type: str = "unspecified"
     gate_width: FiniteFloat | None = Field(default=None, gt=0)
+    gate_width_m: FiniteFloat | None = Field(default=None, gt=0)
     gate_count: int = Field(default=1, ge=1)
     entrance_priority: str | None = None
     garage_required: bool = False
     garage_capacity: int = Field(default=1, ge=1, le=3)
     preferred_garage_location: list[FiniteFloat] | None = None
+    preferred_garage_location_m: list[FiniteFloat] | None = None
     vehicle_count: int = Field(default=1, ge=1)
     vehicle_profiles: list[VehicleProfileInput] = Field(default_factory=list)
     driveway_required: bool = True
     preferred_driveway_width: FiniteFloat | None = Field(default=None, gt=0)
+    preferred_driveway_width_m: FiniteFloat | None = Field(default=None, gt=0)
     driveway_style: str = "auto"
     driveway_surface: str | None = None
     turning_space_required: bool = True
 
     @model_validator(mode="after")
     def validate_preferred_coordinate_pairs(self):
-        for name in ("preferred_gate_location", "preferred_garage_location"):
+        for name in ("preferred_gate_location", "preferred_gate_location_m",
+                     "preferred_garage_location", "preferred_garage_location_m"):
             value = getattr(self, name)
             if value is not None and len(value) != 2:
                 raise ValueError(f"{name} must contain exactly x and y")
@@ -86,6 +97,7 @@ class LandscapeRequirements(ELIAInputModel):
     boundary_wall_required: bool = False
     boundary_wall_type: str | None = None
     boundary_wall_height: FiniteFloat | None = Field(default=None, gt=0)
+    boundary_wall_height_m: FiniteFloat | None = Field(default=None, gt=0)
 
 
 class VerticalGreeneryRequirements(ELIAInputModel):
@@ -99,6 +111,7 @@ class LightingRequirements(ELIAInputModel):
     style: str = "minimal"
     zones: list[str] = Field(default_factory=list)
     preferred_spacing: FiniteFloat | None = Field(default=None, gt=0)
+    preferred_spacing_m: FiniteFloat | None = Field(default=None, gt=0)
 
 
 class ELIARequirements(ELIAInputModel):
@@ -123,6 +136,15 @@ class ELIARequirements(ELIAInputModel):
     vertical_greenery: VerticalGreeneryRequirements = Field(default_factory=VerticalGreeneryRequirements)
     lighting: LightingRequirements = Field(default_factory=LightingRequirements)
     additional_requirements: dict[str, Any] | str = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def strip_internal_markers(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            data = data.copy()
+            data.pop("normalized_units", None)
+            data.pop("_elia_internal_normalized", None)
+        return data
 
     @model_validator(mode="after")
     def validate_location_pair(self):

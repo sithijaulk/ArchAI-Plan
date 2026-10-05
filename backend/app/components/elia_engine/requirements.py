@@ -5,20 +5,54 @@ from math import isfinite
 from typing import Any, Mapping
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from .adapter import normalize_master_json
+from .adapter import normalize_master_json, resolve_upstream_road
 from .exceptions import ELIAError
 from .parser import UNIT_TO_METERS
 from .rule_repository import elia_rules, lighting_rules, vehicle_profiles
 
 
-def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str, Any], source_units: str) -> dict[str, Any]:
+# ---------------------------------------------------------------------------
+# Internal sentinel — prevents double-conversion when normalize_requirements()
+# output is fed back into itself.
+#
+# We use a minimal dict subclass (_TaggedDict) that carries one extra attribute.
+# The tag is never exposed as a key, so:
+#   - JSON serialization sees only string keys.
+#   - User-supplied dicts (plain dict) can never carry the tag.
+#   - A new dict() created from the output loses the tag — which is correct
+#     because the copy is untrusted user input again.
+# ---------------------------------------------------------------------------
+class _TaggedDict(dict):  # type: ignore[type-arg]
+    """dict subclass that supports instance attributes for internal tagging."""
+    __slots__ = ("__elia_normalized__",)
+
+
+def _is_internally_normalized(requirements: Mapping[str, Any]) -> bool:
+    """Return True only if *requirements* was produced by normalize_requirements().
+
+    A plain dict, even with keys like '_elia_internal_normalized' or
+    'normalized_units', returns False because only _TaggedDict instances can
+    carry the sentinel attribute.
+    """
+    return (
+        isinstance(requirements, _TaggedDict)
+        and getattr(requirements, "__elia_normalized__", None) is True
+    )
+
+
+def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str, Any], source_units: str) -> _TaggedDict:
     """Resolve requirement defaults and convert all dimensional inputs to meters."""
     master = normalize_master_json(master)
     normalized = dict(requirements)
-    input_units = str(requirements.get("units", "m")).lower()
-    if input_units not in UNIT_TO_METERS:
-        raise ELIAError("ELIA_INVALID_UNITS", f"Unsupported requirement unit: {input_units!r}.")
-    scale = UNIT_TO_METERS[input_units]
+    already_normalized = _is_internally_normalized(requirements)
+    if already_normalized:
+        input_units = "m"
+        scale = 1.0
+    else:
+        input_units = str(requirements.get("units") or "m").lower()
+        if input_units not in UNIT_TO_METERS:
+            raise ELIAError("ELIA_INVALID_UNITS", f"Unsupported requirement unit: {input_units!r}.")
+        scale = UNIT_TO_METERS[input_units]
     location = dict(requirements.get("location") or {})
     latitude = requirements.get("latitude", location.get("latitude"))
     longitude = requirements.get("longitude", location.get("longitude"))
@@ -26,6 +60,8 @@ def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str,
     if not isinstance(master_location, Mapping) or not master_location:
         site = master.get("site") or master.get("property") or {}
         master_location = site.get("location", site) if isinstance(site, Mapping) else {}
+    if (not isinstance(master_location, Mapping) or not master_location) and isinstance(master.get("land_info"), Mapping):
+        master_location = master["land_info"].get("location") or {}
     if latitude is None:
         latitude = master_location.get("latitude") if isinstance(master_location, Mapping) else None
     if longitude is None:
@@ -39,25 +75,74 @@ def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str,
     if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
         raise ELIAError("ELIA_INVALID_LOCATION", "Latitude or longitude is outside its valid range.")
 
+    timezone = location.get("timezone") or requirements.get("timezone")
+    if not timezone and isinstance(master_location, Mapping):
+        timezone = master_location.get("timezone")
+        
+    if not timezone:
+        timezone = elia_rules()["solar"]["default_timezone"]
+
+    normalized["location"] = {"latitude": latitude, "longitude": longitude, "timezone": timezone}
+
     access = dict(requirements.get("access") or {})
+    access.setdefault("driveway_required", True)
+
+    upstream_side, upstream_edge = resolve_upstream_road(master)
+    
+    req_side = access.get("road_side")
+    req_edge = access.get("road_access_edge")
+
+    if req_side is not None and upstream_side is not None and str(req_side).lower() != str(upstream_side).lower():
+        raise ELIAError("ELIA_CONFLICTING_ROAD_ACCESS", f"Requested road_side {req_side!r} conflicts with fixed upstream road_side {upstream_side!r}.")
+    if req_edge is not None and upstream_edge is not None and int(req_edge) != int(upstream_edge):
+        raise ELIAError("ELIA_CONFLICTING_ROAD_ACCESS", f"Requested road_access_edge {req_edge!r} conflicts with fixed upstream edge {upstream_edge!r}.")
+
+    access["road_side"] = str(upstream_side).lower() if upstream_side else (str(req_side).lower() if req_side else None)
+    access["road_access_edge"] = int(upstream_edge) if upstream_edge is not None else (int(req_edge) if req_edge is not None else None)
+
+    if access["road_side"] is not None and access["road_side"] not in {"north", "south", "east", "west"}:
+        raise ELIAError("ELIA_INVALID_ROAD_ACCESS", f"Unrecognized road_side {access['road_side']!r}.")
+
     config = elia_rules()["access"]
-    for key in ("gate_width", "preferred_driveway_width"):
-        if access.get(key) is not None:
-            access[key] = float(access[key]) * scale
-    access.setdefault("gate_width", config["default_gate_width_m"])
-    access.setdefault("preferred_driveway_width", config["default_driveway_width_m"])
+
+    # gate_width / gate_width_m
+    explicit_gate_width_m = access.get("gate_width_m")
+    if explicit_gate_width_m is not None:
+        access["gate_width_m"] = float(explicit_gate_width_m)
+    elif access.get("gate_width") is not None:
+        access["gate_width_m"] = float(access["gate_width"]) * (1.0 if already_normalized else scale)
+    else:
+        access["gate_width_m"] = float(config["default_gate_width_m"])
+
+    if access["gate_width_m"] <= 0 or not isfinite(access["gate_width_m"]):
+        raise ELIAError("ELIA_INVALID_GATE_GEOMETRY", f"Gate width must be finite and positive, got {access['gate_width_m']}.")
+    access.pop("gate_width", None)
+
+    # preferred_driveway_width / preferred_driveway_width_m
+    explicit_drive_width_m = access.get("preferred_driveway_width_m")
+    if explicit_drive_width_m is not None:
+        access["preferred_driveway_width_m"] = float(explicit_drive_width_m)
+    elif access.get("preferred_driveway_width") is not None:
+        access["preferred_driveway_width_m"] = float(access["preferred_driveway_width"]) * (1.0 if already_normalized else scale)
+    else:
+        access["preferred_driveway_width_m"] = float(config["default_driveway_width_m"])
+    access.pop("preferred_driveway_width", None)
+
     for key in ("preferred_gate_location", "preferred_garage_location"):
-        if access.get(key) is not None:
-            coordinates = access[key]
-            if not isinstance(coordinates, (list, tuple)) or len(coordinates) != 2:
+        explicit_coords_m = access.get(f"{key}_m")
+        coord_scale = 1.0 if (explicit_coords_m is not None or already_normalized) else scale
+        coords = explicit_coords_m if explicit_coords_m is not None else access.get(key)
+        if coords is not None:
+            if not isinstance(coords, (list, tuple)) or len(coords) != 2:
                 raise ELIAError("ELIA_INVALID_COORDINATES", f"{key} must contain exactly x and y.")
             try:
-                coordinates = [float(coordinate) for coordinate in coordinates]
+                parsed_coords = [float(coordinate) for coordinate in coords]
             except (TypeError, ValueError) as exc:
                 raise ELIAError("ELIA_INVALID_COORDINATES", f"{key} coordinates must be numeric.") from exc
-            if not all(isfinite(coordinate) for coordinate in coordinates):
+            if not all(isfinite(coordinate) for coordinate in parsed_coords):
                 raise ELIAError("ELIA_INVALID_COORDINATES", f"{key} coordinates must be finite.")
-            access[key] = [coordinate * scale for coordinate in coordinates]
+            access[key] = [coordinate * coord_scale for coordinate in parsed_coords]
+
     profile_config = vehicle_profiles()["profiles"]
     profiles = []
     source_profiles = access.get("vehicle_profiles") or []
@@ -67,29 +152,37 @@ def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str,
         profile = dict(supplied)
         vehicle_type = str(profile.get("vehicle_type", "car")).lower()
         defaults = profile_config.get(vehicle_type)
-        if defaults is None and profile.get("length") is not None and profile.get("width") is not None:
+        if defaults is None and (profile.get("length") is not None or profile.get("length_m") is not None) and (profile.get("width") is not None or profile.get("width_m") is not None):
             defaults = {}
         if defaults is None:
             raise ELIAError("ELIA_INVALID_VEHICLE_PROFILE", f"Unknown vehicle profile {vehicle_type!r}; provide custom dimensions.")
-        for input_key, default_key in (("length", "length_m"), ("width", "width_m")):
-            raw = profile.get(input_key)
+        for dim in ("length", "width"):
+            explicit_m = profile.get(f"{dim}_m")
+            raw = explicit_m if explicit_m is not None else profile.get(dim)
+            dim_scale = 1.0 if (explicit_m is not None or already_normalized) else scale
             is_default = raw is None
             if is_default:
-                raw = defaults.get(default_key)
+                raw = defaults.get(f"{dim}_m")
+                dim_scale = 1.0
             if raw is None or float(raw) <= 0:
-                raise ELIAError("ELIA_INVALID_VEHICLE_PROFILE", f"A positive vehicle {input_key} is required.")
-            profile[input_key] = float(raw) * (1.0 if is_default else scale)
-        radius = profile.get("minimum_turning_radius")
-        radius_is_default = radius is None
+                raise ELIAError("ELIA_INVALID_VEHICLE_PROFILE", f"A positive vehicle {dim} is required.")
+            profile[f"{dim}_m"] = float(raw) * dim_scale
+            profile.pop(dim, None)
+
+        explicit_radius_m = profile.get("minimum_turning_radius_m")
+        radius = explicit_radius_m if explicit_radius_m is not None else profile.get("minimum_turning_radius")
+        radius_scale = 1.0 if (explicit_radius_m is not None or already_normalized) else scale
         if radius is None:
             radius = defaults.get("minimum_turning_radius_m")
+            radius_scale = 1.0
             profile["turning_radius_source"] = "configured_project_default"
         else:
             profile["turning_radius_source"] = "user"
         if radius is None:
             radius = config["default_turning_radius_m"]
-            radius_is_default = True
-        profile["minimum_turning_radius"] = float(radius) * (1.0 if radius_is_default else scale)
+            radius_scale = 1.0
+        profile["minimum_turning_radius_m"] = float(radius) * radius_scale
+        profile.pop("minimum_turning_radius", None)
         profile["vehicle_type"] = vehicle_type
         profiles.append(profile)
     access["vehicle_profiles"] = profiles
@@ -101,21 +194,34 @@ def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str,
     landscape_priority = requirements.get("landscape_priority", "balanced")
     if landscape_priority not in {"balanced", "maximum_open_space", "maximum_greenery"}:
         raise ELIAError("ELIA_INVALID_LANDSCAPE_PRIORITY", "Landscape priority must be balanced, maximum_open_space, or maximum_greenery.")
-    if landscape.get("boundary_wall_height") is not None:
-        landscape["boundary_wall_height"] = float(landscape["boundary_wall_height"]) * scale
+
+    wall_height_m = landscape.get("boundary_wall_height_m")
+    if wall_height_m is not None:
+        landscape["boundary_wall_height_m"] = float(wall_height_m)
+    elif landscape.get("boundary_wall_height") is not None:
+        landscape["boundary_wall_height_m"] = float(landscape["boundary_wall_height"]) * (1.0 if already_normalized else scale)
+    landscape.pop("boundary_wall_height", None)
+
     lighting = dict(requirements.get("lighting") or {})
-    if lighting.get("preferred_spacing") is not None:
-        lighting["preferred_spacing"] = float(lighting["preferred_spacing"]) * scale
+    spacing_m = lighting.get("preferred_spacing_m")
+    if spacing_m is not None:
+        lighting["preferred_spacing_m"] = float(spacing_m)
+    elif lighting.get("preferred_spacing") is not None:
+        lighting["preferred_spacing_m"] = float(lighting["preferred_spacing"]) * (1.0 if already_normalized else scale)
+    lighting.pop("preferred_spacing", None)
+
     lighting_config = lighting_rules()
     if lighting.get("style", "minimal") not in lighting_config["render_types"]:
         raise ELIAError("ELIA_INVALID_LIGHTING_STYLE", "Lighting style must be one of the configured ELIA styles.")
     zones = lighting.get("zones")
+    if zones is not None and "pathway" in zones:
+        raise ELIAError("ELIA_UNSUPPORTED_LIGHTING_ZONE", "The pathway zone is currently unsupported for exterior lighting.")
     if zones is not None and any(zone not in lighting_config["mounting_height_m"] for zone in zones):
         raise ELIAError("ELIA_INVALID_LIGHTING_ZONE", "Lighting zones must be configured ELIA placement zones.")
     if lighting.get("required") and zones is not None and not zones:
         raise ELIAError("ELIA_INVALID_LIGHTING_ZONE", "At least one lighting zone is required when lighting is requested.")
-    if (lighting.get("preferred_spacing") is not None and
-            lighting["preferred_spacing"] < float(lighting_config["minimum_spacing_m"])):
+    if (lighting.get("preferred_spacing_m") is not None and
+            lighting["preferred_spacing_m"] < float(lighting_config["minimum_spacing_m"])):
         raise ELIAError("ELIA_INVALID_LIGHTING_SPACING", "Preferred light spacing must meet the configured minimum.")
 
     requested_date = requirements.get("solar_analysis_date")
@@ -174,4 +280,8 @@ def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str,
         "landscape": landscape,
         "lighting": lighting,
     })
-    return normalized
+    normalized.pop("units", None)
+    # Build a _TaggedDict so callers can detect this is normalized output.
+    result = _TaggedDict(normalized)
+    result.__elia_normalized__ = True
+    return result
