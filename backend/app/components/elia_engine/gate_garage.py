@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+<<<<<<< HEAD
 from math import cos, hypot, isfinite, pi, sin
+=======
+from math import cos, hypot, pi, sin
+>>>>>>> 48ab7f99425d979f31511dd4a9867400acf0524a
 from typing import Any, Mapping
 
 from shapely.geometry import LineString, Point, Polygon, box
@@ -13,6 +17,7 @@ from .parser import UNIT_TO_METERS
 from .rule_repository import elia_rules
 
 
+<<<<<<< HEAD
 def _gate_opening(line: LineString, center: Point, width: float) -> LineString | None:
     if width <= 0 or not isfinite(width):
         return None
@@ -33,6 +38,8 @@ def garage_polygon(value: Mapping[str, Any]) -> Polygon:
     return Polygon(polygon)
 
 
+=======
+>>>>>>> 48ab7f99425d979f31511dd4a9867400acf0524a
 def _count_fitting_bays(polygon: Polygon, bay_w: float, bay_l: float, tolerance: float = 0.05) -> int:
     """Return how many non-overlapping axis-aligned bay boxes fit inside *polygon*.
 
@@ -104,9 +111,12 @@ def plan_gate(land: Polygon, house: Polygon, master: Mapping[str, Any], access: 
               obstacles: BaseGeometry | None = None) -> dict[str, Any] | None:
     rules = elia_rules()["access"]
     width = float(access.get("gate_width_m") or elia_rules()["access"]["default_gate_width_m"])
+<<<<<<< HEAD
     if width <= 0 or not isfinite(width):
         from .exceptions import ELIAError
         raise ELIAError("ELIA_INVALID_GATE_GEOMETRY", "Gate width must be finite and positive.")
+=======
+>>>>>>> 48ab7f99425d979f31511dd4a9867400acf0524a
     gate_count = int(access.get("gate_count", 1))
     existing = master.get("existing_gate") or master.get("gate")
     if isinstance(existing, Mapping):
@@ -136,6 +146,16 @@ def plan_gate(land: Polygon, house: Polygon, master: Mapping[str, Any], access: 
             magnitude = hypot(dx, dy) or 1.0
             access_point = (point.x + dx / magnitude * rules["gate_access_inset_m"],
                             point.y + dy / magnitude * rules["gate_access_inset_m"])
+<<<<<<< HEAD
+=======
+            existing_width = existing.get("width_m")
+            if existing_width is not None:
+                gate_w = float(existing_width)
+            elif existing.get("width") is not None:
+                gate_w = float(existing["width"]) * unit_scale
+            else:
+                gate_w = width
+>>>>>>> 48ab7f99425d979f31511dd4a9867400acf0524a
             return {"json_id": "GATE_001", "position": list(position), "width": gate_w,
                     "access_point": list(access_point), "type": existing.get("type", access.get("gate_type", "existing")),
                     "source": "master_json", "valid": True, "additional_gates": [], "planned_gate_count": 1}
@@ -225,11 +245,16 @@ def _existing_garage(value: Any, scale: float) -> Polygon | None:
             parsed = shape(raw)
             if isinstance(parsed, Polygon):
                 rings = [list(parsed.exterior.coords)] + [list(interior.coords) for interior in parsed.interiors]
+<<<<<<< HEAD
             else:
                 raise ValueError("garage geometry must be a Polygon")
         except Exception as exc:
             from .exceptions import ELIAError
             raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY", "Supplied garage geometry is malformed.") from exc
+=======
+        except Exception:
+            pass
+>>>>>>> 48ab7f99425d979f31511dd4a9867400acf0524a
     elif isinstance(raw, (list, tuple)) and raw:
         if isinstance(raw[0], (list, tuple)) and raw[0] and isinstance(raw[0][0], (list, tuple)):
             rings = raw
@@ -244,10 +269,14 @@ def _existing_garage(value: Any, scale: float) -> Polygon | None:
                 scaled_rings.append(scaled_ring)
         if scaled_rings:
             polygon = Polygon(scaled_rings[0], scaled_rings[1:])
+<<<<<<< HEAD
             if polygon.is_valid and polygon.area > 0:
                 return polygon
         from .exceptions import ELIAError
         raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY", "Supplied garage polygon is invalid.")
+=======
+            return polygon if polygon.is_valid and polygon.area > 0 else None
+>>>>>>> 48ab7f99425d979f31511dd4a9867400acf0524a
 
     center = point_xy(value, scale)
     if center:
@@ -269,8 +298,13 @@ def _bay_dimensions(access: Mapping[str, Any], unit_scale: float) -> tuple[float
     
     max_w, max_l = def_w, def_l
     for p in profiles:
+<<<<<<< HEAD
         w = float(p["width_m"]) if p.get("width_m") is not None else float(p.get("width", 1.8)) * unit_scale
         l = float(p["length_m"]) if p.get("length_m") is not None else float(p.get("length", 4.5)) * unit_scale
+=======
+        w = float(p.get("width_m", p.get("width", 1.8))) * unit_scale
+        l = float(p.get("length_m", p.get("length", 4.5))) * unit_scale
+>>>>>>> 48ab7f99425d979f31511dd4a9867400acf0524a
         max_w = max(max_w, w + clearance_w)
         max_l = max(max_l, l + clearance_l)
         

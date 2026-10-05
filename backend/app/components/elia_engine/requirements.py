@@ -79,15 +79,36 @@ def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str,
     if not timezone and isinstance(master_location, Mapping):
         timezone = master_location.get("timezone")
         
+<<<<<<< HEAD
     if not timezone:
         timezone = elia_rules()["solar"]["default_timezone"]
+=======
+    if not timezone or str(timezone).upper() == "UTC":
+        from .solar import fetch_live_solar_conditions
+        try:
+            live = fetch_live_solar_conditions(latitude, longitude, "auto")
+            if live.get("location", {}).get("timezone"):
+                timezone = live["location"]["timezone"]
+        except Exception:
+            pass
+
+    if not timezone:
+        timezone = "UTC"
+>>>>>>> 48ab7f99425d979f31511dd4a9867400acf0524a
 
     normalized["location"] = {"latitude": latitude, "longitude": longitude, "timezone": timezone}
 
     access = dict(requirements.get("access") or {})
     access.setdefault("driveway_required", True)
 
+<<<<<<< HEAD
     upstream_side, upstream_edge = resolve_upstream_road(master)
+=======
+    land_info = master.get("land_info", {})
+    upstream_road = master.get("road_access") or (land_info.get("road_access") if isinstance(land_info, Mapping) else None)
+    upstream_side = upstream_road.get("side") if isinstance(upstream_road, Mapping) else (land_info.get("road_facing") if isinstance(land_info, Mapping) else None)
+    upstream_edge = upstream_road.get("edge_index") if isinstance(upstream_road, Mapping) else (land_info.get("road_access_edge") if isinstance(land_info, Mapping) else None)
+>>>>>>> 48ab7f99425d979f31511dd4a9867400acf0524a
     
     req_side = access.get("road_side")
     req_edge = access.get("road_access_edge")

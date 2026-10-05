@@ -67,8 +67,11 @@ def _service_master():
 # Unit normalization
 # ---------------------------------------------------------------------------
 from app.components.elia_engine.requirements import normalize_requirements
+<<<<<<< HEAD
 from app.components.elia_engine.exceptions import ELIAError
 from app.components.elia_engine.gate_garage import _bay_dimensions, _existing_garage, garage_polygon, plan_gate
+=======
+>>>>>>> 48ab7f99425d979f31511dd4a9867400acf0524a
 
 
 class TestUnitNormalization:
@@ -129,6 +132,7 @@ class TestUnitNormalization:
         norm = normalize_requirements({"access": {"driveway_required": False}}, _master_ft(), "m")
         assert norm["access"]["driveway_required"] is False
 
+<<<<<<< HEAD
     def test_existing_gate_rejects_non_positive_width(self):
         with pytest.raises(ELIAError) as error:
             plan_gate(Polygon([(0, 0), (40, 0), (40, 30), (0, 30)]), Polygon([(10, 8), (22, 8), (22, 22), (10, 22)]),
@@ -177,6 +181,8 @@ class TestUnitNormalization:
                  if item.get("type", "").endswith("path") and item.get("polygon")]
         assert all(not plant.intersects(path) for plant in plants for path in paths)
 
+=======
+>>>>>>> 48ab7f99425d979f31511dd4a9867400acf0524a
 from shapely.geometry import box
 from app.components.elia_engine.outdoor_elements import place_outdoor_elements
 from app.components.elia_engine.validator import validate_layout

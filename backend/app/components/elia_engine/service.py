@@ -77,6 +77,7 @@ def _building_height(master: Mapping[str, Any], scale: float) -> float | None:
     if explicit_meters is None and isinstance(building, Mapping):
         explicit_meters = building.get("height_m")
     if explicit_meters is not None:
+<<<<<<< HEAD
         try:
             value = float(explicit_meters)
         except (TypeError, ValueError) as exc:
@@ -84,6 +85,9 @@ def _building_height(master: Mapping[str, Any], scale: float) -> float | None:
         if not isfinite(value) or value <= 0:
             raise ELIAError("ELIA_INVALID_BUILDING_HEIGHT", "Building height must be finite and positive.")
         return value
+=======
+        return float(explicit_meters)
+>>>>>>> 48ab7f99425d979f31511dd4a9867400acf0524a
     value = master.get("building_height") or master.get("house_height")
     if value is None and isinstance(building, Mapping):
         value = building.get("height")
@@ -406,11 +410,14 @@ def run_elia(master_json: Mapping[str, Any], raw_requirements: Mapping[str, Any]
     ground_features = []
     if driveway_polygon:
         ground_features.append(driveway_polygon)
+<<<<<<< HEAD
     if garage:
         ground_features.append(garage_polygon(garage))
     for path in requested_paths.values():
         if path.get("valid") and path.get("polygon"):
             ground_features.append(Polygon(path["polygon"]))
+=======
+>>>>>>> 48ab7f99425d979f31511dd4a9867400acf0524a
     for node in vegetation:
         ground_features.append(Point(node["position"]).buffer(float(node["canopy_radius_m"])))
     for item in outdoor:
@@ -452,7 +459,11 @@ def run_elia(master_json: Mapping[str, Any], raw_requirements: Mapping[str, Any]
     if preferred_gate and gate and Point(preferred_gate).distance(Point(gate["position"])) > 0.5:
         unfulfilled_preferences.append("preferred_gate_location")
     preferred_garage = requirements["access"].get("preferred_garage_location_m") or requirements["access"].get("preferred_garage_location")
+<<<<<<< HEAD
     if preferred_garage and garage and Point(preferred_garage).distance(garage_polygon(garage).centroid) > 0.5:
+=======
+    if preferred_garage and garage and Point(preferred_garage).distance(Polygon(garage["polygon"]).centroid) > 0.5:
+>>>>>>> 48ab7f99425d979f31511dd4a9867400acf0524a
         unfulfilled_preferences.append("preferred_garage_location")
     for pref_key, type_val in (("garden_table_set_required", "garden_table_set"), ("garden_seating_required", "garden_seating")):
         if landscape_preferences.get(pref_key) and not any(item.get("type") == type_val and item.get("validation", {}).get("valid") for item in outdoor):

@@ -81,7 +81,11 @@ def _garage_zone_candidates(garage: Mapping[str, Any]) -> list[tuple[str, Point]
     """Return exterior positions near the garage entry, clearly outside the polygon."""
     candidates: list[tuple[str, Point]] = []
     try:
+<<<<<<< HEAD
         garage_poly = garage_polygon(garage)
+=======
+        garage_poly = Polygon(garage["polygon"])
+>>>>>>> 48ab7f99425d979f31511dd4a9867400acf0524a
         entry = Point(garage["entry_point"])
         centroid = garage_poly.centroid
         dx = entry.x - centroid.x

@@ -6,7 +6,11 @@ from shapely import affinity
 from shapely.geometry import LineString, Point, Polygon, shape
 from shapely.geometry.base import BaseGeometry
 
+<<<<<<< HEAD
 from .gate_garage import _bay_dimensions, _count_fitting_bays, _gate_opening, garage_polygon
+=======
+from .gate_garage import _bay_dimensions, _count_fitting_bays
+>>>>>>> 48ab7f99425d979f31511dd4a9867400acf0524a
 from .rule_repository import elia_rules
 from .vehicle_access import validate_vehicle_route
 
@@ -29,7 +33,11 @@ def validate_layout(land: Polygon, house: Polygon, gate: Mapping[str, Any] | Non
     lighting_requirements = requirements.get("lighting", {})
     if residual is not None:
         checks.append(("site_has_residual_ground_space", not residual.is_empty and residual.area > 0))
+<<<<<<< HEAD
     ground_obstacles = obstacles.union(garage_polygon(garage)) if garage is not None else obstacles
+=======
+    ground_obstacles = obstacles.union(Polygon(garage["polygon"])) if garage is not None else obstacles
+>>>>>>> 48ab7f99425d979f31511dd4a9867400acf0524a
     if gate is not None:
         gates = [gate, *gate.get("additional_gates", [])]
         boundary_coords = list(land.exterior.coords)
@@ -60,7 +68,11 @@ def validate_layout(land: Polygon, house: Polygon, gate: Mapping[str, Any] | Non
         checks.extend((("garage_inside_land", land.covers(garage_shape)), ("garage_not_in_restricted_space", not garage_shape.intersects(obstacles))))
         if access_requirements.get("garage_required"):
             bay_w, bay_l = _bay_dimensions(access_requirements, 1.0) # access_requirements are already normalized
+<<<<<<< HEAD
             actual_cap = _count_fitting_bays(garage_shape, bay_w, bay_l)
+=======
+            actual_cap = _count_fitting_bays(garage_polygon, bay_w, bay_l)
+>>>>>>> 48ab7f99425d979f31511dd4a9867400acf0524a
             checks.append(("requested_garage_capacity_satisfied",
                            actual_cap >= int(access_requirements.get("garage_capacity", 1))))
     elif access_requirements.get("garage_required"):

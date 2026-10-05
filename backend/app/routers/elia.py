@@ -71,9 +71,16 @@ def _record_failure(db: Session, run_id: str, project_id: str, code: str, messag
         run.error_message = f"{code}: {message}"[:4000]
         run.completed_at = datetime.now(timezone.utc)
         if candidate_output is not None:
+<<<<<<< HEAD
             diagnostic = _safe_diagnostic(candidate_output)
             json.dumps(diagnostic, allow_nan=False)
             run.output_json = diagnostic
+=======
+            try:
+                run.output_json = json.loads(json.dumps(candidate_output, default=str))
+            except Exception:
+                run.output_json = {"error": "output_serialization_failed"}
+>>>>>>> 48ab7f99425d979f31511dd4a9867400acf0524a
     if should_persist and project is not None:
         revision = expected_revision if expected_revision is not None else project.revision
         if revision is not None:
@@ -213,9 +220,20 @@ def run_project_elia(project_id: str, request: ELIARequest,
             json.dumps(response.model_dump(mode="json"), allow_nan=False)
         except Exception as exc:
             # Output validation failure — this is a server-side bug, not malformed client input.
+<<<<<<< HEAD
             _record_failure(db, run.id, project_id, "ELIA_INVALID_OUTPUT",
                             f"ELIA produced invalid output: {exc}", should_persist,
                             expected_revision, exterior, source_revision)
+=======
+            # Save raw candidate output directly (preserving NaN etc.) before _record_failure.
+            run.output_json = exterior
+            run.status = "failed"
+            run.completed_at = datetime.now(timezone.utc)
+            db.commit()
+            _record_failure(db, run.id, project_id, "ELIA_INVALID_OUTPUT",
+                            f"ELIA produced invalid output: {exc}", should_persist,
+                            expected_revision, None, source_revision)
+>>>>>>> 48ab7f99425d979f31511dd4a9867400acf0524a
             raise HTTPException(
                 status_code=500,
                 detail={"code": "ELIA_INVALID_OUTPUT",
@@ -245,6 +263,12 @@ def run_project_elia(project_id: str, request: ELIARequest,
         return response
     except HTTPException:
         raise
+    except (TypeError, AttributeError, ValueError) as exc:
+        # Only reaches here for errors during input parsing/normalization, not output validation.
+        logger.warning("ELIA encountered malformed input for project %s: %s", project_id, exc)
+        _record_failure(db, run.id, project_id, "ELIA_MALFORMED_INPUT", f"Malformed input data: {str(exc)}", should_persist,
+                        expected_revision, None, source_revision)
+        raise HTTPException(status_code=422, detail={"code": "ELIA_MALFORMED_INPUT", "message": f"Malformed input data: {str(exc)}"}) from exc
     except ELIAError as exc:
         _record_failure(db, run.id, project_id, exc.code, exc.message, should_persist,
                         expected_revision, getattr(exc, "candidate_output", None), source_revision)
