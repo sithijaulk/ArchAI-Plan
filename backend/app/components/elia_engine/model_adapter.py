@@ -377,7 +377,7 @@ def validate_model_output(result: dict[str, Any], master: Mapping[str, Any],
                 if Point(coordinates[-1]).distance(Point(garage["entry_point"])) > 0.25:
                     violations.append("driveway_garage_connection_missing")
             width = float(driveway.get("width_m", 0))
-            if width + 1e-9 < float(requirements["access"].get("preferred_driveway_width", 0)):
+            if width + 1e-9 < float(requirements["access"].get("preferred_driveway_width_m", 0)):
                 violations.append("driveway_width_unfulfilled")
             turning_checks = [validate_vehicle_route(coordinates, profile, width,
                                float(elia_rules()["access"]["driveway_clearance_m"]))

@@ -39,7 +39,7 @@ def test_requirement_normalization_rejects_missing_location_and_converts_footage
         normalize_requirements({}, {}, "m")
     normalized = normalize_requirements({"latitude": 6.9, "longitude": 79.8, "units": "ft",
                                          "north_angle": 0, "access": {"gate_width": 12}}, {}, "m")
-    assert normalized["access"]["gate_width"] == pytest.approx(3.6576)
+    assert normalized["access"]["gate_width_m"] == pytest.approx(3.6576)
     assert normalized["solar_analysis_date"] == "2026-03-20"
 
 
@@ -47,9 +47,9 @@ def test_custom_vehicle_dimensions_and_configured_turning_default_are_supported(
     normalized = normalize_requirements({"latitude": 6.9, "longitude": 79.8, "north_angle": 0, "access": {
         "vehicle_profiles": [{"vehicle_type": "custom", "length": 5.0, "width": 2.0}]}}, {}, "m")
     profile = normalized["access"]["vehicle_profiles"][0]
-    assert profile["length"] == 5.0
-    assert profile["width"] == 2.0
-    assert profile["minimum_turning_radius"] == 5.5
+    assert profile["length_m"] == 5.0
+    assert profile["width_m"] == 2.0
+    assert profile["minimum_turning_radius_m"] == 5.5
     assert profile["turning_radius_source"] == "configured_project_default"
 
 

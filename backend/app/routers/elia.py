@@ -55,12 +55,21 @@ def _record_failure(db: Session, run_id: str, project_id: str, code: str, messag
     if run is not None:
         run.status = "failed"
         run.error_message = f"{code}: {message}"[:4000]
-        run.completed_at = datetime.utcnow()
+        run.completed_at = datetime.now(timezone.utc)
         if candidate_output is not None:
-            run.output_json = candidate_output
+            try:
+                run.output_json = json.loads(json.dumps(candidate_output, default=str))
+            except Exception:
+                run.output_json = {"error": "output_serialization_failed"}
     if should_persist and project is not None:
         revision = expected_revision if expected_revision is not None else project.revision
         if revision is not None:
+            # Only update metadata if this run still owns the project's elia_engine slot
+            current_elia = (project.master_json or {}).get("processing", {}).get("elia_engine", {})
+            if isinstance(current_elia, dict) and current_elia.get("run_id", run_id) != run_id:
+                # A newer run has already claimed ownership; skip metadata update.
+                db.commit()
+                return
             document = build_processing_master(project.master_json or {}, {
                 "status": "failed", "run_id": run_id, "version": "1.0", "schema_version": "1.0",
                 "completed_at": datetime.now(timezone.utc).isoformat(), "error_code": code,
@@ -80,7 +89,7 @@ def _record_stale_conflict(db: Session, run_id: str, project_id: str, source_rev
         run.status = "failed"
         run.output_json = candidate_output
         run.error_message = "ELIA_STALE_SOURCE_REVISION: Project changed while ELIA was running."
-        run.completed_at = datetime.utcnow()
+        run.completed_at = datetime.now(timezone.utc)
         processing = (project.master_json or {}).get("processing", {}) if project is not None else {}
         elia_metadata = processing.get("elia_engine") if isinstance(processing, dict) else None
         latest_revision = int(project.revision) if project is not None and project.revision is not None else None
@@ -142,7 +151,7 @@ def run_project_elia(project_id: str, request: ELIARequest,
         project_id=project_id,
         component_name="elia_engine",
         status="processing",
-        started_at=datetime.utcnow(),
+        started_at=datetime.now(timezone.utc),
         input_json=run_input,
     )
     db.add(run)
@@ -161,12 +170,14 @@ def run_project_elia(project_id: str, request: ELIARequest,
             db.rollback()
             run.status = "failed"
             run.error_message = "ELIA_STALE_SOURCE_REVISION: Project changed before ELIA started."
-            run.completed_at = datetime.utcnow()
+            run.completed_at = datetime.now(timezone.utc)
             db.add(run)
             db.commit()
+            current_rev = int(db.query(Project).filter(Project.id == project_id).one().revision)
             raise HTTPException(status_code=409, detail={"code": "ELIA_STALE_SOURCE_REVISION",
                                                         "message": "Project changed before the ELIA run started.",
-                                                        "current_revision": int(db.query(Project).filter(Project.id == project_id).one().revision)})
+                                                        "expected_revision": source_revision,
+                                                        "current_revision": current_rev})
         expected_revision = source_revision + 1
     db.commit()
     db.refresh(run)
@@ -178,7 +189,7 @@ def run_project_elia(project_id: str, request: ELIARequest,
         exterior["started_at"] = run.started_at.replace(tzinfo=timezone.utc).isoformat() if run.started_at else None
         run.status = "completed"
         run.output_json = exterior
-        run.completed_at = datetime.utcnow()
+        run.completed_at = datetime.now(timezone.utc)
         run.input_json = {**(run.input_json or {}), "model_version": exterior.get("model_version")}
         try:
             json.dumps(exterior, allow_nan=False)
@@ -188,8 +199,20 @@ def run_project_elia(project_id: str, request: ELIARequest,
                                     master_json_updated=should_persist, generation_mode=request.generation_mode)
             json.dumps(response.model_dump(mode="json"), allow_nan=False)
         except Exception as exc:
-            exc.candidate_output = exterior
-            raise
+            # Output validation failure — this is a server-side bug, not malformed client input.
+            # Save raw candidate output directly (preserving NaN etc.) before _record_failure.
+            run.output_json = exterior
+            run.status = "failed"
+            run.completed_at = datetime.now(timezone.utc)
+            db.commit()
+            _record_failure(db, run.id, project_id, "ELIA_INVALID_OUTPUT",
+                            f"ELIA produced invalid output: {exc}", should_persist,
+                            expected_revision, None, source_revision)
+            raise HTTPException(
+                status_code=500,
+                detail={"code": "ELIA_INVALID_OUTPUT",
+                        "message": f"ELIA produced invalid output: {exc}"}
+            ) from exc
         if should_persist:
             current_master = project.master_json or {}
             updated_master = build_updated_master(
@@ -208,11 +231,18 @@ def run_project_elia(project_id: str, request: ELIARequest,
                 current_revision = _record_stale_conflict(db, run.id, project_id, source_revision, exterior)
                 raise HTTPException(status_code=409, detail={"code": "ELIA_STALE_SOURCE_REVISION",
                                                             "message": "Project changed while ELIA was running; the candidate was saved to run history.",
+                                                            "expected_revision": expected_revision,
                                                             "current_revision": current_revision})
         db.commit()
         return response
     except HTTPException:
         raise
+    except (TypeError, AttributeError, ValueError) as exc:
+        # Only reaches here for errors during input parsing/normalization, not output validation.
+        logger.warning("ELIA encountered malformed input for project %s: %s", project_id, exc)
+        _record_failure(db, run.id, project_id, "ELIA_MALFORMED_INPUT", f"Malformed input data: {str(exc)}", should_persist,
+                        expected_revision, None, source_revision)
+        raise HTTPException(status_code=422, detail={"code": "ELIA_MALFORMED_INPUT", "message": f"Malformed input data: {str(exc)}"}) from exc
     except ELIAError as exc:
         _record_failure(db, run.id, project_id, exc.code, exc.message, should_persist,
                         expected_revision, getattr(exc, "candidate_output", None), source_revision)
@@ -269,6 +299,11 @@ def preview_standalone_elia(request: ELIARequest, _admin=Depends(require_admin))
         if exc.code == "ELIA_MODEL_UNAVAILABLE":
             detail["generation_status"] = "model_unavailable"
         raise HTTPException(status_code=exc.status_code, detail=detail) from exc
+    try:
+        json.dumps(exterior, allow_nan=False)
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=500, detail={"code": "ELIA_SERIALIZATION_ERROR",
+                                                    "message": f"Generated exterior result is not JSON-serializable: {exc}"}) from exc
     updated = build_updated_master(request.master_json, exterior, run_id, outcome,
                                    generation_mode=request.generation_mode,
                                    source_revision=request.source_revision,

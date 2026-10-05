@@ -1,14 +1,73 @@
 from __future__ import annotations
 
-from math import hypot
+from math import cos, hypot, pi, sin
 from typing import Any, Mapping
 
 from shapely.geometry import LineString, Point, Polygon, box
 from shapely.geometry.base import BaseGeometry
+from shapely import affinity
 
 from .geometry import point_xy
 from .parser import UNIT_TO_METERS
 from .rule_repository import elia_rules
+
+
+def _count_fitting_bays(polygon: Polygon, bay_w: float, bay_l: float, tolerance: float = 0.05) -> int:
+    """Return how many non-overlapping axis-aligned bay boxes fit inside *polygon*.
+
+    Strategy:
+    - Try several alignment angles: world 0°, world 90°, and the polygon's own
+      minimum-rotated-rectangle principal axis.  For each, rotate the polygon to
+      axis-aligned orientation **around its centroid** so it stays near the origin.
+    - For each alignment we slide the grid by up to half a bay in both x and y
+      so translated/rotated valid rectangles are reliably counted.
+    - Each candidate bay is tested against the *actual* rotated polygon (with a
+      small tolerance), not just its bounding box, so concavities are respected.
+    - Returns the maximum count found across all orientations and offsets.
+    """
+    if polygon.is_empty or bay_w <= 0 or bay_l <= 0:
+        return 0
+    if polygon.area < bay_w * bay_l - tolerance:
+        return 0
+
+    # Collect trial angles: world axes plus polygon's own principal axis.
+    angles = [0.0, 90.0]
+    try:
+        import math as _math
+        rect = polygon.minimum_rotated_rectangle
+        coords = list(rect.exterior.coords)
+        dx = coords[1][0] - coords[0][0]
+        dy = coords[1][1] - coords[0][1]
+        principal = _math.degrees(_math.atan2(dy, dx)) % 180.0
+        angles.append(principal)
+        angles.append((principal + 90.0) % 180.0)
+    except Exception:
+        pass
+
+    best = 0
+    centroid = polygon.centroid
+    for angle_deg in angles:
+        rotated = affinity.rotate(polygon, -angle_deg, origin=centroid, use_radians=False)
+        min_x, min_y, max_x, max_y = rotated.bounds
+        buffered = rotated.buffer(1e-5)
+        # Try sub-bay grid offsets (0, 1/2) x (0, 1/2) in both dimensions
+        for off_x in (0.0, bay_w / 2.0):
+            for off_y in (0.0, bay_l / 2.0):
+                count = 0
+                occupied = Polygon()
+                y = min_y + off_y
+                while y + bay_l <= max_y + tolerance:
+                    x = min_x + off_x
+                    while x + bay_w <= max_x + tolerance:
+                        candidate = box(x, y, x + bay_w, y + bay_l)
+                        if (buffered.covers(candidate) and
+                                candidate.intersection(occupied).area < 1e-9):
+                            count += 1
+                            occupied = occupied.union(candidate)
+                        x += bay_w
+                    y += bay_l
+                best = max(best, count)
+    return best
 
 
 def _road_side(master: Mapping[str, Any], access: Mapping[str, Any]) -> tuple[str | None, int | None]:
@@ -28,7 +87,7 @@ def _road_side(master: Mapping[str, Any], access: Mapping[str, Any]) -> tuple[st
 def plan_gate(land: Polygon, house: Polygon, master: Mapping[str, Any], access: Mapping[str, Any], unit_scale: float,
               obstacles: BaseGeometry | None = None) -> dict[str, Any] | None:
     rules = elia_rules()["access"]
-    width = float(access.get("gate_width") or elia_rules()["access"]["default_gate_width_m"])
+    width = float(access.get("gate_width_m") or elia_rules()["access"]["default_gate_width_m"])
     gate_count = int(access.get("gate_count", 1))
     existing = master.get("existing_gate") or master.get("gate")
     if isinstance(existing, Mapping):
@@ -43,7 +102,14 @@ def plan_gate(land: Polygon, house: Polygon, master: Mapping[str, Any], access: 
             magnitude = hypot(dx, dy) or 1.0
             access_point = (point.x + dx / magnitude * rules["gate_access_inset_m"],
                             point.y + dy / magnitude * rules["gate_access_inset_m"])
-            return {"json_id": "GATE_001", "position": list(position), "width": float(existing.get("width", width * (1 / unit_scale))) * unit_scale,
+            existing_width = existing.get("width_m")
+            if existing_width is not None:
+                gate_w = float(existing_width)
+            elif existing.get("width") is not None:
+                gate_w = float(existing["width"]) * unit_scale
+            else:
+                gate_w = width
+            return {"json_id": "GATE_001", "position": list(position), "width": gate_w,
                     "access_point": list(access_point), "type": existing.get("type", access.get("gate_type", "existing")),
                     "source": "master_json", "valid": True, "additional_gates": [], "planned_gate_count": 1}
         return None
@@ -53,6 +119,7 @@ def plan_gate(land: Polygon, house: Polygon, master: Mapping[str, Any], access: 
         return None
     coords = list(land.exterior.coords)
     edges = []
+    preferred = access.get("preferred_gate_location")
     for index, (first, second) in enumerate(zip(coords, coords[1:])):
         line = LineString([first, second])
         if edge_index is not None and index != int(edge_index):
@@ -68,25 +135,29 @@ def plan_gate(land: Polygon, house: Polygon, master: Mapping[str, Any], access: 
         required_length = gate_count * width + max(0, gate_count - 1) * separation
         if line.length + 1e-9 < required_length:
             continue
-        preferred = access.get("preferred_gate_location")
         if preferred:
             target = Point(float(preferred[0]), float(preferred[1]))
-            midpoint = line.interpolate(line.project(target))
             if line.distance(target) > 0.5:
                 continue
+            midpoint = line.interpolate(line.project(target))
         if obstacles and obstacles.buffer(rules["gate_obstacle_clearance_m"]).covers(midpoint):
             continue
-        edges.append((house.distance(midpoint), -line.length, index, line, midpoint))
+        dist_to_preferred = line.distance(Point(float(preferred[0]), float(preferred[1]))) if preferred else 0.0
+        edges.append((dist_to_preferred, house.distance(midpoint), -line.length, index, line, midpoint))
     if not edges:
         return None
-    _, _, selected_edge_index, line, midpoint = max(edges, key=lambda candidate: (candidate[0], candidate[1], -candidate[2]))
+    if preferred:
+        edges.sort(key=lambda candidate: (candidate[0], -candidate[1], candidate[2], candidate[3]))
+    else:
+        edges.sort(key=lambda candidate: (candidate[1], candidate[2], -candidate[3]), reverse=True)
+    _, _, _, selected_edge_index, line, midpoint = edges[0]
     interior = land.representative_point()
     separation = float(elia_rules()["access"]["gate_separation_m"])
     group_length = gate_count * width + max(0, gate_count - 1) * separation
-    preferred = access.get("preferred_gate_location")
     if preferred:
-        start_distance = line.project(Point(float(preferred[0]), float(preferred[1]))) - width / 2
-        if start_distance < 0 or start_distance + group_length > line.length:
+        projected = line.project(Point(float(preferred[0]), float(preferred[1])))
+        start_distance = max(0.0, min(line.length - group_length, projected - width / 2))
+        if start_distance < 0 or start_distance + group_length > line.length + 1e-6:
             return None
     else:
         start_distance = (line.length - group_length) / 2
@@ -113,13 +184,34 @@ def plan_gate(land: Polygon, house: Polygon, master: Mapping[str, Any], access: 
 def _existing_garage(value: Any, scale: float) -> Polygon | None:
     if not isinstance(value, Mapping):
         return None
-    polygon_value = value.get("polygon") or value.get("footprint") or value.get("geometry")
-    if isinstance(polygon_value, Mapping) and polygon_value.get("type") == "Polygon":
-        polygon_value = polygon_value.get("coordinates", [[]])[0]
-    if isinstance(polygon_value, (list, tuple)) and len(polygon_value) >= 3:
-        points = [(float(point[0]) * scale, float(point[1]) * scale) for point in polygon_value]
-        polygon = Polygon(points)
-        return polygon if polygon.is_valid and polygon.area > 0 else None
+    from shapely.geometry import shape
+
+    raw = value.get("polygon") or value.get("footprint") or value.get("geometry")
+    rings = []
+    
+    if isinstance(raw, Mapping):
+        try:
+            parsed = shape(raw)
+            if isinstance(parsed, Polygon):
+                rings = [list(parsed.exterior.coords)] + [list(interior.coords) for interior in parsed.interiors]
+        except Exception:
+            pass
+    elif isinstance(raw, (list, tuple)) and raw:
+        if isinstance(raw[0], (list, tuple)) and raw[0] and isinstance(raw[0][0], (list, tuple)):
+            rings = raw
+        else:
+            rings = [raw]
+
+    if rings:
+        scaled_rings = []
+        for ring in rings:
+            scaled_ring = [(float(point[0]) * scale, float(point[1]) * scale) for point in ring if len(point) >= 2]
+            if len(scaled_ring) >= 3:
+                scaled_rings.append(scaled_ring)
+        if scaled_rings:
+            polygon = Polygon(scaled_rings[0], scaled_rings[1:])
+            return polygon if polygon.is_valid and polygon.area > 0 else None
+
     center = point_xy(value, scale)
     if center:
         config = elia_rules()["access"]
@@ -127,6 +219,25 @@ def _existing_garage(value: Any, scale: float) -> Polygon | None:
         length = config["default_garage_length_m"]
         return box(center[0] - width / 2, center[1] - length / 2, center[0] + width / 2, center[1] + length / 2)
     return None
+
+
+def _bay_dimensions(access: Mapping[str, Any], unit_scale: float) -> tuple[float, float]:
+    config = elia_rules()["access"]
+    def_w = float(config["default_garage_width_m"])
+    def_l = float(config["default_garage_length_m"])
+    profiles = access.get("vehicle_profiles") or [{"width": 1.8, "length": 4.5}]
+    
+    clearance_w = def_w - 1.8
+    clearance_l = def_l - 4.5
+    
+    max_w, max_l = def_w, def_l
+    for p in profiles:
+        w = float(p.get("width_m", p.get("width", 1.8))) * unit_scale
+        l = float(p.get("length_m", p.get("length", 4.5))) * unit_scale
+        max_w = max(max_w, w + clearance_w)
+        max_l = max(max_l, l + clearance_l)
+        
+    return max_w, max_l
 
 
 def plan_garage(land: Polygon, residual: BaseGeometry, gate: Mapping[str, Any], master: Mapping[str, Any], access: Mapping[str, Any],
@@ -145,14 +256,20 @@ def plan_garage(land: Polygon, residual: BaseGeometry, gate: Mapping[str, Any], 
         if residual.is_empty:
             return None
         source = "candidate"
-        config = elia_rules()["access"]
-        width = config["default_garage_width_m"] * int(access.get("garage_capacity", 1))
-        length = config["default_garage_length_m"]
-        preferred = access.get("preferred_garage_location")
+        bay_w, bay_l = _bay_dimensions(access, unit_scale)
+        width = bay_w * int(access.get("garage_capacity", 1))
+        length = bay_l
+        preferred = access.get("preferred_garage_location_m") or access.get("preferred_garage_location")
         if preferred:
             preferred_center = Point(float(preferred[0]), float(preferred[1]))
             min_x, min_y, max_x, max_y = residual.bounds
             step = max(width / 2, 1.0)
+            
+            estimated_cells = ((max_x - min_x) / step) * ((max_y - min_y) / step)
+            if estimated_cells > elia_rules()["access"].get("max_grid_cells", 200000):
+                from .exceptions import ELIAError
+                raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Search budget exhausted for garage.")
+                
             fallback_candidates = [Point(x, y) for y in _frange(min_y + length / 2, max_y - length / 2, step)
                                    for x in _frange(min_x + width / 2, max_x - width / 2, step)]
             fallback_candidates.sort(key=lambda point: (point.distance(gate_point), point.y, point.x))
@@ -160,6 +277,12 @@ def plan_garage(land: Polygon, residual: BaseGeometry, gate: Mapping[str, Any], 
         else:
             min_x, min_y, max_x, max_y = residual.bounds
             step = max(width / 2, 1.0)
+            
+            estimated_cells = ((max_x - min_x) / step) * ((max_y - min_y) / step)
+            if estimated_cells > elia_rules()["access"].get("max_grid_cells", 200000):
+                from .exceptions import ELIAError
+                raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Search budget exhausted for garage.")
+                
             candidates = [Point(x, y) for y in _frange(min_y + length / 2, max_y - length / 2, step)
                           for x in _frange(min_x + width / 2, max_x - width / 2, step)]
             candidates.sort(key=lambda point: (point.distance(Point(gate["access_point"])), point.y, point.x))
@@ -180,9 +303,8 @@ def plan_garage(land: Polygon, residual: BaseGeometry, gate: Mapping[str, Any], 
         access_points = _garage_access(garage, land, gate_point, approach_distance, obstacles)
     if access_points is None:
         return None
-    config = elia_rules()["access"]
-    bay_area = float(config["default_garage_width_m"]) * float(config["default_garage_length_m"])
-    actual_capacity = int(garage.area // bay_area)
+    bay_w, bay_l = _bay_dimensions(access, unit_scale)
+    actual_capacity = _count_fitting_bays(garage, bay_w, bay_l)
     requested_capacity = int(access.get("garage_capacity", 1))
     if actual_capacity < requested_capacity:
         return None

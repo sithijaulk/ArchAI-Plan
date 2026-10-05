@@ -6,6 +6,7 @@ from shapely import affinity
 from shapely.geometry import LineString, Point, Polygon, shape
 from shapely.geometry.base import BaseGeometry
 
+from .gate_garage import _bay_dimensions, _count_fitting_bays
 from .rule_repository import elia_rules
 from .vehicle_access import validate_vehicle_route
 
@@ -19,12 +20,15 @@ def validate_layout(land: Polygon, house: Polygon, gate: Mapping[str, Any] | Non
                     obstacles: BaseGeometry, master: Mapping[str, Any] | None = None,
                     support_scale: float = 1.0, vehicle_profiles: Sequence[Mapping[str, Any]] = (),
                     driveway_width: float | None = None,
-                    requirements: Mapping[str, Any] | None = None) -> dict[str, Any]:
+                    requirements: Mapping[str, Any] | None = None,
+                    residual: BaseGeometry | None = None) -> dict[str, Any]:
     checks: list[tuple[str, bool]] = []
     requirements = requirements or {}
     access_requirements = requirements.get("access", {})
     landscape_requirements = requirements.get("landscape", {})
     lighting_requirements = requirements.get("lighting", {})
+    if residual is not None:
+        checks.append(("site_has_residual_ground_space", not residual.is_empty and residual.area > 0))
     ground_obstacles = obstacles.union(Polygon(garage["polygon"])) if garage is not None else obstacles
     if gate is not None:
         gates = [gate, *gate.get("additional_gates", [])]
@@ -45,9 +49,10 @@ def validate_layout(land: Polygon, house: Polygon, gate: Mapping[str, Any] | Non
         garage_polygon = Polygon(garage["polygon"])
         checks.extend((("garage_inside_land", land.covers(garage_polygon)), ("garage_not_in_restricted_space", not garage_polygon.intersects(obstacles))))
         if access_requirements.get("garage_required"):
-            bay_area = float(elia_rules()["access"]["default_garage_width_m"]) * float(elia_rules()["access"]["default_garage_length_m"])
+            bay_w, bay_l = _bay_dimensions(access_requirements, 1.0) # access_requirements are already normalized
+            actual_cap = _count_fitting_bays(garage_polygon, bay_w, bay_l)
             checks.append(("requested_garage_capacity_satisfied",
-                           int(garage_polygon.area // bay_area) >= int(access_requirements.get("garage_capacity", 1))))
+                           actual_cap >= int(access_requirements.get("garage_capacity", 1))))
     elif access_requirements.get("garage_required"):
         checks.append(("requested_garage_available", False))
     if driveway is not None:
@@ -69,7 +74,13 @@ def validate_layout(land: Polygon, house: Polygon, gate: Mapping[str, Any] | Non
             checks.append(("vehicle_turning_radius_or_width", all(item["valid"] for item in vehicle_checks)))
     elif access_requirements.get("driveway_required"):
         checks.append(("required_driveway_available", False))
-    checks.append(("utility_safety", utilities.get("status") in {"passed", "not_applicable"}))
+    u_status = utilities.get("status")
+    if u_status == "failed":
+        checks.append(("well_septic_separation", False))
+    elif u_status == "unknown":
+        checks.append(("utility_locations_known", False))
+    else:
+        checks.append(("utility_safety", True))
     checks.append(("solar_analysis_completed", bool(solar_samples)))
     for node in vegetation:
         canopy = Point(node["position"]).buffer(float(node["canopy_radius_m"]))
@@ -92,6 +103,21 @@ def validate_layout(land: Polygon, house: Polygon, gate: Mapping[str, Any] | Non
         checks.append((f"{node['json_id']}_furniture_clearance", furniture_clear))
         if driveway is not None and node.get("zone") != "driveway":
             checks.append((f"{node['json_id']}_driveway_clearance", point.distance(driveway) > 0))
+
+    if requirements.get("lighting", {}).get("required"):
+        preferred_spacing = requirements.get("lighting", {}).get("preferred_spacing_m")
+        if preferred_spacing is not None and len(lighting) > 1:
+            spacing_satisfied = True
+            for i, n1 in enumerate(lighting):
+                p1 = Point(n1["position"])
+                for j, n2 in enumerate(lighting):
+                    if i < j and p1.distance(Point(n2["position"])) < preferred_spacing - 1e-3:
+                        spacing_satisfied = False
+                        break
+                if not spacing_satisfied:
+                    break
+            checks.append(("requested_lighting_spacing_fulfilled", spacing_satisfied))
+
     vertical_support_checks = []
     for element in vertical.get("elements", []):
         footprint = Polygon(element.get("footprint", [])) if element.get("footprint") else Polygon()
@@ -142,6 +168,7 @@ def validate_layout(land: Polygon, house: Polygon, gate: Mapping[str, Any] | Non
         checks.append(("requested_vertical_greenery_fulfilled",
                        vertical.get("status") == "placed" and
                        any(vertical_support_checks)))
+    placed_furniture = Polygon()
     for element in outdoor_elements:
         object_id = element.get("json_id", "outdoor_object")
         geometry = None
@@ -156,6 +183,9 @@ def validate_layout(land: Polygon, house: Polygon, gate: Mapping[str, Any] | Non
             valid = geometry is not None and geometry.is_valid and land.covers(geometry) and not geometry.intersects(ground_obstacles)
             if driveway is not None:
                 valid = valid and not geometry.intersects(driveway)
+            if geometry is not None and valid:
+                valid = valid and not geometry.intersects(placed_furniture)
+                placed_furniture = placed_furniture.union(geometry)
             checks.append((f"{object_id}_placement", valid))
         elif element.get("type", "").endswith("path"):
             try:
@@ -183,6 +213,11 @@ def validate_layout(land: Polygon, house: Polygon, gate: Mapping[str, Any] | Non
             checks.append((f"requested_lighting_zone_{zone}_fulfilled",
                            any(node.get("zone") == zone for node in lighting)))
     violations = [name for name, passed in checks if not passed]
+    passed_count = sum(passed for _, passed in checks)
+    total_count = len(checks)
+    rate = (passed_count / total_count) if total_count else (0.0 if violations else 1.0)
+    if violations and rate >= 1.0:
+        rate = 0.0
     return {"valid": not violations, "violations": violations,
-            "checks_passed": sum(passed for _, passed in checks), "checks_total": len(checks),
-            "constraint_satisfaction_rate": (sum(passed for _, passed in checks) / len(checks)) if checks else 1.0}
+            "checks_passed": passed_count, "checks_total": total_count,
+            "constraint_satisfaction_rate": rate}

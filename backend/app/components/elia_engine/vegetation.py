@@ -50,6 +50,12 @@ def place_vegetation(residual: BaseGeometry, land: BaseGeometry, blocked: BaseGe
         target_count = max(target_count, targets["high"])
     min_x, min_y, max_x, max_y = residual.bounds
     step = float(rules["candidate_grid_spacing_m"])
+    
+    estimated_cells = ((max_x - min_x) / step) * ((max_y - min_y) / step)
+    if estimated_cells > elia_rules()["access"].get("max_grid_cells", 200000):
+        from .exceptions import ELIAError
+        raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Search budget exhausted for vegetation placement.")
+        
     candidates = []
     y = min_y + step / 2
     while y < max_y:

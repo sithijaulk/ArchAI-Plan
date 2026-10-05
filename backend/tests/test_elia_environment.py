@@ -91,10 +91,10 @@ def test_lighting_is_opt_in_and_honors_supported_style_zone_and_spacing():
                               {"lighting": {"required": False, "zones": ["boundary"]}})
     closer = place_lighting(land, land, None, None, None,
                             {"lighting": {"required": True, "style": "architectural",
-                                          "zones": ["boundary"], "preferred_spacing": 8}})
+                                          "zones": ["boundary"], "preferred_spacing_m": 8}})
     wider = place_lighting(land, land, None, None, None,
                            {"lighting": {"required": True, "style": "architectural",
-                                         "zones": ["boundary"], "preferred_spacing": 16}})
+                                         "zones": ["boundary"], "preferred_spacing_m": 16}})
 
     assert disabled == []
     assert closer and wider
