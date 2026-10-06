@@ -262,6 +262,26 @@ def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str,
         except (TypeError, ValueError, IndexError) as exc:
             raise ELIAError("ELIA_INVALID_SOLAR_TIME", "Solar analysis times must use valid local HH:MM values.") from exc
 
+    utilities = dict(requirements.get("utilities") or {})
+    for util_key in ("well", "septic_tank"):
+        if util_key in utilities:
+            util_data = dict(utilities[util_key])
+            explicit_m = util_data.get("position_m")
+            if explicit_m is not None:
+                pass # keep as is
+            elif "position" in util_data:
+                coords = util_data["position"]
+                if isinstance(coords, (list, tuple)) and len(coords) == 2:
+                    try:
+                        parsed = [float(c) for c in coords]
+                        if all(isfinite(c) for c in parsed):
+                            coord_scale = 1.0 if already_normalized else scale
+                            util_data["position_m"] = [c * coord_scale for c in parsed]
+                    except (TypeError, ValueError):
+                        pass
+                util_data.pop("position", None)
+            utilities[util_key] = util_data
+
     normalized.update({
         "location": {
             "latitude": latitude,
@@ -279,6 +299,7 @@ def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str,
         "access": access,
         "landscape": landscape,
         "lighting": lighting,
+        "utilities": utilities,
     })
     normalized.pop("units", None)
     # Build a _TaggedDict so callers can detect this is normalized output.

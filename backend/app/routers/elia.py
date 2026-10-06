@@ -245,6 +245,12 @@ def run_project_elia(project_id: str, request: ELIARequest,
         return response
     except HTTPException:
         raise
+    except (TypeError, AttributeError, ValueError) as exc:
+        # Only reaches here for errors during input parsing/normalization, not output validation.
+        logger.warning("ELIA encountered malformed input for project %s: %s", project_id, exc)
+        _record_failure(db, run.id, project_id, "ELIA_MALFORMED_INPUT", f"Malformed input data: {str(exc)}", should_persist,
+                        expected_revision, None, source_revision)
+        raise HTTPException(status_code=422, detail={"code": "ELIA_MALFORMED_INPUT", "message": f"Malformed input data: {str(exc)}"}) from exc
     except ELIAError as exc:
         _record_failure(db, run.id, project_id, exc.code, exc.message, should_persist,
                         expected_revision, getattr(exc, "candidate_output", None), source_revision)

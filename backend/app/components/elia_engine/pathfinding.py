@@ -35,6 +35,9 @@ def astar_path(grid: NavigationGrid, start: tuple[float, float], goal: tuple[flo
         if current_cost > cost_so_far.get(current_state, float("inf")):
             continue
         explored += 1
+        if explored > 200000:
+            from .exceptions import ELIAError
+            raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Search budget exhausted for pathfinding.")
         if current == goal_cell:
             states = [current_state]
             while states[-1] in came_from:

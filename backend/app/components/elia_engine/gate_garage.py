@@ -70,6 +70,13 @@ def _count_fitting_bays(polygon: Polygon, bay_w: float, bay_l: float, tolerance:
     for angle_deg in angles:
         rotated = affinity.rotate(polygon, -angle_deg, origin=centroid, use_radians=False)
         min_x, min_y, max_x, max_y = rotated.bounds
+        
+        estimated_cells = ((max_x - min_x) / bay_w) * ((max_y - min_y) / bay_l)
+        from .rule_repository import elia_rules
+        if estimated_cells > elia_rules()["access"].get("max_grid_cells", 200000):
+            from .exceptions import ELIAError
+            raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Search budget exhausted for garage bay fitting.")
+            
         buffered = rotated.buffer(1e-5)
         # Try sub-bay grid offsets (0, 1/2) x (0, 1/2) in both dimensions
         for off_x in (0.0, bay_w / 2.0):
@@ -220,28 +227,43 @@ def _existing_garage(value: Any, scale: float) -> Polygon | None:
     raw = value.get("polygon") or value.get("footprint") or value.get("geometry")
     rings = []
     
-    if isinstance(raw, Mapping):
-        try:
-            parsed = shape(raw)
-            if isinstance(parsed, Polygon):
-                rings = [list(parsed.exterior.coords)] + [list(interior.coords) for interior in parsed.interiors]
+    if raw is not None:
+        if isinstance(raw, Mapping):
+            try:
+                parsed = shape(raw)
+                if isinstance(parsed, Polygon):
+                    rings = [list(parsed.exterior.coords)] + [list(interior.coords) for interior in parsed.interiors]
+                else:
+                    raise ValueError("garage geometry must be a Polygon")
+            except Exception as exc:
+                from .exceptions import ELIAError
+                raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY", "Supplied garage geometry is malformed.") from exc
+        elif isinstance(raw, (list, tuple)) and raw:
+            if isinstance(raw[0], (list, tuple)) and raw[0] and isinstance(raw[0][0], (list, tuple)):
+                rings = raw
             else:
-                raise ValueError("garage geometry must be a Polygon")
-        except Exception as exc:
-            from .exceptions import ELIAError
-            raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY", "Supplied garage geometry is malformed.") from exc
-    elif isinstance(raw, (list, tuple)) and raw:
-        if isinstance(raw[0], (list, tuple)) and raw[0] and isinstance(raw[0][0], (list, tuple)):
-            rings = raw
+                rings = [raw]
         else:
-            rings = [raw]
+            from .exceptions import ELIAError
+            raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY", "Supplied garage geometry is of unsupported type.")
 
     if rings:
         scaled_rings = []
-        for ring in rings:
-            scaled_ring = [(float(point[0]) * scale, float(point[1]) * scale) for point in ring if len(point) >= 2]
-            if len(scaled_ring) >= 3:
-                scaled_rings.append(scaled_ring)
+        try:
+            for ring in rings:
+                scaled_ring = []
+                for point in ring:
+                    if len(point) >= 2:
+                        x, y = float(point[0]), float(point[1])
+                        if not (isfinite(x) and isfinite(y)):
+                            raise ValueError("Coordinates must be finite.")
+                        scaled_ring.append((x * scale, y * scale))
+                if len(scaled_ring) >= 3:
+                    scaled_rings.append(scaled_ring)
+        except (TypeError, ValueError) as exc:
+            from .exceptions import ELIAError
+            raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY", "Garage coordinates must be finite numbers.") from exc
+            
         if scaled_rings:
             polygon = Polygon(scaled_rings[0], scaled_rings[1:])
             if polygon.is_valid and polygon.area > 0:
