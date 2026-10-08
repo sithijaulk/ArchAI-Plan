@@ -7,6 +7,7 @@ from shapely.geometry import LineString, Point, Polygon, box
 from shapely.geometry.base import BaseGeometry
 from shapely import affinity
 
+from .exceptions import ELIAError
 from .adapter import resolve_upstream_road
 from .geometry import point_xy
 from .parser import UNIT_TO_METERS
@@ -69,14 +70,16 @@ def _count_fitting_bays(polygon: Polygon, bay_w: float, bay_l: float, tolerance:
 
     best = 0
     centroid = polygon.centroid
+    from .rule_repository import elia_rules
+    cumulative_budget = elia_rules()["access"].get("max_grid_cells", 200000)
+    cumulative_evaluations = 0
+    
     for angle_deg in angles:
         rotated = affinity.rotate(polygon, -angle_deg, origin=centroid, use_radians=False)
         min_x, min_y, max_x, max_y = rotated.bounds
         
         estimated_cells = ((max_x - min_x) / bay_w) * ((max_y - min_y) / bay_l)
-        from .rule_repository import elia_rules
-        if estimated_cells > elia_rules()["access"].get("max_grid_cells", 200000):
-            from .exceptions import ELIAError
+        if estimated_cells > cumulative_budget:
             raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Search budget exhausted for garage bay fitting.")
             
         buffered = rotated.buffer(1e-5)
@@ -89,6 +92,10 @@ def _count_fitting_bays(polygon: Polygon, bay_w: float, bay_l: float, tolerance:
                 while y + bay_l <= max_y + tolerance:
                     x = min_x + off_x
                     while x + bay_w <= max_x + tolerance:
+                        cumulative_evaluations += 1
+                        if cumulative_evaluations > cumulative_budget:
+                            raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Search budget exhausted for garage bay fitting.")
+                            
                         candidate = box(x, y, x + bay_w, y + bay_l)
                         if (buffered.covers(candidate) and
                                 candidate.intersection(occupied).area < 1e-9):
@@ -114,7 +121,6 @@ def plan_gate(land: Polygon, house: Polygon, master: Mapping[str, Any], access: 
     rules = elia_rules()["access"]
     width = float(access.get("gate_width_m") or elia_rules()["access"]["default_gate_width_m"])
     if width <= 0 or not isfinite(width):
-        from .exceptions import ELIAError
         raise ELIAError("ELIA_INVALID_GATE_GEOMETRY", "Gate width must be finite and positive.")
     gate_count = int(access.get("gate_count", 1))
     existing = master.get("existing_gate") or master.get("gate")
@@ -131,7 +137,6 @@ def plan_gate(land: Polygon, house: Polygon, master: Mapping[str, Any], access: 
         else:
             gate_w = width
         if gate_w <= 0 or not isfinite(gate_w):
-            from .exceptions import ELIAError
             raise ELIAError("ELIA_INVALID_GATE_GEOMETRY", "Existing gate width must be finite and positive.")
         boundary_coords = list(land.exterior.coords)
         boundary_segment = min((LineString([first, second]) for first, second in
@@ -222,7 +227,6 @@ def plan_gate(land: Polygon, house: Polygon, master: Mapping[str, Any], access: 
 def _existing_garage(value: Any, scale: float) -> Polygon | None:
     if not isinstance(value, Mapping):
         if value is not None:
-            from .exceptions import ELIAError
             raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY", "Supplied garage geometry must be an object.")
         return None
     from shapely.geometry import shape
@@ -244,19 +248,16 @@ def _existing_garage(value: Any, scale: float) -> Polygon | None:
             try:
                 parsed = shape(raw)
                 if not isinstance(parsed, Polygon):
-                    from .exceptions import ELIAError
                     raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY",
                                     f"Garage '{explicit_key}' must be a Polygon GeoJSON, got {raw.get('type')}.")
                 rings = [list(parsed.exterior.coords)] + [list(interior.coords) for interior in parsed.interiors]
             except ELIAError:
                 raise
             except Exception as exc:
-                from .exceptions import ELIAError
                 raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY", "Supplied garage geometry is malformed.") from exc
         elif isinstance(raw, (list, tuple)):
             if len(raw) == 0:
                 # Case A: explicitly supplied empty polygon list → reject
-                from .exceptions import ELIAError
                 raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY",
                                  f"Garage '{explicit_key}' must not be an empty list.")
             # Distinguish ring-of-rings vs flat ring based on first element
@@ -267,7 +268,6 @@ def _existing_garage(value: Any, scale: float) -> Polygon | None:
                 # Flat ring: [[x,y], [x,y], ...]
                 rings = [raw]
         else:
-            from .exceptions import ELIAError
             raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY",
                              f"Garage '{explicit_key}' must be a list of coordinates or a GeoJSON object.")
 
@@ -275,26 +275,22 @@ def _existing_garage(value: Any, scale: float) -> Polygon | None:
         scaled_rings: list[list[tuple[float, float]]] = []
         for ring_index, ring in enumerate(rings):
             if not isinstance(ring, (list, tuple)):
-                from .exceptions import ELIAError
                 raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY",
                                  f"Ring {ring_index} in garage '{explicit_key}' must be a list of points.")
             scaled_ring: list[tuple[float, float]] = []
             for pt_index, point in enumerate(ring):
                 if not isinstance(point, (list, tuple)) or len(point) < 2:
                     # Case B: invalid/empty point in ring → reject whole geometry
-                    from .exceptions import ELIAError
                     raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY",
                                      f"Point {pt_index} in ring {ring_index} of garage '{explicit_key}' "
                                      f"is not a valid coordinate pair.")
                 try:
                     x, y = float(point[0]), float(point[1])
                 except (TypeError, ValueError) as exc:
-                    from .exceptions import ELIAError
                     raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY",
                                      f"Point {pt_index} in ring {ring_index} of garage '{explicit_key}' "
                                      f"must contain numeric values.") from exc
                 if not (isfinite(x) and isfinite(y)):
-                    from .exceptions import ELIAError
                     raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY",
                                      f"Point {pt_index} in ring {ring_index} of garage '{explicit_key}' "
                                      f"must contain finite coordinates.")
@@ -304,25 +300,60 @@ def _existing_garage(value: Any, scale: float) -> Polygon | None:
             if len(distinct) < 3:
                 # Case C: hole with fewer than 3 points → reject, do not drop silently
                 kind = "exterior" if ring_index == 0 else f"hole {ring_index}"
-                from .exceptions import ELIAError
                 raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY",
                                  f"The {kind} ring of garage '{explicit_key}' has fewer than 3 distinct points.")
             scaled_rings.append(scaled_ring)
 
         polygon = Polygon(scaled_rings[0], scaled_rings[1:])
         if not polygon.is_valid or polygon.area <= 0:
-            from .exceptions import ELIAError
             raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY", "Supplied garage polygon is invalid or has zero area.")
         return polygon
 
-    # No explicit polygon/footprint/geometry key: fall back to center-based construction.
-    center = point_xy(value, scale)
-    if center:
-        config = elia_rules()["access"]
-        width = config["default_garage_width_m"] * int(value.get("capacity", 1))
-        length = config["default_garage_length_m"]
-        return box(center[0] - width / 2, center[1] - length / 2, center[0] + width / 2, center[1] + length / 2)
-    return None
+    # Validate capacity first, even if geometry is missing
+    capacity = 1
+    if "capacity" in value:
+        cap_val = value["capacity"]
+        if isinstance(cap_val, bool) or not isinstance(cap_val, (int, float)):
+            raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY", "Garage capacity must be a finite positive integer.")
+        try:
+            f_cap = float(cap_val)
+        except (TypeError, ValueError):
+            raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY", "Garage capacity must be a finite positive integer.")
+        if not isfinite(f_cap) or f_cap <= 0 or not f_cap.is_integer():
+            raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY", "Garage capacity must be a finite positive integer.")
+        capacity = int(f_cap)
+
+    # No explicit polygon/footprint/geometry key: check for center-based construction.
+    # Distinguish omitted position from explicitly malformed position.
+    if "position" not in value and "center" not in value:
+        if "capacity" in value:
+            # Capacity was supplied but no location was given.
+            raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY", "Supplied garage capacity lacks usable geometry or location.")
+        # Neither polygon, center, nor capacity provided
+        return None
+
+    # Validate center — support both "position" and "center" keys
+    raw_pos = value.get("center") if "center" in value else value.get("position")
+    if isinstance(raw_pos, (list, tuple)) and len(raw_pos) >= 2:
+        try:
+            cx, cy = float(raw_pos[0]) * scale, float(raw_pos[1]) * scale
+        except (TypeError, ValueError):
+            cx, cy = float("nan"), float("nan")
+    elif isinstance(raw_pos, dict):
+        try:
+            cx, cy = float(raw_pos["x"]) * scale, float(raw_pos["y"]) * scale
+        except (KeyError, TypeError, ValueError):
+            cx, cy = float("nan"), float("nan")
+    else:
+        cx, cy = float("nan"), float("nan")
+    if not (isfinite(cx) and isfinite(cy)):
+        raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY", "Garage position must contain valid finite coordinates.")
+    center = (cx, cy)
+
+    config = elia_rules()["access"]
+    width = config["default_garage_width_m"] * capacity
+    length = config["default_garage_length_m"]
+    return box(center[0] - width / 2, center[1] - length / 2, center[0] + width / 2, center[1] + length / 2)
 
 
 
@@ -349,7 +380,7 @@ def _bay_dimensions(access: Mapping[str, Any], unit_scale: float) -> tuple[float
 def plan_garage(land: Polygon, residual: BaseGeometry, gate: Mapping[str, Any], master: Mapping[str, Any], access: Mapping[str, Any],
                 unit_scale: float, obstacles: BaseGeometry | None = None,
                 approach_distance: float | None = None) -> dict[str, Any] | None:
-    existing = master.get("existing_garage") or master.get("garage")
+    existing = master["existing_garage"] if "existing_garage" in master else master.get("garage")
     garage = _existing_garage(existing, unit_scale)
     source = "master_json"
     gate_point = Point(gate["access_point"])
@@ -373,7 +404,6 @@ def plan_garage(land: Polygon, residual: BaseGeometry, gate: Mapping[str, Any], 
             
             estimated_cells = ((max_x - min_x) / step) * ((max_y - min_y) / step)
             if estimated_cells > elia_rules()["access"].get("max_grid_cells", 200000):
-                from .exceptions import ELIAError
                 raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Search budget exhausted for garage.")
                 
             fallback_candidates = [Point(x, y) for y in _frange(min_y + length / 2, max_y - length / 2, step)
@@ -386,7 +416,6 @@ def plan_garage(land: Polygon, residual: BaseGeometry, gate: Mapping[str, Any], 
             
             estimated_cells = ((max_x - min_x) / step) * ((max_y - min_y) / step)
             if estimated_cells > elia_rules()["access"].get("max_grid_cells", 200000):
-                from .exceptions import ELIAError
                 raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Search budget exhausted for garage.")
                 
             candidates = [Point(x, y) for y in _frange(min_y + length / 2, max_y - length / 2, step)

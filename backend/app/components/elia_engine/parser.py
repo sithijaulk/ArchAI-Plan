@@ -168,6 +168,12 @@ def parse_exterior_context(document: Any, default_units: str = "m") -> ExteriorC
     if not land.covers(house):
         raise ELIAError("ELIA_HOUSE_OUTSIDE_LAND", "House exterior polygon must lie within the land boundary.")
 
+    # Eagerly validate existing garage if supplied, even if garage planning is disabled.
+    if "existing_garage" in document or "garage" in document:
+        existing_garage = document["existing_garage"] if "existing_garage" in document else document["garage"]
+        from .gate_garage import _existing_garage
+        _existing_garage(existing_garage, scale)
+
     normalized: list[str] = []
     if land_normalized:
         normalized.append("land_boundary_polygon")

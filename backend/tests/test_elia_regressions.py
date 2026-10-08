@@ -639,15 +639,16 @@ class TestLightingPhase3:
 
     def test_garden_candidates_include_representative_point(self):
         residual = self._residual()
-        candidates = _garden_candidates(residual, 4.0)
+        candidates = list(_garden_candidates(residual, 4.0))
         assert len(candidates) >= 1
         # First candidate must be the representative point
-        assert candidates[0][0] == "garden"
-        assert residual.covers(candidates[0][1])
+        assert candidates[0] == residual.representative_point()
+        assert residual.covers(candidates[0])
 
     def test_garden_candidates_grid_all_inside_residual(self):
         residual = self._residual()
-        for zone, pt in _garden_candidates(residual, 4.0)[1:]:  # skip rep_pt
+        candidates = list(_garden_candidates(residual, 4.0))
+        for pt in candidates[1:]:  # skip rep_pt
             assert residual.covers(pt), f"Grid candidate {pt} outside residual"
 
 
@@ -1028,7 +1029,7 @@ class TestComputationBudgets:
         monkeypatch.setattr(lighting_mod, "elia_rules", patched_elia_rules)
         from app.components.elia_engine.lighting import place_lighting, _garden_candidates
         with pytest.raises(ELIAError) as exc:
-            _garden_candidates(residual, 1.0)
+            list(_garden_candidates(residual, 1.0))
         assert exc.value.code == "ELIA_PLANNING_LIMIT_EXCEEDED"
 
     def test_boundary_lighting_budget_exceeded_raises_elia_error(self, monkeypatch):
@@ -1120,3 +1121,330 @@ class TestComputationBudgets:
             lighting_mod.place_lighting(land, residual, driveway, None, None, reqs)
         assert exc.value.code == "ELIA_PLANNING_LIMIT_EXCEEDED"
 
+
+# ---------------------------------------------------------------------------
+# Defect 1: Garage validation bypasses – false/array/scalar values
+# ---------------------------------------------------------------------------
+from app.components.elia_engine.exceptions import ELIAError as _ELIAError
+from app.components.elia_engine.gate_garage import _existing_garage
+
+
+class TestGarageValidationBypasses:
+    """Tests that previously-accepted malformed garage values are now rejected."""
+
+    SCALE = 1.0  # meters
+
+    def test_false_garage_value_rejected(self):
+        """`existing_garage: false` must raise ELIA_INVALID_GARAGE_GEOMETRY, not return None."""
+        with pytest.raises(_ELIAError) as exc:
+            _existing_garage(False, self.SCALE)
+        assert exc.value.code == "ELIA_INVALID_GARAGE_GEOMETRY"
+
+    def test_empty_array_garage_rejected(self):
+        """`existing_garage: []` must raise ELIA_INVALID_GARAGE_GEOMETRY."""
+        with pytest.raises(_ELIAError) as exc:
+            _existing_garage([], self.SCALE)
+        assert exc.value.code == "ELIA_INVALID_GARAGE_GEOMETRY"
+
+    def test_non_empty_array_garage_rejected(self):
+        """`existing_garage: [[1,2],[3,4]]` (bare array, not a Mapping) → rejected."""
+        with pytest.raises(_ELIAError) as exc:
+            _existing_garage([[1, 2], [3, 4]], self.SCALE)
+        assert exc.value.code == "ELIA_INVALID_GARAGE_GEOMETRY"
+
+    def test_negative_capacity_rejected(self):
+        """`{"capacity": -1}` must raise ELIA_INVALID_GARAGE_GEOMETRY."""
+        with pytest.raises(_ELIAError) as exc:
+            _existing_garage({"capacity": -1}, self.SCALE)
+        assert exc.value.code == "ELIA_INVALID_GARAGE_GEOMETRY"
+
+    def test_zero_capacity_rejected(self):
+        """`{"capacity": 0}` must raise ELIA_INVALID_GARAGE_GEOMETRY."""
+        with pytest.raises(_ELIAError) as exc:
+            _existing_garage({"capacity": 0}, self.SCALE)
+        assert exc.value.code == "ELIA_INVALID_GARAGE_GEOMETRY"
+
+    def test_bool_capacity_rejected(self):
+        """`{"capacity": True}` is a bool, not an int – must be rejected."""
+        with pytest.raises(_ELIAError) as exc:
+            _existing_garage({"capacity": True}, self.SCALE)
+        assert exc.value.code == "ELIA_INVALID_GARAGE_GEOMETRY"
+
+    def test_float_capacity_rejected(self):
+        """`{"capacity": 1.5}` is not an integer – rejected."""
+        with pytest.raises(_ELIAError) as exc:
+            _existing_garage({"capacity": 1.5}, self.SCALE)
+        assert exc.value.code == "ELIA_INVALID_GARAGE_GEOMETRY"
+
+    def test_capacity_only_no_center_rejected(self):
+        """`{"capacity": 1}` with no center/position – rejected as usable geometry missing."""
+        with pytest.raises(_ELIAError) as exc:
+            _existing_garage({"capacity": 1}, self.SCALE)
+        assert exc.value.code == "ELIA_INVALID_GARAGE_GEOMETRY"
+
+    def test_null_garage_returns_none(self):
+        """`existing_garage: null` (i.e. None) → returns None (omitted)."""
+        result = _existing_garage(None, self.SCALE)
+        assert result is None
+
+    def test_empty_object_returns_none(self):
+        """`existing_garage: {}` → returns None (no polygon, no center, no capacity)."""
+        result = _existing_garage({}, self.SCALE)
+        assert result is None
+
+    def test_valid_center_based_garage_accepted(self):
+        """Valid center + capacity → returns a Polygon."""
+        result = _existing_garage(
+            {"center": [5.0, 5.0], "capacity": 2},
+            self.SCALE,
+        )
+        assert result is not None and not result.is_empty
+
+    def test_valid_center_defaults_capacity_1(self):
+        """Center without capacity → defaults to capacity 1, returns a Polygon."""
+        result = _existing_garage({"center": [5.0, 5.0]}, self.SCALE)
+        assert result is not None and not result.is_empty
+
+    def test_valid_polygon_accepted(self):
+        """Explicit polygon list → accepted and returned as a Polygon."""
+        coords = [[0, 0], [6, 0], [6, 5], [0, 5], [0, 0]]
+        result = _existing_garage({"polygon": coords}, self.SCALE)
+        assert result is not None and result.area > 0
+
+    def test_valid_polygon_with_hole_accepted(self):
+        """Polygon with one hole (ring-of-rings) → accepted and hole preserved."""
+        outer = [[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]
+        hole = [[2, 2], [8, 2], [8, 8], [2, 8], [2, 2]]
+        result = _existing_garage({"polygon": [outer, hole]}, self.SCALE)
+        assert result is not None
+        assert len(list(result.interiors)) == 1
+
+    def test_primary_alias_malformed_not_replaced_by_secondary(self):
+        """When 'existing_garage' is malformed (False), a valid 'garage' key must NOT silently win."""
+        from app.components.elia_engine.parser import parse_exterior_context
+        master = {
+            **_master_m(),
+            "existing_garage": False,        # malformed primary
+            "garage": {"center": [5.0, 5.0]},  # valid secondary
+        }
+        with pytest.raises(_ELIAError) as exc:
+            parse_exterior_context(master, "m")
+        assert exc.value.code == "ELIA_INVALID_GARAGE_GEOMETRY"
+
+    def test_parse_context_false_garage_raises(self):
+        """`existing_garage: false` in Master JSON → 422 via parse_exterior_context."""
+        from app.components.elia_engine.parser import parse_exterior_context
+        master = {**_master_m(), "existing_garage": False}
+        with pytest.raises(_ELIAError) as exc:
+            parse_exterior_context(master, "m")
+        assert exc.value.code == "ELIA_INVALID_GARAGE_GEOMETRY"
+
+    def test_parse_context_array_garage_raises(self):
+        """`existing_garage: []` in Master JSON → 422 via parse_exterior_context."""
+        from app.components.elia_engine.parser import parse_exterior_context
+        master = {**_master_m(), "existing_garage": []}
+        with pytest.raises(_ELIAError) as exc:
+            parse_exterior_context(master, "m")
+        assert exc.value.code == "ELIA_INVALID_GARAGE_GEOMETRY"
+
+    def test_parse_context_negative_capacity_raises(self):
+        """`existing_garage: {"capacity": -1}` → 422 via parse_exterior_context."""
+        from app.components.elia_engine.parser import parse_exterior_context
+        master = {**_master_m(), "existing_garage": {"capacity": -1}}
+        with pytest.raises(_ELIAError) as exc:
+            parse_exterior_context(master, "m")
+        assert exc.value.code == "ELIA_INVALID_GARAGE_GEOMETRY"
+
+    def test_parse_context_omitted_garage_ok(self):
+        """No `existing_garage` key → parse_exterior_context proceeds normally."""
+        from app.components.elia_engine.parser import parse_exterior_context
+        master = {**_master_m()}
+        # Must not raise
+        ctx = parse_exterior_context(master, "m")
+        assert ctx is not None
+
+
+# ---------------------------------------------------------------------------
+# Defect 2: Lighting output limit semantics
+# ---------------------------------------------------------------------------
+from app.components.elia_engine.lighting import place_lighting
+
+
+class TestLightingOutputLimitSemantics:
+    """Tests that the output-node limit and the work/comparison budget are separate."""
+
+    @staticmethod
+    def _land():
+        from shapely.geometry import box as sbox
+        return sbox(0, 0, 50, 50)
+
+    def test_exact_output_limit_with_spacing_rejected_second_candidate_succeeds(self, monkeypatch):
+        """
+        Output-node limit = 1.
+        Candidates at (5,5) and (5.1, 5.1) with spacing 4.
+        Only (5,5) is eligible; (5.1,5.1) rejected by spacing check.
+        → No ELIA_PLANNING_LIMIT_EXCEEDED, result has exactly 1 node.
+        """
+        from app.components.elia_engine import lighting as lighting_mod
+
+        land = self._land()
+
+        original_rules = lighting_mod.lighting_rules
+
+        def patched_rules():
+            r = original_rules()
+            return {**r, "max_candidates": 5000,
+                    "max_boundary_points": 2000,
+                    "max_final_comparison_nodes": 1}
+
+        monkeypatch.setattr(lighting_mod, "lighting_rules", patched_rules)
+
+        # Force exactly the two candidates (5,5) and (5.1,5.1) through garden zone.
+        from shapely.geometry import Point, MultiPoint
+
+        two_cands = MultiPoint([Point(5, 5), Point(5.1, 5.1)])
+        residual = two_cands.convex_hull.buffer(0.01)  # tiny area containing both
+
+        reqs = {
+            "lighting": {"required": True, "zones": ["garden"], "preferred_spacing_m": 4.0},
+            "access": {},
+        }
+        nodes = place_lighting(land, residual, None, None, None, reqs)
+        assert len(nodes) == 1
+        assert nodes[0]["position"][0] == pytest.approx(5.0, abs=1.0)
+
+    def test_exact_output_limit_second_eligible_candidate_raises(self, monkeypatch):
+        """
+        Output-node limit = 1.
+        Candidates at (5,5) and (30,30) – both eligible (spacing 4, far apart).
+        → ELIA_PLANNING_LIMIT_EXCEEDED must be raised when the 2nd eligible is reached.
+        """
+        from app.components.elia_engine import lighting as lighting_mod
+
+        land = self._land()
+
+        original_rules = lighting_mod.lighting_rules
+
+        def patched_rules():
+            r = original_rules()
+            return {**r, "max_candidates": 5000,
+                    "max_boundary_points": 2000,
+                    "max_final_comparison_nodes": 1}
+
+        monkeypatch.setattr(lighting_mod, "lighting_rules", patched_rules)
+
+        from shapely.geometry import Point, MultiPoint
+
+        two_cands = MultiPoint([Point(5, 5), Point(30, 30)])
+        residual = two_cands.convex_hull.buffer(0.5)
+
+        reqs = {
+            "lighting": {"required": True, "zones": ["garden"], "preferred_spacing_m": 4.0},
+            "access": {},
+        }
+        with pytest.raises(_ELIAError) as exc:
+            place_lighting(land, residual, None, None, None, reqs)
+        assert exc.value.code == "ELIA_PLANNING_LIMIT_EXCEEDED"
+
+    def test_comparison_work_budget_exhaustion_raises(self, monkeypatch):
+        """Exhausting the candidate budget before output limit → ELIA_PLANNING_LIMIT_EXCEEDED."""
+        from app.components.elia_engine import lighting as lighting_mod
+        from shapely.geometry import box as sbox
+
+        land = sbox(0, 0, 50, 50)
+        residual = land
+
+        original_rules = lighting_mod.lighting_rules
+
+        def patched_rules():
+            r = original_rules()
+            # max_candidates = 1 → second candidate from garden grid exhausts budget
+            return {**r, "max_candidates": 1,
+                    "max_boundary_points": 2000,
+                    "max_final_comparison_nodes": 500}
+
+        monkeypatch.setattr(lighting_mod, "lighting_rules", patched_rules)
+
+        reqs = {
+            "lighting": {"required": True, "zones": ["garden"], "preferred_spacing_m": 2.0},
+            "access": {},
+        }
+        with pytest.raises(_ELIAError) as exc:
+            place_lighting(land, residual, None, None, None, reqs)
+        assert exc.value.code == "ELIA_PLANNING_LIMIT_EXCEEDED"
+
+    def test_candidate_budget_shared_across_zones(self, monkeypatch):
+        """Budget is exhausted when garden zone fills slots left by driveway zone."""
+        from app.components.elia_engine import lighting as lighting_mod
+        from shapely.geometry import box as sbox, LineString
+
+        land = sbox(0, 0, 30, 30)
+        residual = sbox(1, 1, 29, 29)
+        driveway = LineString([(1, 1), (29, 1)])
+
+        original_rules = lighting_mod.lighting_rules
+
+        def patched_rules():
+            r = original_rules()
+            return {**r, "max_candidates": 2,
+                    "max_boundary_points": 2000,
+                    "max_final_comparison_nodes": 500}
+
+        monkeypatch.setattr(lighting_mod, "lighting_rules", patched_rules)
+        reqs = {
+            "lighting": {"required": True, "zones": ["driveway", "garden"], "preferred_spacing_m": 0.5},
+            "access": {"preferred_driveway_width_m": 3.0},
+        }
+        with pytest.raises(_ELIAError) as exc:
+            place_lighting(land, residual, driveway, None, None, reqs)
+        assert exc.value.code == "ELIA_PLANNING_LIMIT_EXCEEDED"
+
+    def test_garden_generation_stops_at_budget_boundary(self, monkeypatch):
+        """Garden candidate generation stops at the budget, not after building a full oversized list."""
+        from app.components.elia_engine import lighting as lighting_mod
+        from shapely.geometry import box as sbox
+
+        land = sbox(0, 0, 50, 50)
+        residual = land
+
+        call_count = {"n": 0}
+        original_rules = lighting_mod.lighting_rules
+
+        def patched_rules():
+            r = original_rules()
+            return {**r, "max_candidates": 3,
+                    "max_boundary_points": 2000,
+                    "max_final_comparison_nodes": 500}
+
+        monkeypatch.setattr(lighting_mod, "lighting_rules", patched_rules)
+
+        reqs = {
+            "lighting": {"required": True, "zones": ["garden"], "preferred_spacing_m": 0.5},
+            "access": {},
+        }
+        with pytest.raises(_ELIAError) as exc:
+            place_lighting(land, residual, None, None, None, reqs)
+        assert exc.value.code == "ELIA_PLANNING_LIMIT_EXCEEDED"
+
+    def test_validation_failure_preserves_accepted_exterior(self):
+        """When garage validation fails, the service must not overwrite accepted exterior data."""
+        from app.components.elia_engine.service import run_elia
+        master = {
+            **_master_m(),
+            "existing_garage": False,          # malformed – causes 422
+            "accepted_exterior": {"version": 99, "layout": {"sentinel": True}},
+        }
+        reqs = {
+            "units": "m",
+            "access": {"garage_required": False, "driveway_required": False},
+            "landscape": {"garden_required": False},
+            "lighting": {"required": False},
+            "vertical_greenery": {"mode": "disabled"},
+        }
+        try:
+            result, outcome = run_elia(master, reqs, "test-preserve-ext")
+            # If service swallows the error, accepted_exterior must not be modified.
+            ext = master.get("accepted_exterior", {})
+            assert ext.get("version") == 99, "Accepted exterior version was mutated"
+        except _ELIAError as exc:
+            assert exc.code == "ELIA_INVALID_GARAGE_GEOMETRY"

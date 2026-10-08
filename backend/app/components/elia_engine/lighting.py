@@ -36,10 +36,15 @@ def place_lighting(land: BaseGeometry, residual: BaseGeometry, driveway: LineStr
     candidates: list[tuple[str, Point]] = []
 
     if "gate" in zones and gate:
+        if len(candidates) >= max_candidates:
+            raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Total lighting candidates exceed the computation budget.")
         candidates.append(("gate", Point(gate["position"])))
 
     if "garage" in zones and garage:
-        candidates.extend(_garage_zone_candidates(garage))
+        for cand in _garage_zone_candidates(garage):
+            if len(candidates) >= max_candidates:
+                raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Total lighting candidates exceed the computation budget.")
+            candidates.append(("garage", cand))
 
     if "driveway" in zones and driveway and driveway.length > 0:
         try:
@@ -48,37 +53,26 @@ def place_lighting(land: BaseGeometry, residual: BaseGeometry, driveway: LineStr
             )
             line = max(offset.geoms, key=lambda part: part.length) if hasattr(offset, "geoms") else offset
             count = max(1, int(line.length // spacing))
-            # Budget: cap driveway candidates
-            if count > max_candidates:
-                raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED",
-                                f"Driveway lighting candidate count ({count}) exceeds budget.")
-            candidates.extend(
-                ("driveway", line.interpolate(index / (count + 1), normalized=True))
-                for index in range(1, count + 1)
-            )
+            for index in range(1, count + 1):
+                if len(candidates) >= max_candidates:
+                    raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Total lighting candidates exceed the computation budget.")
+                candidates.append(("driveway", line.interpolate(index / (count + 1), normalized=True)))
         except ELIAError:
             raise
         except (ValueError, TypeError):
             pass
 
     if "garden" in zones and not residual.is_empty:
-        garden_cands = _garden_candidates(residual, spacing)
-        if len(candidates) + len(garden_cands) > max_candidates:
-            raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED",
-                            "Total garden lighting candidates exceed the computation budget.")
-        candidates.extend(garden_cands)
+        for cand in _garden_candidates(residual, spacing):
+            if len(candidates) >= max_candidates:
+                raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Total lighting candidates exceed the computation budget.")
+            candidates.append(("garden", cand))
 
     if "boundary" in zones:
-        boundary_cands = list(_boundary_points(land, spacing, max_boundary))
-        if len(candidates) + len(boundary_cands) > max_candidates:
-            raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED",
-                            "Total boundary lighting candidates exceed the computation budget.")
-        candidates.extend(("boundary", point) for point in boundary_cands)
-
-    # Total budget guard after all candidate sources
-    if len(candidates) > max_candidates:
-        raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED",
-                        f"Total lighting candidates ({len(candidates)}) exceed the computation budget.")
+        for cand in _boundary_points(land, spacing, max_boundary):
+            if len(candidates) >= max_candidates:
+                raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Total lighting candidates exceed the computation budget.")
+            candidates.append(("boundary", cand))
 
     nodes: list[dict[str, Any]] = []
     enforced_spacing = spacing - 1e-3
@@ -87,15 +81,16 @@ def place_lighting(land: BaseGeometry, residual: BaseGeometry, driveway: LineStr
             continue
         if blocked is not None and blocked.buffer(0.05).covers(point):
             continue
-        # Cap final spacing/collision check comparisons
-        if len(nodes) >= max_final:
-            break
         if any(point.distance(Point(node["position"])) < enforced_spacing for node in nodes):
             continue
         if driveway and zone != "driveway" and point.distance(driveway) < float(
             requirements.get("access", {}).get("preferred_driveway_width_m", 3.0)
         ) / 2:
             continue
+            
+        if len(nodes) >= max_final:
+            raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED",
+                            f"Final lighting node count exceeds the output limit of {max_final}.")
         light_type = rules["render_types"].get(lighting.get("style", "minimal"), "bollard")
         nodes.append({"json_id": f"LIGHT_{len(nodes) + 1:03d}", "position": [point.x, point.y], "type": light_type,
                       "zone": zone, "height_m": rules["mounting_height_m"].get(zone, 1.0),
@@ -103,10 +98,9 @@ def place_lighting(land: BaseGeometry, residual: BaseGeometry, driveway: LineStr
     return nodes
 
 
-def _garden_candidates(residual: BaseGeometry, spacing: float) -> list[tuple[str, Point]]:
-    """Return multiple garden candidates: representative_point first, then grid."""
-    candidates: list[tuple[str, Point]] = []
-    candidates.append(("garden", residual.representative_point()))
+def _garden_candidates(residual: BaseGeometry, spacing: float):
+    """Yield multiple garden candidates: representative_point first, then grid."""
+    yield residual.representative_point()
     min_x, min_y, max_x, max_y = residual.bounds
     step = max(spacing, 1.0)
 
@@ -120,10 +114,9 @@ def _garden_candidates(residual: BaseGeometry, spacing: float) -> list[tuple[str
         while x <= max_x:
             pt = Point(x, y)
             if residual.covers(pt):
-                candidates.append(("garden", pt))
+                yield pt
             x += step
         y += step
-    return candidates
 
 
 def _garage_zone_candidates(garage: Mapping[str, Any]) -> list[tuple[str, Point]]:
