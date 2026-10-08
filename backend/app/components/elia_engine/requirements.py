@@ -265,20 +265,73 @@ def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str,
     utilities = dict(requirements.get("utilities") or {})
     for util_key in ("well", "septic_tank"):
         if util_key in utilities:
-            util_data = dict(utilities[util_key])
+            raw_util = utilities[util_key]
+            if not isinstance(raw_util, Mapping):
+                raise ELIAError(
+                    "ELIA_INVALID_UTILITY_DATA",
+                    f"utilities.{util_key} must be an object, got {type(raw_util).__name__}.",
+                )
+            util_data = dict(raw_util)
             explicit_m = util_data.get("position_m")
             if explicit_m is not None:
-                pass # keep as is
+                # Validate explicit_m and leave as-is (already in meters)
+                if not (isinstance(explicit_m, (list, tuple)) and len(explicit_m) == 2):
+                    raise ELIAError(
+                        "ELIA_INVALID_UTILITY_POSITION",
+                        f"utilities.{util_key}.position_m must be a two-element list [x, y].",
+                    )
+                try:
+                    pm = [float(c) for c in explicit_m]
+                    if not all(isfinite(c) for c in pm):
+                        raise ValueError("non-finite")
+                    util_data["position_m"] = pm
+                except (TypeError, ValueError) as exc:
+                    raise ELIAError(
+                        "ELIA_INVALID_UTILITY_POSITION",
+                        f"utilities.{util_key}.position_m must contain finite numbers.",
+                    ) from exc
             elif "position" in util_data:
                 coords = util_data["position"]
-                if isinstance(coords, (list, tuple)) and len(coords) == 2:
+                # Support both list/tuple [x, y] and dict {x: ..., y: ...}
+                if isinstance(coords, Mapping):
+                    raw_x, raw_y = coords.get("x"), coords.get("y")
+                    if raw_x is None or raw_y is None:
+                        raise ELIAError(
+                            "ELIA_INVALID_UTILITY_POSITION",
+                            f"utilities.{util_key}.position dict must have 'x' and 'y' keys.",
+                        )
+                    try:
+                        parsed = [float(raw_x), float(raw_y)]
+                    except (TypeError, ValueError) as exc:
+                        raise ELIAError(
+                            "ELIA_INVALID_UTILITY_POSITION",
+                            f"utilities.{util_key}.position x/y must be numeric.",
+                        ) from exc
+                elif isinstance(coords, (list, tuple)):
+                    if len(coords) != 2:
+                        raise ELIAError(
+                            "ELIA_INVALID_UTILITY_POSITION",
+                            f"utilities.{util_key}.position must have exactly 2 elements.",
+                        )
                     try:
                         parsed = [float(c) for c in coords]
-                        if all(isfinite(c) for c in parsed):
-                            coord_scale = 1.0 if already_normalized else scale
-                            util_data["position_m"] = [c * coord_scale for c in parsed]
-                    except (TypeError, ValueError):
-                        pass
+                    except (TypeError, ValueError) as exc:
+                        raise ELIAError(
+                            "ELIA_INVALID_UTILITY_POSITION",
+                            f"utilities.{util_key}.position must contain numeric values.",
+                        ) from exc
+                else:
+                    raise ELIAError(
+                        "ELIA_INVALID_UTILITY_POSITION",
+                        f"utilities.{util_key}.position must be a list [x, y] or dict {{x, y}}.",
+                    )
+                if not all(isfinite(c) for c in parsed):
+                    raise ELIAError(
+                        "ELIA_INVALID_UTILITY_POSITION",
+                        f"utilities.{util_key}.position coordinates must be finite numbers.",
+                    )
+                coord_scale = 1.0 if already_normalized else scale
+                util_data["position_m"] = [c * coord_scale for c in parsed]
                 util_data.pop("position", None)
             utilities[util_key] = util_data
 

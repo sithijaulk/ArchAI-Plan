@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import json
+import math
 from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any, Mapping
@@ -11,21 +12,21 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import update
 from sqlalchemy.orm import Session
 
-from ..components.elia_engine.exceptions import ELIAError
-from ..components.elia_engine.adapter import normalize_master_json
-from ..components.elia_engine.geometry import feet_to_meters
-from ..components.elia_engine.parser import parse_exterior_context
-from ..components.elia_engine.requirements import normalize_requirements
-from ..components.elia_engine.rule_repository import elia_rules, lighting_rules, vehicle_profiles, vegetation_catalog
-from ..components.elia_engine.schemas import ELIARequest, ELIAResponse
-from ..components.elia_engine.solar import extract_master_location, fetch_live_solar_conditions, search_sri_lanka_locations
-from ..components.elia_engine.generation import generate_exterior
-from ..components.elia_engine.gate_garage import plan_gate
-from ..components.elia_engine.output import build_processing_master, build_updated_master
-from ..database import get_db
-from ..dependencies import require_admin
-from ..models.component_run import ComponentRun
-from ..models.project import Project
+from app.components.elia_engine.exceptions import ELIAError
+from app.components.elia_engine.adapter import normalize_master_json
+from app.components.elia_engine.geometry import feet_to_meters
+from app.components.elia_engine.parser import parse_exterior_context
+from app.components.elia_engine.requirements import normalize_requirements
+from app.components.elia_engine.rule_repository import elia_rules, lighting_rules, vehicle_profiles, vegetation_catalog
+from app.components.elia_engine.schemas import ELIARequest, ELIAResponse
+from app.components.elia_engine.solar import extract_master_location, fetch_live_solar_conditions, search_sri_lanka_locations
+from app.components.elia_engine.generation import generate_exterior
+from app.components.elia_engine.gate_garage import plan_gate
+from app.components.elia_engine.output import build_processing_master, build_updated_master
+from app.database import get_db
+from app.dependencies import require_admin
+from app.models.component_run import ComponentRun
+from app.models.project import Project
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["ELIA-Engine"])
@@ -52,6 +53,18 @@ def _project_or_404(db: Session, project_id: str) -> Project:
     return project
 
 
+
+def _sanitize_nan(obj: Any) -> Any:
+    if isinstance(obj, dict):
+        return {k: _sanitize_nan(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_sanitize_nan(v) for v in obj]
+    elif isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return '<non_finite>'
+    return obj
+
+
 def _set_processing(project: Project, metadata: dict[str, Any]) -> None:
     document = deepcopy(project.master_json or {})
     processing = document.setdefault("processing", {})
@@ -71,9 +84,10 @@ def _record_failure(db: Session, run_id: str, project_id: str, code: str, messag
         run.error_message = f"{code}: {message}"[:4000]
         run.completed_at = datetime.now(timezone.utc)
         if candidate_output is not None:
-            diagnostic = _safe_diagnostic(candidate_output)
-            json.dumps(diagnostic, allow_nan=False)
-            run.output_json = diagnostic
+            try:
+                run.output_json = json.loads(json.dumps(_sanitize_nan(candidate_output), default=str))
+            except Exception:
+                run.output_json = {"error": "output_serialization_failed"}
     if should_persist and project is not None:
         revision = expected_revision if expected_revision is not None else project.revision
         if revision is not None:
@@ -100,7 +114,7 @@ def _record_stale_conflict(db: Session, run_id: str, project_id: str, source_rev
     project = db.query(Project).filter(Project.id == project_id).first()
     if run is not None:
         run.status = "failed"
-        run.output_json = candidate_output
+        run.output_json = _sanitize_nan(candidate_output)
         run.error_message = "ELIA_STALE_SOURCE_REVISION: Project changed while ELIA was running."
         run.completed_at = datetime.now(timezone.utc)
         processing = (project.master_json or {}).get("processing", {}) if project is not None else {}
@@ -123,7 +137,7 @@ def _record_stale_conflict(db: Session, run_id: str, project_id: str, source_rev
                 run = db.query(ComponentRun).filter(ComponentRun.id == run_id).first()
                 if run is not None:
                     run.status = "failed"
-                    run.output_json = candidate_output
+                    run.output_json = _sanitize_nan(candidate_output)
                     run.error_message = "ELIA_STALE_SOURCE_REVISION: Project changed while ELIA was running."
                     run.completed_at = datetime.utcnow()
                 current = db.query(Project).filter(Project.id == project_id).first()
@@ -201,7 +215,7 @@ def run_project_elia(project_id: str, request: ELIARequest,
         exterior, outcome = generate_exterior(source_master, requirements, run.id, request.generation_mode)
         exterior["started_at"] = run.started_at.replace(tzinfo=timezone.utc).isoformat() if run.started_at else None
         run.status = "completed"
-        run.output_json = exterior
+        run.output_json = _sanitize_nan(exterior)
         run.completed_at = datetime.now(timezone.utc)
         run.input_json = {**(run.input_json or {}), "model_version": exterior.get("model_version")}
         try:
@@ -213,9 +227,14 @@ def run_project_elia(project_id: str, request: ELIARequest,
             json.dumps(response.model_dump(mode="json"), allow_nan=False)
         except Exception as exc:
             # Output validation failure — this is a server-side bug, not malformed client input.
+            # Save raw candidate output directly (preserving NaN etc.) before _record_failure.
+            run.output_json = _sanitize_nan(exterior)
+            run.status = "failed"
+            run.completed_at = datetime.now(timezone.utc)
+            db.commit()
             _record_failure(db, run.id, project_id, "ELIA_INVALID_OUTPUT",
                             f"ELIA produced invalid output: {exc}", should_persist,
-                            expected_revision, exterior, source_revision)
+                            expected_revision, None, source_revision)
             raise HTTPException(
                 status_code=500,
                 detail={"code": "ELIA_INVALID_OUTPUT",
@@ -245,12 +264,6 @@ def run_project_elia(project_id: str, request: ELIARequest,
         return response
     except HTTPException:
         raise
-    except (TypeError, AttributeError, ValueError) as exc:
-        # Only reaches here for errors during input parsing/normalization, not output validation.
-        logger.warning("ELIA encountered malformed input for project %s: %s", project_id, exc)
-        _record_failure(db, run.id, project_id, "ELIA_MALFORMED_INPUT", f"Malformed input data: {str(exc)}", should_persist,
-                        expected_revision, None, source_revision)
-        raise HTTPException(status_code=422, detail={"code": "ELIA_MALFORMED_INPUT", "message": f"Malformed input data: {str(exc)}"}) from exc
     except ELIAError as exc:
         _record_failure(db, run.id, project_id, exc.code, exc.message, should_persist,
                         expected_revision, getattr(exc, "candidate_output", None), source_revision)

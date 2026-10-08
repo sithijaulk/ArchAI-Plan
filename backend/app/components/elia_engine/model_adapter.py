@@ -8,7 +8,7 @@ from shapely import affinity
 from shapely.geometry import LineString, Point, Polygon, shape
 from shapely.ops import unary_union
 
-from ...config import settings
+from app.config import settings
 from .adapter import normalize_master_json
 from .exceptions import ELIAError
 from .geometry import point_xy

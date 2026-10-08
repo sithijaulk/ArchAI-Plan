@@ -13,6 +13,7 @@ from .parser import UNIT_TO_METERS
 from .rule_repository import elia_rules
 
 
+
 def _gate_opening(line: LineString, center: Point, width: float) -> LineString | None:
     if width <= 0 or not isfinite(width):
         return None
@@ -31,6 +32,7 @@ def garage_polygon(value: Mapping[str, Any]) -> Polygon:
     if isinstance(polygon[0], (list, tuple)) and polygon[0] and isinstance(polygon[0][0], (list, tuple)):
         return Polygon(polygon[0], polygon[1:])
     return Polygon(polygon)
+
 
 
 def _count_fitting_bays(polygon: Polygon, bay_w: float, bay_l: float, tolerance: float = 0.05) -> int:
@@ -143,6 +145,7 @@ def plan_gate(land: Polygon, house: Polygon, master: Mapping[str, Any], access: 
             magnitude = hypot(dx, dy) or 1.0
             access_point = (point.x + dx / magnitude * rules["gate_access_inset_m"],
                             point.y + dy / magnitude * rules["gate_access_inset_m"])
+
             return {"json_id": "GATE_001", "position": list(position), "width": gate_w,
                     "access_point": list(access_point), "type": existing.get("type", access.get("gate_type", "existing")),
                     "source": "master_json", "valid": True, "additional_gates": [], "planned_gate_count": 1}
@@ -224,53 +227,95 @@ def _existing_garage(value: Any, scale: float) -> Polygon | None:
         return None
     from shapely.geometry import shape
 
-    raw = value.get("polygon") or value.get("footprint") or value.get("geometry")
-    rings = []
-    
-    if raw is not None:
+    # Strict alias selection: check explicit key presence, not truthiness.
+    # This prevents an empty list/dict from falling through to a center-based fallback.
+    raw = None
+    explicit_key = None
+    for key in ("polygon", "footprint", "geometry"):
+        if key in value:
+            raw = value[key]
+            explicit_key = key
+            break
+
+    if explicit_key is not None:
+        # An explicit geometry key was provided — validate strictly.
         if isinstance(raw, Mapping):
+            # GeoJSON shape object
             try:
                 parsed = shape(raw)
-                if isinstance(parsed, Polygon):
-                    rings = [list(parsed.exterior.coords)] + [list(interior.coords) for interior in parsed.interiors]
-                else:
-                    raise ValueError("garage geometry must be a Polygon")
+                if not isinstance(parsed, Polygon):
+                    from .exceptions import ELIAError
+                    raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY",
+                                    f"Garage '{explicit_key}' must be a Polygon GeoJSON, got {raw.get('type')}.")
+                rings = [list(parsed.exterior.coords)] + [list(interior.coords) for interior in parsed.interiors]
+            except ELIAError:
+                raise
             except Exception as exc:
                 from .exceptions import ELIAError
                 raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY", "Supplied garage geometry is malformed.") from exc
-        elif isinstance(raw, (list, tuple)) and raw:
+        elif isinstance(raw, (list, tuple)):
+            if len(raw) == 0:
+                # Case A: explicitly supplied empty polygon list → reject
+                from .exceptions import ELIAError
+                raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY",
+                                 f"Garage '{explicit_key}' must not be an empty list.")
+            # Distinguish ring-of-rings vs flat ring based on first element
             if isinstance(raw[0], (list, tuple)) and raw[0] and isinstance(raw[0][0], (list, tuple)):
-                rings = raw
+                # Ring-of-rings: [[exterior], [hole], ...]
+                rings = list(raw)
             else:
+                # Flat ring: [[x,y], [x,y], ...]
                 rings = [raw]
         else:
             from .exceptions import ELIAError
-            raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY", "Supplied garage geometry is of unsupported type.")
+            raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY",
+                             f"Garage '{explicit_key}' must be a list of coordinates or a GeoJSON object.")
 
-    if rings:
-        scaled_rings = []
-        try:
-            for ring in rings:
-                scaled_ring = []
-                for point in ring:
-                    if len(point) >= 2:
-                        x, y = float(point[0]), float(point[1])
-                        if not (isfinite(x) and isfinite(y)):
-                            raise ValueError("Coordinates must be finite.")
-                        scaled_ring.append((x * scale, y * scale))
-                if len(scaled_ring) >= 3:
-                    scaled_rings.append(scaled_ring)
-        except (TypeError, ValueError) as exc:
+        # Validate every point in every ring strictly — do not silently skip bad points/rings
+        scaled_rings: list[list[tuple[float, float]]] = []
+        for ring_index, ring in enumerate(rings):
+            if not isinstance(ring, (list, tuple)):
+                from .exceptions import ELIAError
+                raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY",
+                                 f"Ring {ring_index} in garage '{explicit_key}' must be a list of points.")
+            scaled_ring: list[tuple[float, float]] = []
+            for pt_index, point in enumerate(ring):
+                if not isinstance(point, (list, tuple)) or len(point) < 2:
+                    # Case B: invalid/empty point in ring → reject whole geometry
+                    from .exceptions import ELIAError
+                    raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY",
+                                     f"Point {pt_index} in ring {ring_index} of garage '{explicit_key}' "
+                                     f"is not a valid coordinate pair.")
+                try:
+                    x, y = float(point[0]), float(point[1])
+                except (TypeError, ValueError) as exc:
+                    from .exceptions import ELIAError
+                    raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY",
+                                     f"Point {pt_index} in ring {ring_index} of garage '{explicit_key}' "
+                                     f"must contain numeric values.") from exc
+                if not (isfinite(x) and isfinite(y)):
+                    from .exceptions import ELIAError
+                    raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY",
+                                     f"Point {pt_index} in ring {ring_index} of garage '{explicit_key}' "
+                                     f"must contain finite coordinates.")
+                scaled_ring.append((x * scale, y * scale))
+            # Each ring must have at least 3 distinct points (4 with closing repeat)
+            distinct = scaled_ring if (len(scaled_ring) < 2 or scaled_ring[0] != scaled_ring[-1]) else scaled_ring[:-1]
+            if len(distinct) < 3:
+                # Case C: hole with fewer than 3 points → reject, do not drop silently
+                kind = "exterior" if ring_index == 0 else f"hole {ring_index}"
+                from .exceptions import ELIAError
+                raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY",
+                                 f"The {kind} ring of garage '{explicit_key}' has fewer than 3 distinct points.")
+            scaled_rings.append(scaled_ring)
+
+        polygon = Polygon(scaled_rings[0], scaled_rings[1:])
+        if not polygon.is_valid or polygon.area <= 0:
             from .exceptions import ELIAError
-            raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY", "Garage coordinates must be finite numbers.") from exc
-            
-        if scaled_rings:
-            polygon = Polygon(scaled_rings[0], scaled_rings[1:])
-            if polygon.is_valid and polygon.area > 0:
-                return polygon
-        from .exceptions import ELIAError
-        raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY", "Supplied garage polygon is invalid.")
+            raise ELIAError("ELIA_INVALID_GARAGE_GEOMETRY", "Supplied garage polygon is invalid or has zero area.")
+        return polygon
 
+    # No explicit polygon/footprint/geometry key: fall back to center-based construction.
     center = point_xy(value, scale)
     if center:
         config = elia_rules()["access"]
@@ -278,6 +323,8 @@ def _existing_garage(value: Any, scale: float) -> Polygon | None:
         length = config["default_garage_length_m"]
         return box(center[0] - width / 2, center[1] - length / 2, center[0] + width / 2, center[1] + length / 2)
     return None
+
+
 
 
 def _bay_dimensions(access: Mapping[str, Any], unit_scale: float) -> tuple[float, float]:

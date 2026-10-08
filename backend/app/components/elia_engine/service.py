@@ -77,6 +77,7 @@ def _building_height(master: Mapping[str, Any], scale: float) -> float | None:
     if explicit_meters is None and isinstance(building, Mapping):
         explicit_meters = building.get("height_m")
     if explicit_meters is not None:
+
         try:
             value = float(explicit_meters)
         except (TypeError, ValueError) as exc:
@@ -84,6 +85,7 @@ def _building_height(master: Mapping[str, Any], scale: float) -> float | None:
         if not isfinite(value) or value <= 0:
             raise ELIAError("ELIA_INVALID_BUILDING_HEIGHT", "Building height must be finite and positive.")
         return value
+
     value = master.get("building_height") or master.get("house_height")
     if value is None and isinstance(building, Mapping):
         value = building.get("height")
@@ -406,6 +408,7 @@ def run_elia(master_json: Mapping[str, Any], raw_requirements: Mapping[str, Any]
     ground_features = []
     if driveway_polygon:
         ground_features.append(driveway_polygon)
+
     if garage:
         ground_features.append(garage_polygon(garage))
     for path in requested_paths.values():

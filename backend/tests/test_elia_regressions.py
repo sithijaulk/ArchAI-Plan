@@ -129,6 +129,7 @@ class TestUnitNormalization:
         norm = normalize_requirements({"access": {"driveway_required": False}}, _master_ft(), "m")
         assert norm["access"]["driveway_required"] is False
 
+
     def test_existing_gate_rejects_non_positive_width(self):
         with pytest.raises(ELIAError) as error:
             plan_gate(Polygon([(0, 0), (40, 0), (40, 30), (0, 30)]), Polygon([(10, 8), (22, 8), (22, 22), (10, 22)]),
@@ -176,6 +177,7 @@ class TestUnitNormalization:
         paths = [Polygon(item["polygon"]) for item in exterior["outdoor_elements"]
                  if item.get("type", "").endswith("path") and item.get("polygon")]
         assert all(not plant.intersects(path) for plant in plants for path in paths)
+
 
 from shapely.geometry import box
 from app.components.elia_engine.outdoor_elements import place_outdoor_elements
@@ -744,20 +746,30 @@ class TestPreferenceGateDeterministic:
     }
 
     def test_far_preferred_gate_is_unfulfilled(self):
-        """Preferred position well outside the land polygon → always unfulfilled."""
+        """Preferred position well outside the land polygon → gate cannot be placed there.
+
+        With preferred_gate_location_m=[999,999] (outside the 40x30 parcel),
+        plan_gate cannot satisfy the constraint → run_elia returns infeasible
+        with no gate, not a gate at the wrong location.
+        """
         from app.components.elia_engine.service import run_elia
         req = {**self._BASE_REQ, "access": {**self._BASE_REQ["access"],
                                             "preferred_gate_location_m": [999.0, 999.0]}}
         result, outcome = run_elia(_service_master(), req, "test-pref-gate-far-det")
-        # Even if gate planning succeeded somewhere, the preferred pos is far away
+        # A preference point well outside the boundary cannot be met.
+        # Either gate is absent (infeasible) or, if placed, must be flagged unfulfilled.
         gate = result.get("access", {}).get("gate")
-        if gate is not None:
+        if gate is None:
+            # Geometry guarantee: the far position makes the gate unplaceable.
+            assert outcome == "infeasible", (
+                f"Expected infeasible when gate is absent, got outcome={outcome!r}")
+        else:
+            # Gate was placed anyway; the preference MUST be flagged unfulfilled.
             pref = result.get("preference_fulfillment", {})
             unfulfilled = pref.get("unfulfilled_preferences", [])
-            assert "preferred_gate_location" in unfulfilled
-        else:
-            # Gate could not be planned at all given geometry — still a valid outcome
-            assert outcome in ("infeasible", "valid")
+            assert "preferred_gate_location" in unfulfilled, (
+                f"Gate placed at {gate.get('position')} but preference not in "
+                f"unfulfilled_preferences: {unfulfilled}")
 
     def test_no_preferred_gate_produces_no_unfulfilled_location(self):
         """Without a preference, preferred_gate_location must not appear in unfulfilled."""
@@ -766,3 +778,345 @@ class TestPreferenceGateDeterministic:
         pref = result.get("preference_fulfillment", {})
         unfulfilled = pref.get("unfulfilled_preferences", [])
         assert "preferred_gate_location" not in unfulfilled
+
+    def test_near_south_boundary_preference_is_fulfilled(self):
+        """Preferred position on the south boundary midpoint → gate placed and fulfilled."""
+        from app.components.elia_engine.service import run_elia
+        req = {
+            "units": "m",
+            "access": {
+                "road_side": "south",
+                "garage_required": False,
+                "driveway_required": False,
+                "preferred_gate_location_m": [20.0, 0.0],
+            },
+            "landscape": {"garden_required": False},
+            "lighting": {"required": False},
+            "vertical_greenery": {"mode": "disabled"},
+        }
+        result, outcome = run_elia(_service_master(), req, "test-pref-gate-near-det")
+        gate = result.get("access", {}).get("gate")
+        assert gate is not None, "Gate must be placed for an on-boundary preference"
+        assert outcome == "valid"
+        pref = result.get("preference_fulfillment", {})
+        unfulfilled = pref.get("unfulfilled_preferences", [])
+        assert "preferred_gate_location" not in unfulfilled
+
+
+# ---------------------------------------------------------------------------
+# Section 2 – Utility coordinate normalization
+# ---------------------------------------------------------------------------
+
+
+class TestUtilityCoordinateNormalization:
+    """Regression tests for Section 2: utility x/y dict format and validation."""
+
+    _MASTER = {
+        "north_angle": 0,
+        "location": {"latitude": 7.0, "longitude": 80.0, "timezone": "Asia/Colombo"},
+    }
+
+    def test_list_format_ft_converts_to_meters(self):
+        """[10, 10] with units=ft → position_m=[3.048, 3.048]."""
+        req = {"units": "ft",
+               "location": {"latitude": 7.0, "longitude": 80.0},
+               "utilities": {"well": {"position": [10, 10]}}}
+        result = normalize_requirements(req, self._MASTER, "ft")
+        assert result["utilities"]["well"]["position_m"] == pytest.approx([3.048, 3.048], rel=1e-4)
+
+    def test_xy_dict_format_ft_converts_to_meters(self):
+        """{"x":10,"y":10} with units=ft → position_m=[3.048, 3.048]."""
+        req = {"units": "ft",
+               "location": {"latitude": 7.0, "longitude": 80.0},
+               "utilities": {"well": {"position": {"x": 10, "y": 10}}}}
+        result = normalize_requirements(req, self._MASTER, "ft")
+        assert result["utilities"]["well"]["position_m"] == pytest.approx([3.048, 3.048], rel=1e-4)
+
+    def test_list_and_dict_produce_identical_position_m(self):
+        """Both coordinate input formats must produce the same position_m value."""
+        base = {"units": "ft",
+                "location": {"latitude": 7.0, "longitude": 80.0}}
+        req_list = {**base, "utilities": {"well": {"position": [10, 10]}}}
+        req_dict = {**base, "utilities": {"well": {"position": {"x": 10, "y": 10}}}}
+        r_list = normalize_requirements(req_list, self._MASTER, "ft")
+        r_dict = normalize_requirements(req_dict, self._MASTER, "ft")
+        assert r_list["utilities"]["well"]["position_m"] == pytest.approx(
+            r_dict["utilities"]["well"]["position_m"], rel=1e-6)
+
+    def test_explicit_position_m_not_scaled_again(self):
+        """position_m already in meters must not be multiplied by unit scale."""
+        req = {"units": "ft",
+               "location": {"latitude": 7.0, "longitude": 80.0},
+               "utilities": {"well": {"position_m": [3.048, 3.048]}}}
+        result = normalize_requirements(req, self._MASTER, "ft")
+        assert result["utilities"]["well"]["position_m"] == pytest.approx([3.048, 3.048], rel=1e-6)
+
+    def test_septic_tank_xy_dict_converts(self):
+        """septic_tank position also supports x/y dict format."""
+        req = {"units": "m",
+               "location": {"latitude": 7.0, "longitude": 80.0},
+               "utilities": {"septic_tank": {"position": {"x": 5.0, "y": 12.0}}}}
+        result = normalize_requirements(req, self._MASTER, "m")
+        assert result["utilities"]["septic_tank"]["position_m"] == pytest.approx([5.0, 12.0], rel=1e-6)
+
+    def test_nan_coordinate_rejected_with_elia_error(self):
+        """Non-finite coordinates must be rejected with ELIAError."""
+        req = {"units": "m",
+               "location": {"latitude": 7.0, "longitude": 80.0},
+               "utilities": {"well": {"position": [float("nan"), 10]}}}
+        with pytest.raises(ELIAError) as exc:
+            normalize_requirements(req, self._MASTER, "m")
+        assert exc.value.code == "ELIA_INVALID_UTILITY_POSITION"
+
+    def test_missing_y_key_in_dict_rejected(self):
+        """Dict with only 'x' key must be rejected."""
+        req = {"units": "m",
+               "location": {"latitude": 7.0, "longitude": 80.0},
+               "utilities": {"well": {"position": {"x": 5}}}}
+        with pytest.raises(ELIAError) as exc:
+            normalize_requirements(req, self._MASTER, "m")
+        assert exc.value.code == "ELIA_INVALID_UTILITY_POSITION"
+
+    def test_non_numeric_coordinate_rejected(self):
+        """Non-numeric coordinate in list format must be rejected."""
+        req = {"units": "m",
+               "location": {"latitude": 7.0, "longitude": 80.0},
+               "utilities": {"well": {"position": ["bad", 10]}}}
+        with pytest.raises(ELIAError) as exc:
+            normalize_requirements(req, self._MASTER, "m")
+        assert exc.value.code == "ELIA_INVALID_UTILITY_POSITION"
+
+    def test_wrong_length_list_rejected(self):
+        """3-element list must be rejected."""
+        req = {"units": "m",
+               "location": {"latitude": 7.0, "longitude": 80.0},
+               "utilities": {"well": {"position": [1, 2, 3]}}}
+        with pytest.raises(ELIAError) as exc:
+            normalize_requirements(req, self._MASTER, "m")
+        assert exc.value.code == "ELIA_INVALID_UTILITY_POSITION"
+
+    def test_json_round_trip_preserves_physical_position(self):
+        """After normalization and JSON serialization, meters are preserved."""
+        import json
+        req = {"units": "ft",
+               "location": {"latitude": 7.0, "longitude": 80.0},
+               "utilities": {"well": {"position": [10, 10]}}}
+        result = normalize_requirements(req, self._MASTER, "ft")
+        round_tripped = json.loads(json.dumps(dict(result)))
+        pos = round_tripped["utilities"]["well"]["position_m"]
+        assert pos == pytest.approx([3.048, 3.048], rel=1e-4)
+
+
+# ---------------------------------------------------------------------------
+# Section 3 – Strict garage geometry validation
+# ---------------------------------------------------------------------------
+
+
+class TestGarageGeometryValidation:
+    """Regression tests for Section 3: all malformed garage geometry cases."""
+
+    def test_case_a_empty_polygon_list_rejected(self):
+        """Case A: {'polygon': []} must raise ELIA_INVALID_GARAGE_GEOMETRY, not return None."""
+        with pytest.raises(ELIAError) as exc:
+            _existing_garage({"polygon": []}, 1.0)
+        assert exc.value.code == "ELIA_INVALID_GARAGE_GEOMETRY"
+
+    def test_case_b_invalid_point_in_ring_rejected(self):
+        """Case B: polygon with an empty point (missing coords) must raise."""
+        with pytest.raises(ELIAError) as exc:
+            _existing_garage({"polygon": [[0, 0], [8, 0], [8, 8], [0, 8], []]}, 1.0)
+        assert exc.value.code == "ELIA_INVALID_GARAGE_GEOMETRY"
+
+    def test_case_c_invalid_hole_rejected(self):
+        """Case C: hole with only 2 points must raise, not be silently dropped."""
+        with pytest.raises(ELIAError) as exc:
+            _existing_garage({"polygon": [[[0, 0], [8, 0], [8, 8], [0, 8]],
+                                          [[1, 1], [2, 1]]]}, 1.0)
+        assert exc.value.code == "ELIA_INVALID_GARAGE_GEOMETRY"
+
+    def test_valid_polygon_accepted(self):
+        """Well-formed polygon must be accepted and have correct area."""
+        result = _existing_garage({"polygon": [[0, 0], [8, 0], [8, 8], [0, 8]]}, 1.0)
+        assert result is not None
+        assert result.area == pytest.approx(64.0, rel=1e-6)
+
+    def test_valid_polygon_with_hole_accepted_and_preserved(self):
+        """Well-formed polygon with a valid hole must be accepted, hole preserved."""
+        result = _existing_garage(
+            {"polygon": [[[0, 0], [8, 0], [8, 8], [0, 8]],
+                         [[1, 1], [3, 1], [3, 3], [1, 3]]]},
+            1.0
+        )
+        assert result is not None
+        assert len(list(result.interiors)) == 1
+        assert result.area == pytest.approx(64.0 - 4.0, rel=1e-6)
+
+    def test_absent_geometry_falls_back_to_center(self):
+        """No polygon/footprint/geometry key → center-based box (not an error)."""
+        result = _existing_garage({"position": [4.0, 4.0]}, 1.0)
+        assert result is not None
+        assert result.area > 0
+
+    def test_none_input_returns_none(self):
+        """None input must return None, not raise."""
+        assert _existing_garage(None, 1.0) is None
+
+    def test_non_finite_coordinate_rejected(self):
+        """NaN or Inf in coordinates must raise."""
+        with pytest.raises(ELIAError) as exc:
+            _existing_garage({"polygon": [[0, 0], [float("nan"), 0], [8, 8], [0, 8]]}, 1.0)
+        assert exc.value.code == "ELIA_INVALID_GARAGE_GEOMETRY"
+
+    def test_unsupported_geometry_type_rejected(self):
+        """GeoJSON with non-Polygon type must raise."""
+        with pytest.raises(ELIAError) as exc:
+            _existing_garage({"polygon": {"type": "Point", "coordinates": [0, 0]}}, 1.0)
+        assert exc.value.code == "ELIA_INVALID_GARAGE_GEOMETRY"
+
+    def test_explicit_empty_geometry_not_silently_switched_to_center(self):
+        """If polygon key is present but empty, center key must NOT be used as fallback."""
+        # Has both 'polygon: []' and 'position' — polygon presence must be honored (rejected)
+        with pytest.raises(ELIAError) as exc:
+            _existing_garage({"polygon": [], "position": [4.0, 4.0]}, 1.0)
+        assert exc.value.code == "ELIA_INVALID_GARAGE_GEOMETRY"
+
+    def test_valid_hole_survives_obstacle_and_serialization(self):
+        """Valid hole is preserved through garage_polygon() and serialization."""
+        source = {
+            "polygon": [[[0, 0], [10, 0], [10, 10], [0, 10]],
+                        [[2, 2], [4, 2], [4, 4], [2, 4]]],
+        }
+        from app.components.elia_engine.gate_garage import garage_polygon
+        poly = garage_polygon(source)
+        assert poly is not None
+        assert len(list(poly.interiors)) == 1
+        assert poly.area == pytest.approx(100.0 - 4.0, rel=1e-6)
+
+
+# ---------------------------------------------------------------------------
+# Section 6 – Computation budget enforcement
+# ---------------------------------------------------------------------------
+
+
+class TestComputationBudgets:
+    """Deterministic low-budget tests that exhaust limits without using real resources."""
+
+    def _make_lighting_requirements(self, zones=None, spacing_m=1.0):
+        return {
+            "lighting": {
+                "required": True,
+                "zones": zones or ["garden"],
+                "preferred_spacing_m": spacing_m,
+            },
+            "access": {"preferred_driveway_width_m": 3.0},
+        }
+
+    def test_garden_lighting_budget_exceeded_raises_elia_error(self, monkeypatch):
+        """Injecting a tiny max_grid_cells budget → ELIA_PLANNING_LIMIT_EXCEEDED."""
+        from app.components.elia_engine import lighting as lighting_mod
+        from shapely.geometry import box as sbox
+
+        land = sbox(0, 0, 50, 50)
+        residual = land
+
+        original_rules = lighting_mod.elia_rules
+
+        def patched_elia_rules():
+            r = original_rules()
+            return {**r, "access": {**r["access"], "max_grid_cells": 1}}
+
+        monkeypatch.setattr(lighting_mod, "elia_rules", patched_elia_rules)
+        from app.components.elia_engine.lighting import place_lighting, _garden_candidates
+        with pytest.raises(ELIAError) as exc:
+            _garden_candidates(residual, 1.0)
+        assert exc.value.code == "ELIA_PLANNING_LIMIT_EXCEEDED"
+
+    def test_boundary_lighting_budget_exceeded_raises_elia_error(self, monkeypatch):
+        """A very small max_boundary_points → ELIA_PLANNING_LIMIT_EXCEEDED."""
+        from app.components.elia_engine import lighting as lighting_mod
+        from app.components.elia_engine.lighting import _boundary_points
+        from shapely.geometry import box as sbox
+
+        land = sbox(0, 0, 500, 500)
+        # Very long boundary / tiny spacing → count >> 1
+        with pytest.raises(ELIAError) as exc:
+            list(_boundary_points(land, spacing=0.1, max_points=10))
+        assert exc.value.code == "ELIA_PLANNING_LIMIT_EXCEEDED"
+
+    def test_driveway_lighting_budget_cap_propagates(self, monkeypatch):
+        """Injecting max_candidates=1 → driveway count > budget raises properly."""
+        from app.components.elia_engine import lighting as lighting_mod
+        from shapely.geometry import box as sbox, LineString
+
+        land = sbox(0, 0, 100, 100)
+        residual = sbox(5, 5, 95, 95)
+        driveway = LineString([(5, 5), (95, 5)])
+
+        original_rules = lighting_mod.lighting_rules
+
+        def patched_rules():
+            r = original_rules()
+            return {**r, "max_candidates": 1, "max_boundary_points": 2000,
+                    "max_final_comparison_nodes": 500}
+
+        monkeypatch.setattr(lighting_mod, "lighting_rules", patched_rules)
+        reqs = self._make_lighting_requirements(zones=["driveway"], spacing_m=0.01)
+        with pytest.raises(ELIAError) as exc:
+            lighting_mod.place_lighting(land, residual, driveway, None, None, reqs)
+        assert exc.value.code == "ELIA_PLANNING_LIMIT_EXCEEDED"
+
+    def test_garage_bay_fitting_budget_exceeded_raises(self, monkeypatch):
+        """Tiny max_grid_cells in elia_rules → garage planning raises ELIA_PLANNING_LIMIT_EXCEEDED."""
+        from app.components.elia_engine import gate_garage as gg_mod
+        from shapely.geometry import box as sbox
+
+        land = sbox(0, 0, 200, 200)
+        residual = sbox(5, 5, 195, 195)
+        gate = {"access_point": [5.0, 5.0], "position": [5.0, 0.0], "width": 3.5}
+        access = {"garage_required": True, "garage_capacity": 1}
+
+        original_rules = gg_mod.elia_rules
+
+        def patched_rules():
+            r = original_rules()
+            return {**r, "access": {**r["access"], "max_grid_cells": 1}}
+
+        monkeypatch.setattr(gg_mod, "elia_rules", patched_rules)
+        with pytest.raises(ELIAError) as exc:
+            gg_mod.plan_garage(land, residual, gate, {}, access, 1.0)
+        assert exc.value.code == "ELIA_PLANNING_LIMIT_EXCEEDED"
+
+    def test_lighting_invalid_spacing_raises(self):
+        """Non-positive spacing must raise ELIA_INVALID_LIGHTING_SPACING."""
+        from app.components.elia_engine.lighting import place_lighting
+        from shapely.geometry import box as sbox
+
+        land = sbox(0, 0, 20, 20)
+        reqs = {"lighting": {"required": True, "zones": ["garden"], "preferred_spacing_m": -1.0},
+                "access": {}}
+        with pytest.raises(ELIAError) as exc:
+            place_lighting(land, land, None, None, None, reqs)
+        assert exc.value.code == "ELIA_INVALID_LIGHTING_SPACING"
+
+    def test_combined_zone_budget_across_zones(self, monkeypatch):
+        """max_candidates applying across driveway + garden zones."""
+        from app.components.elia_engine import lighting as lighting_mod
+        from shapely.geometry import box as sbox, LineString
+
+        land = sbox(0, 0, 30, 30)
+        residual = sbox(1, 1, 29, 29)
+        driveway = LineString([(1, 1), (29, 1)])
+
+        original_rules = lighting_mod.lighting_rules
+
+        def patched_rules():
+            r = original_rules()
+            return {**r, "max_candidates": 2, "max_boundary_points": 2000,
+                    "max_final_comparison_nodes": 500}
+
+        monkeypatch.setattr(lighting_mod, "lighting_rules", patched_rules)
+        reqs = self._make_lighting_requirements(zones=["driveway", "garden"], spacing_m=0.5)
+        with pytest.raises(ELIAError) as exc:
+            lighting_mod.place_lighting(land, residual, driveway, None, None, reqs)
+        assert exc.value.code == "ELIA_PLANNING_LIMIT_EXCEEDED"
+
