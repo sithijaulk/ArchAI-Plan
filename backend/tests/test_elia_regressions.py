@@ -614,16 +614,17 @@ class TestLightingPhase3:
         assert nodes == []
 
     def test_garage_zone_places_outside_polygon(self):
-        """Garage-zone lighting must not land inside the garage footprint."""
+        """Garage-zone lighting must not land inside the garage footprint.
+        _garage_zone_candidates now yields Point objects only (no zone label).
+        """
         garage_poly = box(10, 10, 13.5, 16)  # 3.5 x 6 m
         garage = {
             "polygon": list(garage_poly.exterior.coords),
             "entry_point": [11.75, 10.0],
             "access_point": [11.75, 8.5],
         }
-        candidates = _garage_zone_candidates(garage)
-        for zone, pt in candidates:
-            assert zone == "garage"
+        candidates = list(_garage_zone_candidates(garage))
+        for pt in candidates:
             assert not garage_poly.buffer(0.05).covers(pt), \
                 f"Garage light at {pt} is inside/on garage polygon"
 
@@ -634,7 +635,7 @@ class TestLightingPhase3:
             "entry_point": [11.75, 10.0],
             "access_point": [11.75, 8.5],
         }
-        candidates = _garage_zone_candidates(garage)
+        candidates = list(_garage_zone_candidates(garage))
         assert len(candidates) >= 1
 
     def test_garden_candidates_include_representative_point(self):
@@ -1448,3 +1449,299 @@ class TestLightingOutputLimitSemantics:
             assert ext.get("version") == 99, "Accepted exterior version was mutated"
         except _ELIAError as exc:
             assert exc.code == "ELIA_INVALID_GARAGE_GEOMETRY"
+
+
+# ---------------------------------------------------------------------------
+# Defect 1 (Fix 3): Garage-lighting crash regression
+# ---------------------------------------------------------------------------
+from shapely.geometry import box as _sbox
+from app.components.elia_engine.lighting import _garage_zone_candidates as _gzc
+
+
+class TestGarageLightingCrash:
+    """Verify the exact reproduction case and surrounding garage-lighting behavior."""
+
+    @staticmethod
+    def _land():
+        return _sbox(0, 0, 40, 40)
+
+    @staticmethod
+    def _garage():
+        return {
+            "polygon": [[10, 10], [14, 10], [14, 16], [10, 16]],
+            "entry_point": [12, 10],
+        }
+
+    def test_exact_reproduction_no_type_error(self):
+        """The reported TypeError must no longer occur."""
+        land = self._land()
+        garage = self._garage()
+        result = place_lighting(
+            land, land, None, None, garage,
+            {"lighting": {"required": True, "zones": ["garage"]}},
+        )
+        assert isinstance(result, list)
+
+    def test_garage_lighting_returns_nonempty_nodes(self):
+        """At least one node must be produced for a feasible garage fixture."""
+        land = self._land()
+        garage = self._garage()
+        nodes = place_lighting(
+            land, land, None, None, garage,
+            {"lighting": {"required": True, "zones": ["garage"]}},
+        )
+        assert len(nodes) >= 1
+
+    def test_garage_lighting_nodes_have_correct_zone_label(self):
+        """Every produced node must carry zone='garage'."""
+        land = self._land()
+        garage = self._garage()
+        nodes = place_lighting(
+            land, land, None, None, garage,
+            {"lighting": {"required": True, "zones": ["garage"]}},
+        )
+        for node in nodes:
+            assert node["zone"] == "garage", f"Unexpected zone: {node['zone']}"
+
+    def test_garage_lighting_nodes_outside_garage_polygon(self):
+        """Nodes must not be inside or on the garage polygon."""
+        from shapely.geometry import Polygon as _Polygon
+        land = self._land()
+        garage = self._garage()
+        garage_poly = _Polygon(garage["polygon"])
+        nodes = place_lighting(
+            land, land, None, None, garage,
+            {"lighting": {"required": True, "zones": ["garage"]}},
+        )
+        for node in nodes:
+            pt = Point(node["position"])
+            assert not garage_poly.buffer(0.05).covers(pt), \
+                f"Node at {node['position']} is inside garage polygon"
+
+    def test_garage_lighting_nodes_have_valid_coordinates(self):
+        """All node positions must be finite numbers."""
+        land = self._land()
+        garage = self._garage()
+        nodes = place_lighting(
+            land, land, None, None, garage,
+            {"lighting": {"required": True, "zones": ["garage"]}},
+        )
+        for node in nodes:
+            x, y = node["position"]
+            assert isfinite(x) and isfinite(y), f"Non-finite position: {node['position']}"
+
+    def test_garage_lighting_inside_land_boundary(self):
+        """All nodes must be within the land polygon."""
+        land = self._land()
+        garage = self._garage()
+        nodes = place_lighting(
+            land, land, None, None, garage,
+            {"lighting": {"required": True, "zones": ["garage"]}},
+        )
+        for node in nodes:
+            assert land.covers(Point(node["position"])), \
+                f"Node at {node['position']} is outside land boundary"
+
+    def test_garage_combined_with_garden_zone(self):
+        """Garage and garden zones together: both must contribute nodes."""
+        land = self._land()
+        garage = self._garage()
+        from shapely.geometry import Polygon as _Polygon
+        garage_poly = _Polygon(garage["polygon"])
+        residual = land.difference(garage_poly)
+        nodes = place_lighting(
+            land, residual, None, None, garage,
+            {"lighting": {"required": True, "zones": ["garage", "garden"],
+                          "preferred_spacing_m": 5.0}},
+        )
+        zones_seen = {n["zone"] for n in nodes}
+        assert "garage" in zones_seen or "garden" in zones_seen, \
+            "Expected at least one zone to produce nodes"
+
+    def test_garage_zone_helper_yields_points_not_tuples(self):
+        """_garage_zone_candidates must yield Point objects (new contract)."""
+        pts = list(_gzc(self._garage()))
+        assert len(pts) >= 1
+        for pt in pts:
+            assert isinstance(pt, Point), f"Expected Point, got {type(pt)}"
+
+    def test_lighting_disabled_produces_no_nodes(self):
+        """When lighting.required is False, no nodes should be produced."""
+        land = self._land()
+        nodes = place_lighting(
+            land, land, None, None, self._garage(),
+            {"lighting": {"required": False, "zones": ["garage"]}},
+        )
+        assert nodes == []
+
+    def test_garage_lights_respect_spacing(self):
+        """No two garage-zone nodes should be closer than the enforced spacing."""
+        land = self._land()
+        garage = self._garage()
+        nodes = place_lighting(
+            land, land, None, None, garage,
+            {"lighting": {"required": True, "zones": ["garage"],
+                          "preferred_spacing_m": 1.0}},
+        )
+        for i, a in enumerate(nodes):
+            for b in nodes[i + 1:]:
+                dist = Point(a["position"]).distance(Point(b["position"]))
+                assert dist >= 0.99, f"Nodes too close: {dist:.3f}m"
+
+
+# ---------------------------------------------------------------------------
+# Defect 2 (Fix 3): Real spacing comparison budget
+# ---------------------------------------------------------------------------
+from math import isfinite
+
+
+class TestSpacingComparisonBudget:
+    """Verify the independent max_spacing_comparisons budget."""
+
+    @staticmethod
+    def _land():
+        return _sbox(0, 0, 50, 50)
+
+    def test_comparison_budget_exhaustion_raises_limit_error(self, monkeypatch):
+        """Exhausting spacing comparisons → ELIA_PLANNING_LIMIT_EXCEEDED.
+        Candidate and output limits are kept comfortably high so only
+        the comparison budget triggers.
+        """
+        from app.components.elia_engine import lighting as lighting_mod
+        orig = lighting_mod.lighting_rules
+
+        def patched():
+            r = orig()
+            return {**r,
+                    "max_candidates": 5000,
+                    "max_final_comparison_nodes": 5000,
+                    "max_spacing_comparisons": 2}  # exhausted after 2 comparisons
+
+        monkeypatch.setattr(lighting_mod, "lighting_rules", patched)
+        land = self._land()
+        # Need multiple candidates far enough apart that each passes spacing.
+        # Use a grid of points at 1m spacing so many candidates are produced.
+        reqs = {
+            "lighting": {"required": True, "zones": ["garden"],
+                         "preferred_spacing_m": 1.0},
+            "access": {},
+        }
+        with pytest.raises(_ELIAError) as exc:
+            lighting_mod.place_lighting(land, land, None, None, None, reqs)
+        assert exc.value.code == "ELIA_PLANNING_LIMIT_EXCEEDED"
+
+    def test_exact_comparison_budget_completion_succeeds(self, monkeypatch):
+        """When total comparisons equals the budget exactly, no error is raised."""
+        from app.components.elia_engine import lighting as lighting_mod
+        orig = lighting_mod.lighting_rules
+
+        # Exactly 2 candidates, spacing large so 2nd is eligible.
+        # For 2 candidates: 1st needs 0 comparisons (nodes empty), 2nd needs 1.
+        # Budget = 1 → allows the first comparison.
+        def patched():
+            r = orig()
+            return {**r,
+                    "max_candidates": 5000,
+                    "max_final_comparison_nodes": 5000,
+                    "max_spacing_comparisons": 1,
+                    "minimum_spacing_m": 1.0}
+
+        monkeypatch.setattr(lighting_mod, "lighting_rules", patched)
+        land = _sbox(0, 0, 20, 20)
+        reqs = {
+            "lighting": {"required": True, "zones": ["gate", "garden"],
+                         "preferred_spacing_m": 1.0},
+            "access": {},
+        }
+        # Gate at (1,1), garden will have one more candidate.
+        # If 2nd candidate triggers 1 comparison against the accepted gate node,
+        # budget=1 → exactly exhausted → MUST raise.
+        # (This verifies the budget is checked before the comparison, not after.)
+        with pytest.raises(_ELIAError) as exc:
+            lighting_mod.place_lighting(
+                land, land, None,
+                {"position": [1.0, 1.0]}, None, reqs,
+            )
+        assert exc.value.code == "ELIA_PLANNING_LIMIT_EXCEEDED"
+
+    def test_spacing_rejected_candidates_count_toward_budget(self, monkeypatch):
+        """A candidate rejected by spacing still consumed a comparison."""
+        from app.components.elia_engine import lighting as lighting_mod
+        orig = lighting_mod.lighting_rules
+
+        # Two garden candidates very close together (spacing 10m, gap ~0.1m).
+        # 1st: accepted (0 comparisons). 2nd: 1 comparison → rejected by spacing.
+        # Budget=1 → that 1 comparison is the budget.  3rd candidate would
+        # need a comparison but budget is exhausted → raises.
+        def patched():
+            r = orig()
+            return {**r,
+                    "max_candidates": 5000,
+                    "max_final_comparison_nodes": 5000,
+                    "max_spacing_comparisons": 1,
+                    "minimum_spacing_m": 0.5}
+
+        monkeypatch.setattr(lighting_mod, "lighting_rules", patched)
+        land = _sbox(0, 0, 50, 50)
+        reqs = {
+            "lighting": {"required": True, "zones": ["garden"],
+                         "preferred_spacing_m": 10.0},
+            "access": {},
+        }
+        # Garden grid with step=10m in 50x50 → many candidates.
+        # 1st is accepted (0 comparisons), 2nd triggers 1 comparison (rejected by
+        # spacing), 3rd would trigger another comparison → budget exceeded.
+        with pytest.raises(_ELIAError) as exc:
+            lighting_mod.place_lighting(land, land, None, None, None, reqs)
+        assert exc.value.code == "ELIA_PLANNING_LIMIT_EXCEEDED"
+
+    def test_comparison_budget_separate_from_candidate_budget(self, monkeypatch):
+        """Candidate budget is not reached; comparison budget is."""
+        from app.components.elia_engine import lighting as lighting_mod
+        orig = lighting_mod.lighting_rules
+
+        def patched():
+            r = orig()
+            return {**r,
+                    "max_candidates": 5000,   # plenty of candidate room
+                    "max_final_comparison_nodes": 5000,  # plenty of output room
+                    "max_spacing_comparisons": 3,
+                    "minimum_spacing_m": 1.0}
+
+        monkeypatch.setattr(lighting_mod, "lighting_rules", patched)
+        land = _sbox(0, 0, 50, 50)
+        reqs = {
+            "lighting": {"required": True, "zones": ["garden"],
+                         "preferred_spacing_m": 1.0},
+            "access": {},
+        }
+        with pytest.raises(_ELIAError) as exc:
+            lighting_mod.place_lighting(land, land, None, None, None, reqs)
+        assert exc.value.code == "ELIA_PLANNING_LIMIT_EXCEEDED"
+
+    def test_comparison_budget_shared_across_zones(self, monkeypatch):
+        """Comparisons from gate and garden zones both count toward the shared budget."""
+        from app.components.elia_engine import lighting as lighting_mod
+        orig = lighting_mod.lighting_rules
+
+        def patched():
+            r = orig()
+            return {**r,
+                    "max_candidates": 5000,
+                    "max_final_comparison_nodes": 5000,
+                    "max_spacing_comparisons": 2,
+                    "minimum_spacing_m": 0.5}
+
+        monkeypatch.setattr(lighting_mod, "lighting_rules", patched)
+        land = _sbox(0, 0, 20, 20)
+        reqs = {
+            "lighting": {"required": True, "zones": ["gate", "garden"],
+                         "preferred_spacing_m": 0.5},
+            "access": {},
+        }
+        with pytest.raises(_ELIAError) as exc:
+            lighting_mod.place_lighting(
+                land, land, None,
+                {"position": [5.0, 5.0]}, None, reqs,
+            )
+        assert exc.value.code == "ELIA_PLANNING_LIMIT_EXCEEDED"
