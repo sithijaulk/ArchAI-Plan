@@ -4,6 +4,7 @@
   "max_candidates": 5000,
   "max_boundary_points": 2000,
   "max_final_comparison_nodes": 500,
+  "max_spacing_comparisons": 250000,
   "mounting_height_m": {"pathway": 0.8, "garden": 1.2, "gate": 2.0, "driveway": 1.0, "garage": 1.0, "boundary": 1.2},
   "render_types": {"minimal": "bollard", "ambient": "bollard", "pathway": "path_light", "architectural": "wall_light"}
 }
