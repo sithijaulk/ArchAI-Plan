@@ -270,7 +270,7 @@ def test_garage_lighting_api_flow(tmp_path, monkeypatch):
             for node in nodes:
                 assert node["zone"] == "garage"
 
-            # 3. Run returns correctly serialized lighting and persists it
+            # 3. Run returns correctly serialized lighting and actually persists it
             run_resp = client.post(f"/api/projects/{project_id}/elia-engine/run", json=request_body)
             assert run_resp.status_code == 200, run_resp.text
             run_nodes = run_resp.json()["exterior_landscape"]["outdoor_lighting"]["nodes"]
@@ -278,22 +278,46 @@ def test_garage_lighting_api_flow(tmp_path, monkeypatch):
             assert [n["json_id"] for n in run_nodes] == [n["json_id"] for n in nodes]
             assert [n["position"] for n in run_nodes] == [n["position"] for n in nodes]
 
+            # Verify actual successful persistence
+            s = sessions()
+            p_after_run = s.query(Project).filter(Project.id == project_id).one()
+            persisted_landscape = p_after_run.master_json["exterior_landscape"]
+            assert [n["json_id"] for n in persisted_landscape["outdoor_lighting"]["nodes"]] == [n["json_id"] for n in run_nodes]
+            assert p_after_run.master_json["upstream_layer"] == "kept"
+            
+            run_id = run_resp.json()["run_id"]
+            run_record = s.query(ComponentRun).filter(ComponentRun.id == run_id).one()
+            assert run_record.project_id == project_id
+            assert run_record.component_name == "elia_engine"
+            assert run_record.status == "completed"
+            assert [n["json_id"] for n in run_record.output_json["outdoor_lighting"]["nodes"]] == [n["json_id"] for n in run_nodes]
+            
+            # Deep copy the accepted exterior_landscape for preservation check
+            import copy
+            accepted_exterior = copy.deepcopy(persisted_landscape)
+            s.close()
+
             # 4. Lighting disabled produces no lighting nodes
             disabled_req = {**request_body, "requirements": {**request_body["requirements"], "lighting": {"required": False}}}
             disabled_preview = client.post("/api/elia-engine/preview", json={**disabled_req, "master_json": master})
             assert disabled_preview.status_code == 200
             assert disabled_preview.json()["exterior_landscape"]["outdoor_lighting"]["nodes"] == []
 
-            # 5. Malformed garage data returns a typed 422 error
-            malformed_master = {**master, "existing_garage": False}
-            malformed_preview = client.post("/api/elia-engine/preview", json={**request_body, "master_json": malformed_master})
+            # 5. Genuine malformed garage data returns a typed 422 error
+            malformed_master = {**master, "existing_garage": []} # invalid geometry
+            malformed_req = {**request_body, "master_json": malformed_master}
+            
+            malformed_validate = client.post(f"/api/projects/{project_id}/elia-engine/validate-input", json=malformed_req)
+            assert malformed_validate.status_code == 422
+            assert malformed_validate.json()["detail"]["code"] == "ELIA_INVALID_GARAGE_GEOMETRY"
+            
+            malformed_preview = client.post("/api/elia-engine/preview", json=malformed_req)
             assert malformed_preview.status_code == 422
             assert malformed_preview.json()["detail"]["code"] == "ELIA_INVALID_GARAGE_GEOMETRY"
 
-            malformed_run = client.post(f"/api/projects/{project_id}/elia-engine/run", json=request_body)
-            # The run endpoint uses the DB master JSON, we need to update it to test run with malformed data.
-            # But we can just verify that failed run preserves data.
-            # Let's force an error in run by passing an impossibly large comparison budget limit trigger.
+            malformed_run = client.post(f"/api/projects/{project_id}/elia-engine/run", json=malformed_req)
+            assert malformed_run.status_code == 422
+            assert malformed_run.json()["detail"]["code"] == "ELIA_INVALID_GARAGE_GEOMETRY"
 
             # 6. Forced comparison-budget exhaustion returns ELIA_PLANNING_LIMIT_EXCEEDED
             from app.components.elia_engine import lighting as lighting_mod
@@ -307,11 +331,18 @@ def test_garage_lighting_api_flow(tmp_path, monkeypatch):
             assert exhaust_run.status_code == 500, exhaust_run.text
             assert exhaust_run.json()["detail"]["code"] == "ELIA_PLANNING_LIMIT_EXCEEDED"
 
-            # 7. Failed runs preserve the previously accepted exterior and unrelated Master JSON layers
-            stored = client.get(f"/api/projects/{project_id}/master-json")
-            master_data = stored.json()
-            assert master_data["accepted_exterior"] == {"version": 1, "data": "kept"}
-            assert master_data["upstream_layer"] == "kept"
+            # 7. Verify preservation of the actual accepted design after failure
+            s = sessions()
+            p_failed = s.query(Project).filter(Project.id == project_id).one()
+            failed_exterior = copy.deepcopy(p_failed.master_json.get("exterior_landscape", {}))
+            
+            # The structure must remain unchanged.
+            assert failed_exterior["outdoor_lighting"] == accepted_exterior["outdoor_lighting"]
+            assert failed_exterior["validation_summary"] == accepted_exterior["validation_summary"]
+            
+            # Unrelated upstream layer must be preserved
+            assert p_failed.master_json["upstream_layer"] == "kept"
+            s.close()
 
     finally:
         app.dependency_overrides.clear()
