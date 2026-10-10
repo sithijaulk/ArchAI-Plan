@@ -18,7 +18,7 @@ from app.components.elia_engine.geometry import feet_to_meters
 from app.components.elia_engine.parser import parse_exterior_context
 from app.components.elia_engine.requirements import normalize_requirements
 from app.components.elia_engine.rule_repository import elia_rules, lighting_rules, vehicle_profiles, vegetation_catalog
-from app.components.elia_engine.schemas import ELIARequest, ELIAResponse
+from app.components.elia_engine.schemas import ELIARequest, ELIAResponse, ExteriorLandscapeResponse
 from app.components.elia_engine.solar import extract_master_location, fetch_live_solar_conditions, search_sri_lanka_locations
 from app.components.elia_engine.generation import generate_exterior
 from app.components.elia_engine.gate_garage import plan_gate
@@ -214,11 +214,9 @@ def run_project_elia(project_id: str, request: ELIARequest,
     try:
         exterior, outcome = generate_exterior(source_master, requirements, run.id, request.generation_mode)
         exterior["started_at"] = run.started_at.replace(tzinfo=timezone.utc).isoformat() if run.started_at else None
-        run.status = "completed"
-        run.output_json = _sanitize_nan(exterior)
-        run.completed_at = datetime.now(timezone.utc)
-        run.input_json = {**(run.input_json or {}), "model_version": exterior.get("model_version")}
+        
         try:
+            exterior = ExteriorLandscapeResponse.model_validate(exterior).model_dump(mode="python")
             json.dumps(exterior, allow_nan=False)
             response = ELIAResponse(project_id=project_id, run_id=run.id,
                                     status="completed" if outcome == "valid" else "infeasible",
@@ -240,6 +238,11 @@ def run_project_elia(project_id: str, request: ELIARequest,
                 detail={"code": "ELIA_INVALID_OUTPUT",
                         "message": f"ELIA produced invalid output: {exc}"}
             ) from exc
+
+        run.status = "completed"
+        run.output_json = _sanitize_nan(exterior)
+        run.completed_at = datetime.now(timezone.utc)
+        run.input_json = {**(run.input_json or {}), "model_version": exterior.get("model_version")}
         if should_persist:
             current_master = project.master_json or {}
             updated_master = build_updated_master(
@@ -321,8 +324,9 @@ def preview_standalone_elia(request: ELIARequest, _admin=Depends(require_admin))
             detail["generation_status"] = "model_unavailable"
         raise HTTPException(status_code=exc.status_code, detail=detail) from exc
     try:
+        exterior = ExteriorLandscapeResponse.model_validate(exterior).model_dump(mode="python")
         json.dumps(exterior, allow_nan=False)
-    except (ValueError, TypeError) as exc:
+    except Exception as exc:
         raise HTTPException(status_code=500, detail={"code": "ELIA_SERIALIZATION_ERROR",
                                                     "message": f"Generated exterior result is not JSON-serializable: {exc}"}) from exc
     updated = build_updated_master(request.master_json, exterior, run_id, outcome,
