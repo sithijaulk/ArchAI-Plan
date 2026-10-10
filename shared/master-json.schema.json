@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ArchAI-Plan Master JSON",
+  "description": "Centralized data contract propagated through all four AI components",
+  "type": "object",
+  "properties": {
+    "project_id": { "type": "string" },
+    "project_name": { "type": "string" },
+    "land_info": {
+      "type": "object",
+      "description": "GAB-Gen: Land deed and survey information",
+      "properties": {
+        "boundary_points": { "type": "array" },
+        "area_sqft": { "type": "number" },
+        "orientation": { "type": "string" },
+        "road_facing": { "type": "string" }
+      }
+    },
+    "buildable_footprint": {
+      "type": "object",
+      "description": "GAB-Gen: Computed buildable zone polygon"
+    },
+    "floor_plan": {
+      "type": "object",
+      "description": "GAB-Gen: Initial room layout. Stage 1 VSAI accepts rooms as objects with a unique string id and polygon (an array of [x, y] numeric points); optional structural_elements use the same polygon shape. Other component-specific data remains permitted."
+    },
+    "structural_rectification": {
+      "type": "object",
+      "description": "VSAI-Rectifier: Non-destructive geometry checks and configured rule results. Stage 1 does not infer image geometry or claim complete Vastu compliance."
+    },
+    "interior_layout": {
+      "type": "object",
+      "description": "ESAI-Engine: Furniture and asset placement"
+    },
+    "exterior_landscape": {
+      "type": "object",
+      "description": "ELIA-Engine: Exterior planning, greenery, solar vectors"
+    },
+    "processing": {
+      "type": "object",
+      "properties": {
+        "gab_gen": {
+          "type": "object",
+          "properties": {
+            "status": { "type": "string", "enum": ["pending", "processing", "completed", "failed", "skipped"] }
+          }
+        },
+        "vsai_rectifier": {
+          "type": "object",
+          "properties": {
+            "status": { "type": "string", "enum": ["pending", "processing", "completed", "failed", "skipped"] }
+          }
+        },
+        "esai_engine": {
+          "type": "object",
+          "properties": {
+            "status": { "type": "string", "enum": ["pending", "processing", "completed", "failed", "skipped"] }
+          }
+        },
+        "elia_engine": {
+          "type": "object",
+          "properties": {
+            "status": { "type": "string", "enum": ["pending", "processing", "completed", "failed", "skipped"] }
+          }
+        }
+      }
+    }
+  },
+  "required": ["project_id", "project_name", "processing"]
+}
