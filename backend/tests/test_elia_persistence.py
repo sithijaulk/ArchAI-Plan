@@ -3,7 +3,7 @@ from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.components.elia_engine.schemas import ELIARequest
+from app.components.elia_engine.schemas import ELIARequest, ExteriorLandscapeResponse
 from app.components.elia_engine.exceptions import ELIAError
 from app.database import Base
 from app.models.component_run import ComponentRun
@@ -14,7 +14,7 @@ from app.schemas.project import ProjectUpdate
 
 
 def _candidate(run_id, valid):
-    return {
+    raw = {
         "version": "1.0", "schema_version": "1.0", "run_id": run_id,
         "coordinate_reference": "local Cartesian meters", "access": {},
         "site_analysis": {}, "utility_safety": {}, "environment": {}, "metrics": {},
@@ -22,6 +22,7 @@ def _candidate(run_id, valid):
         "outdoor_lighting": {"nodes": []}, "outdoor_elements": [],
         "validation_summary": {"valid": valid, "violations": [] if valid else ["candidate_invalid"]},
     }
+    return ExteriorLandscapeResponse.model_validate(raw).model_dump(mode="python")
 
 
 @pytest.fixture
