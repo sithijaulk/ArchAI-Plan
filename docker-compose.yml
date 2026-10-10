@@ -1,0 +1,64 @@
+version: "3.9"
+
+services:
+  # ─────────────────── MySQL (production database) ───────────────────
+  db:
+    image: mysql:8.0
+    container_name: archai_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-changeme}
+      MYSQL_DATABASE: archai_plan
+      MYSQL_USER: archai
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-changeme}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────── FastAPI Backend ───────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: archai_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      APP_ENV: production
+      DATABASE_URL: mysql+pymysql://archai:${MYSQL_PASSWORD:-changeme}@db:3306/archai_plan
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      UPLOAD_DIR: /app/uploads
+      MAX_UPLOAD_MB: 10
+    ports:
+      - "8000:8000"
+    volumes:
+      - uploads_data:/app/uploads
+    command: >
+      sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  # ─────────────────── Next.js Frontend ───────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: archai_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api}
+    ports:
+      - "3000:3000"
+
+volumes:
+  mysql_data:
+  uploads_data:

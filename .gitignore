@@ -1,0 +1,43 @@
+# Dependencies
+frontend/node_modules/
+frontend/.next/
+backend/.venv/
+frontend/.env
+frontend/.env.local
+backend/.env
+backend/__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment secrets
+frontend/.env.local
+backend/.env
+
+# Uploads (keep directory structure, ignore content)
+backend/app/uploads/**
+!backend/app/uploads/.gitkeep
+!backend/app/uploads/gallery/.gitkeep
+
+# Build outputs
+frontend/out/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Training runs / model cache
+training/**/runs/
+training/**/cache/
+datasets/
+*.zip
+*.pt
+*.pth
+
+# IDE
+.idea/
+.vscode/
+*.swp
