@@ -3,12 +3,12 @@ from sqlalchemy import update
 from sqlalchemy.orm import Session
 from typing import Any, List
 
-from .database import get_db
-from .dependencies import require_admin
-from .models.project import Project
-from .models.component_run import ComponentRun
-from .schemas.project import ProjectCreate, ProjectUpdate, ProjectResponse
-from .services.master_json import VALID_COMPONENTS, merge_master_json, new_master_json
+from app.database import get_db
+from app.dependencies import require_admin
+from app.models.project import Project
+from app.models.component_run import ComponentRun
+from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectResponse
+from app.services.master_json import VALID_COMPONENTS, merge_master_json, new_master_json
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
