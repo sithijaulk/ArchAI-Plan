@@ -282,7 +282,7 @@ def test_garage_lighting_api_flow(tmp_path, monkeypatch):
             s = sessions()
             p_after_run = s.query(Project).filter(Project.id == project_id).one()
             persisted_landscape = p_after_run.master_json["exterior_landscape"]
-            assert [n["json_id"] for n in persisted_landscape["outdoor_lighting"]["nodes"]] == [n["json_id"] for n in run_nodes]
+            assert persisted_landscape == run_resp.json()["exterior_landscape"]
             assert p_after_run.master_json["upstream_layer"] == "kept"
             
             run_id = run_resp.json()["run_id"]
@@ -290,7 +290,7 @@ def test_garage_lighting_api_flow(tmp_path, monkeypatch):
             assert run_record.project_id == project_id
             assert run_record.component_name == "elia_engine"
             assert run_record.status == "completed"
-            assert [n["json_id"] for n in run_record.output_json["outdoor_lighting"]["nodes"]] == [n["json_id"] for n in run_nodes]
+            assert run_record.output_json == run_resp.json()["exterior_landscape"]
             
             # Deep copy the accepted exterior_landscape for preservation check
             import copy
@@ -336,9 +336,8 @@ def test_garage_lighting_api_flow(tmp_path, monkeypatch):
             p_failed = s.query(Project).filter(Project.id == project_id).one()
             failed_exterior = copy.deepcopy(p_failed.master_json.get("exterior_landscape", {}))
             
-            # The structure must remain unchanged.
-            assert failed_exterior["outdoor_lighting"] == accepted_exterior["outdoor_lighting"]
-            assert failed_exterior["validation_summary"] == accepted_exterior["validation_summary"]
+            # The structure must remain entirely unchanged
+            assert failed_exterior == accepted_exterior
             
             # Unrelated upstream layer must be preserved
             assert p_failed.master_json["upstream_layer"] == "kept"
