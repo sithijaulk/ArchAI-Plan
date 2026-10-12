@@ -1,0 +1,12 @@
+{
+  "version": "1.0",
+  "items": [
+    {
+      "id": "BED_Q_01",
+      "category": "bed",
+      "name": "Queen Bed Standard",
+      "dimensions": {"width": 1.52, "length": 2.03, "height": 0.5},
+      "clearance_rule_id": "BED_CLR_01"
+    }
+  ]
+}
