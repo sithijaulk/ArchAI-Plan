@@ -2,7 +2,7 @@
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { FeatureWorkflowShell } from '@/components/workflow/FeatureWorkflowShell'
-import { OutputPreview } from '@/components/output/OutputPreview'
+import { EliaOutputWrapper } from '@/components/visualization/EliaOutputWrapper'
 import { useProjectStore } from '@/store/projectStore'
 import { eliaApi, LiveSolarConditions, SriLankaLocation } from '@/lib/api/elia'
 import { Button } from '@/components/ui/button'
@@ -12,7 +12,7 @@ import { LoaderCircle, MapPin, Search, Sun } from 'lucide-react'
 
 export default function EliaEnginePage() {
   const router = useRouter()
-  const { projectId, projectName, setComponentStatus, setOutput, outputs } = useProjectStore()
+  const { projectId, projectName, masterJson, setComponentStatus, setOutput, outputs } = useProjectStore()
   const [isProcessing, setIsProcessing] = useState(false)
   const [cityQuery, setCityQuery] = useState('')
   const [locations, setLocations] = useState<SriLankaLocation[]>([])
@@ -188,7 +188,14 @@ export default function EliaEnginePage() {
             </Button>
           </div>
           <div className="lg:col-span-2">
-            <OutputPreview projectName={projectName} component="elia-engine" data={outputs['elia_engine']} />
+            <EliaOutputWrapper
+              projectName={projectName}
+              projectId={projectId}
+              masterJson={masterJson}
+              data={outputs['elia_engine']}
+              isProcessing={isProcessing}
+              runError={runError}
+            />
           </div>
         </div>
       </div>

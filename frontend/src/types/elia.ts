@@ -32,6 +32,11 @@ export interface ExteriorFeature {
   units?: string;
   floor_id?: string | null;
   support_json_id?: string | null;
+  height_m?: number | null;
+  canopy_radius_m?: number | null;
+  width_m?: number | null;
+  depth_m?: number | null;
+  elevation_m?: number | null;
   /** Validation override – allows unplaced features */
   validation?: { valid?: boolean };
   /** Extra fields from extra="allow" */
@@ -89,4 +94,28 @@ export interface ExteriorLandscape {
   land?: GeoJsonGeometry;
   house_exterior?: GeoJsonGeometry;
   [key: string]: unknown;
+}
+
+/**
+ * Derived in-memory view model that pairs authoritative upstream geometry
+ * from Master JSON with the ELIA proposal, enforcing single unit normalization
+ * and revision synchronization without mutating the persisted Master JSON.
+ */
+export interface EliaViewModel {
+  projectId?: string;
+  sourceRevision?: number | null;
+  /** Authoritative land boundary polygon in meters (with supported interior holes) */
+  landPolygon: GeoJsonPolygon | null;
+  /** Authoritative house footprint polygon in meters (with supported interior holes) */
+  housePolygon: GeoJsonPolygon | null;
+  /** Upstream building height in meters if supplied */
+  buildingHeightM?: number | null;
+  /** Whether building height is an estimate or surveyed */
+  isHeightEstimated: boolean;
+  /** The generated exterior landscape candidate / result */
+  landscape: ExteriorLandscape | null;
+  /** State of input geometry */
+  geometryState: 'ready' | 'missing_land' | 'missing_house' | 'missing_all' | 'revision_mismatch';
+  /** Human-readable explanatory message */
+  geometryMessage?: string;
 }
