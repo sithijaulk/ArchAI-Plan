@@ -119,3 +119,134 @@ export interface EliaViewModel {
   /** Human-readable explanatory message */
   geometryMessage?: string;
 }
+
+// ---------------------------------------------------------------------------
+// Client Requirements & API Request/Response Types
+// ---------------------------------------------------------------------------
+
+export interface EliaLocationInput {
+  latitude?: number | null;
+  longitude?: number | null;
+  timezone?: string | null;
+  city?: string | null;
+}
+
+export interface EliaAccessRequirements {
+  road_side?: string | null;
+  road_access_edge?: number | null;
+  gate_type?: string;
+  gate_width_m?: number | null;
+  gate_count?: number;
+  garage_required?: boolean;
+  garage_capacity?: number;
+  vehicle_count?: number;
+  driveway_required?: boolean;
+  driveway_style?: string;
+  turning_space_required?: boolean;
+}
+
+export interface EliaLandscapeRequirements {
+  garden_required?: boolean;
+  lawn_required?: boolean;
+  garden_seating_required?: boolean;
+  garden_table_set_required?: boolean;
+  preferred_garden_zone?: string | null;
+  preferred_open_space_ratio?: number | null;
+  greenery_density?: 'low' | 'medium' | 'high';
+  shade_tree_preference?: boolean;
+  low_maintenance_preference?: boolean | null;
+  pedestrian_path_required?: boolean;
+  garden_path_required?: boolean;
+  boundary_wall_required?: boolean;
+  boundary_wall_type?: string | null;
+  boundary_wall_height_m?: number | null;
+}
+
+export interface EliaVerticalGreeneryRequirements {
+  mode?: 'automatic' | 'preferred' | 'disabled';
+  enabled?: boolean;
+}
+
+export interface EliaLightingRequirements {
+  required?: boolean;
+  style?: string;
+  zones?: string[];
+  preferred_spacing_m?: number | null;
+}
+
+export interface ELIARequirements {
+  units?: string;
+  design_style?: string;
+  greenery_level?: string;
+  landscape_priority?: string;
+  vertical_greenery_enabled?: boolean;
+  location?: EliaLocationInput;
+  latitude?: number | null;
+  longitude?: number | null;
+  timezone?: string | null;
+  include_live_solar?: boolean;
+  access?: EliaAccessRequirements;
+  landscape?: EliaLandscapeRequirements;
+  vertical_greenery?: EliaVerticalGreeneryRequirements;
+  lighting?: EliaLightingRequirements;
+  additional_requirements?: Record<string, unknown> | string;
+}
+
+export interface ELIARequestPayload {
+  requirements?: ELIARequirements;
+  master_json?: Record<string, unknown> | null;
+  apply_to_project?: boolean;
+  generation_mode?: 'baseline' | 'trained_model';
+  source_revision?: number | null;
+}
+
+export interface ELIAResponse {
+  project_id: string;
+  run_id: string;
+  status: 'completed' | 'infeasible';
+  outcome: 'valid' | 'infeasible';
+  exterior_landscape: ExteriorLandscape;
+  master_json_updated: boolean;
+  generation_mode: 'baseline' | 'trained_model';
+}
+
+export interface ELIAPreviewResponse {
+  run_id: string;
+  status: 'completed' | 'infeasible';
+  outcome: 'valid' | 'infeasible';
+  exterior_landscape: ExteriorLandscape;
+  master_json: Record<string, unknown>;
+  generation_mode: string;
+  persisted: boolean;
+}
+
+export interface ELIAValidationResponse {
+  valid: boolean;
+  project_id: string;
+  normalized_requirements: Record<string, unknown>;
+  geometry: {
+    land_area_m2: number;
+    house_footprint_area_m2: number;
+    source_units: string;
+  };
+  orientation: {
+    north_angle_degrees: number;
+    convention: string;
+  };
+}
+
+export interface ELIAContextResponse {
+  project_id: string;
+  master_json: Record<string, unknown> | null;
+  revision?: number | null;
+}
+
+export interface ELIAResultResponse {
+  run_id: string;
+  status: string;
+  output: ExteriorLandscape | null;
+  error_message?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+}
+

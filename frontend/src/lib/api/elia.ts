@@ -1,4 +1,12 @@
 import { apiClient } from './client';
+import type {
+  ELIARequestPayload,
+  ELIAResponse,
+  ELIAPreviewResponse,
+  ELIAValidationResponse,
+  ELIAContextResponse,
+  ELIAResultResponse,
+} from '@/types/elia';
 
 export interface SriLankaLocation {
   id: number;
@@ -32,14 +40,42 @@ export const eliaApi = {
     const response = await apiClient.get('/elia-engine/locations/search', { params: { name } });
     return response.data;
   },
-  currentSolar: async (projectId: string, location: SriLankaLocation): Promise<LiveSolarConditions> => {
+
+  currentSolar: async (
+    projectId: string,
+    location: { latitude: number; longitude: number; timezone?: string | null }
+  ): Promise<LiveSolarConditions> => {
     const response = await apiClient.get(`/projects/${projectId}/elia-engine/solar/current`, {
       params: { latitude: location.latitude, longitude: location.longitude, timezone: location.timezone },
     });
     return response.data;
   },
-  run: async (projectId: string, payload?: unknown): Promise<any> => {
-    const response = await apiClient.post(`/projects/${projectId}/elia-engine/run`, payload ?? {});
+
+  getContext: async (projectId: string): Promise<ELIAContextResponse> => {
+    const response = await apiClient.get(`/projects/${projectId}/elia-engine/context`);
+    return response.data;
+  },
+
+  validateInput: async (
+    projectId: string,
+    payload: ELIARequestPayload
+  ): Promise<ELIAValidationResponse> => {
+    const response = await apiClient.post(`/projects/${projectId}/elia-engine/validate-input`, payload);
+    return response.data;
+  },
+
+  preview: async (payload: ELIARequestPayload): Promise<ELIAPreviewResponse> => {
+    const response = await apiClient.post('/elia-engine/preview', payload);
+    return response.data;
+  },
+
+  run: async (projectId: string, payload: ELIARequestPayload): Promise<ELIAResponse> => {
+    const response = await apiClient.post(`/projects/${projectId}/elia-engine/run`, payload);
+    return response.data;
+  },
+
+  getResult: async (projectId: string): Promise<ELIAResultResponse> => {
+    const response = await apiClient.get(`/projects/${projectId}/elia-engine/result`);
     return response.data;
   },
 };

@@ -284,7 +284,7 @@ def run_project_elia(project_id: str, request: ELIARequest,
 @router.get("/projects/{project_id}/elia-engine/context")
 def get_elia_context(project_id: str, db: Session = Depends(get_db), _admin=Depends(require_admin)):
     project = _project_or_404(db, project_id)
-    return {"project_id": project.id, "master_json": project.master_json}
+    return {"project_id": project.id, "master_json": project.master_json, "revision": project.revision}
 
 
 @router.post("/projects/{project_id}/elia-engine/validate-input")
