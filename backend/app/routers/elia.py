@@ -139,7 +139,7 @@ def _record_stale_conflict(db: Session, run_id: str, project_id: str, source_rev
                     run.status = "failed"
                     run.output_json = _sanitize_nan(candidate_output)
                     run.error_message = "ELIA_STALE_SOURCE_REVISION: Project changed while ELIA was running."
-                    run.completed_at = datetime.utcnow()
+                    run.completed_at = datetime.now(timezone.utc)
                 current = db.query(Project).filter(Project.id == project_id).first()
                 latest_revision = int(current.revision) if current is not None else None
     db.commit()
