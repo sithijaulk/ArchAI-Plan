@@ -101,6 +101,113 @@ def prepare_model_input(master: Mapping[str, Any], raw_requirements: Mapping[str
     context = parse_exterior_context(canonical)
     requirements = normalize_requirements(raw_requirements, canonical, context.source_units)
     from shapely.geometry import mapping
+    from .adapter import resolve_upstream_road
+    from .gate_garage import _existing_garage
+    from .service import _building_height, _entrance_target
+
+    upstream_side, upstream_edge = resolve_upstream_road(canonical)
+    req_access = requirements.get("access", {})
+    road_access = {
+        "road_side": req_access.get("road_side") or upstream_side,
+        "road_access_edge": req_access.get("road_access_edge") if req_access.get("road_access_edge") is not None else upstream_edge,
+    }
+
+    # Extract existing garage constraint if available
+    existing_garage = None
+    if "existing_garage" in canonical or "garage" in canonical:
+        raw_garage = canonical.get("existing_garage") if "existing_garage" in canonical else canonical.get("garage")
+        eg_poly = _existing_garage(raw_garage, context.unit_scale)
+        if eg_poly is not None and eg_poly.is_valid and not eg_poly.is_empty:
+            existing_garage = mapping(eg_poly)
+
+    # Extract existing gate if available
+    existing_gate = None
+    raw_gate = canonical.get("existing_gate") or canonical.get("gate")
+    if isinstance(raw_gate, Mapping):
+        pos = point_xy(raw_gate, context.unit_scale)
+        if pos is not None and all(isfinite(p) for p in pos):
+            existing_gate = {
+                "position_m": list(pos),
+                "width_m": float(raw_gate.get("width_m", float(raw_gate["width"]) * context.unit_scale if "width" in raw_gate else float(elia_rules()["access"]["default_gate_width_m"]))),
+                "type": raw_gate.get("type", "existing"),
+            }
+
+    # Extract utilities in meters
+    utilities_info: dict[str, Any] = {}
+    canonical_utils = canonical.get("utilities") or {}
+    if isinstance(canonical_utils, Mapping):
+        for u_name, u_val in canonical_utils.items():
+            if isinstance(u_val, Mapping):
+                pos = point_xy(u_val, context.unit_scale)
+                if pos is not None and all(isfinite(p) for p in pos):
+                    utilities_info[u_name] = {"position_m": list(pos)}
+
+    # Extract exterior restrictions and fixed objects in meters
+    fixed_restrictions: list[dict[str, Any]] = []
+    restrictions_raw = canonical.get("exterior_restrictions") or canonical.get("restricted_zones") or []
+    restrictions_list = list(restrictions_raw) if isinstance(restrictions_raw, (list, tuple)) else [restrictions_raw]
+    fixed_raw = canonical.get("fixed_exterior_objects") or canonical.get("exterior_fixed_objects") or []
+    restrictions_list.extend(fixed_raw if isinstance(fixed_raw, list) else [fixed_raw])
+    for item in restrictions_list:
+        raw = item.get("polygon") or item.get("geometry") or item.get("coordinates") if isinstance(item, Mapping) else item
+        if raw is None and isinstance(item, Mapping):
+            raw = item.get("footprint")
+        if raw is None:
+            continue
+        try:
+            if isinstance(raw, Mapping):
+                geometry = shape(raw)
+            elif isinstance(raw, (list, tuple)) and raw:
+                rings = raw if isinstance(raw[0], (list, tuple)) and raw[0] and isinstance(raw[0][0], (list, tuple)) else [raw]
+                geometry = Polygon(rings[0], rings[1:])
+            else:
+                continue
+            if geometry.is_valid and not geometry.is_empty:
+                if context.unit_scale != 1:
+                    geometry = affinity.scale(geometry, xfact=context.unit_scale, yfact=context.unit_scale, origin=(0, 0))
+                fixed_restrictions.append(mapping(geometry))
+        except Exception:
+            pass
+
+    # Extract vertical greenery candidate surfaces (balconies, slabs, terraces) in meters
+    vertical_surfaces: list[dict[str, Any]] = []
+    building = canonical.get("building_exterior", {})
+    for key in ("balconies", "slabs", "terraces"):
+        surfaces = canonical.get(key)
+        if surfaces is None and isinstance(building, Mapping):
+            surfaces = building.get(key, [])
+        if isinstance(surfaces, list):
+            for surface in surfaces:
+                if not isinstance(surface, Mapping):
+                    continue
+                s_id = str(surface.get("json_id", surface.get("id", "")))
+                s_floor = surface.get("floor_id") or surface.get("floor")
+                raw_support = surface.get("polygon") or surface.get("coordinates")
+                try:
+                    if isinstance(raw_support, Mapping):
+                        s_geom = shape(raw_support)
+                    elif isinstance(raw_support, (list, tuple)) and raw_support:
+                        rings = raw_support if isinstance(raw_support[0], (list, tuple)) and raw_support[0] and isinstance(raw_support[0][0], (list, tuple)) else [raw_support]
+                        s_geom = Polygon(rings[0], rings[1:])
+                    else:
+                        s_geom = None
+                    if s_geom is not None and context.unit_scale != 1:
+                        s_geom = affinity.scale(s_geom, xfact=context.unit_scale, yfact=context.unit_scale, origin=(0, 0))
+                    if s_geom is not None and s_geom.is_valid and not s_geom.is_empty:
+                        elevation_val = surface.get("elevation_m", surface.get("z", 0))
+                        elevation_m = float(elevation_val) * (context.unit_scale if "z" in surface and "elevation_m" not in surface else 1.0)
+                        vertical_surfaces.append({
+                            "json_id": s_id,
+                            "floor_id": str(s_floor) if s_floor else None,
+                            "type": key[:-1] if key.endswith("s") else key,
+                            "elevation_m": elevation_m,
+                            "geometry": mapping(s_geom),
+                        })
+                except Exception:
+                    pass
+
+    building_height_val = _building_height(canonical, context.unit_scale)
+    main_entrance_coords = _entrance_target(canonical, context.house, context.unit_scale)
 
     return {
         "schema_version": "1.0",
@@ -108,6 +215,14 @@ def prepare_model_input(master: Mapping[str, Any], raw_requirements: Mapping[str
         "north_angle_degrees": requirements["north_angle"],
         "land": mapping(context.land),
         "house_exterior": mapping(context.house),
+        "road_access": road_access,
+        "utilities": utilities_info,
+        "exterior_restrictions": fixed_restrictions,
+        "existing_garage": existing_garage,
+        "existing_gate": existing_gate,
+        "vertical_surfaces": vertical_surfaces,
+        "building_height_m": building_height_val,
+        "main_entrance": list(main_entrance_coords) if main_entrance_coords else None,
         "requirements": requirements,
         "source_units": context.source_units,
     }
