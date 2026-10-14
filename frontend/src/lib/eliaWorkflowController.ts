@@ -35,6 +35,108 @@ export interface EliaRunStatusClassification {
  * Strictly distinguishes valid exterior structures from malformed primitives,
  * arrays, or corrupted nested structures.
  */
+/**
+ * Validates that an object conforms to the ELIA ExteriorFeature contract.
+ * Mirrors backend ExteriorFeatureResponse in schemas.py.
+ */
+export function validateExteriorFeature(
+  feat: unknown,
+  path: string
+): { valid: true } | { valid: false; error: string } {
+  if (feat === null || feat === undefined || typeof feat !== 'object' || Array.isArray(feat)) {
+    return { valid: false, error: `${path} must be a feature object.` };
+  }
+  const f = feat as Record<string, unknown>;
+
+  // json_id: required non-empty string (or id for compatibility)
+  const id = f.json_id ?? f.id;
+  if (typeof id !== 'string' || id.trim().length === 0) {
+    return { valid: false, error: `${path}.json_id must be a non-empty string.` };
+  }
+
+  // units: if present, must be 'm'
+  if (f.units !== undefined && f.units !== null) {
+    if (typeof f.units !== 'string' || f.units !== 'm') {
+      return { valid: false, error: `${path}.units must be "m".` };
+    }
+  }
+
+  // position: optional [number, number] or { x: number, y: number }
+  if (f.position !== undefined && f.position !== null) {
+    if (Array.isArray(f.position)) {
+      if (f.position.length < 2 || !f.position.slice(0, 2).every((p) => typeof p === 'number' && Number.isFinite(p))) {
+        return { valid: false, error: `${path}.position array must contain at least 2 finite numbers [x, y].` };
+      }
+    } else if (typeof f.position === 'object') {
+      const pos = f.position as Record<string, unknown>;
+      if (typeof pos.x !== 'number' || !Number.isFinite(pos.x) || typeof pos.y !== 'number' || !Number.isFinite(pos.y)) {
+        return { valid: false, error: `${path}.position object must contain finite numeric x and y.` };
+      }
+    } else {
+      return { valid: false, error: `${path}.position must be a coordinate array or {x, y} object.` };
+    }
+  }
+
+  // polygon: optional ring coordinates
+  if (f.polygon !== undefined && f.polygon !== null) {
+    if (!Array.isArray(f.polygon)) {
+      return { valid: false, error: `${path}.polygon must be an array of coordinate pairs.` };
+    }
+    for (let i = 0; i < f.polygon.length; i++) {
+      const pt = f.polygon[i];
+      if (!Array.isArray(pt) || pt.length < 2 || typeof pt[0] !== 'number' || !Number.isFinite(pt[0]) || typeof pt[1] !== 'number' || !Number.isFinite(pt[1])) {
+        return { valid: false, error: `${path}.polygon[${i}] must be a finite coordinate pair [x, y].` };
+      }
+    }
+  }
+
+  // dimensions: optional Record<string, number>
+  if (f.dimensions !== undefined && f.dimensions !== null) {
+    if (typeof f.dimensions !== 'object' || Array.isArray(f.dimensions)) {
+      return { valid: false, error: `${path}.dimensions must be an object.` };
+    }
+    for (const [key, val] of Object.entries(f.dimensions)) {
+      if (typeof val !== 'number' || !Number.isFinite(val) || val <= 0) {
+        return { valid: false, error: `${path}.dimensions.${key} must be a positive finite number.` };
+      }
+    }
+  }
+
+  // rotation_degrees: optional finite number
+  if (f.rotation_degrees !== undefined && f.rotation_degrees !== null) {
+    if (typeof f.rotation_degrees !== 'number' || !Number.isFinite(f.rotation_degrees)) {
+      return { valid: false, error: `${path}.rotation_degrees must be a finite number.` };
+    }
+  }
+
+  // Specific numeric metric fields read by viewer if present
+  for (const numField of ['height_m', 'canopy_radius_m', 'width_m', 'depth_m', 'elevation_m'] as const) {
+    if (f[numField] !== undefined && f[numField] !== null) {
+      if (typeof f[numField] !== 'number' || !Number.isFinite(f[numField] as number)) {
+        return { valid: false, error: `${path}.${numField} must be a finite number.` };
+      }
+    }
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Safely format validation violations into a readable string without throwing
+ * on non-array or malformed values.
+ */
+export function formatViolations(violations: unknown, fallback: string): string {
+  if (Array.isArray(violations) && violations.length > 0) {
+    return violations.map((v) => String(v)).join('; ');
+  }
+  return fallback;
+}
+
+/**
+ * Validates that an object conforms to the ELIA ExteriorLandscape contract.
+ * Strictly distinguishes valid exterior structures from malformed primitives,
+ * arrays, or corrupted nested structures.
+ */
 export function validateExteriorLandscape(
   val: unknown
 ): { valid: true; value: ExteriorLandscape } | { valid: false; error: string } {
@@ -58,47 +160,132 @@ export function validateExteriorLandscape(
   }
 
   const access = obj.access as Record<string, unknown>;
-  if (access.gates !== undefined && access.gates !== null && !Array.isArray(access.gates)) {
-    return { valid: false, error: 'access.gates must be an array when present.' };
+  if (access.gate !== undefined && access.gate !== null) {
+    const vf = validateExteriorFeature(access.gate, 'access.gate');
+    if (!vf.valid) return vf;
   }
-  if (access.gate !== undefined && access.gate !== null && (typeof access.gate !== 'object' || Array.isArray(access.gate))) {
-    return { valid: false, error: 'access.gate must be an object or null when present.' };
+  if (access.garage !== undefined && access.garage !== null) {
+    const vf = validateExteriorFeature(access.garage, 'access.garage');
+    if (!vf.valid) return vf;
   }
-  if (access.garage !== undefined && access.garage !== null && (typeof access.garage !== 'object' || Array.isArray(access.garage))) {
-    return { valid: false, error: 'access.garage must be an object or null when present.' };
+  if (access.driveway !== undefined && access.driveway !== null) {
+    const vf = validateExteriorFeature(access.driveway, 'access.driveway');
+    if (!vf.valid) return vf;
   }
-  if (access.driveway !== undefined && access.driveway !== null && (typeof access.driveway !== 'object' || Array.isArray(access.driveway))) {
-    return { valid: false, error: 'access.driveway must be an object or null when present.' };
+  if (access.gates !== undefined && access.gates !== null) {
+    if (!Array.isArray(access.gates)) {
+      return { valid: false, error: 'access.gates must be an array when present.' };
+    }
+    for (let i = 0; i < access.gates.length; i++) {
+      const vf = validateExteriorFeature(access.gates[i], `access.gates[${i}]`);
+      if (!vf.valid) return vf;
+    }
   }
 
   // 3. Optional collection structures consumed by visualization components
-  if (obj.vegetation_nodes !== undefined && obj.vegetation_nodes !== null && !Array.isArray(obj.vegetation_nodes)) {
-    return { valid: false, error: 'vegetation_nodes must be an array when present.' };
+  if (obj.vegetation_nodes !== undefined && obj.vegetation_nodes !== null) {
+    if (!Array.isArray(obj.vegetation_nodes)) {
+      return { valid: false, error: 'vegetation_nodes must be an array when present.' };
+    }
+    for (let i = 0; i < obj.vegetation_nodes.length; i++) {
+      const vf = validateExteriorFeature(obj.vegetation_nodes[i], `vegetation_nodes[${i}]`);
+      if (!vf.valid) return vf;
+    }
   }
-  if (obj.outdoor_elements !== undefined && obj.outdoor_elements !== null && !Array.isArray(obj.outdoor_elements)) {
-    return { valid: false, error: 'outdoor_elements must be an array when present.' };
+
+  if (obj.outdoor_elements !== undefined && obj.outdoor_elements !== null) {
+    if (!Array.isArray(obj.outdoor_elements)) {
+      return { valid: false, error: 'outdoor_elements must be an array when present.' };
+    }
+    for (let i = 0; i < obj.outdoor_elements.length; i++) {
+      const vf = validateExteriorFeature(obj.outdoor_elements[i], `outdoor_elements[${i}]`);
+      if (!vf.valid) return vf;
+    }
   }
+
   if (obj.vertical_greenery !== undefined && obj.vertical_greenery !== null) {
     if (typeof obj.vertical_greenery !== 'object' || Array.isArray(obj.vertical_greenery)) {
       return { valid: false, error: 'vertical_greenery must be an object when present.' };
     }
     const vg = obj.vertical_greenery as Record<string, unknown>;
-    if (vg.elements !== undefined && vg.elements !== null && !Array.isArray(vg.elements)) {
-      return { valid: false, error: 'vertical_greenery.elements must be an array when present.' };
+    if (vg.elements !== undefined && vg.elements !== null) {
+      if (!Array.isArray(vg.elements)) {
+        return { valid: false, error: 'vertical_greenery.elements must be an array when present.' };
+      }
+      for (let i = 0; i < vg.elements.length; i++) {
+        const vf = validateExteriorFeature(vg.elements[i], `vertical_greenery.elements[${i}]`);
+        if (!vf.valid) return vf;
+      }
     }
   }
+
   if (obj.outdoor_lighting !== undefined && obj.outdoor_lighting !== null) {
     if (typeof obj.outdoor_lighting !== 'object' || Array.isArray(obj.outdoor_lighting)) {
       return { valid: false, error: 'outdoor_lighting must be an object when present.' };
     }
     const ol = obj.outdoor_lighting as Record<string, unknown>;
-    if (ol.nodes !== undefined && ol.nodes !== null && !Array.isArray(ol.nodes)) {
-      return { valid: false, error: 'outdoor_lighting.nodes must be an array when present.' };
+    if (ol.nodes !== undefined && ol.nodes !== null) {
+      if (!Array.isArray(ol.nodes)) {
+        return { valid: false, error: 'outdoor_lighting.nodes must be an array when present.' };
+      }
+      for (let i = 0; i < ol.nodes.length; i++) {
+        const vf = validateExteriorFeature(ol.nodes[i], `outdoor_lighting.nodes[${i}]`);
+        if (!vf.valid) return vf;
+      }
     }
   }
+
+  // 4. validation_summary validation (Fix 1)
   if (obj.validation_summary !== undefined && obj.validation_summary !== null) {
     if (typeof obj.validation_summary !== 'object' || Array.isArray(obj.validation_summary)) {
       return { valid: false, error: 'validation_summary must be an object when present.' };
+    }
+    const vs = obj.validation_summary as Record<string, unknown>;
+    if (vs.valid !== undefined && typeof vs.valid !== 'boolean') {
+      return { valid: false, error: 'validation_summary.valid must be a boolean.' };
+    }
+    if (vs.violations !== undefined && vs.violations !== null) {
+      if (!Array.isArray(vs.violations)) {
+        return { valid: false, error: 'validation_summary.violations must be an array of strings.' };
+      }
+      for (let i = 0; i < vs.violations.length; i++) {
+        if (typeof vs.violations[i] !== 'string') {
+          return { valid: false, error: `validation_summary.violations[${i}] must be a string.` };
+        }
+      }
+    }
+    if (vs.checks_passed !== undefined && vs.checks_passed !== null) {
+      if (typeof vs.checks_passed !== 'number' || !Number.isInteger(vs.checks_passed) || vs.checks_passed < 0) {
+        return { valid: false, error: 'validation_summary.checks_passed must be a non-negative integer.' };
+      }
+    }
+    if (vs.checks_total !== undefined && vs.checks_total !== null) {
+      if (typeof vs.checks_total !== 'number' || !Number.isInteger(vs.checks_total) || vs.checks_total < 0) {
+        return { valid: false, error: 'validation_summary.checks_total must be a non-negative integer.' };
+      }
+    }
+    if (vs.constraint_satisfaction_rate !== undefined && vs.constraint_satisfaction_rate !== null) {
+      if (
+        typeof vs.constraint_satisfaction_rate !== 'number' ||
+        !Number.isFinite(vs.constraint_satisfaction_rate) ||
+        vs.constraint_satisfaction_rate < 0 ||
+        vs.constraint_satisfaction_rate > 1
+      ) {
+        return { valid: false, error: 'validation_summary.constraint_satisfaction_rate must be a finite number between 0 and 1.' };
+      }
+    }
+  }
+
+  // 5. environment validation
+  if (obj.environment !== undefined && obj.environment !== null) {
+    if (typeof obj.environment !== 'object' || Array.isArray(obj.environment)) {
+      return { valid: false, error: 'environment must be an object when present.' };
+    }
+    const env = obj.environment as Record<string, unknown>;
+    if (env.north_angle !== undefined && env.north_angle !== null) {
+      if (typeof env.north_angle !== 'number' || !Number.isFinite(env.north_angle)) {
+        return { valid: false, error: 'environment.north_angle must be a finite number.' };
+      }
     }
   }
 
@@ -992,6 +1179,16 @@ export class EliaWorkflowController {
         return { status: 'obsolete' };
       }
 
+      const candValidation = validateExteriorLandscape(response.exterior_landscape);
+      if (!candValidation.valid) {
+        const errorMsg = `Preview generated malformed exterior output: ${candValidation.error}`;
+        this.setState({
+          actionError: errorMsg,
+          isPreviewing: false,
+        });
+        return { status: 'failed', error: errorMsg };
+      }
+
       const candidateRecord: EliaCandidateRecord = {
         projectId: pid,
         runId: response.run_id,
@@ -1001,7 +1198,7 @@ export class EliaWorkflowController {
         generationMode: submittedGenerationMode,
         outcome: response.outcome,
         kind: 'preview',
-        landscape: response.exterior_landscape,
+        landscape: candValidation.value,
         timestamp: new Date().toISOString(),
       };
 
@@ -1010,7 +1207,7 @@ export class EliaWorkflowController {
 
       let actionNotice: string | null = null;
       if (response.outcome === 'infeasible') {
-        const reason = response.exterior_landscape?.validation_summary?.violations?.join('; ') || 'Site boundary constraints could not be satisfied.';
+        const reason = formatViolations(candValidation.value.validation_summary?.violations, 'Site boundary constraints could not be satisfied.');
         actionNotice = `Infeasible Candidate: ${reason}`;
       }
 
@@ -1122,6 +1319,33 @@ export class EliaWorkflowController {
         return { status: 'obsolete' };
       }
 
+      const candValidation = validateExteriorLandscape(response.exterior_landscape);
+      if (!candValidation.valid) {
+        // A potentially persisted save returned malformed exterior output.
+        // Block immediate resubmission by recording an unresolved mutation.
+        const unresolvedRecord: EliaUnresolvedMutation = {
+          projectId: pid,
+          sourceRevision: submittedRevision ?? 0,
+          submittedFingerprint,
+          submittedGenerationMode,
+          snapshotAtSubmit,
+          submittedAt: new Date().toISOString(),
+          status: 'unresolved',
+          correlatedRunId: response.run_id,
+          reconciliationError: `Save response contained malformed exterior data: ${candValidation.error}. Reconciliation required before further mutations.`,
+        };
+
+        this.setState({
+          requiresReconciliation: true,
+          unresolvedMutation: unresolvedRecord,
+          contextFreshness: 'stale',
+          actionError: `Save response contained malformed exterior data: ${candValidation.error}. Reconciliation required before further mutations.`,
+          isGenerating: false,
+        });
+        return { status: 'failed', error: candValidation.error };
+      }
+
+      const validLandscape = candValidation.value;
       const candidateRecord: EliaCandidateRecord = {
         projectId: pid,
         runId: response.run_id,
@@ -1131,7 +1355,7 @@ export class EliaWorkflowController {
         generationMode: submittedGenerationMode,
         outcome: response.outcome,
         kind: 'persisted_run',
-        landscape: response.exterior_landscape,
+        landscape: validLandscape,
         timestamp: new Date().toISOString(),
       };
 
@@ -1140,13 +1364,13 @@ export class EliaWorkflowController {
 
       if (response.outcome === 'valid') {
         if (this.state.isMounted && this.state.sessionSeq === session && this.state.projectId === pid) {
-          sharedStoreCallbacks?.setOutput?.('elia_engine', response.exterior_landscape);
+          sharedStoreCallbacks?.setOutput?.('elia_engine', validLandscape);
           sharedStoreCallbacks?.setComponentStatus?.('elia_engine', 'completed');
         }
 
         this.setState({
           candidate: candidateRecord,
-          acceptedLandscape: response.exterior_landscape,
+          acceptedLandscape: validLandscape,
           acceptedProvenance: {
             projectId: pid,
             sourceRevision: submittedRevision,
@@ -1196,7 +1420,7 @@ export class EliaWorkflowController {
         return { status: 'success', refreshStatus: 'success' };
       } else {
         // Infeasible run: preserves earlier accepted exterior
-        const violations = response.exterior_landscape?.validation_summary?.violations?.join('; ') || 'Site boundary constraints could not be satisfied.';
+        const violations = formatViolations(validLandscape.validation_summary?.violations, 'Site boundary constraints could not be satisfied.');
         this.setState({
           candidate: candidateRecord,
           activeView: 'candidate',
@@ -1342,6 +1566,10 @@ export class EliaWorkflowController {
 
     const targetSourceRevision = unresolved?.sourceRevision ?? this.state.sourceRevision ?? 0;
     const knownCorrelatedRunId = unresolved?.correlatedRunId ?? null;
+    const submittedSnapshot = unresolved?.snapshotAtSubmit ? deepcopy(unresolved.snapshotAtSubmit) : null;
+    const submittedRevision = unresolved?.sourceRevision ?? null;
+    const submittedFingerprint = unresolved?.submittedFingerprint || '';
+    const submittedGenerationMode = unresolved?.submittedGenerationMode || this.state.formState.generationMode;
 
     this.setState({ isReconciling: true, actionError: null });
 
@@ -1566,19 +1794,24 @@ export class EliaWorkflowController {
       }
 
       if (terminalOutcome === 'infeasible') {
-        // Keep candidate state if output was returned, but DO NOT promote to accepted design!
+        // Keep candidate state if output was returned and valid, but DO NOT promote to accepted design!
         // The authoritative refresh above already loaded the still-valid accepted design (or null).
+        let candidatePublished = false;
+        let candViolations: unknown = null;
+
         if (outputFromLatestRun && typeof outputFromLatestRun === 'object') {
           const candValidation = validateExteriorLandscape(outputFromLatestRun);
           if (candValidation.valid) {
+            candidatePublished = true;
+            candViolations = candValidation.value.validation_summary?.violations;
             this.setState({
               candidate: {
                 projectId: pid,
                 runId: correlatedRunId,
-                sourceRevision: targetSourceRevision,
-                sourceSnapshot: doc,
-                submittedFingerprint: unresolved?.submittedFingerprint || '',
-                generationMode: unresolved?.submittedGenerationMode || this.state.formState.generationMode,
+                sourceRevision: submittedRevision,
+                sourceSnapshot: submittedSnapshot,
+                submittedFingerprint,
+                generationMode: submittedGenerationMode,
                 outcome: 'infeasible',
                 kind: 'persisted_run',
                 landscape: candValidation.value,
@@ -1589,18 +1822,46 @@ export class EliaWorkflowController {
           }
         }
 
-        const violations = outputFromLatestRun?.validation_summary?.violations?.join('; ') || 'Site boundary constraints could not be satisfied.';
+        let actionNotice: string;
+        if (outputFromLatestRun && !candidatePublished) {
+          actionNotice =
+            'Infeasible Run: Terminal infeasible outcome confirmed; candidate display data was malformed and cannot be displayed (Previously accepted design preserved).';
+        } else {
+          const violationsText = formatViolations(candViolations, 'Site boundary constraints could not be satisfied.');
+          actionNotice = `Infeasible Run: ${violationsText} (Previously accepted design preserved).`;
+        }
+
         this.setState({
           unresolvedMutation: null,
           requiresReconciliation: false,
           isReconciling: false,
           contextFreshness: 'current',
-          actionError: `Infeasible Run: ${violations} (Previously accepted design preserved).`,
+          actionError: actionNotice,
         });
         return { status: 'reconciled', message: 'Reconciled: terminal infeasible run.' };
       }
 
       // Terminal status is 'completed' (valid)
+      if (outputFromLatestRun && typeof outputFromLatestRun === 'object') {
+        const candValidation = validateExteriorLandscape(outputFromLatestRun);
+        if (candValidation.valid) {
+          this.setState({
+            candidate: {
+              projectId: pid,
+              runId: correlatedRunId,
+              sourceRevision: submittedRevision,
+              sourceSnapshot: submittedSnapshot,
+              submittedFingerprint,
+              generationMode: submittedGenerationMode,
+              outcome: 'valid',
+              kind: 'persisted_run',
+              landscape: candValidation.value,
+              timestamp: new Date().toISOString(),
+            },
+          });
+        }
+      }
+
       this.setState({
         unresolvedMutation: null,
         requiresReconciliation: false,

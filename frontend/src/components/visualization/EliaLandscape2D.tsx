@@ -162,11 +162,11 @@ export default function EliaLandscape2D({
       </div>
 
       {/* Violations */}
-      {validation?.violations && validation.violations.length > 0 && (
+      {Array.isArray(validation?.violations) && validation.violations.length > 0 && (
         <ul className="text-xs text-red-400 mb-2 space-y-0.5 max-h-20 overflow-y-auto">
           {validation.violations.map((v, i) => (
             <li key={i} className="pl-2 border-l border-red-800">
-              ⚠ {v}
+              ⚠ {String(v)}
             </li>
           ))}
         </ul>

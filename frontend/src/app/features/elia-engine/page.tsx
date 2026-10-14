@@ -84,12 +84,12 @@ export default function EliaEnginePage() {
   }, [state.requirementsDirty])
 
   // Upstream Site View Model
-  const displayMasterJson = state.activeView === 'candidate' && state.candidate?.sourceSnapshot
-    ? state.candidate.sourceSnapshot
+  const displayMasterJson = state.activeView === 'candidate'
+    ? (state.candidate?.sourceSnapshot ?? null)
     : (state.authoritativeMaster || masterJson)
 
   const displayRevision = state.activeView === 'candidate'
-    ? (state.candidate?.sourceRevision !== undefined ? state.candidate.sourceRevision : state.sourceRevision)
+    ? (state.candidate?.sourceRevision !== undefined ? state.candidate.sourceRevision : null)
     : state.sourceRevision
 
   const siteViewModel = useMemo(() => {

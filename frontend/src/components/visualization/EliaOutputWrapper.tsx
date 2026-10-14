@@ -124,12 +124,12 @@ export function EliaOutputWrapper({
   const landscape = data ? (data as ExteriorLandscape) : null;
 
   // Use matching source snapshot for candidate preview or for accepted design when refresh failed
-  const displayMasterJson = activeView === 'candidate' && candidateSnapshot
-    ? candidateSnapshot
+  const displayMasterJson = activeView === 'candidate'
+    ? (candidateSnapshot ?? null)
     : (activeView === 'accepted' && acceptedSnapshot && contextFreshness !== 'current' ? acceptedSnapshot : masterJson);
 
   const displayRevision = activeView === 'candidate'
-    ? (candidateRevision !== undefined ? candidateRevision : sourceRevision)
+    ? (candidateRevision !== undefined ? candidateRevision : null)
     : (acceptedRevision !== undefined ? acceptedRevision : sourceRevision);
 
   // Authoritative ELIA view model derived from Master JSON and landscape
@@ -223,11 +223,21 @@ export function EliaOutputWrapper({
               </Badge>
             )}
 
-            {displayRevision !== undefined && displayRevision !== null && (
+            {activeView === 'candidate' && !candidateSnapshot && (
+              <Badge variant="outline" className="bg-amber-950/40 text-amber-300 border-amber-500/40 text-[11px]">
+                Snapshot Unavailable
+              </Badge>
+            )}
+
+            {displayRevision !== undefined && displayRevision !== null ? (
               <span className="text-[11px] font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded">
                 rev {displayRevision}
               </span>
-            )}
+            ) : activeView === 'candidate' ? (
+              <span className="text-[11px] font-mono text-amber-400/90 bg-muted px-2 py-0.5 rounded">
+                rev unavailable
+              </span>
+            ) : null}
             {landscape && displayedGenerationMode && (
               <span className="text-[11px] font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded">
                 mode: {displayedGenerationMode}
@@ -260,9 +270,11 @@ export function EliaOutputWrapper({
             variant="outline"
             size="sm"
             onClick={handleDownloadMasterJson}
-            disabled={!masterJson || contextFreshness !== 'current' || requiresReconciliation}
+            disabled={!masterJson || contextFreshness !== 'current' || requiresReconciliation || activeView === 'candidate'}
             title={
-              requiresReconciliation
+              activeView === 'candidate'
+                ? 'Master JSON export is only available from the Saved Accepted Design view'
+                : requiresReconciliation
                 ? 'Master JSON export blocked: project state must be reconciled first'
                 : contextFreshness !== 'current'
                 ? 'Master JSON export requires confirmed current context'
@@ -312,10 +324,10 @@ export function EliaOutputWrapper({
             The requested exterior layout could not satisfy all spatial or boundary constraints. 
             The existing accepted exterior design in the project Master JSON has been kept intact and unmodified.
           </p>
-          {validationSummary && validationSummary.violations && validationSummary.violations.length > 0 && (
+          {Array.isArray(validationSummary?.violations) && validationSummary.violations.length > 0 && (
             <ul className="list-disc pl-5 pt-1 space-y-0.5 text-rose-300/90 font-mono text-[11px]">
               {validationSummary.violations.map((violation, idx) => (
-                <li key={idx}>{violation}</li>
+                <li key={idx}>{String(violation)}</li>
               ))}
             </ul>
           )}
@@ -429,7 +441,7 @@ export function EliaOutputWrapper({
             <span className="text-[11px] font-mono text-muted-foreground">
               {jsonViewTab === 'landscape'
                 ? data ? `${Object.keys(landscape?.access || {}).length} access elements` : 'No data'
-                : masterJson ? `revision: ${sourceRevision ?? masterJson.revision ?? 1}` : 'No Master JSON'}
+                : displayMasterJson ? `revision: ${displayRevision ?? displayMasterJson.revision ?? 1}` : 'No Master JSON'}
             </span>
           </div>
 
@@ -438,9 +450,9 @@ export function EliaOutputWrapper({
               ? data
                 ? JSON.stringify(data, null, 2)
                 : '// No ELIA landscape output generated yet.\n// Click "Preview" or "Generate & Save" to run the exterior planner.'
-              : masterJson
-              ? JSON.stringify(masterJson, null, 2)
-              : '// No project Master JSON loaded.'}
+              : displayMasterJson
+              ? JSON.stringify(displayMasterJson, null, 2)
+              : '// No source Master JSON snapshot available for this candidate.'}
           </pre>
         </TabsContent>
       </Tabs>

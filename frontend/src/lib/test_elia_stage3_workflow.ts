@@ -411,7 +411,7 @@ async function runAllTests() {
 
     controller.editRequirement({ generationMode: 'trained_model' })
 
-    defPrev.resolve({ run_id: 'prev_base', outcome: 'valid', exterior_landscape: { run_id: 'prev_base' } as any })
+    defPrev.resolve({ run_id: 'prev_base', outcome: 'valid', exterior_landscape: { run_id: 'prev_base', access: {} } as any })
     await prevPromise
 
     assert.strictEqual(controller.getState().candidate?.generationMode, 'baseline')
@@ -2082,6 +2082,701 @@ async function runAllTests() {
     assert.strictEqual(controller.canGenerateAndSave(), true)
     assert.strictEqual(controller.canExportMasterJson(), true)
     passTest('Regression J: Late malformed response from old project does not affect current project state or eligibility')
+  }
+
+  // ===========================================================================
+  // GROUP 5: CONFIRMED DEFECT FIXES & DIRECT REGRESSIONS
+  // ===========================================================================
+
+  // ---------------------------------------------------------------------------
+  // 47. Defect 1.1: violations as a string rejected without join/map exceptions
+  // ---------------------------------------------------------------------------
+  {
+    const controller = new EliaWorkflowController('proj_viol_str')
+    controller.activate('proj_viol_str')
+
+    // Context refresh with string violations is rejected
+    const badExterior = {
+      run_id: 'run_bad_str',
+      access: {},
+      validation_summary: {
+        valid: false,
+        violations: 'broken',
+      },
+    }
+
+    const resCtx = await controller.loadAuthoritativeContext({
+      ...noopApi,
+      getContext: async () => ({
+        master_json: { id: 'proj_viol_str', revision: 1, exterior_landscape: badExterior },
+        revision: 1,
+      }),
+    })
+    assert.strictEqual(resCtx.status, 'failed')
+    assert.strictEqual(controller.getState().acceptedLandscape, null)
+    assert.strictEqual(controller.getState().contextFreshness, 'unavailable')
+    assert.ok(controller.getState().contextError?.includes('validation_summary.violations'))
+
+    // Initial valid context
+    await controller.loadAuthoritativeContext({
+      ...noopApi,
+      getContext: async () => ({
+        master_json: { id: 'proj_viol_str', revision: 1 },
+        revision: 1,
+      }),
+    })
+
+    // Preview returning string violations is rejected without throwing join/map exceptions
+    const resPrev = await controller.previewCandidate({
+      ...noopApi,
+      preview: async () => ({
+        run_id: 'prev_str_viol',
+        outcome: 'infeasible',
+        exterior_landscape: badExterior as any,
+      }),
+    })
+    assert.strictEqual(resPrev.status, 'failed')
+    assert.strictEqual(controller.getState().candidate, null)
+    assert.ok(controller.getState().actionError?.includes('validation_summary.violations'))
+
+    passTest('Defect 1.1: violations as a string rejected without join/map exceptions')
+  }
+
+  // ---------------------------------------------------------------------------
+  // 48. Defect 1.2: violations containing non-string entries rejected according to contract
+  // ---------------------------------------------------------------------------
+  {
+    const controller = new EliaWorkflowController('proj_viol_arr')
+    controller.activate('proj_viol_arr')
+
+    const exteriorNonStringEntries = {
+      run_id: 'run_non_str',
+      access: {},
+      validation_summary: {
+        valid: false,
+        violations: ['Valid setback violation', 404, { detail: 'nested object' }],
+      },
+    }
+
+    const resCtx = await controller.loadAuthoritativeContext({
+      ...noopApi,
+      getContext: async () => ({
+        master_json: { id: 'proj_viol_arr', revision: 1, exterior_landscape: exteriorNonStringEntries },
+        revision: 1,
+      }),
+    })
+    assert.strictEqual(resCtx.status, 'failed')
+    assert.strictEqual(controller.getState().acceptedLandscape, null)
+    assert.ok(controller.getState().contextError?.includes('validation_summary.violations'))
+
+    // Initial valid context
+    await controller.loadAuthoritativeContext({
+      ...noopApi,
+      getContext: async () => ({
+        master_json: { id: 'proj_viol_arr', revision: 1 },
+        revision: 1,
+      }),
+    })
+
+    const resPrev = await controller.previewCandidate({
+      ...noopApi,
+      preview: async () => ({
+        run_id: 'prev_non_str',
+        outcome: 'infeasible',
+        exterior_landscape: exteriorNonStringEntries as any,
+      }),
+    })
+    assert.strictEqual(resPrev.status, 'failed')
+    assert.strictEqual(controller.getState().candidate, null)
+    assert.ok(controller.getState().actionError?.includes('validation_summary.violations'))
+
+    passTest('Defect 1.2: violations containing non-string entries rejected according to contract')
+  }
+
+  // ---------------------------------------------------------------------------
+  // 49. Defect 1.3: Malformed nested feature collections/entries rejected before accepted or candidate state update
+  // ---------------------------------------------------------------------------
+  {
+    const controller = new EliaWorkflowController('proj_nested_feat')
+    controller.activate('proj_nested_feat')
+
+    const malformedFeatureSamples = [
+      {
+        name: 'non-object entry in vegetation_nodes',
+        ext: { run_id: 'f1', access: {}, vegetation_nodes: ['tree_primitive'] },
+      },
+      {
+        name: 'vegetation_node with empty json_id',
+        ext: { run_id: 'f2', access: {}, vegetation_nodes: [{ json_id: '   ' }] },
+      },
+      {
+        name: 'vegetation_node with non-finite position coordinates',
+        ext: { run_id: 'f3', access: {}, vegetation_nodes: [{ json_id: 'tree_1', position: [NaN, 10] }] },
+      },
+      {
+        name: 'gate with non-positive dimensions',
+        ext: { run_id: 'f4', access: { gate: { json_id: 'gate_1', dimensions: { width_m: -1 } } } },
+      },
+      {
+        name: 'gate in gates array with invalid units',
+        ext: { run_id: 'f5', access: { gates: [{ json_id: 'gate_2', units: 'feet' }] } },
+      },
+      {
+        name: 'vertical_greenery element with non-finite height_m',
+        ext: { run_id: 'f6', access: {}, vertical_greenery: { elements: [{ json_id: 'vg_1', height_m: Infinity }] } },
+      },
+      {
+        name: 'outdoor_lighting node missing json_id',
+        ext: { run_id: 'f7', access: {}, outdoor_lighting: { nodes: [{ type: 'lamp' }] } },
+      },
+    ]
+
+    for (const sample of malformedFeatureSamples) {
+      const resCtx = await controller.loadAuthoritativeContext({
+        ...noopApi,
+        getContext: async () => ({
+          master_json: { id: 'proj_nested_feat', revision: 1, exterior_landscape: sample.ext },
+          revision: 1,
+        }),
+      })
+      assert.strictEqual(resCtx.status, 'failed', `Sample '${sample.name}' must fail authoritative context load`)
+      assert.strictEqual(controller.getState().acceptedLandscape, null)
+      assert.strictEqual(controller.getState().candidate, null)
+    }
+
+    passTest('Defect 1.3: Malformed nested feature collections/entries rejected before accepted or candidate state update')
+  }
+
+  // ---------------------------------------------------------------------------
+  // 50. Defect 1.4: Malformed authoritative refresh after valid accepted design preserves previous snapshot, revision, and provenance
+  // ---------------------------------------------------------------------------
+  {
+    const controller = new EliaWorkflowController('proj_refresh_preserve')
+    controller.activate('proj_refresh_preserve')
+
+    const snapshotA = { id: 'proj_refresh_preserve', revision: 1, site: 'survey_A' }
+    const validExteriorA = { run_id: 'run_init_valid', access: { gate: { json_id: 'g_init' } } }
+
+    await controller.loadAuthoritativeContext({
+      ...noopApi,
+      getContext: async () => ({
+        master_json: { ...snapshotA, exterior_landscape: validExteriorA },
+        revision: 1,
+      }),
+    })
+    assert.strictEqual(controller.getState().acceptedLandscape?.run_id, 'run_init_valid')
+    assert.strictEqual(controller.getState().acceptedProvenance?.runId, 'run_init_valid')
+    assert.strictEqual(controller.getState().acceptedProvenance?.sourceRevision, 1)
+    assert.strictEqual((controller.getState().acceptedProvenance?.sourceSnapshot as any)?.site, 'survey_A')
+    assert.strictEqual(controller.getState().sourceRevision, 1)
+    assert.strictEqual(controller.getState().contextFreshness, 'current')
+    assert.strictEqual(controller.canExportMasterJson(), true)
+    assert.strictEqual(controller.canGenerateAndSave(), true)
+
+    // Second context refresh contains a malformed exterior payload
+    const malformedExterior = {
+      run_id: 'run_corrupted',
+      access: {},
+      validation_summary: { valid: false, violations: 'corrupted_string' },
+    }
+
+    const resMalformed = await controller.loadAuthoritativeContext({
+      ...noopApi,
+      getContext: async () => ({
+        master_json: { id: 'proj_refresh_preserve', revision: 2, exterior_landscape: malformedExterior },
+        revision: 2,
+      }),
+    })
+
+    assert.strictEqual(resMalformed.status, 'failed')
+    // Prior valid snapshot, revision, accepted exterior, and provenance MUST be preserved!
+    assert.strictEqual(controller.getState().acceptedLandscape?.run_id, 'run_init_valid')
+    assert.strictEqual(controller.getState().acceptedProvenance?.runId, 'run_init_valid')
+    assert.strictEqual(controller.getState().acceptedProvenance?.sourceRevision, 1)
+    assert.strictEqual((controller.getState().acceptedProvenance?.sourceSnapshot as any)?.site, 'survey_A')
+    assert.strictEqual(controller.getState().sourceRevision, 1)
+    assert.strictEqual((controller.getState().authoritativeMaster as any)?.site, 'survey_A')
+
+    // Marked stale and appropriate actions strictly blocked
+    assert.strictEqual(controller.getState().contextFreshness, 'stale')
+    assert.ok(controller.getState().contextError !== null)
+    assert.strictEqual(controller.canExportMasterJson(), false)
+    assert.strictEqual(controller.canGenerateAndSave(), false)
+
+    passTest('Defect 1.4: Malformed authoritative refresh after valid accepted design preserves previous snapshot, revision, and provenance')
+  }
+
+  // ---------------------------------------------------------------------------
+  // 51. Defect 1.5: Malformed initial context remains unavailable and keeps actions blocked
+  // ---------------------------------------------------------------------------
+  {
+    const controller = new EliaWorkflowController('proj_init_bad')
+    controller.activate('proj_init_bad')
+    assert.strictEqual(controller.getState().contextFreshness, 'loading')
+
+    const resInit = await controller.loadAuthoritativeContext({
+      ...noopApi,
+      getContext: async () => ({
+        master_json: {
+          id: 'proj_init_bad',
+          revision: 1,
+          exterior_landscape: {
+            run_id: 'run_bad_first',
+            access: { gate: { json_id: 'g1', units: 'ft' } },
+          },
+        },
+        revision: 1,
+      }),
+    })
+
+    assert.strictEqual(resInit.status, 'failed')
+    assert.strictEqual(controller.getState().contextFreshness, 'unavailable')
+    assert.strictEqual(controller.getState().acceptedLandscape, null)
+    assert.strictEqual(controller.getState().acceptedProvenance, null)
+    assert.strictEqual(controller.getState().authoritativeMaster, null)
+    assert.strictEqual(controller.getState().sourceRevision, null)
+    assert.strictEqual(controller.canExportMasterJson(), false)
+    assert.strictEqual(controller.canGenerateAndSave(), false)
+
+    passTest('Defect 1.5: Malformed initial context remains unavailable and keeps actions blocked')
+  }
+
+  // ---------------------------------------------------------------------------
+  // 52. Defect 1.6 & 2: Malformed reconciliation candidate output avoids exceptions and prevents invalid publication without blocking mutation resolution
+  // ---------------------------------------------------------------------------
+  {
+    const controller = new EliaWorkflowController('proj_recon_cand_malformed')
+    controller.activate('proj_recon_cand_malformed')
+
+    // Initial valid context at revision 1
+    const snapshotA = { id: 'proj_recon_cand_malformed', revision: 1, site: 'v1_site' }
+    await controller.loadAuthoritativeContext({
+      ...noopApi,
+      getContext: async () => ({
+        master_json: snapshotA,
+        revision: 1,
+      }),
+    })
+
+    // Simulate an ambiguous network save failure that creates an unresolved mutation
+    const runCall = controller.generateAndSave({
+      ...noopApi,
+      run: async () => {
+        throw new Error('Ambiguous 500 Network Timeout')
+      },
+    })
+    await runCall
+
+    assert.strictEqual(controller.getState().requiresReconciliation, true)
+    assert.strictEqual(controller.getState().unresolvedMutation?.sourceRevision, 1)
+
+    // Reconcile:
+    // backend finished the terminal infeasible run 'run_corr',
+    // but candidate output in run history has corrupted string violations
+    const malformedOutput = {
+      run_id: 'run_corr',
+      access: {},
+      validation_summary: {
+        valid: false,
+        violations: 'corrupted_string_violations',
+      },
+    }
+
+    const resRecon = await controller.reconcileMutation({
+      ...noopApi,
+      getResult: async () => ({
+        run_id: 'run_corr',
+        status: 'completed',
+        output: malformedOutput as any,
+      }),
+      getContext: async () => ({
+        master_json: {
+          id: 'proj_recon_cand_malformed',
+          revision: 2,
+          processing: {
+            elia_engine: {
+              status: 'infeasible',
+              run_id: 'run_corr',
+              source_revision: 1,
+            },
+          },
+        },
+        revision: 2,
+      }),
+    })
+
+    // Must resolve cleanly without exceptions!
+    assert.strictEqual(resRecon.status, 'reconciled')
+    // Malformed candidate output must NOT be published
+    assert.strictEqual(controller.getState().candidate, null)
+    // Mutation is proven terminal; guard is unlocked and context is current!
+    assert.strictEqual(controller.getState().requiresReconciliation, false)
+    assert.strictEqual(controller.getState().unresolvedMutation, null)
+    assert.strictEqual(controller.getState().contextFreshness, 'current')
+    assert.strictEqual(controller.getState().sourceRevision, 2)
+    assert.strictEqual(controller.canGenerateAndSave(), true)
+
+    passTest('Defect 1.6 & 2: Malformed reconciliation candidate output avoids exceptions and prevents invalid publication without blocking mutation resolution')
+  }
+
+  // ---------------------------------------------------------------------------
+  // 53. Defect 2.7: Valid correlated infeasible reconciliation preserves accepted design and sets candidate
+  // ---------------------------------------------------------------------------
+  {
+    const controller = new EliaWorkflowController('proj_recon_inf')
+    controller.activate('proj_recon_inf')
+
+    const priorAccepted = { run_id: 'prior_acc_design', access: { gate: { json_id: 'gate_acc' } } }
+    const snapshotA = { id: 'proj_recon_inf', revision: 1, site: 'context_snap_A' }
+
+    await controller.loadAuthoritativeContext({
+      ...noopApi,
+      getContext: async () => ({
+        master_json: { ...snapshotA, exterior_landscape: priorAccepted },
+        revision: 1,
+      }),
+    })
+    assert.strictEqual(controller.getState().acceptedLandscape?.run_id, 'prior_acc_design')
+
+    // Ambiguous save failure
+    await controller.generateAndSave({
+      ...noopApi,
+      run: async () => {
+        throw new Error('ETIMEDOUT')
+      },
+    })
+    assert.strictEqual(controller.getState().requiresReconciliation, true)
+
+    // Reconcile with valid correlated infeasible run
+    const candidateOutput = {
+      run_id: 'run_corr_inf',
+      access: {},
+      validation_summary: {
+        valid: false,
+        violations: ['Boundary setback violation'],
+      },
+    }
+
+    const resRecon = await controller.reconcileMutation({
+      ...noopApi,
+      getResult: async () => ({
+        run_id: 'run_corr_inf',
+        status: 'completed',
+        output: candidateOutput,
+      }),
+      getContext: async () => ({
+        master_json: {
+          id: 'proj_recon_inf',
+          revision: 2,
+          site: 'context_snap_B',
+          exterior_landscape: priorAccepted,
+          processing: {
+            elia_engine: {
+              status: 'infeasible',
+              run_id: 'run_corr_inf',
+              source_revision: 1,
+            },
+          },
+        },
+        revision: 2,
+      }),
+    })
+
+    assert.strictEqual(resRecon.status, 'reconciled')
+    // Accepted design preserved
+    assert.strictEqual(controller.getState().acceptedLandscape?.run_id, 'prior_acc_design')
+    // Candidate set and correctly marked infeasible
+    assert.strictEqual(controller.getState().candidate?.outcome, 'infeasible')
+    assert.strictEqual(controller.getState().candidate?.runId, 'run_corr_inf')
+    // Candidate retains submitted snapshot A and submitted revision 1!
+    assert.strictEqual(controller.getState().candidate?.sourceRevision, 1)
+    assert.strictEqual((controller.getState().candidate?.sourceSnapshot as any)?.site, 'context_snap_A')
+    // Authoritative context reflects B
+    assert.strictEqual((controller.getState().authoritativeMaster as any)?.site, 'context_snap_B')
+    assert.strictEqual(controller.getState().sourceRevision, 2)
+    assert.strictEqual(controller.getState().contextFreshness, 'current')
+    assert.strictEqual(controller.canGenerateAndSave(), true)
+
+    passTest('Defect 2.7: Valid correlated infeasible reconciliation preserves accepted design and sets candidate')
+  }
+
+  // ---------------------------------------------------------------------------
+  // 54. Defect 2.8: Snapshot provenance retains submitted snapshot A and revision N while authoritative state reflects B
+  // ---------------------------------------------------------------------------
+  {
+    const controller = new EliaWorkflowController('proj_prov_separation')
+    controller.activate('proj_prov_separation')
+
+    const snapshotA = { id: 'proj_prov_separation', revision: 5, land_geometry: 'v5_geometry' }
+    await controller.loadAuthoritativeContext({
+      ...noopApi,
+      getContext: async () => ({
+        master_json: snapshotA,
+        revision: 5,
+      }),
+    })
+
+    // Submit mutation at revision 5
+    await controller.generateAndSave({
+      ...noopApi,
+      run: async () => {
+        throw new Error('Connection reset')
+      },
+    })
+    assert.strictEqual(controller.getState().unresolvedMutation?.sourceRevision, 5)
+
+    // Later authoritative context B has advanced to revision 8
+    const snapshotB = {
+      id: 'proj_prov_separation',
+      revision: 8,
+      land_geometry: 'v8_geometry_modified',
+      processing: {
+        elia_engine: {
+          status: 'infeasible',
+          run_id: 'run_rev5_correlated',
+          source_revision: 5,
+        },
+      },
+    }
+
+    const resRecon = await controller.reconcileMutation({
+      ...noopApi,
+      getResult: async () => ({
+        run_id: 'run_rev5_correlated',
+        status: 'completed',
+        output: {
+          run_id: 'run_rev5_correlated',
+          access: {},
+          validation_summary: { valid: false, violations: ['Garage exceeds setback'] },
+        },
+      }),
+      getContext: async () => ({
+        master_json: snapshotB,
+        revision: 8,
+      }),
+    })
+
+    assert.strictEqual(resRecon.status, 'reconciled')
+    // Candidate strictly pairs with submitted snapshot A and revision 5!
+    const cand = controller.getState().candidate
+    assert.ok(cand !== null)
+    assert.strictEqual(cand.sourceRevision, 5)
+    assert.strictEqual((cand.sourceSnapshot as any)?.land_geometry, 'v5_geometry')
+    assert.notStrictEqual((cand.sourceSnapshot as any)?.land_geometry, 'v8_geometry_modified')
+
+    // Authoritative state strictly reflects B and revision 8!
+    assert.strictEqual(controller.getState().sourceRevision, 8)
+    assert.strictEqual((controller.getState().authoritativeMaster as any)?.land_geometry, 'v8_geometry_modified')
+
+    passTest('Defect 2.8: Snapshot provenance retains submitted snapshot A and revision N while authoritative state reflects B')
+  }
+
+  // ---------------------------------------------------------------------------
+  // 55. Defect 2.9: Missing submitted snapshot is not silently paired with current context while accepted view remains usable
+  // ---------------------------------------------------------------------------
+  {
+    const controller = new EliaWorkflowController('proj_missing_snapshot')
+    controller.activate('proj_missing_snapshot')
+
+    // Initial valid context with accepted design
+    const acceptedExterior = { run_id: 'acc_usable', access: {} }
+    await controller.loadAuthoritativeContext({
+      ...noopApi,
+      getContext: async () => ({
+        master_json: { id: 'proj_missing_snapshot', revision: 2, exterior_landscape: acceptedExterior },
+        revision: 2,
+      }),
+    })
+
+    // Directly simulate an unresolved mutation where snapshotAtSubmit is unavailable (null)
+    controller.setState({
+      requiresReconciliation: true,
+      unresolvedMutation: {
+        projectId: 'proj_missing_snapshot',
+        sourceRevision: 2,
+        submittedFingerprint: 'fp_missing',
+        submittedGenerationMode: 'baseline',
+        snapshotAtSubmit: null, // UNAVAILABLE!
+        submittedAt: new Date().toISOString(),
+        status: 'unresolved',
+      },
+    })
+
+    const laterDoc = {
+      id: 'proj_missing_snapshot',
+      revision: 3,
+      site_name: 'Later Current Context C',
+      exterior_landscape: acceptedExterior,
+      processing: {
+        elia_engine: {
+          status: 'infeasible',
+          run_id: 'run_nosnap',
+          source_revision: 2,
+        },
+      },
+    }
+
+    const resRecon = await controller.reconcileMutation({
+      ...noopApi,
+      getResult: async () => ({
+        run_id: 'run_nosnap',
+        status: 'completed',
+        output: {
+          run_id: 'run_nosnap',
+          access: {},
+          validation_summary: { valid: false, violations: ['Driveway slope excessive'] },
+        },
+      }),
+      getContext: async () => ({
+        master_json: laterDoc,
+        revision: 3,
+      }),
+    })
+
+    assert.strictEqual(resRecon.status, 'reconciled')
+    // Candidate sourceSnapshot MUST be null (explicitly unavailable) — never substituted with laterDoc!
+    const cand = controller.getState().candidate
+    assert.ok(cand !== null)
+    assert.strictEqual(cand.sourceSnapshot, null)
+    assert.strictEqual(cand.sourceRevision, 2)
+
+    // Accepted view remains usable and truthful
+    assert.strictEqual(controller.getState().acceptedLandscape?.run_id, 'acc_usable')
+    assert.strictEqual(controller.getState().sourceRevision, 3)
+    assert.strictEqual((controller.getState().authoritativeMaster as any)?.site_name, 'Later Current Context C')
+    assert.strictEqual(controller.canExportMasterJson(), true)
+
+    passTest('Defect 2.9: Missing submitted snapshot is not silently paired with current context while accepted view remains usable')
+  }
+
+  // ---------------------------------------------------------------------------
+  // 56. Defect 2.10: Project switch during reconciliation prevents old response from overwriting new project candidate or guard
+  // ---------------------------------------------------------------------------
+  {
+    const controller = new EliaWorkflowController('proj_switch_recon_A')
+    controller.activate('proj_switch_recon_A')
+
+    // Establish unresolved state on proj_switch_recon_A
+    controller.setState({
+      requiresReconciliation: true,
+      unresolvedMutation: {
+        projectId: 'proj_switch_recon_A',
+        sourceRevision: 1,
+        submittedFingerprint: 'fp_a',
+        submittedGenerationMode: 'baseline',
+        snapshotAtSubmit: { id: 'snap_A' },
+        submittedAt: new Date().toISOString(),
+        status: 'unresolved',
+      },
+    })
+
+    // Start reconciliation on Project A with deferred promises
+    const defGetResA = createDeferredPromise<any>()
+    const defGetCtxA = createDeferredPromise<any>()
+
+    const pReconA = controller.reconcileMutation({
+      ...noopApi,
+      getResult: () => defGetResA.promise,
+      getContext: () => defGetCtxA.promise,
+    })
+
+    // User switches project to Project B!
+    controller.activate('proj_switch_recon_B')
+    await controller.loadAuthoritativeContext({
+      ...noopApi,
+      getContext: async () => ({
+        master_json: { id: 'proj_switch_recon_B', revision: 10, site: 'project_B_clean' },
+        revision: 10,
+      }),
+    })
+
+    assert.strictEqual(controller.getState().projectId, 'proj_switch_recon_B')
+    assert.strictEqual(controller.getState().requiresReconciliation, false)
+    assert.strictEqual(controller.getState().candidate, null)
+
+    // Old Project A reconciliation finishes late with an infeasible candidate
+    defGetResA.resolve({
+      run_id: 'run_old_a',
+      status: 'completed',
+      output: { run_id: 'run_old_a', access: {}, validation_summary: { valid: false, violations: ['old A error'] } },
+    })
+    defGetCtxA.resolve({
+      master_json: {
+        id: 'proj_switch_recon_A',
+        revision: 2,
+        processing: { elia_engine: { status: 'infeasible', run_id: 'run_old_a', source_revision: 1 } },
+      },
+      revision: 2,
+    })
+
+    const resA = await pReconA
+    assert.strictEqual(resA.status, 'obsolete')
+
+    // Current Project B must be completely untainted!
+    assert.strictEqual(controller.getState().projectId, 'proj_switch_recon_B')
+    assert.strictEqual(controller.getState().candidate, null)
+    assert.strictEqual(controller.getState().requiresReconciliation, false)
+    assert.strictEqual(controller.getState().unresolvedMutation, null)
+    assert.strictEqual(controller.getState().sourceRevision, 10)
+    assert.strictEqual((controller.getState().authoritativeMaster as any)?.site, 'project_B_clean')
+
+    passTest('Defect 2.10: Project switch during reconciliation prevents old response from overwriting new project candidate or guard')
+  }
+
+  // ---------------------------------------------------------------------------
+  // 57. Defect 1.11: Subsequent valid response restores correct state without obsolete errors
+  // ---------------------------------------------------------------------------
+  {
+    const controller = new EliaWorkflowController('proj_recovery')
+    controller.activate('proj_recovery')
+
+    // 1. Initial attempt fails with malformed exterior
+    const resBad = await controller.loadAuthoritativeContext({
+      ...noopApi,
+      getContext: async () => ({
+        master_json: {
+          id: 'proj_recovery',
+          revision: 1,
+          exterior_landscape: {
+            run_id: 'run_bad_recov',
+            access: {},
+            validation_summary: { valid: false, violations: 'malformed_string' },
+          },
+        },
+        revision: 1,
+      }),
+    })
+    assert.strictEqual(resBad.status, 'failed')
+    assert.strictEqual(controller.getState().contextFreshness, 'unavailable')
+    assert.ok(controller.getState().contextError?.includes('validation_summary.violations'))
+
+    // 2. Subsequent valid refresh recovers state completely
+    const validExterior = {
+      run_id: 'run_recovered_ok',
+      access: { gate: { json_id: 'gate_recov' } },
+      validation_summary: { valid: true, violations: [] },
+    }
+    const resGood = await controller.loadAuthoritativeContext({
+      ...noopApi,
+      getContext: async () => ({
+        master_json: {
+          id: 'proj_recovery',
+          revision: 2,
+          exterior_landscape: validExterior,
+        },
+        revision: 2,
+      }),
+    })
+
+    assert.strictEqual(resGood.status, 'success')
+    assert.strictEqual(controller.getState().contextFreshness, 'current')
+    assert.strictEqual(controller.getState().contextError, null)
+    assert.strictEqual(controller.getState().acceptedLandscape?.run_id, 'run_recovered_ok')
+    assert.strictEqual(controller.getState().sourceRevision, 2)
+    assert.strictEqual(controller.canExportMasterJson(), true)
+    assert.strictEqual(controller.canGenerateAndSave(), true)
+
+    passTest('Defect 1.11: Subsequent valid response restores correct state without obsolete errors')
   }
 
   console.log(`\nAll ${testCount} ELIA Stage 3 Production Behavior Tests Passed Successfully!`)
