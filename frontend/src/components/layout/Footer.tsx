@@ -12,7 +12,7 @@ export default function Footer() {
             A multi-agent spatial AI architecture designed to transform residential spatial information into structured, optimized and interactive design outputs.
           </p>
         </div>
-        
+
         <div>
           <h4 className="font-semibold mb-4 text-foreground">Navigation</h4>
           <ul className="space-y-2 text-sm text-muted-foreground">
@@ -23,7 +23,7 @@ export default function Footer() {
             <li><Link href="/contact" className="hover:text-primary transition-colors">Contact Us</Link></li>
           </ul>
         </div>
-        
+
         <div>
           <h4 className="font-semibold mb-4 text-foreground">Features</h4>
           <ul className="space-y-2 text-sm text-muted-foreground">
@@ -33,7 +33,7 @@ export default function Footer() {
             <li><Link href="/features/elia-engine" className="hover:text-primary transition-colors">ELIA-Engine</Link></li>
           </ul>
         </div>
-        
+
         <div>
           <h4 className="font-semibold mb-4 text-foreground">Legal & Research</h4>
           <ul className="space-y-2 text-sm text-muted-foreground">
@@ -43,9 +43,9 @@ export default function Footer() {
           </ul>
         </div>
       </div>
-      
+
       <div className="container mt-12 pt-8 border-t border-border/40 text-center text-sm text-muted-foreground">
-        <p>&copy; {new Date().getFullYear()} ArchAI-Plan Research Platform. All rights reserved.</p>
+        <p>&copy; {new Date().getFullYear()} ArchAI-Plan Research Platform. Developed by ArchAI Research Team.</p>
       </div>
     </footer>
   )
