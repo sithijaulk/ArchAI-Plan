@@ -1,0 +1,150 @@
+[
+  {
+    "rule_id": "UDA-SL-R01",
+    "authority": "Urban Development Authority (UDA) Sri Lanka",
+    "jurisdiction_id": "sri_lanka_uda_standard",
+    "source_document": "Extraordinary Gazette No. 2235/54 - Planning and Development Regulations",
+    "source_date": "2021-07-08",
+    "source_reference": "Part III - Building Limits & Street Lines, Schedule 3",
+    "rule_type": "setback",
+    "conditions": {
+      "road_category": "standard_access",
+      "min_road_width_m": 3.0
+    },
+    "affected_edge_type": "road_front",
+    "value": 3.0,
+    "unit": "m",
+    "effective_date": "2021-07-08",
+    "verification_status": "verified"
+  },
+  {
+    "rule_id": "UDA-SL-R02",
+    "authority": "Urban Development Authority (UDA) Sri Lanka",
+    "jurisdiction_id": "sri_lanka_uda_standard",
+    "source_document": "Extraordinary Gazette No. 2235/54 - Planning and Development Regulations",
+    "source_date": "2021-07-08",
+    "source_reference": "Part III - Rear Space Regulations, Regulation 18(2)",
+    "rule_type": "setback",
+    "conditions": {
+      "max_storeys": 2
+    },
+    "affected_edge_type": "rear",
+    "value": 2.3,
+    "unit": "m",
+    "effective_date": "2021-07-08",
+    "verification_status": "verified"
+  },
+  {
+    "rule_id": "UDA-SL-R03",
+    "authority": "Urban Development Authority (UDA) Sri Lanka",
+    "jurisdiction_id": "sri_lanka_uda_standard",
+    "source_document": "Extraordinary Gazette No. 2235/54 - Planning and Development Regulations",
+    "source_date": "2021-07-08",
+    "source_reference": "Part III - Side Setbacks and Light/Ventilation, Regulation 19",
+    "rule_type": "setback",
+    "conditions": {
+      "wall_type": "boundary_clearance"
+    },
+    "affected_edge_type": "side",
+    "value": 1.0,
+    "unit": "m",
+    "effective_date": "2021-07-08",
+    "verification_status": "verified"
+  },
+  {
+    "rule_id": "CMC-SL-R01",
+    "authority": "Colombo Municipal Council (CMC)",
+    "jurisdiction_id": "colombo_municipal_council",
+    "source_document": "CMC Building By-laws & Development Guidelines",
+    "source_date": "2018-01-01",
+    "source_reference": "Section 12 - Street Line and Front Setbacks",
+    "rule_type": "setback",
+    "conditions": {
+      "development_zone": "residential_high_density"
+    },
+    "affected_edge_type": "road_front",
+    "value": 3.0,
+    "unit": "m",
+    "effective_date": "2018-01-01",
+    "verification_status": "verified"
+  },
+  {
+    "rule_id": "CMC-SL-R02",
+    "authority": "Colombo Municipal Council (CMC)",
+    "jurisdiction_id": "colombo_municipal_council",
+    "source_document": "CMC Building By-laws & Development Guidelines",
+    "source_date": "2018-01-01",
+    "source_reference": "Section 14 - Rear Clearances",
+    "rule_type": "setback",
+    "conditions": {
+      "development_zone": "residential_high_density"
+    },
+    "affected_edge_type": "rear",
+    "value": 2.3,
+    "unit": "m",
+    "effective_date": "2018-01-01",
+    "verification_status": "verified"
+  },
+  {
+    "rule_id": "CMC-SL-R03",
+    "authority": "Colombo Municipal Council (CMC)",
+    "jurisdiction_id": "colombo_municipal_council",
+    "source_document": "CMC Building By-laws & Development Guidelines",
+    "source_date": "2018-01-01",
+    "source_reference": "Section 15 - Side Boundaries",
+    "rule_type": "setback",
+    "conditions": {
+      "development_zone": "residential_high_density"
+    },
+    "affected_edge_type": "side",
+    "value": 1.0,
+    "unit": "m",
+    "effective_date": "2018-01-01",
+    "verification_status": "verified"
+  },
+  {
+    "rule_id": "RESEARCH-TEST-R01",
+    "authority": "ArchAI Research Framework",
+    "jurisdiction_id": "research_test_relaxed",
+    "source_document": "ArchAI-Plan Stage-1 Synthetic Benchmark Definition",
+    "source_date": "2025-01-01",
+    "source_reference": "Benchmark Spec Section 2",
+    "rule_type": "setback",
+    "conditions": {},
+    "affected_edge_type": "road_front",
+    "value": 1.5,
+    "unit": "m",
+    "effective_date": "2025-01-01",
+    "verification_status": "research_test"
+  },
+  {
+    "rule_id": "RESEARCH-TEST-R02",
+    "authority": "ArchAI Research Framework",
+    "jurisdiction_id": "research_test_relaxed",
+    "source_document": "ArchAI-Plan Stage-1 Synthetic Benchmark Definition",
+    "source_date": "2025-01-01",
+    "source_reference": "Benchmark Spec Section 2",
+    "rule_type": "setback",
+    "conditions": {},
+    "affected_edge_type": "rear",
+    "value": 1.5,
+    "unit": "m",
+    "effective_date": "2025-01-01",
+    "verification_status": "research_test"
+  },
+  {
+    "rule_id": "RESEARCH-TEST-R03",
+    "authority": "ArchAI Research Framework",
+    "jurisdiction_id": "research_test_relaxed",
+    "source_document": "ArchAI-Plan Stage-1 Synthetic Benchmark Definition",
+    "source_date": "2025-01-01",
+    "source_reference": "Benchmark Spec Section 2",
+    "rule_type": "setback",
+    "conditions": {},
+    "affected_edge_type": "side",
+    "value": 1.0,
+    "unit": "m",
+    "effective_date": "2025-01-01",
+    "verification_status": "research_test"
+  }
+]
