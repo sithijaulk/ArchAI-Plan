@@ -1,0 +1,26 @@
+{
+  "closure_tolerance": {
+    "value": 1.5,
+    "unit": "meters",
+    "purpose": "Maximum allowed gap between survey start point P0 and closing vertex",
+    "source_status": "research_test"
+  },
+  "area_tolerance_percent": {
+    "value": 15.0,
+    "unit": "percent",
+    "purpose": "Maximum acceptable variance between declared deed extent and vector reconstructed area before flagging needs_verification",
+    "source_status": "research_test"
+  },
+  "max_upload_size_bytes": {
+    "value": 15728640,
+    "unit": "bytes",
+    "purpose": "Maximum allowed size for uploaded deed/survey plan image or PDF (15MB)",
+    "source_status": "configured"
+  },
+  "minimum_room_area_tolerance_ratio": {
+    "value": 0.85,
+    "unit": "ratio",
+    "purpose": "Floor partition geometric tolerance ratio for room target area boundary slicing",
+    "source_status": "research_test"
+  }
+}

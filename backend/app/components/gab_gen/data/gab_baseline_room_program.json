@@ -1,0 +1,182 @@
+[
+  {
+    "room_type": "living_room",
+    "display_name": "Living Room",
+    "min_area_sqm": 20.0,
+    "recommended_area_sqm": 22.0,
+    "min_width_m": 3.6,
+    "source_type": "research_baseline",
+    "verification_status": "research_test",
+    "notes": "Sri Lankan residential baseline heuristic for standard living room layout"
+  },
+  {
+    "room_type": "family_living_area",
+    "display_name": "Family Living Area",
+    "min_area_sqm": 14.0,
+    "recommended_area_sqm": 16.0,
+    "min_width_m": 3.0,
+    "source_type": "research_baseline",
+    "verification_status": "research_test",
+    "notes": "Upper floor casual family living zone"
+  },
+  {
+    "room_type": "dining_area",
+    "display_name": "Dining Area",
+    "min_area_sqm": 12.0,
+    "recommended_area_sqm": 14.0,
+    "min_width_m": 3.0,
+    "source_type": "research_baseline",
+    "verification_status": "research_test",
+    "notes": "Accommodates 6-8 person dining table plus circulation"
+  },
+  {
+    "room_type": "kitchen",
+    "display_name": "Kitchen",
+    "min_area_sqm": 9.0,
+    "recommended_area_sqm": 12.0,
+    "min_width_m": 2.4,
+    "source_type": "research_baseline",
+    "verification_status": "research_test",
+    "notes": "Work triangle counter spacing"
+  },
+  {
+    "room_type": "pantry",
+    "display_name": "Pantry",
+    "min_area_sqm": 6.0,
+    "recommended_area_sqm": 8.0,
+    "min_width_m": 2.0,
+    "source_type": "research_baseline",
+    "verification_status": "research_test",
+    "notes": "Dry kitchen / food storage area"
+  },
+  {
+    "room_type": "master_bedroom",
+    "display_name": "Master Bedroom",
+    "min_area_sqm": 14.0,
+    "recommended_area_sqm": 16.0,
+    "min_width_m": 3.5,
+    "source_type": "research_baseline",
+    "verification_status": "research_test",
+    "notes": "King/queen bed, wardrobe space, circulation"
+  },
+  {
+    "room_type": "bedroom",
+    "display_name": "Bedroom",
+    "min_area_sqm": 10.0,
+    "recommended_area_sqm": 12.0,
+    "min_width_m": 3.0,
+    "source_type": "research_baseline",
+    "verification_status": "research_test",
+    "notes": "Standard secondary bedroom"
+  },
+  {
+    "room_type": "attached_bathroom",
+    "display_name": "Attached Bathroom",
+    "min_area_sqm": 3.5,
+    "recommended_area_sqm": 4.5,
+    "min_width_m": 1.5,
+    "source_type": "research_baseline",
+    "verification_status": "research_test",
+    "notes": "Shower cubicle, WC, vanity"
+  },
+  {
+    "room_type": "common_bathroom",
+    "display_name": "Common Bathroom",
+    "min_area_sqm": 3.2,
+    "recommended_area_sqm": 4.0,
+    "min_width_m": 1.4,
+    "source_type": "research_baseline",
+    "verification_status": "research_test",
+    "notes": "Guest/family common 3-fixture bath"
+  },
+  {
+    "room_type": "bathroom",
+    "display_name": "Bathroom",
+    "min_area_sqm": 3.2,
+    "recommended_area_sqm": 4.0,
+    "min_width_m": 1.4,
+    "source_type": "research_baseline",
+    "verification_status": "research_test",
+    "notes": "General residential bathroom"
+  },
+  {
+    "room_type": "study_office",
+    "display_name": "Study / Home Office",
+    "min_area_sqm": 8.0,
+    "recommended_area_sqm": 10.0,
+    "min_width_m": 2.4,
+    "source_type": "research_baseline",
+    "verification_status": "research_test",
+    "notes": "Home workspace / library"
+  },
+  {
+    "room_type": "utility_room",
+    "display_name": "Utility Room",
+    "min_area_sqm": 4.0,
+    "recommended_area_sqm": 6.0,
+    "min_width_m": 1.8,
+    "source_type": "research_baseline",
+    "verification_status": "research_test",
+    "notes": "Ironing, storage, household service"
+  },
+  {
+    "room_type": "store_room",
+    "display_name": "Store Room",
+    "min_area_sqm": 3.0,
+    "recommended_area_sqm": 4.0,
+    "min_width_m": 1.5,
+    "source_type": "research_baseline",
+    "verification_status": "research_test",
+    "notes": "General dry storage"
+  },
+  {
+    "room_type": "laundry",
+    "display_name": "Laundry",
+    "min_area_sqm": 3.0,
+    "recommended_area_sqm": 4.0,
+    "min_width_m": 1.5,
+    "source_type": "research_baseline",
+    "verification_status": "research_test",
+    "notes": "Washing machine, sink, supplies"
+  },
+  {
+    "room_type": "staircase",
+    "display_name": "Staircase Core",
+    "min_area_sqm": 6.5,
+    "recommended_area_sqm": 7.5,
+    "min_width_m": 2.0,
+    "source_type": "research_baseline",
+    "verification_status": "research_test",
+    "notes": "Circulation dogleg/linear flight core (min 0.9m clear flight width)"
+  },
+  {
+    "room_type": "garage_parking",
+    "display_name": "Garage / Parking",
+    "min_area_sqm": 15.0,
+    "recommended_area_sqm": 18.0,
+    "min_width_m": 3.0,
+    "source_type": "research_baseline",
+    "verification_status": "research_test",
+    "notes": "Standard single-car bay minimum dimensions 5.0m x 3.0m"
+  },
+  {
+    "room_type": "balcony",
+    "display_name": "Balcony",
+    "min_area_sqm": 4.0,
+    "recommended_area_sqm": 6.0,
+    "min_width_m": 1.2,
+    "source_type": "research_baseline",
+    "verification_status": "research_test",
+    "notes": "Outdoor private balcony space"
+  },
+  {
+    "room_type": "other",
+    "display_name": "Other Space",
+    "min_area_sqm": 6.0,
+    "recommended_area_sqm": 10.0,
+    "min_width_m": 2.0,
+    "source_type": "research_baseline",
+    "verification_status": "research_test",
+    "notes": "Custom multipurpose residential area"
+  }
+]

@@ -2,7 +2,8 @@ import { MasterJson } from './master-json';
 
 export interface Project {
   id: string;
-  projectName: string;
+  project_name: string;
+  projectName?: string;
   description?: string;
   current_component: string | null;
   master_json: MasterJson;
