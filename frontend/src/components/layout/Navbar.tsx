@@ -43,6 +43,11 @@ export default function Navbar() {
           </nav>
         </div>
         <div className="hidden md:flex items-center space-x-4">
+          <Link href="/admin/login">
+            <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-white">
+              Admin Login
+            </Button>
+          </Link>
           <Link href="/start">
             <Button size="sm" className="electric-glow">
               Start Project
@@ -77,6 +82,9 @@ export default function Navbar() {
             <div className="pt-4 flex flex-col gap-2">
               <Link href="/start" onClick={() => setMobileMenuOpen(false)}>
                 <Button className="w-full electric-glow">Start Project</Button>
+              </Link>
+              <Link href="/admin/login" onClick={() => setMobileMenuOpen(false)}>
+                <Button variant="outline" className="w-full">Admin Login</Button>
               </Link>
             </div>
           </nav>

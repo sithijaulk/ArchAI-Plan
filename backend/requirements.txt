@@ -13,3 +13,6 @@ email-validator
 pillow
 python-slugify
 shapely
+numpy
+pvlib
+httpx
