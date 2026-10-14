@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
 import * as THREE from 'three';
+import { Eye, RotateCcw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { GabGenMasterJson, Point2D, FloorPlan } from '../../types';
 
 interface PlanPreview3DProps {
@@ -50,7 +52,7 @@ const BuildingScene: React.FC<{
 
   return (
     <group rotation={[-Math.PI / 2, 0, 0]}>
-      {/* 1. Ground Land Base */}
+      {/* 1. Ground Land Base in Canonical Coordinates */}
       {landShape && (
         <mesh position={[0, 0, -0.2]}>
           <extrudeGeometry
@@ -111,13 +113,13 @@ const BuildingScene: React.FC<{
                     <extrudeGeometry
                       args={[
                         roomShape,
-                        { depth: 2.8, bevelEnabled: false },
+                        { depth: 2.7, bevelEnabled: false },
                       ]}
                     />
                     <meshStandardMaterial
                       color={roomColor}
                       transparent
-                      opacity={0.35}
+                      opacity={rm.is_structural_stair ? 0.5 : 0.3}
                       roughness={0.4}
                     />
                   </mesh>
@@ -125,7 +127,7 @@ const BuildingScene: React.FC<{
               );
             })}
 
-            {/* 3. Walls */}
+            {/* 3. Wall Segments from JSON */}
             {fl.walls.map((w) => {
               const p1 = new THREE.Vector3(w.start.x - centerX, w.start.y - centerY, 0.1);
               const p2 = new THREE.Vector3(w.end.x - centerX, w.end.y - centerY, 0.1);
@@ -159,6 +161,30 @@ export const PlanPreview3D: React.FC<PlanPreview3DProps> = ({
   selectedFloorIndex,
   explodedMode = false,
 }) => {
+  const controlsRef = useRef<any>(null);
+  const cameraRef = useRef<any>(null);
+
+  const setCameraPreset = (type: 'perspective' | 'top' | 'front' | 'side') => {
+    if (!controlsRef.current || !cameraRef.current) return;
+    const controls = controlsRef.current;
+    const camera = cameraRef.current;
+
+    if (type === 'perspective') {
+      camera.position.set(18, 22, 25);
+      controls.target.set(0, 0, 0);
+    } else if (type === 'top') {
+      camera.position.set(0, 40, 0.01);
+      controls.target.set(0, 0, 0);
+    } else if (type === 'front') {
+      camera.position.set(0, 5, 35);
+      controls.target.set(0, 3, 0);
+    } else if (type === 'side') {
+      camera.position.set(35, 5, 0);
+      controls.target.set(0, 3, 0);
+    }
+    controls.update();
+  };
+
   if (!data) {
     return (
       <div className="h-[480px] flex items-center justify-center text-muted-foreground text-xs">
@@ -170,9 +196,9 @@ export const PlanPreview3D: React.FC<PlanPreview3DProps> = ({
   return (
     <div className="w-full h-[480px] rounded-xl overflow-hidden border border-border relative bg-slate-950">
       <Canvas shadows>
-        <PerspectiveCamera makeDefault position={[18, 22, 25]} fov={45} />
-        <ambientLight intensity={0.7} />
-        <directionalLight position={[15, 30, 20]} intensity={1.2} castShadow />
+        <PerspectiveCamera ref={cameraRef} makeDefault position={[18, 22, 25]} fov={45} />
+        <ambientLight intensity={0.75} />
+        <directionalLight position={[15, 30, 20]} intensity={1.3} castShadow />
         <directionalLight position={[-15, -10, -10]} intensity={0.4} />
 
         <BuildingScene
@@ -182,14 +208,51 @@ export const PlanPreview3D: React.FC<PlanPreview3DProps> = ({
         />
 
         <OrbitControls
+          ref={controlsRef}
           makeDefault
           enableDamping
           dampingFactor={0.08}
           minDistance={5}
-          maxDistance={80}
+          maxDistance={90}
         />
         <gridHelper args={[40, 40, '#475569', '#1e293b']} position={[0, -0.2, 0]} />
       </Canvas>
+
+      {/* Camera Presets Toolbar */}
+      <div className="absolute top-3 right-3 flex items-center gap-1 bg-background/80 backdrop-blur-md p-1 rounded-lg border border-border shadow-md text-xs">
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-6 px-2 text-[10px]"
+          onClick={() => setCameraPreset('perspective')}
+        >
+          Perspective
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-6 px-2 text-[10px]"
+          onClick={() => setCameraPreset('top')}
+        >
+          Top Plan
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-6 px-2 text-[10px]"
+          onClick={() => setCameraPreset('front')}
+        >
+          Front Elevation
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-6 px-2 text-[10px]"
+          onClick={() => setCameraPreset('side')}
+        >
+          Side Elevation
+        </Button>
+      </div>
 
       <div className="absolute top-3 left-3 bg-background/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-border text-[11px] text-muted-foreground flex items-center gap-3">
         <span className="font-semibold text-foreground">3D Viewport Controls:</span>

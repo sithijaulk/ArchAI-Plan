@@ -6,7 +6,7 @@ import { FeatureWorkflowShell } from '@/components/workflow/FeatureWorkflowShell
 import { useProjectStore } from '@/store/projectStore';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { UploadCloud, CheckCircle2, Sliders, Play, FileText } from 'lucide-react';
+import { Play, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 import { SurveyUpload } from '@/features/gab-gen/components/input/SurveyUpload';
 import { RequirementsForm } from '@/features/gab-gen/components/input/RequirementsForm';
@@ -19,119 +19,28 @@ import {
   GabGenMasterJson,
 } from '@/features/gab-gen/types';
 
-const defaultRequirements: ClientRequirements = {
-  declared_land_extent: 10.0,
+// Empty default-neutral initial state (no sample house pre-filled)
+const emptyRequirements: ClientRequirements = {
+  declared_land_extent: 0,
   declared_land_unit: 'perches',
   building_type: 'residential_house',
-  storey_count: 2,
-  rooms: [
-    {
-      id: 'rm_living',
-      type: 'living_room',
-      quantity: 1,
-      required: true,
-      preferred_min_area: 22,
-      floor_preference: 'ground',
-      priority: 'high',
-      custom_name: 'Living Room',
-    },
-    {
-      id: 'rm_dining',
-      type: 'dining_area',
-      quantity: 1,
-      required: true,
-      preferred_min_area: 14,
-      floor_preference: 'ground',
-      priority: 'high',
-      custom_name: 'Dining Area',
-    },
-    {
-      id: 'rm_kitchen',
-      type: 'kitchen',
-      quantity: 1,
-      required: true,
-      preferred_min_area: 12,
-      floor_preference: 'ground',
-      priority: 'high',
-      custom_name: 'Kitchen',
-    },
-    {
-      id: 'rm_master',
-      type: 'master_bedroom',
-      quantity: 1,
-      required: true,
-      preferred_min_area: 16,
-      floor_preference: 'first',
-      priority: 'high',
-      custom_name: 'Master Bedroom',
-    },
-    {
-      id: 'rm_bed2',
-      type: 'bedroom',
-      quantity: 1,
-      required: true,
-      preferred_min_area: 12,
-      floor_preference: 'first',
-      priority: 'high',
-      custom_name: 'Bedroom 02',
-    },
-    {
-      id: 'rm_bath_g',
-      type: 'common_bathroom',
-      quantity: 1,
-      required: true,
-      preferred_min_area: 4.5,
-      floor_preference: 'ground',
-      priority: 'high',
-      custom_name: 'Common Bathroom (Ground)',
-    },
-    {
-      id: 'rm_bath_f',
-      type: 'attached_bathroom',
-      quantity: 1,
-      required: true,
-      preferred_min_area: 4.5,
-      floor_preference: 'first',
-      priority: 'high',
-      custom_name: 'Bathroom (Upper)',
-    },
-  ],
+  storey_count: 1,
+  regulatory_context: {
+    jurisdiction_id: 'sri_lanka_uda_standard'
+  },
+  rooms: [],
+  occupant_count: 4,
+  separate_kitchen: true,
+  parking_capacity: 0,
+  attached_bathroom_count: 0
 };
 
-const defaultSurveyData: ManualSurveyData = {
+// Empty default-neutral initial survey boundary state
+const emptySurveyData: ManualSurveyData = {
   north_angle: 0,
-  reference_edge: 'E01',
-  source: 'fixture',
-  edges: [
-    {
-      edge_id: 'E01',
-      distance: { value: 14.5, unit: 'm' },
-      bearing: { raw: '090°00\'00"', normalized_degrees: 90.0 },
-      edge_type: 'road_front',
-      source: 'fixture',
-    },
-    {
-      edge_id: 'E02',
-      distance: { value: 17.44, unit: 'm' },
-      bearing: { raw: '180°00\'00"', normalized_degrees: 180.0 },
-      edge_type: 'side_right',
-      source: 'fixture',
-    },
-    {
-      edge_id: 'E03',
-      distance: { value: 14.5, unit: 'm' },
-      bearing: { raw: '270°00\'00"', normalized_degrees: 270.0 },
-      edge_type: 'rear',
-      source: 'fixture',
-    },
-    {
-      edge_id: 'E04',
-      distance: { value: 17.44, unit: 'm' },
-      bearing: { raw: '000°00\'00"', normalized_degrees: 0.0 },
-      edge_type: 'side_left',
-      source: 'fixture',
-    },
-  ],
+  reference_edge: null,
+  source: 'manual',
+  edges: [],
 };
 
 export default function GabGenPage() {
@@ -139,8 +48,8 @@ export default function GabGenPage() {
   const { projectId, projectName, setOutput, setComponentStatus, skipComponent } = useProjectStore();
 
   const [activeStep, setActiveStep] = useState<'upload' | 'requirements' | 'survey' | 'generate'>('upload');
-  const [requirements, setRequirements] = useState<ClientRequirements>(defaultRequirements);
-  const [surveyData, setSurveyData] = useState<ManualSurveyData>(defaultSurveyData);
+  const [requirements, setRequirements] = useState<ClientRequirements>(emptyRequirements);
+  const [surveyData, setSurveyData] = useState<ManualSurveyData>(emptySurveyData);
   const [uploadedFileMeta, setUploadedFileMeta] = useState<any>(null);
   const [outputData, setOutputData] = useState<GabGenMasterJson | null>(null);
 
@@ -148,8 +57,10 @@ export default function GabGenPage() {
   const [isSavingReq, setIsSavingReq] = useState(false);
   const [isSavingSurvey, setIsSavingSurvey] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Redirect if no project
+  // Redirect if no project selected
   useEffect(() => {
     if (!projectId) {
       router.push('/start');
@@ -161,14 +72,14 @@ export default function GabGenPage() {
       if (ctx.input_metadata?.source_file) {
         setUploadedFileMeta(ctx.input_metadata.source_file);
       }
-      if (ctx.client_requirements?.rooms) {
+      if (ctx.client_requirements && ctx.client_requirements.declared_land_extent) {
         setRequirements(ctx.client_requirements);
       }
-      if (ctx.survey_extraction?.edges) {
+      if (ctx.survey_extraction?.edges && ctx.survey_extraction.edges.length > 0) {
         setSurveyData(ctx.survey_extraction);
       }
     }).catch(() => {
-      // Ignore if new project
+      // New project
     });
 
     // Check if result already generated
@@ -186,47 +97,110 @@ export default function GabGenPage() {
 
   const handleUploadFile = async (file: File) => {
     setIsUploading(true);
+    setErrorMessage(null);
     try {
       const res = await gabGenExtendedApi.uploadSurvey(projectId, file);
       setUploadedFileMeta(res.file_metadata);
+      setSuccessMessage("Survey file uploaded and content verified.");
+    } catch (err: any) {
+      setErrorMessage(err.response?.data?.detail || "Survey file upload failed.");
     } finally {
       setIsUploading(false);
     }
   };
 
+  const handleRemoveFile = async () => {
+    try {
+      await gabGenExtendedApi.removeSurveyFile(projectId);
+      setUploadedFileMeta(null);
+      setSuccessMessage("Survey file removed.");
+    } catch (err: any) {
+      setErrorMessage(err.response?.data?.detail || "Failed to remove survey file.");
+    }
+  };
+
   const handleSaveRequirements = async () => {
+    if (!requirements.declared_land_extent || requirements.declared_land_extent <= 0) {
+      setErrorMessage("Please enter a valid declared land extent (> 0).");
+      return;
+    }
     setIsSavingReq(true);
+    setErrorMessage(null);
     try {
       await gabGenExtendedApi.saveRequirements(projectId, requirements);
+      setSuccessMessage("Requirements and regulatory context saved.");
       setActiveStep('survey');
+    } catch (err: any) {
+      setErrorMessage(err.response?.data?.detail || "Failed to save client requirements.");
     } finally {
       setIsSavingReq(false);
     }
   };
 
   const handleSaveSurvey = async () => {
+    if (surveyData.edges.length < 3) {
+      setErrorMessage("At least 3 survey boundary edges are required.");
+      return;
+    }
     setIsSavingSurvey(true);
+    setErrorMessage(null);
     try {
       await gabGenExtendedApi.saveManualSurveyData(projectId, surveyData);
+      setSuccessMessage("Survey boundary data saved.");
       setActiveStep('generate');
+    } catch (err: any) {
+      setErrorMessage(err.response?.data?.detail || "Failed to save survey measurements.");
     } finally {
       setIsSavingSurvey(false);
     }
   };
 
   const handleGenerate = async () => {
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    // Validation checks before invoking generator
+    if (!uploadedFileMeta) {
+      setErrorMessage("Uploaded deed / survey plan file is required before blueprint generation.");
+      setActiveStep('upload');
+      return;
+    }
+    if (!requirements.declared_land_extent || requirements.declared_land_extent <= 0) {
+      setErrorMessage("Please complete client requirements with declared land extent.");
+      setActiveStep('requirements');
+      return;
+    }
+    if (surveyData.edges.length < 3) {
+      setErrorMessage("At least 3 verified survey boundary edges are required.");
+      setActiveStep('survey');
+      return;
+    }
+
     setIsGenerating(true);
     try {
-      // First ensure requirements and survey are saved
+      // Save latest state
       await gabGenExtendedApi.saveRequirements(projectId, requirements);
       await gabGenExtendedApi.saveManualSurveyData(projectId, surveyData);
 
-      const res = await gabGenExtendedApi.generate(projectId);
-      setOutputData(res);
-      setOutput('gab_gen', res);
-      setComponentStatus('gab_gen', 'completed');
+      const result = await gabGenExtendedApi.generate(projectId);
+      setOutputData(result.master_json);
+      setOutput('gab_gen', result.master_json);
+
+      // Map status safely
+      if (result.status === 'completed') {
+        setComponentStatus('gab_gen', 'completed');
+        setSuccessMessage("GAB-Gen Stage 1 Blueprint generated successfully!");
+      } else if (result.status === 'needs_verification') {
+        // Needs verification status
+        setComponentStatus('gab_gen', 'completed');
+        setErrorMessage(`Blueprint generated with warnings: ${result.warnings?.join('; ') || 'Requires surveyor verification.'}`);
+      } else if (result.status === 'infeasible') {
+        setErrorMessage(`Generation Infeasible: ${result.validation?.violations?.join('; ') || 'Constraints exceeded capacity.'}`);
+      } else {
+        setErrorMessage(`Generation Status: ${result.status}`);
+      }
     } catch (err: any) {
-      alert(err.response?.data?.detail || "Generation failed. Please verify inputs.");
+      setErrorMessage(err.response?.data?.detail || "Blueprint generation failed. Please verify inputs.");
     } finally {
       setIsGenerating(false);
     }
@@ -247,6 +221,27 @@ export default function GabGenPage() {
       onSkip={handleSkip}
     >
       <div className="p-6 md:p-8">
+        {/* Banner for Error / Success messages (No alert() dialogs) */}
+        {errorMessage && (
+          <div className="mb-6 p-4 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-xs flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+            <button onClick={() => setErrorMessage(null)} className="text-destructive font-bold text-sm">×</button>
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="mb-6 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span>{successMessage}</span>
+            </div>
+            <button onClick={() => setSuccessMessage(null)} className="text-emerald-400 font-bold text-sm">×</button>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Left Column: Interactive Input & Verification Controls */}
           <div className="lg:col-span-5 border-r border-border/50 pr-0 lg:pr-8 space-y-6">
@@ -274,6 +269,7 @@ export default function GabGenPage() {
                   isUploading={isUploading}
                   onUploadSuccess={setUploadedFileMeta}
                   onUploadFile={handleUploadFile}
+                  onRemoveFile={handleRemoveFile}
                 />
                 <div className="mt-4 flex justify-end">
                   <Button
@@ -297,6 +293,7 @@ export default function GabGenPage() {
 
               <TabsContent value="survey" className="mt-0">
                 <SurveyVerification
+                  projectId={projectId}
                   surveyData={surveyData}
                   onChange={setSurveyData}
                   onSave={handleSaveSurvey}

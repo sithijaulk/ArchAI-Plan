@@ -1,20 +1,51 @@
 """
-Trigonometric coordinate reconstruction and land polygon validation using Shapely and Python math.
-Calculates:
-  Δx = d * sin(θ)  [in standard surveying where θ=0 is North, clockwise]
-  or standard Cartesian rotation.
-Produces:
-  Ordered X-Y vertices, closed legal polygon, closure error, perimeter, and area.
+Trigonometric coordinate reconstruction and land polygon validation using Shapely.
+Coordinate convention:
+  Canonical GAB coordinate system:
+  - Units: meters
+  - Origin: first reconstructed legal survey point P0 (0.0, 0.0)
+  - +X = East
+  - +Y = North
+  - Survey Azimuth: clockwise from North (0° = North, 90° = East, 180° = South, 270° = West)
+  
+  Trigonometric projection from azimuth:
+    dx = distance * sin(azimuth)
+    dy = distance * cos(azimuth)
+
+  North Arrow Semantics:
+  - survey_azimuth_deg is legal bearing clockwise from North.
+  - north_angle represents survey plan image orientation only (for Stage 2 alignment).
+  - Normalized azimuth is NEVER double-rotated by north_angle in vector reconstruction.
+
+Polygon Validation & Auditing:
+  - Never silently replaces legal geometry with buffer(0).
+  - If self-intersecting or invalid, preserves raw vertices, marks needs_verification / valid=False,
+    and returns explanation without silent modification.
 """
+import json
 import math
+import os
 import re
 from typing import Any, Dict, List, Optional, Tuple
-from shapely.geometry import Polygon, LinearRing
+from shapely.geometry import Polygon
 from ..schemas import ManualSurveyExtractionRequest, DistanceUnit, Point2D
-
 
 PERCH_TO_SQM = 25.29285264
 SQFT_TO_SQM = 0.09290304
+
+# Load validation config
+_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "gab_validation_config.json")
+def get_validation_config() -> Dict[str, Any]:
+    if os.path.exists(_CONFIG_PATH):
+        try:
+            with open(_CONFIG_PATH, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {
+        "closure_tolerance": {"value": 1.5, "unit": "meters"},
+        "area_tolerance_percent": {"value": 15.0, "unit": "percent"}
+    }
 
 
 def normalize_bearing_string(raw: str) -> float:
@@ -23,7 +54,7 @@ def normalize_bearing_string(raw: str) -> float:
     Supports:
       - Decimal degrees: "45.5", "180"
       - Degrees-Minutes-Seconds: "045°30'15\"", "45d 30m 15s"
-      - Quadrant bearings: "N 45° 30' E", "S 30 W", "N45E"
+      - Quadrant bearings: "N 45° 30' E", "S 30 W", "N45E", "S 45 E"
     """
     raw_str = raw.strip().upper()
     if not raw_str:
@@ -70,11 +101,8 @@ def parse_dms(dms_str: str) -> float:
 def reconstruct_polygon(survey_request: ManualSurveyExtractionRequest) -> Dict[str, Any]:
     """
     Performs deterministic mathematical vector reconstruction.
-    Surveying standard coordinate system:
-      North is along +Y (azimuth = 0°).
-      East is along +X (azimuth = 90°).
-      Δx = distance * sin(azimuth)
-      Δy = distance * cos(azimuth)
+    Coordinates stay strictly in canonical P0 reference frame (origin at P0 (0,0), +X=East, +Y=North).
+    No artificial shift is applied to legal vertices.
     """
     edges = survey_request.edges
     if len(edges) < 3:
@@ -90,13 +118,12 @@ def reconstruct_polygon(survey_request: ManualSurveyExtractionRequest) -> Dict[s
         dist_m = edge.distance.value
         if edge.distance.unit == DistanceUnit.FEET:
             dist_m *= 0.3048
-        
+
         perimeter += dist_m
-        azimuth_deg = edge.bearing.normalized_degrees
-        
-        # Adjust with north orientation angle if provided
-        adjusted_azimuth = (azimuth_deg + survey_request.north_angle) % 360.0
-        rad = math.radians(adjusted_azimuth)
+        # Bearing normalized degrees is legal azimuth clockwise from North (0° = North, 90° = East)
+        # Note: north_angle is NOT added here to prevent double-rotation.
+        azimuth_deg = edge.bearing.normalized_degrees % 360.0
+        rad = math.radians(azimuth_deg)
 
         dx = dist_m * math.sin(rad)
         dy = dist_m * math.cos(rad)
@@ -111,56 +138,59 @@ def reconstruct_polygon(survey_request: ManualSurveyExtractionRequest) -> Dict[s
             "start": {"x": round(start_pt[0], 4), "y": round(start_pt[1], 4)},
             "end": {"x": round(end_pt[0], 4), "y": round(end_pt[1], 4)},
             "distance": round(dist_m, 4),
-            "azimuth": round(adjusted_azimuth, 2),
-            "edge_type": edge.edge_type.value if edge.edge_type else "side"
+            "azimuth": round(azimuth_deg, 2),
+            "edge_type": edge.edge_type.value if hasattr(edge.edge_type, "value") else str(edge.edge_type or "side")
         })
         coords.append((curr_x, curr_y))
 
-    # Closure error: distance between start (0,0) and final endpoint
+    # Closure error: distance between start P0 (0,0) and final endpoint
     closure_dx = curr_x - 0.0
     closure_dy = curr_y - 0.0
     closure_error = math.sqrt(closure_dx**2 + closure_dy**2)
     relative_error = (closure_error / perimeter) if perimeter > 0 else 0.0
 
-    # Ensure closed ring for Shapely
-    # If closure error is within reasonable surveying precision tolerance (e.g. 1.0m or 1/50 perimeter),
-    # close the ring with the origin (0, 0)
-    polygon_vertices = coords[:-1]  # Exclude loose endpoint, start is already (0,0)
-    
-    # Check polygon validity using Shapely
+    # Vertices in canonical P0 coordinate system
+    polygon_vertices = coords[:-1]
+    canonical_vertices = [{"x": round(pt[0], 4), "y": round(pt[1], 4)} for pt in polygon_vertices]
+
+    # Check polygon validity using Shapely strictly without silent buffer(0) replacement
     is_valid = True
+    needs_verification = False
     warnings = []
     reconstructed_area = 0.0
     shapely_poly = None
 
     try:
-        shapely_poly = Polygon(polygon_vertices)
-        if not shapely_poly.is_valid:
-            # Try buffer(0) if slight self-intersection
-            repaired = shapely_poly.buffer(0)
-            if isinstance(repaired, Polygon) and repaired.is_valid and repaired.area > 0:
-                shapely_poly = repaired
-                warnings.append("Polygon had self-intersection repaired by zero-buffer.")
-            else:
-                is_valid = False
-                warnings.append(f"Polygon is topologically invalid: {shapely_poly.is_valid}")
-        reconstructed_area = float(shapely_poly.area)
+        raw_poly = Polygon(polygon_vertices)
+        if not raw_poly.is_valid:
+            is_valid = False
+            needs_verification = True
+            warnings.append(f"Legal survey polygon is topologically self-intersecting or invalid: {raw_poly.is_valid}")
+            # Do NOT silently replace with buffer(0). Keep raw polygon.
+            shapely_poly = raw_poly
+            reconstructed_area = float(raw_poly.area) if hasattr(raw_poly, "area") else 0.0
+        else:
+            shapely_poly = raw_poly
+            reconstructed_area = float(raw_poly.area)
     except Exception as e:
         is_valid = False
-        warnings.append(f"Error creating polygon: {str(e)}")
+        needs_verification = True
+        warnings.append(f"Error constructing land polygon from survey coordinates: {str(e)}")
 
-    # Shift coordinates so minimum bounding box corner is at (0, 0) for intuitive layout
-    min_x = min(pt[0] for pt in polygon_vertices)
-    min_y = min(pt[1] for pt in polygon_vertices)
-    normalized_vertices = [{"x": round(pt[0] - min_x, 4), "y": round(pt[1] - min_y, 4)} for pt in polygon_vertices]
+    val_cfg = get_validation_config()
+    tol_closure = val_cfg.get("closure_tolerance", {}).get("value", 1.5)
+    if closure_error > tol_closure:
+        needs_verification = True
+        warnings.append(f"Closure error {closure_error:.3f}m exceeds configured tolerance ({tol_closure}m).")
 
     return {
         "is_valid": is_valid,
+        "needs_verification": needs_verification,
         "closure_error": round(closure_error, 4),
         "relative_error": round(relative_error, 6),
         "perimeter": round(perimeter, 4),
         "reconstructed_area": round(reconstructed_area, 4),
-        "vertices": normalized_vertices,
+        "vertices": canonical_vertices,
         "edges": edge_vectors,
         "warnings": warnings,
         "shapely_polygon": shapely_poly

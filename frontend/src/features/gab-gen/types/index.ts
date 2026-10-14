@@ -31,9 +31,20 @@ export interface RoomRequirement {
   quantity: number;
   required: boolean;
   preferred_min_area?: number;
-  floor_preference: 'ground' | 'first' | 'second' | 'any';
+  floor_preference: number | string; // 'auto' or 0, 1, 2, 3
   priority: 'high' | 'medium' | 'low';
   custom_name?: string;
+}
+
+export interface RegulatoryContext {
+  jurisdiction_id: string;
+  province?: string;
+  district?: string;
+  local_authority_type?: string;
+  local_authority_name?: string;
+  development_zone?: string;
+  road_width?: number;
+  road_category?: string;
 }
 
 export interface ClientRequirements {
@@ -44,6 +55,7 @@ export interface ClientRequirements {
   drawing_scale?: string;
   road_frontage_edge_id?: string;
   source_notes?: string;
+  regulatory_context?: RegulatoryContext;
   building_type: 'residential_house' | 'residential_building';
   storey_count: number;
   preferred_total_building_area?: number;
@@ -52,7 +64,13 @@ export interface ClientRequirements {
   occupant_count?: number;
   open_plan_living_dining?: boolean;
   separate_kitchen?: boolean;
+  bathroom_requirements?: string;
   attached_bathroom_count?: number;
+  study_office_requirement?: boolean;
+  guest_room_requirement?: boolean;
+  storage_requirement?: boolean;
+  laundry_utility_requirement?: boolean;
+  balcony_requirement?: boolean;
   parking_capacity?: number;
   staircase_preference?: string;
   additional_notes?: string;
@@ -99,7 +117,7 @@ export interface FloorPlan {
 
 export interface GabGenValidation {
   valid: boolean;
-  status: 'pending' | 'input_ready' | 'processing' | 'needs_verification' | 'completed' | 'failed' | 'infeasible';
+  status: 'pending' | 'input_ready' | 'processing' | 'needs_verification' | 'completed' | 'failed' | 'infeasible' | 'regulatory_configuration_required';
   closure_error?: number;
   closure_tolerance?: number;
   declared_area_sqm?: number;
@@ -113,6 +131,7 @@ export interface GabGenValidation {
 export interface GabGenMasterJson {
   project_id: string;
   project_name: string;
+  schema_version?: string;
   units: string;
   input_metadata: {
     source_file?: {
@@ -131,6 +150,7 @@ export interface GabGenMasterJson {
       ratio: string;
     };
     source_notes?: string;
+    regulatory_context?: RegulatoryContext;
   };
   survey_extraction: {
     provider: string;
@@ -176,9 +196,20 @@ export interface GabGenMasterJson {
     gab_gen: {
       status: string;
       stage: string;
+      gab_gen_version?: string;
       survey_provider: string;
       allocation_provider: string;
     };
     [key: string]: any;
   };
+}
+
+export interface GabGenRunOutput {
+  project_id: string;
+  project_name: string;
+  units: string;
+  status: 'pending' | 'input_ready' | 'processing' | 'needs_verification' | 'completed' | 'failed' | 'infeasible' | 'regulatory_configuration_required';
+  master_json: GabGenMasterJson;
+  validation: GabGenValidation;
+  warnings: string[];
 }

@@ -4,7 +4,7 @@ Standard normalized contracts for survey measurements, client requirements,
 regulatory checks, space allocation, and floor plan outputs.
 """
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 from pydantic import BaseModel, Field
 
 
@@ -45,13 +45,6 @@ class RoomPriority(str, Enum):
     LOW = "low"
 
 
-class FloorPreference(str, Enum):
-    GROUND = "ground"
-    FIRST = "first"
-    SECOND = "second"
-    ANY = "any"
-
-
 # -------------------------------------------------------------
 # 1. Survey Measurement Normalized Schemas
 # -------------------------------------------------------------
@@ -77,14 +70,29 @@ class SurveyEdgeInput(BaseModel):
 
 
 class ManualSurveyExtractionRequest(BaseModel):
-    north_angle: float = Field(default=0.0, ge=0.0, lt=360.0, description="North orientation angle in degrees")
+    north_angle: float = Field(default=0.0, ge=0.0, lt=360.0, description="North orientation angle in degrees (image rotation metadata only)")
     reference_edge: Optional[str] = Field(default=None, description="Starting edge id")
     source: SurveySource = Field(default=SurveySource.MANUAL)
     edges: List[SurveyEdgeInput] = Field(..., min_length=3, description="Boundary edges in clockwise sequence")
 
 
 # -------------------------------------------------------------
-# 2. Client Residential Requirements Schemas
+# 2. Regulatory Context Schema
+# -------------------------------------------------------------
+
+class RegulatoryContextInput(BaseModel):
+    jurisdiction_id: str = Field(default="sri_lanka_uda_standard", description="Identifier of regulatory jurisdiction")
+    province: Optional[str] = None
+    district: Optional[str] = None
+    local_authority_type: Optional[str] = None
+    local_authority_name: Optional[str] = None
+    development_zone: Optional[str] = None
+    road_width: Optional[float] = None
+    road_category: Optional[str] = None
+
+
+# -------------------------------------------------------------
+# 3. Client Residential Requirements Schemas
 # -------------------------------------------------------------
 
 class RoomRequirement(BaseModel):
@@ -93,7 +101,7 @@ class RoomRequirement(BaseModel):
     quantity: int = Field(default=1, ge=1, le=10)
     required: bool = Field(default=True, description="True if mandatory, False if optional")
     preferred_min_area: Optional[float] = Field(default=None, gt=0, description="Minimum preferred area in sqm")
-    floor_preference: FloorPreference = Field(default=FloorPreference.ANY)
+    floor_preference: Union[int, str] = Field(default="auto", description="'auto' or integer floor index (0, 1, 2, 3)")
     priority: RoomPriority = Field(default=RoomPriority.HIGH)
     custom_name: Optional[str] = Field(default=None)
 
@@ -108,50 +116,56 @@ class ClientRequirementsInput(BaseModel):
     road_frontage_edge_id: Optional[str] = Field(default=None, description="Edge ID identified as road frontage")
     source_notes: Optional[str] = None
 
+    # Regulatory Context
+    regulatory_context: Optional[RegulatoryContextInput] = Field(default_factory=RegulatoryContextInput)
+
     # Building Profile
     building_type: BuildingType = Field(default=BuildingType.RESIDENTIAL_HOUSE)
-    storey_count: int = Field(default=1, ge=1, le=4, description="Number of storeys")
+    storey_count: int = Field(default=1, ge=1, le=4, description="Number of storeys (1-4)")
     preferred_total_building_area: Optional[float] = Field(default=None, gt=0)
     preferred_ground_coverage: Optional[float] = Field(default=None, gt=0)
 
     # Room Programme
     rooms: List[RoomRequirement] = Field(default_factory=list)
 
-    # Extensible Amenities
+    # Amenities & Functional Preferences
     occupant_count: Optional[int] = Field(default=4, ge=1)
     open_plan_living_dining: bool = Field(default=False)
     separate_kitchen: bool = Field(default=True)
-    attached_bathroom_count: Optional[int] = Field(default=1, ge=0)
-    parking_capacity: Optional[int] = Field(default=1, ge=0)
+    bathroom_requirements: Optional[str] = None
+    attached_bathroom_count: Optional[int] = Field(default=0, ge=0)
+    study_office_requirement: bool = Field(default=False)
+    guest_room_requirement: bool = Field(default=False)
+    storage_requirement: bool = Field(default=False)
+    laundry_utility_requirement: bool = Field(default=False)
+    balcony_requirement: bool = Field(default=False)
+    parking_capacity: Optional[int] = Field(default=0, ge=0)
     staircase_preference: Optional[str] = Field(default="internal_linear", description="internal_linear, dogleg, etc.")
     additional_notes: Optional[str] = None
 
 
 # -------------------------------------------------------------
-# 3. Regulatory Rule Schemas
+# 4. Regulatory Rule Schemas
 # -------------------------------------------------------------
 
 class RegulatoryRule(BaseModel):
     rule_id: str
     authority: str
-    jurisdiction: str
+    jurisdiction_id: str
     source_document: str
     source_date: str
+    source_reference: Optional[str] = None
     rule_type: str  # setback, ground_coverage, max_height, rear_space
+    conditions: Dict[str, Any] = Field(default_factory=dict)
     affected_edge_type: str  # road_front, rear, side, all
-    distance: float  # In meters
+    value: float  # In meters
     unit: str = "m"
     effective_date: str
-    verification_status: str  # verified, test_research, unverified
-
-
-class RegulatoryRuleConfig(BaseModel):
-    jurisdiction: str = Field(default="sri_lanka_uda_standard")
-    rules: List[RegulatoryRule] = Field(default_factory=list)
+    verification_status: str  # verified, research_test, needs_verification
 
 
 # -------------------------------------------------------------
-# 4. Geometry & Output Schemas
+# 5. Geometry & Output Schemas
 # -------------------------------------------------------------
 
 class Point2D(BaseModel):

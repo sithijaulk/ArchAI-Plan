@@ -3,6 +3,7 @@ import {
   ClientRequirements,
   ManualSurveyData,
   GabGenMasterJson,
+  GabGenRunOutput,
 } from '../types';
 
 export const gabGenExtendedApi = {
@@ -22,6 +23,11 @@ export const gabGenExtendedApi = {
     return res.data;
   },
 
+  removeSurveyFile: async (projectId: string) => {
+    const res = await apiClient.delete(`/projects/${projectId}/gab-gen/survey-file`);
+    return res.data;
+  },
+
   saveRequirements: async (projectId: string, req: ClientRequirements) => {
     const res = await apiClient.put(`/projects/${projectId}/gab-gen/requirements`, req);
     return res.data;
@@ -37,8 +43,18 @@ export const gabGenExtendedApi = {
     return res.data;
   },
 
-  generate: async (projectId: string): Promise<GabGenMasterJson> => {
-    const res = await apiClient.post(`/projects/${projectId}/gab-gen/generate`);
+  getRegulatoryRules: async (allowResearchTest: boolean = false) => {
+    const res = await apiClient.get(`/projects/dummy/gab-gen/regulatory-rules?allow_research_test=${allowResearchTest}`);
+    return res.data;
+  },
+
+  loadTestFixture: async (projectId: string, fixtureName: string = 'standard_10_perch') => {
+    const res = await apiClient.post(`/projects/${projectId}/gab-gen/load-test-fixture?fixture_name=${fixtureName}`);
+    return res.data;
+  },
+
+  generate: async (projectId: string, devTestMode: boolean = false): Promise<GabGenRunOutput> => {
+    const res = await apiClient.post(`/projects/${projectId}/gab-gen/generate?dev_test_mode=${devTestMode}`);
     return res.data;
   },
 
