@@ -157,14 +157,21 @@ def run_project_elia(project_id: str, request: ELIARequest,
     source_master = deepcopy(request.master_json if source_is_supplied else project.master_json)
     if not isinstance(source_master, dict):
         raise HTTPException(status_code=422, detail={"code": "ELIA_INVALID_MASTER_JSON", "message": "Project has no valid Master JSON object."})
-    if should_persist and source_is_supplied:
-        if request.source_revision is None:
-            raise HTTPException(status_code=422, detail={"code": "ELIA_SOURCE_REVISION_REQUIRED",
-                                                        "message": "source_revision is required when applying a supplied Master JSON snapshot."})
-        if request.source_revision != source_revision or source_master != (project.master_json or {}):
-            raise HTTPException(status_code=409, detail={"code": "ELIA_STALE_SOURCE_REVISION",
-                                                        "message": "The supplied Master JSON does not match the current project revision.",
-                                                        "current_revision": source_revision})
+    if should_persist:
+        if source_is_supplied:
+            if request.source_revision is None:
+                raise HTTPException(status_code=422, detail={"code": "ELIA_SOURCE_REVISION_REQUIRED",
+                                                            "message": "source_revision is required when applying a supplied Master JSON snapshot."})
+            if request.source_revision != source_revision or source_master != (project.master_json or {}):
+                raise HTTPException(status_code=409, detail={"code": "ELIA_STALE_SOURCE_REVISION",
+                                                            "message": "The supplied Master JSON does not match the current project revision.",
+                                                            "current_revision": source_revision})
+        else:
+            if request.source_revision is not None and request.source_revision != source_revision:
+                raise HTTPException(status_code=409, detail={"code": "ELIA_STALE_SOURCE_REVISION",
+                                                            "message": "The supplied source_revision does not match the current project revision.",
+                                                            "expected_revision": request.source_revision,
+                                                            "current_revision": source_revision})
 
     requirements = request.requirements.model_dump(mode="json", exclude_none=True, exclude_unset=True)
     run_input = {"requirements": requirements, "master_json_snapshot": source_master,

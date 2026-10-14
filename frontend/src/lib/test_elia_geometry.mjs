@@ -11,7 +11,7 @@ import {
   deduplicateGates,
   extractNormalizedUpstreamGeometry,
   normalizePolygonCoordinates,
-} from './eliaGeometry.js'
+} from './eliaGeometry'
 
 console.log('Running ELIA Geometry & Contract tests...')
 

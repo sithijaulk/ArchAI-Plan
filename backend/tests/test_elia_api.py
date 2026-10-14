@@ -347,3 +347,86 @@ def test_garage_lighting_api_flow(tmp_path, monkeypatch):
         app.dependency_overrides.clear()
         app.dependency_overrides.update(previous_overrides)
         engine.dispose()
+
+
+def test_persisted_run_source_revision_enforcement_without_supplied_master(tmp_path):
+    engine = create_engine(f"sqlite:///{tmp_path / 'revision-api.db'}")
+    Base.metadata.create_all(engine)
+    sessions = sessionmaker(bind=engine, expire_on_commit=False)
+    seed = sessions()
+    master = {
+        "units": "m",
+        "location": {"latitude": 6.9, "longitude": 79.8, "timezone": "Asia/Colombo"},
+        "land_info": {
+            "mathematical_polygon": [[0, 0], [40, 0], [40, 40], [0, 40]],
+            "road_facing": "south",
+            "calculated_north_bearing": 0,
+        },
+        "house_exterior_polygon": [[20, 20], [30, 20], [30, 30], [20, 30]],
+    }
+    project = Project(project_name="Revision Test", revision=2, master_json=master)
+    seed.add(project)
+    seed.commit()
+    project_id = project.id
+    seed.close()
+
+    def override_db():
+        session = sessions()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    previous_overrides = dict(app.dependency_overrides)
+    app.dependency_overrides[get_db] = override_db
+    app.dependency_overrides[elia.require_admin] = lambda: None
+
+    try:
+        with TestClient(app) as client:
+            # 1. Stale revision (1 instead of 2) without supplied master_json is rejected with 409
+            stale_req = {
+                "generation_mode": "baseline",
+                "source_revision": 1,
+                "requirements": {"access": {"road_side": "south", "garage_required": False, "driveway_required": False}},
+            }
+            res_stale = client.post(f"/api/projects/{project_id}/elia-engine/run", json=stale_req)
+            assert res_stale.status_code == 409, res_stale.text
+            assert res_stale.json()["detail"]["code"] == "ELIA_STALE_SOURCE_REVISION"
+            assert res_stale.json()["detail"]["expected_revision"] == 1
+            assert res_stale.json()["detail"]["current_revision"] == 2
+
+            # Check that project revision is unchanged and no component run was created
+            s = sessions()
+            p = s.query(Project).filter(Project.id == project_id).one()
+            assert p.revision == 2
+            runs = s.query(ComponentRun).filter(ComponentRun.project_id == project_id).all()
+            assert len(runs) == 0
+            s.close()
+
+            # 2. Matching revision (2) without supplied master_json succeeds
+            valid_req = {
+                "generation_mode": "baseline",
+                "source_revision": 2,
+                "requirements": {"access": {"road_side": "south", "garage_required": False, "driveway_required": False}},
+            }
+            res_valid = client.post(f"/api/projects/{project_id}/elia-engine/run", json=valid_req)
+            assert res_valid.status_code == 200, res_valid.text
+            assert res_valid.json()["status"] == "completed"
+
+            # 3. Omitting source_revision preserves backward compatibility for callers that omit it
+            s = sessions()
+            p = s.query(Project).filter(Project.id == project_id).one()
+            current_rev = p.revision
+            s.close()
+
+            compat_req = {
+                "generation_mode": "baseline",
+                "requirements": {"access": {"road_side": "south", "garage_required": False, "driveway_required": False}},
+            }
+            res_compat = client.post(f"/api/projects/{project_id}/elia-engine/run", json=compat_req)
+            assert res_compat.status_code == 200, res_compat.text
+    finally:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(previous_overrides)
+        engine.dispose()
+

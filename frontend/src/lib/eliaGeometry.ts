@@ -413,12 +413,14 @@ function scalePolygonCoords(coords: number[][][], scale: number): number[][][] {
 export function extractNormalizedUpstreamGeometry(
   masterJson: any,
   landscape: ExteriorLandscape | null,
-  projectId?: string
+  projectId?: string,
+  authoritativeRevision?: number | null,
+  isAcceptedDesign = false
 ): EliaViewModel {
   if (!masterJson || typeof masterJson !== 'object') {
     return {
       projectId,
-      sourceRevision: null,
+      sourceRevision: authoritativeRevision ?? null,
       landPolygon: null,
       housePolygon: null,
       buildingHeightM: null,
@@ -430,7 +432,10 @@ export function extractNormalizedUpstreamGeometry(
   }
 
   const unitScale = resolveUnitScale(masterJson)
-  const sourceRevision = typeof masterJson.revision === 'number' ? masterJson.revision : null
+  const sourceRevision =
+    authoritativeRevision !== undefined && authoritativeRevision !== null
+      ? authoritativeRevision
+      : (typeof masterJson.revision === 'number' ? masterJson.revision : null)
 
   // Extract raw land geometry from authoritative paths
   const rawLand =
@@ -477,7 +482,9 @@ export function extractNormalizedUpstreamGeometry(
 
   // Revision consistency check
   const candidateSourceRev = (landscape as any)?.source_revision ?? (landscape as any)?.meta?.source_revision
+  const isAuthoritativeAccepted = isAcceptedDesign || (masterJson && masterJson.exterior_landscape === landscape)
   if (
+    !isAuthoritativeAccepted &&
     sourceRevision !== null &&
     typeof candidateSourceRev === 'number' &&
     candidateSourceRev !== sourceRevision

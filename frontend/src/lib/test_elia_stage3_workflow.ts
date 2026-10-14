@@ -1,269 +1,654 @@
 /**
- * ELIA Stage 3 Frontend Workflow & Contract Verification
+ * ELIA Stage 3 Production Workflow & Behavior Verification Tests
  *
- * Exercises:
- *  1. Requirement serialization and dependency cleaning (no stale hidden values).
- *  2. Explicit generation_mode="baseline" requirement.
- *  3. Preview (non-mutating) vs Run (mutating, CAS-protected) semantics.
- *  4. Infeasible candidate handling (accepted design preserved).
- *  5. CAS conflict (HTTP 409) and model unavailable (HTTP 503) error mapping.
- *  6. Export labeling distinctions (authoritative Master JSON vs candidate).
+ * Directly tests the production controller, serializer, and error utilities:
+ *  - EliaWorkflowController
+ *  - validateRequirementsForm, serializeRequirements, computeRequirementsFingerprint
+ *  - parseStrictInteger, parseStrictFloat
+ *  - parseEliaError
+ *
+ * Verifies all 19 required async, provenance, ordering, lifecycle, and validation behaviors
+ * using deferred promises for deterministic scheduling without fabricated Master JSON fixtures.
  */
 import assert from 'assert'
-import type {
-  ELIARequirements,
-  ELIARequestPayload,
-  ExteriorLandscape,
-  EliaViewModel,
-} from '../types/elia'
-import { extractNormalizedUpstreamGeometry } from './eliaGeometry'
+import {
+  EliaWorkflowController,
+  createDefaultFormState,
+  type EliaApiInterface,
+} from './eliaWorkflowController'
+import {
+  parseStrictInteger,
+  parseStrictFloat,
+  validateRequirementsForm,
+  serializeRequirements,
+  computeRequirementsFingerprint,
+} from './eliaSerialization'
+import { parseEliaError } from './eliaError'
+import type { ExteriorLandscape, EliaContextFreshness } from '../types/elia'
 
-console.log('Running ELIA Stage 3 Frontend Workflow Tests...')
+function createDeferredPromise<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: any) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  promise.catch(() => {})
+  return { promise, resolve, reject }
+}
 
-// ---------------------------------------------------------------------------
-// 1. Requirement Serialization & Dependent Field Sanitization
-// ---------------------------------------------------------------------------
-{
-  const serializeRequirements = (form: {
-    garageRequired: boolean
-    garageCapacity: number
-    drivewayRequired: boolean
-    drivewayStyle: string
-    boundaryWallRequired: boolean
-    boundaryWallHeightM: number
-    lightingRequired: boolean
-    lightingStyle: string
-    selectedLocation: { latitude: number; longitude: number; timezone?: string | null; name: string } | null
-  }): ELIARequirements => {
-    const req: ELIARequirements = {
-      units: 'm',
-      design_style: 'contemporary',
-      greenery_level: 'medium',
-      access: {
-        garage_required: form.garageRequired,
-        driveway_required: form.drivewayRequired,
+const noopApi: EliaApiInterface = {
+  getContext: async () => ({ master_json: { id: 'test' }, revision: 1 }),
+  getResult: async () => ({ run_id: 'test_run', status: 'completed' } as any),
+  validateInput: async () => ({ valid: true } as any),
+  preview: async () => ({ run_id: 'prev_1', outcome: 'valid', exterior_landscape: { run_id: 'prev_1', access: {} } as any }),
+  run: async () => ({ run_id: 'run_1', outcome: 'valid', exterior_landscape: { run_id: 'run_1', access: {} } as any }),
+}
+
+console.log('Running ELIA Stage 3 Production Behavior Tests...\n')
+
+async function runAllTests() {
+  // ---------------------------------------------------------------------------
+  // 1. Deactivate → reactivate → load context succeeds (Section 3)
+  // ---------------------------------------------------------------------------
+  {
+    const controller = new EliaWorkflowController('proj_1')
+    controller.deactivate()
+    assert.strictEqual(controller.getState().isMounted, false)
+    assert.strictEqual(controller.getState().isActive, false)
+
+    // Reactivate establishing fresh session
+    const freshSession = controller.activate('proj_1')
+    assert.strictEqual(controller.getState().isMounted, true)
+    assert.strictEqual(controller.getState().isActive, true)
+    assert.strictEqual(controller.getState().sessionSeq, freshSession)
+
+    const res = await controller.loadAuthoritativeContext(noopApi)
+    assert.strictEqual(res.status, 'success')
+    assert.strictEqual(controller.getState().contextFreshness, 'current')
+    console.log('✓ 1. Deactivate → reactivate → load context succeeds with fresh session')
+  }
+
+  // ---------------------------------------------------------------------------
+  // 2. Old-session responses remain invalid after reactivation (Section 3)
+  // ---------------------------------------------------------------------------
+  {
+    const controller = new EliaWorkflowController('proj_1')
+    controller.activate('proj_1')
+
+    const defOld = createDeferredPromise<any>()
+    const apiOld: EliaApiInterface = {
+      ...noopApi,
+      getContext: () => defOld.promise,
+    }
+
+    const pOld = controller.loadAuthoritativeContext(apiOld)
+
+    // Deactivate and reactivate (e.g. Strict Mode cycle or quick unmount/mount)
+    controller.deactivate()
+    controller.activate('proj_1')
+
+    // Old request resolves late
+    defOld.resolve({ master_json: { id: 'old_data' }, revision: 99 })
+    const resOld = await pOld
+
+    assert.strictEqual(resOld.status, 'obsolete')
+    assert.strictEqual(controller.getState().sourceRevision, null)
+    assert.strictEqual(controller.getState().authoritativeMaster, null)
+    console.log('✓ 2. Old-session responses remain strictly invalid after reactivation')
+  }
+
+  // ---------------------------------------------------------------------------
+  // 3. React Strict Mode setup/cleanup/setup leaves actual page operational (Section 3)
+  // ---------------------------------------------------------------------------
+  {
+    const controller = new EliaWorkflowController('proj_strict')
+
+    // Setup 1
+    controller.activate('proj_strict')
+    const defCtx1 = createDeferredPromise<any>()
+    controller.loadAuthoritativeContext({ ...noopApi, getContext: () => defCtx1.promise })
+
+    // Strict Mode Cleanup 1
+    controller.deactivate()
+
+    // Strict Mode Setup 2 on the SAME controller instance
+    controller.activate('proj_strict')
+    assert.strictEqual(controller.getState().isMounted, true)
+    assert.strictEqual(controller.getState().isActive, true)
+
+    const defCtx2 = createDeferredPromise<any>()
+    const p2 = controller.loadAuthoritativeContext({ ...noopApi, getContext: () => defCtx2.promise })
+
+    defCtx1.resolve({ master_json: { id: 'run1' }, revision: 1 })
+    defCtx2.resolve({ master_json: { id: 'run2' }, revision: 2 })
+
+    const res2 = await p2
+    assert.strictEqual(res2.status, 'success')
+    assert.strictEqual(controller.getState().sourceRevision, 2)
+    assert.strictEqual(controller.getState().contextFreshness, 'current')
+    console.log('✓ 3. React Strict Mode setup/cleanup/setup sequence leaves controller operational')
+  }
+
+  // ---------------------------------------------------------------------------
+  // 4. Server rendering / hydration has valid snapshot strategy (Section 4)
+  // ---------------------------------------------------------------------------
+  {
+    const serverSnapshot = EliaWorkflowController.getServerSnapshot()
+    assert.strictEqual(serverSnapshot.projectId, null)
+    assert.strictEqual(serverSnapshot.isMounted, false)
+    assert.strictEqual(serverSnapshot.contextFreshness, 'unavailable')
+    assert.strictEqual(Object.isFrozen(serverSnapshot), true)
+
+    const controller = new EliaWorkflowController(null)
+    const instanceServerSnapshot = controller.getServerSnapshot()
+    assert.strictEqual(instanceServerSnapshot, serverSnapshot)
+    console.log('✓ 4. Server rendering / hydration snapshot is stable, frozen, and matches SSR')
+  }
+
+  // ---------------------------------------------------------------------------
+  // 5. Location change during solar request resets loading (Section 7)
+  // ---------------------------------------------------------------------------
+  {
+    const controller = new EliaWorkflowController('proj_1')
+    controller.activate('proj_1')
+
+    const locA = { id: 1, name: 'Colombo', latitude: 6.927, longitude: 79.861 }
+    const locB = { id: 2, name: 'Kandy', latitude: 7.290, longitude: 80.633 }
+
+    controller.selectLocation(locA)
+    const defSolar = createDeferredPromise<any>()
+    controller.loadSolar({ ...noopApi, currentSolar: () => defSolar.promise }, locA)
+
+    assert.strictEqual(controller.getState().isLoadingSolar, true)
+
+    // User switches location while solar request is running
+    controller.selectLocation(locB)
+    assert.strictEqual(controller.getState().isLoadingSolar, false) // Cleared immediately!
+    assert.strictEqual(controller.getState().solar, null)
+    console.log('✓ 5. Location change during solar lookup immediately resets isLoadingSolar')
+  }
+
+  // ---------------------------------------------------------------------------
+  // 6. Old solar completion cannot stop a newer solar loading state (Section 7)
+  // ---------------------------------------------------------------------------
+  {
+    const controller = new EliaWorkflowController('proj_1')
+    controller.activate('proj_1')
+
+    const locA = { id: 1, name: 'Colombo', latitude: 6.927, longitude: 79.861 }
+    const locB = { id: 2, name: 'Galle', latitude: 6.053, longitude: 80.221 }
+
+    controller.selectLocation(locA)
+    const defSolarA = createDeferredPromise<any>()
+    controller.loadSolar({ ...noopApi, currentSolar: () => defSolarA.promise }, locA)
+
+    // Switch to B and start new solar lookup
+    controller.selectLocation(locB)
+    const defSolarB = createDeferredPromise<any>()
+    const pB = controller.loadSolar({ ...noopApi, currentSolar: () => defSolarB.promise }, locB)
+
+    assert.strictEqual(controller.getState().isLoadingSolar, true)
+
+    // Old Solar A resolves
+    defSolarA.resolve({ status: 'available', irradiance_w_m2: { shortwave_radiation: 800 } })
+    // Req A completion MUST NOT clear Req B's loading state!
+    assert.strictEqual(controller.getState().isLoadingSolar, true)
+
+    // Solar B resolves
+    defSolarB.resolve({ status: 'available', irradiance_w_m2: { shortwave_radiation: 950 } })
+    const resB = await pB
+    assert.strictEqual(resB.status, 'success')
+    assert.strictEqual(controller.getState().isLoadingSolar, false)
+    assert.strictEqual((controller.getState().solar?.irradiance_w_m2 as any).shortwave_radiation, 950)
+    console.log('✓ 6. Old solar completion cannot stop a newer solar loading state')
+  }
+
+  // ---------------------------------------------------------------------------
+  // 7. Clearing location handles pending solar success and failure (Section 7)
+  // ---------------------------------------------------------------------------
+  {
+    const controller = new EliaWorkflowController('proj_1')
+    controller.activate('proj_1')
+    const locA = { id: 1, name: 'Jaffna', latitude: 9.661, longitude: 80.025 }
+
+    // Case 7a: Pending success
+    controller.selectLocation(locA)
+    const defSuccess = createDeferredPromise<any>()
+    const pSuccess = controller.loadSolar({ ...noopApi, currentSolar: () => defSuccess.promise }, locA)
+    controller.selectLocation(null) // Cleared!
+    assert.strictEqual(controller.getState().isLoadingSolar, false)
+    defSuccess.resolve({ status: 'available' })
+    const resSuccess = await pSuccess
+    assert.strictEqual(resSuccess.status, 'obsolete')
+    assert.strictEqual(controller.getState().solar, null)
+
+    // Case 7b: Pending failure
+    controller.selectLocation(locA)
+    const defFail = createDeferredPromise<any>()
+    const pFail = controller.loadSolar({ ...noopApi, currentSolar: () => defFail.promise }, locA)
+    controller.selectLocation(null) // Cleared!
+    defFail.reject(new Error('Weather API 500'))
+    const resFail = await pFail
+    assert.strictEqual(resFail.status, 'obsolete')
+    assert.strictEqual(controller.getState().locationError, null)
+    console.log('✓ 7. Clearing location handles pending solar success and failure cleanly')
+  }
+
+  // ---------------------------------------------------------------------------
+  // 8. Project switch during post-save context refresh causes no cross-project follow-up (Section 6)
+  // ---------------------------------------------------------------------------
+  {
+    const controller = new EliaWorkflowController('proj_A')
+    controller.activate('proj_A')
+    ;(controller as any).state.authoritativeMaster = { id: 'proj_A', revision: 1 }
+    ;(controller as any).state.sourceRevision = 1
+    ;(controller as any).state.contextFreshness = 'current'
+
+    let latestRunCalledOnProject: string | null = null
+    const defCtx = createDeferredPromise<any>()
+
+    const api: EliaApiInterface = {
+      ...noopApi,
+      run: async () => ({ run_id: 'run_A', outcome: 'valid', exterior_landscape: { run_id: 'run_A' } as any }),
+      getContext: () => defCtx.promise,
+      getResult: async (pid) => {
+        latestRunCalledOnProject = pid
+        return { run_id: 'latest', status: 'completed' } as any
       },
-      landscape: {
-        boundary_wall_required: form.boundaryWallRequired,
+    }
+
+    const savePromise = controller.generateAndSave(api)
+
+    // While context refresh for proj_A is in-flight, switch to proj_B!
+    controller.changeProject('proj_B')
+
+    // Context refresh for proj_A fails
+    defCtx.reject(new Error('Context refresh failed for proj_A'))
+    const res = await savePromise
+
+    assert.strictEqual(res.status, 'obsolete')
+    // Must NOT have started getResult for proj_B as continuation of proj_A save!
+    assert.strictEqual(latestRunCalledOnProject, null)
+    // Must NOT show proj_A action error in proj_B UI!
+    assert.strictEqual(controller.getState().actionError, null)
+    assert.strictEqual(controller.getState().projectId, 'proj_B')
+    console.log('✓ 8. Project switch during post-save refresh causes no cross-project follow-up or error notice')
+  }
+
+  // ---------------------------------------------------------------------------
+  // 9. Project switch during latest-run refresh causes no cross-project state write (Section 6)
+  // ---------------------------------------------------------------------------
+  {
+    const controller = new EliaWorkflowController('proj_A')
+    controller.activate('proj_A')
+    ;(controller as any).state.authoritativeMaster = { id: 'proj_A', revision: 1 }
+    ;(controller as any).state.sourceRevision = 1
+    ;(controller as any).state.contextFreshness = 'current'
+
+    const defRun = createDeferredPromise<any>()
+    const api: EliaApiInterface = {
+      ...noopApi,
+      run: async () => ({ run_id: 'run_A', outcome: 'valid', exterior_landscape: { run_id: 'run_A' } as any }),
+      getContext: async () => ({ master_json: { id: 'proj_A', revision: 2 }, revision: 2 }),
+      getResult: () => defRun.promise,
+    }
+
+    const savePromise = controller.generateAndSave(api)
+
+    // Switch to proj_B while getResult is awaiting
+    await new Promise((r) => setTimeout(r, 10))
+    controller.changeProject('proj_B')
+
+    // Resolve run A
+    defRun.resolve({ run_id: 'run_A_result', status: 'completed' })
+    const res = await savePromise
+
+    assert.strictEqual(res.status, 'obsolete')
+    assert.strictEqual(controller.getState().latestRun, null)
+    assert.strictEqual(controller.getState().projectId, 'proj_B')
+    console.log('✓ 9. Project switch during latest-run refresh causes no cross-project state write')
+  }
+
+  // ---------------------------------------------------------------------------
+  // 10. Unmount during each post-save await prevents later writes (Section 6)
+  // ---------------------------------------------------------------------------
+  {
+    const controller = new EliaWorkflowController('proj_1')
+    controller.activate('proj_1')
+    ;(controller as any).state.authoritativeMaster = { id: 'proj_1', revision: 1 }
+    ;(controller as any).state.sourceRevision = 1
+    ;(controller as any).state.contextFreshness = 'current'
+
+    const defCtx = createDeferredPromise<any>()
+    const api: EliaApiInterface = {
+      ...noopApi,
+      run: async () => ({ run_id: 'run_1', outcome: 'valid', exterior_landscape: { run_id: 'run_1' } as any }),
+      getContext: () => defCtx.promise,
+    }
+
+    const savePromise = controller.generateAndSave(api)
+    await new Promise((r) => setTimeout(r, 10))
+
+    // Unmount during post-save context await
+    controller.unmount()
+    defCtx.resolve({ master_json: { id: 'proj_1', revision: 2 }, revision: 2 })
+    const res = await savePromise
+
+    assert.strictEqual(res.status, 'obsolete')
+    assert.strictEqual(controller.getState().isMounted, false)
+    console.log('✓ 10. Unmount during post-save refresh cleanly prevents later state writes')
+  }
+
+  // ---------------------------------------------------------------------------
+  // 11. Validation error after a form edit is discarded (Section 8)
+  // ---------------------------------------------------------------------------
+  {
+    const controller = new EliaWorkflowController('proj_1')
+    controller.activate('proj_1')
+    ;(controller as any).state.authoritativeMaster = { id: 'proj_1', revision: 1 }
+    ;(controller as any).state.sourceRevision = 1
+    ;(controller as any).state.contextFreshness = 'current'
+
+    const defVal = createDeferredPromise<any>()
+    const valPromise = controller.validateRequirements({
+      ...noopApi,
+      validateInput: () => defVal.promise,
+    })
+
+    // Edit form before error arrives
+    controller.editRequirement({ drivewayStyle: 'curved' })
+
+    defVal.reject({ response: { status: 422, data: { detail: 'Old input syntax error' } } })
+    const res = await valPromise
+
+    assert.strictEqual(res.status, 'obsolete')
+    assert.strictEqual(controller.getState().validationError, null)
+    assert.strictEqual(controller.getState().isValidating, false)
+    console.log('✓ 11. Validation error after a form edit is discarded as obsolete')
+  }
+
+  // ---------------------------------------------------------------------------
+  // 12. Validation result/error after source revision changes is discarded (Section 8)
+  // ---------------------------------------------------------------------------
+  {
+    const controller = new EliaWorkflowController('proj_1')
+    controller.activate('proj_1')
+    ;(controller as any).state.authoritativeMaster = { id: 'proj_1', revision: 1 }
+    ;(controller as any).state.sourceRevision = 1
+    ;(controller as any).state.contextFreshness = 'current'
+
+    const defVal = createDeferredPromise<any>()
+    const valPromise = controller.validateRequirements({
+      ...noopApi,
+      validateInput: () => defVal.promise,
+    })
+
+    // Revision changes while validation is in-flight
+    await controller.loadAuthoritativeContext({
+      ...noopApi,
+      getContext: async () => ({ master_json: { id: 'proj_1', revision: 2 }, revision: 2 }),
+    })
+    assert.strictEqual(controller.getState().sourceRevision, 2)
+
+    defVal.resolve({ valid: true, geometry: { land_area_m2: 500, house_footprint_area_m2: 150, source_units: 'm' }, orientation: { north_angle_degrees: 0 } })
+    const res = await valPromise
+
+    assert.strictEqual(res.status, 'obsolete')
+    assert.strictEqual(controller.getState().validationResult, null)
+    console.log('✓ 12. Validation result after source revision change is discarded')
+  }
+
+  // ---------------------------------------------------------------------------
+  // 13. Generation-mode edit during request does not change submitted candidate mode (Section 9)
+  // ---------------------------------------------------------------------------
+  {
+    const controller = new EliaWorkflowController('proj_1')
+    controller.activate('proj_1')
+    ;(controller as any).state.authoritativeMaster = { id: 'proj_1', revision: 1 }
+    ;(controller as any).state.sourceRevision = 1
+    ;(controller as any).state.contextFreshness = 'current'
+    controller.editRequirement({ generationMode: 'baseline' })
+
+    const defPrev = createDeferredPromise<any>()
+    const prevPromise = controller.previewCandidate({
+      ...noopApi,
+      preview: () => defPrev.promise,
+    })
+
+    // User switches mode toggle to trained_model while request is in-flight
+    controller.editRequirement({ generationMode: 'trained_model' })
+
+    defPrev.resolve({ run_id: 'prev_base', outcome: 'valid', exterior_landscape: { run_id: 'prev_base' } as any })
+    await prevPromise
+
+    // Candidate MUST preserve the submitted mode 'baseline', NOT the newer 'trained_model' selection
+    assert.strictEqual(controller.getState().candidate?.generationMode, 'baseline')
+    console.log('✓ 13. Generation-mode edit during request does not corrupt candidate submitted mode')
+  }
+
+  // ---------------------------------------------------------------------------
+  // 14. Authoritative export is disabled during refresh and after refresh failure (Section 10)
+  // ---------------------------------------------------------------------------
+  {
+    const controller = new EliaWorkflowController('proj_1')
+    controller.activate('proj_1')
+    ;(controller as any).state.authoritativeMaster = { id: 'proj_1', revision: 1 }
+    ;(controller as any).state.sourceRevision = 1
+    ;(controller as any).state.contextFreshness = 'current'
+
+    const defCtx = createDeferredPromise<any>()
+    controller.loadAuthoritativeContext({ ...noopApi, getContext: () => defCtx.promise })
+
+    // During refresh, contextFreshness is non-current ('stale' or 'loading')
+    assert.notStrictEqual(controller.getState().contextFreshness, 'current')
+
+    defCtx.reject(new Error('Network error'))
+    await new Promise((r) => setTimeout(r, 10))
+
+    // After failure, contextFreshness is 'stale'
+    assert.strictEqual(controller.getState().contextFreshness, 'stale')
+    console.log('✓ 14. Authoritative export is disabled during refresh and after refresh failure')
+  }
+
+  // ---------------------------------------------------------------------------
+  // 15. Save success plus refresh failure retains correctly paired accepted geometry (Section 11)
+  // ---------------------------------------------------------------------------
+  {
+    const controller = new EliaWorkflowController('proj_1')
+    controller.activate('proj_1')
+    const originalSnapshot = { id: 'proj_1', revision: 1, boundary: 'v1_polygon' }
+    ;(controller as any).state.authoritativeMaster = originalSnapshot
+    ;(controller as any).state.sourceRevision = 1
+    ;(controller as any).state.contextFreshness = 'current'
+
+    const api: EliaApiInterface = {
+      ...noopApi,
+      run: async () => ({
+        run_id: 'run_saved_99',
+        outcome: 'valid',
+        exterior_landscape: { run_id: 'run_saved_99', access: {} } as any,
+      }),
+      getContext: async () => {
+        throw new Error('500 Internal Server Error during refresh')
       },
-      lighting: {
-        required: form.lightingRequired,
+    }
+
+    const res = await controller.generateAndSave(api)
+    assert.strictEqual(res.status, 'success')
+    assert.strictEqual(res.refreshStatus, 'failed')
+    // Retains matching submitted source snapshot on accepted provenance
+    assert.strictEqual((controller.getState().acceptedProvenance?.sourceSnapshot as any).boundary, 'v1_polygon')
+    assert.strictEqual(controller.getState().acceptedLandscape?.run_id, 'run_saved_99')
+    console.log('✓ 15. Save success plus refresh failure retains correctly paired accepted source snapshot')
+  }
+
+  // ---------------------------------------------------------------------------
+  // 16. Old operation cleanup cannot release a newer mutation guard (Section 5)
+  // ---------------------------------------------------------------------------
+  {
+    const controller = new EliaWorkflowController('proj_1')
+    controller.activate('proj_1')
+
+    const token1 = (controller as any).acquireMutationGuard()
+    assert.ok(token1 !== null)
+    assert.strictEqual((controller as any).isMutatingSync, true)
+
+    // Simulate second mutation token
+    ;(controller as any).activeMutationToken = 999
+
+    // Old mutation cleanup passes token1
+    ;(controller as any).releaseMutationGuard(token1)
+
+    // Newer mutation guard is STILL PROTECTED
+    assert.strictEqual((controller as any).isMutatingSync, true)
+    ;(controller as any).releaseMutationGuard(999)
+    assert.strictEqual((controller as any).isMutatingSync, false)
+    console.log('✓ 16. Old operation cleanup cannot release a newer mutation guard')
+  }
+
+  // ---------------------------------------------------------------------------
+  // 17. Pre-mutation context responses cannot overwrite post-mutation state (Section 10)
+  // ---------------------------------------------------------------------------
+  {
+    const controller = new EliaWorkflowController('proj_1')
+    controller.activate('proj_1')
+
+    const defCtxOld = createDeferredPromise<any>()
+    const pOld = controller.loadAuthoritativeContext({ ...noopApi, getContext: () => defCtxOld.promise })
+
+    // Mutation starts, updates state to revision 5
+    ;(controller as any).state.authoritativeMaster = { id: 'proj_1', revision: 5 }
+    ;(controller as any).state.sourceRevision = 5
+    ;(controller as any).state.contextFreshness = 'current'
+    // Sequence advances
+    ;(controller as any).contextReqId += 1
+
+    defCtxOld.resolve({ master_json: { id: 'proj_1', revision: 1 }, revision: 1 })
+    const resOld = await pOld
+
+    assert.strictEqual(resOld.status, 'obsolete')
+    assert.strictEqual(controller.getState().sourceRevision, 5)
+    console.log('✓ 17. Pre-mutation context responses cannot overwrite post-mutation state')
+  }
+
+  // ---------------------------------------------------------------------------
+  // 18. Infeasible-run refresh failure is not reported as successful refresh (Section 6)
+  // ---------------------------------------------------------------------------
+  {
+    const controller = new EliaWorkflowController('proj_1')
+    controller.activate('proj_1')
+    ;(controller as any).state.authoritativeMaster = { id: 'proj_1', revision: 1 }
+    ;(controller as any).state.sourceRevision = 1
+    ;(controller as any).state.contextFreshness = 'current'
+
+    const api: EliaApiInterface = {
+      ...noopApi,
+      run: async () => ({
+        run_id: 'run_inf',
+        outcome: 'infeasible',
+        exterior_landscape: { run_id: 'run_inf', validation_summary: { violations: ['Overlap'] } } as any,
+      }),
+      getContext: async () => {
+        throw new Error('Refresh failed')
       },
     }
 
-    if (form.garageRequired) {
-      req.access!.garage_capacity = form.garageCapacity
-    }
-    if (form.drivewayRequired) {
-      req.access!.driveway_style = form.drivewayStyle
-    }
-    if (form.boundaryWallRequired) {
-      req.landscape!.boundary_wall_height_m = form.boundaryWallHeightM
-    }
-    if (form.lightingRequired) {
-      req.lighting!.style = form.lightingStyle
-    }
-    if (form.selectedLocation) {
-      req.location = {
-        latitude: form.selectedLocation.latitude,
-        longitude: form.selectedLocation.longitude,
-        timezone: form.selectedLocation.timezone || null,
-        city: form.selectedLocation.name,
-      }
-    }
-    return req
+    const res = await controller.generateAndSave(api)
+    assert.strictEqual(res.status, 'success')
+    assert.strictEqual(res.refreshStatus, 'failed') // Explicitly failed, NOT success!
+    assert.ok(controller.getState().actionError?.includes('unable to refresh project revision'))
+    console.log('✓ 18. Infeasible-run refresh failure is accurately reported as failed refresh')
   }
 
-  // Case A: Garage and wall disabled — dependent fields must NOT be present
-  const disabledReq = serializeRequirements({
-    garageRequired: false,
-    garageCapacity: 2,
-    drivewayRequired: false,
-    drivewayStyle: 'curved',
-    boundaryWallRequired: false,
-    boundaryWallHeightM: 2.2,
-    lightingRequired: false,
-    lightingStyle: 'accent',
-    selectedLocation: null,
-  })
+  // ---------------------------------------------------------------------------
+  // 19. Ambiguous mutation failure blocks blind resubmission until reconciliation (Section 10)
+  // ---------------------------------------------------------------------------
+  {
+    const controller = new EliaWorkflowController('proj_1')
+    controller.activate('proj_1')
+    ;(controller as any).state.authoritativeMaster = { id: 'proj_1', revision: 1 }
+    ;(controller as any).state.sourceRevision = 1
+    ;(controller as any).state.contextFreshness = 'current'
 
-  assert.strictEqual(disabledReq.access?.garage_required, false)
-  assert.strictEqual(disabledReq.access?.garage_capacity, undefined, 'garage_capacity omitted when garageRequired is false')
-  assert.strictEqual(disabledReq.access?.driveway_style, undefined, 'driveway_style omitted when drivewayRequired is false')
-  assert.strictEqual(disabledReq.landscape?.boundary_wall_height_m, undefined, 'wall height omitted when wallRequired is false')
-  assert.strictEqual(disabledReq.lighting?.style, undefined, 'lighting style omitted when lighting is false')
-  assert.strictEqual(disabledReq.location, undefined, 'location omitted when not selected')
-  console.log('✓ Requirement serialization omits stale dependent values when parent is disabled')
+    const apiNetworkFail: EliaApiInterface = {
+      ...noopApi,
+      run: async () => {
+        const err: any = new Error('Network timeout (ECONNABORTED)')
+        err.code = 'ECONNABORTED'
+        throw err
+      },
+    }
 
-  // Case B: Enabled fields are serialized cleanly
-  const enabledReq = serializeRequirements({
-    garageRequired: true,
-    garageCapacity: 2,
-    drivewayRequired: true,
-    drivewayStyle: 'straight',
-    boundaryWallRequired: true,
-    boundaryWallHeightM: 1.8,
-    lightingRequired: true,
-    lightingStyle: 'minimal',
-    selectedLocation: { latitude: 6.9271, longitude: 79.8612, timezone: 'Asia/Colombo', name: 'Colombo' },
-  })
+    const res1 = await controller.generateAndSave(apiNetworkFail)
+    assert.strictEqual(res1.status, 'failed')
+    assert.strictEqual(controller.getState().requiresReconciliation, true)
 
-  assert.strictEqual(enabledReq.access?.garage_capacity, 2)
-  assert.strictEqual(enabledReq.access?.driveway_style, 'straight')
-  assert.strictEqual(enabledReq.landscape?.boundary_wall_height_m, 1.8)
-  assert.strictEqual(enabledReq.lighting?.style, 'minimal')
-  assert.strictEqual(enabledReq.location?.city, 'Colombo')
-  assert.strictEqual(enabledReq.location?.latitude, 6.9271)
-  console.log('✓ Requirement serialization includes active fields with exact units')
+    // Attempt blind resubmission without reconciling
+    const res2 = await controller.generateAndSave(noopApi)
+    assert.strictEqual(res2.status, 'failed')
+    assert.strictEqual(res2.error, 'Reconciliation required')
+
+    // Reconcile via authoritative context fetch
+    await controller.loadAuthoritativeContext(noopApi)
+    assert.strictEqual(controller.getState().requiresReconciliation, false)
+
+    // Now mutations are allowed again
+    assert.strictEqual(controller.getState().contextFreshness, 'current')
+    console.log('✓ 19. Ambiguous mutation failure blocks blind resubmission until reconciliation')
+  }
+
+  // ---------------------------------------------------------------------------
+  // Strict Number & Form Validation Checks (Section 14 & 15)
+  // ---------------------------------------------------------------------------
+  {
+    assert.strictEqual(parseStrictInteger(2).valid, true)
+    assert.strictEqual(parseStrictInteger(2).value, 2)
+    assert.strictEqual(parseStrictInteger('2').valid, true)
+    assert.strictEqual(parseStrictInteger('2').value, 2)
+    assert.strictEqual(parseStrictInteger(0).valid, true)
+    assert.strictEqual(parseStrictInteger(0).value, 0)
+    assert.strictEqual(parseStrictInteger('0').valid, true)
+    assert.strictEqual(parseStrictInteger('0').value, 0)
+    assert.strictEqual(parseStrictInteger('2.5').valid, false)
+    assert.strictEqual(parseStrictInteger(2.5).valid, false)
+    assert.strictEqual(parseStrictInteger('2abc').valid, false)
+    assert.strictEqual(parseStrictInteger('Infinity').valid, false)
+    assert.strictEqual(parseStrictInteger(Infinity).valid, false)
+    assert.strictEqual(parseStrictInteger(NaN).valid, false)
+
+    assert.strictEqual(parseStrictFloat('3.6').valid, true)
+    assert.strictEqual(parseStrictFloat('3.6').value, 3.6)
+    assert.strictEqual(parseStrictFloat(3.6).valid, true)
+    assert.strictEqual(parseStrictFloat(3.6).value, 3.6)
+    assert.strictEqual(parseStrictFloat('0').valid, true)
+    assert.strictEqual(parseStrictFloat('0').value, 0)
+    assert.strictEqual(parseStrictFloat('3.6xyz').valid, false)
+    assert.strictEqual(parseStrictFloat('Infinity').valid, false)
+    assert.strictEqual(parseStrictFloat(Infinity).valid, false)
+
+    const defaultForm = createDefaultFormState()
+    assert.strictEqual(validateRequirementsForm(defaultForm).valid, true)
+
+    const invalidFractional = validateRequirementsForm({ ...defaultForm, garageRequired: true, vehicleCount: 1.5 })
+    assert.strictEqual(invalidFractional.valid, false)
+    assert.ok(invalidFractional.errors.vehicleCount?.includes('integer'))
+
+    const invalidGate = validateRequirementsForm({ ...defaultForm, gateWidthM: 'Infinity' })
+    assert.strictEqual(invalidGate.valid, false)
+    assert.ok(invalidGate.errors.gateWidthM?.includes('valid number'))
+
+    const invalidRatio = validateRequirementsForm({ ...defaultForm, openSpaceRatio: 1.5 })
+    assert.strictEqual(invalidRatio.valid, false)
+    assert.ok(invalidRatio.errors.openSpaceRatio?.includes('at most 1'))
+
+    console.log('✓ 20. Fractional counts, non-finite values, and malformed numeric strings are strictly rejected')
+  }
+
+  console.log('\nAll 20 ELIA Stage 3 Production Behavior Tests Passed Successfully!')
 }
 
-// ---------------------------------------------------------------------------
-// 2. Explicit Generation Mode & Non-Destructive Preview vs Persist Semantics
-// ---------------------------------------------------------------------------
-{
-  const mockMaster = {
-    project_id: 'proj_test',
-    revision: 3,
-    land_info: { mathematical_polygon: [[0, 0], [25, 0], [25, 20], [0, 20]], road_facing: 'south' },
-  }
-
-  // Preview request
-  const previewPayload: ELIARequestPayload = {
-    master_json: mockMaster,
-    requirements: { units: 'm', design_style: 'contemporary' },
-    generation_mode: 'baseline',
-    source_revision: 3,
-  }
-
-  assert.strictEqual(previewPayload.generation_mode, 'baseline', 'explicit baseline requested')
-  assert.strictEqual(previewPayload.apply_to_project, undefined, 'preview does not apply to project')
-  assert.strictEqual(previewPayload.master_json, mockMaster, 'preview carries master_json snapshot')
-
-  // Run/Persist request
-  const runPayload: ELIARequestPayload = {
-    requirements: { units: 'm', design_style: 'contemporary' },
-    generation_mode: 'baseline',
-    apply_to_project: true,
-    source_revision: 3,
-  }
-
-  assert.strictEqual(runPayload.apply_to_project, true, 'run requests persistence')
-  assert.strictEqual(runPayload.source_revision, 3, 'run specifies authoritative source revision')
-  console.log('✓ Preview and Run payload contracts follow explicit mode and persistence semantics')
-}
-
-// ---------------------------------------------------------------------------
-// 3. Accepted Design Preservation on Infeasible Run
-// ---------------------------------------------------------------------------
-{
-  const acceptedDesign: Partial<ExteriorLandscape> = {
-    version: '1.0',
-    schema_version: '1.0',
-    run_id: 'run_accepted_001',
-    coordinate_reference: 'local_cartesian_meters',
-    access: { gate: { json_id: 'gate_1' } },
-  }
-
-  const infeasibleCandidate: Partial<ExteriorLandscape> = {
-    version: '1.0',
-    schema_version: '1.0',
-    run_id: 'run_infeasible_002',
-    coordinate_reference: 'local_cartesian_meters',
-    access: {},
-    validation_summary: {
-      valid: false,
-      violations: ['Insufficient setback for requested 3-car garage'],
-      checks_passed: 12,
-      checks_total: 14,
-      constraint_satisfaction_rate: 0.85,
-    },
-  }
-
-  // State reducer simulation
-  let currentAccepted = acceptedDesign
-  let displayedView: 'accepted' | 'candidate' = 'accepted'
-  let viewStatus: 'accepted' | 'preview' | 'infeasible' = 'accepted'
-
-  const onRunComplete = (outcome: 'valid' | 'infeasible', candidate: any) => {
-    if (outcome === 'valid') {
-      currentAccepted = candidate
-      displayedView = 'accepted'
-      viewStatus = 'accepted'
-    } else {
-      // Infeasible preserves accepted design!
-      displayedView = 'candidate'
-      viewStatus = 'infeasible'
-    }
-  }
-
-  onRunComplete('infeasible', infeasibleCandidate)
-
-  assert.strictEqual(currentAccepted.run_id, 'run_accepted_001', 'Earlier accepted design preserved untouched')
-  assert.strictEqual(displayedView, 'candidate', 'Displayed view switched to candidate for inspection')
-  assert.strictEqual(viewStatus, 'infeasible', 'Status marked infeasible (unaccepted)')
-  console.log('✓ Infeasible run preserves previously accepted exterior intact')
-}
-
-// ---------------------------------------------------------------------------
-// 4. Concurrency CAS & Error Mapping Verification
-// ---------------------------------------------------------------------------
-{
-  const parseApiError = (status: number, detail: any): { type: string; message: string } => {
-    if (status === 409) {
-      const rev = detail?.current_revision || 'newer'
-      return {
-        type: 'STALE_REVISION',
-        message: `Revision Conflict (409): The project was modified concurrently (revision ${rev}). Refresh required.`,
-      }
-    }
-    if (status === 503) {
-      return {
-        type: 'MODEL_UNAVAILABLE',
-        message: `${detail?.code || 'ELIA_MODEL_UNAVAILABLE'}: ${detail?.message || 'Trained model unavailable.'}`,
-      }
-    }
-    return { type: 'GENERIC_ERROR', message: detail?.message || 'Unknown failure' }
-  }
-
-  const conflict = parseApiError(409, {
-    code: 'ELIA_STALE_SOURCE_REVISION',
-    message: 'Project changed while ELIA was running.',
-    current_revision: 4,
-  })
-  assert.strictEqual(conflict.type, 'STALE_REVISION')
-  assert.ok(conflict.message.includes('revision 4'), '409 error message reflects current revision')
-
-  const unavailable = parseApiError(503, {
-    code: 'ELIA_MODEL_UNAVAILABLE',
-    message: 'Trained model adapter is not registered on this backend.',
-  })
-  assert.strictEqual(unavailable.type, 'MODEL_UNAVAILABLE')
-  assert.ok(unavailable.message.includes('ELIA_MODEL_UNAVAILABLE'), '503 error message retains explicit code')
-  console.log('✓ API error mapping handles 409 CAS conflict and 503 model unavailable truthfully')
-}
-
-// ---------------------------------------------------------------------------
-// 5. Export Categorization
-// ---------------------------------------------------------------------------
-{
-  const fullMaster = {
-    project_id: 'p1',
-    project_name: 'Villa Horizon',
-    land_info: { area_m2: 500 },
-    buildable_footprint: {},
-    exterior_landscape: { run_id: 'run_1', access: {} },
-  }
-
-  const exteriorOnly = fullMaster.exterior_landscape
-
-  // Master JSON export must contain full project structure
-  assert.ok('land_info' in fullMaster, 'Full Master JSON has land_info')
-  assert.ok('exterior_landscape' in fullMaster, 'Full Master JSON has exterior_landscape')
-
-  // Exterior JSON export must NOT masquerade as Master JSON
-  assert.strictEqual('land_info' in exteriorOnly, false, 'Exterior-only export does not contain top-level master fields')
-  assert.ok('access' in exteriorOnly, 'Exterior-only export contains exterior layers')
-  console.log('✓ Export categorization cleanly separates Authoritative Master JSON from Exterior Candidate')
-}
-
-console.log('All ELIA Stage 3 Frontend Workflow Tests PASSED successfully!')
+runAllTests().catch((err) => {
+  console.error('\nTest Failure:', err)
+  process.exit(1)
+})

@@ -74,6 +74,12 @@ export interface ExteriorEnvironment {
   [key: string]: unknown;
 }
 
+export interface PreferenceFulfillment {
+  unsupported_preferences?: string[];
+  unfulfilled_preferences?: string[];
+  label_only_preferences?: string[];
+}
+
 export interface ExteriorLandscape {
   version: string;
   schema_version: string;
@@ -89,11 +95,39 @@ export interface ExteriorLandscape {
   outdoor_elements: ExteriorFeature[];
   validation_summary: ExteriorValidation;
   metrics: Record<string, unknown>;
+  preference_fulfillment?: PreferenceFulfillment;
   generation_mode?: string;
   /** Raw land polygon coordinates passed back by some baseline implementations */
   land?: GeoJsonGeometry;
   house_exterior?: GeoJsonGeometry;
   [key: string]: unknown;
+}
+
+export interface EliaCandidateRecord {
+  projectId: string;
+  runId?: string | null;
+  sourceRevision: number | null;
+  sourceSnapshot: Record<string, unknown> | null;
+  submittedFingerprint: string;
+  generationMode: 'baseline' | 'trained_model';
+  outcome: 'valid' | 'infeasible';
+  kind: 'preview' | 'persisted_run';
+  landscape: ExteriorLandscape;
+  timestamp: string;
+}
+
+export type EliaContextFreshness = 'loading' | 'current' | 'stale' | 'unavailable';
+
+export interface EliaProvenance {
+  projectId: string;
+  sourceRevision: number | null;
+  requirementsFingerprint: string;
+  runId?: string | null;
+  outcome?: 'valid' | 'infeasible' | null;
+  persisted?: boolean;
+  timestamp: string;
+  generationMode?: string;
+  sourceSnapshot?: Record<string, unknown> | null;
 }
 
 /**

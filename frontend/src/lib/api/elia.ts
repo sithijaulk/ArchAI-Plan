@@ -36,46 +36,78 @@ export interface LiveSolarConditions {
 }
 
 export const eliaApi = {
-  searchLocations: async (name: string): Promise<{ results: SriLankaLocation[]; attribution: string }> => {
-    const response = await apiClient.get('/elia-engine/locations/search', { params: { name } });
+  searchLocations: async (
+    name: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<{ results: SriLankaLocation[]; attribution: string }> => {
+    const response = await apiClient.get('/elia-engine/locations/search', {
+      params: { name },
+      signal: options?.signal,
+    });
     return response.data;
   },
 
   currentSolar: async (
     projectId: string,
-    location: { latitude: number; longitude: number; timezone?: string | null }
+    location: { latitude: number; longitude: number; timezone?: string | null },
+    options?: { signal?: AbortSignal }
   ): Promise<LiveSolarConditions> => {
     const response = await apiClient.get(`/projects/${projectId}/elia-engine/solar/current`, {
       params: { latitude: location.latitude, longitude: location.longitude, timezone: location.timezone },
+      signal: options?.signal,
     });
     return response.data;
   },
 
-  getContext: async (projectId: string): Promise<ELIAContextResponse> => {
-    const response = await apiClient.get(`/projects/${projectId}/elia-engine/context`);
+  getContext: async (
+    projectId: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<ELIAContextResponse> => {
+    const response = await apiClient.get(`/projects/${projectId}/elia-engine/context`, {
+      signal: options?.signal,
+    });
     return response.data;
   },
 
   validateInput: async (
     projectId: string,
-    payload: ELIARequestPayload
+    payload: ELIARequestPayload,
+    options?: { signal?: AbortSignal }
   ): Promise<ELIAValidationResponse> => {
-    const response = await apiClient.post(`/projects/${projectId}/elia-engine/validate-input`, payload);
+    const response = await apiClient.post(`/projects/${projectId}/elia-engine/validate-input`, payload, {
+      signal: options?.signal,
+    });
     return response.data;
   },
 
-  preview: async (payload: ELIARequestPayload): Promise<ELIAPreviewResponse> => {
-    const response = await apiClient.post('/elia-engine/preview', payload);
+  preview: async (
+    payload: ELIARequestPayload,
+    options?: { signal?: AbortSignal }
+  ): Promise<ELIAPreviewResponse> => {
+    const response = await apiClient.post('/elia-engine/preview', payload, {
+      signal: options?.signal,
+    });
     return response.data;
   },
 
-  run: async (projectId: string, payload: ELIARequestPayload): Promise<ELIAResponse> => {
-    const response = await apiClient.post(`/projects/${projectId}/elia-engine/run`, payload);
+  run: async (
+    projectId: string,
+    payload: ELIARequestPayload,
+    options?: { signal?: AbortSignal }
+  ): Promise<ELIAResponse> => {
+    const response = await apiClient.post(`/projects/${projectId}/elia-engine/run`, payload, {
+      signal: options?.signal,
+    });
     return response.data;
   },
 
-  getResult: async (projectId: string): Promise<ELIAResultResponse> => {
-    const response = await apiClient.get(`/projects/${projectId}/elia-engine/result`);
+  getResult: async (
+    projectId: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<ELIAResultResponse> => {
+    const response = await apiClient.get(`/projects/${projectId}/elia-engine/result`, {
+      signal: options?.signal,
+    });
     return response.data;
   },
 };
