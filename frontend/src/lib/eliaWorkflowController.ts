@@ -4,6 +4,7 @@ import type {
   ELIAResultResponse,
   EliaCandidateRecord,
   EliaContextFreshness,
+  EliaUnresolvedMutation,
 } from '../types/elia';
 import type { SriLankaLocation, LiveSolarConditions } from './api/elia';
 import {
@@ -18,6 +19,225 @@ import { parseEliaError, EliaParsedError } from './eliaError';
 function deepcopy<T>(obj: T): T {
   if (obj === undefined || obj === null) return obj;
   return JSON.parse(JSON.stringify(obj));
+}
+
+export type EliaReconciledTerminalOutcome = 'completed' | 'infeasible' | 'failed';
+
+export interface EliaRunStatusClassification {
+  isProcessing: boolean;
+  terminalOutcome: EliaReconciledTerminalOutcome | null;
+  isContradictory: boolean;
+  contradictionReason?: string;
+}
+
+/**
+ * Validates that an object conforms to the ELIA ExteriorLandscape contract.
+ * Strictly distinguishes valid exterior structures from malformed primitives,
+ * arrays, or corrupted nested structures.
+ */
+export function validateExteriorLandscape(
+  val: unknown
+): { valid: true; value: ExteriorLandscape } | { valid: false; error: string } {
+  if (val === null || val === undefined) {
+    return { valid: false, error: 'Exterior payload is missing or null.' };
+  }
+  if (typeof val !== 'object' || Array.isArray(val)) {
+    return { valid: false, error: 'Exterior landscape must be a JSON object, not a primitive or array.' };
+  }
+
+  const obj = val as Record<string, unknown>;
+
+  // 1. run_id: required non-empty string
+  if (typeof obj.run_id !== 'string' || obj.run_id.trim() === '') {
+    return { valid: false, error: 'Exterior landscape requires a valid non-empty run_id string.' };
+  }
+
+  // 2. access: required object
+  if (!obj.access || typeof obj.access !== 'object' || Array.isArray(obj.access)) {
+    return { valid: false, error: 'Exterior landscape requires an access object structure.' };
+  }
+
+  const access = obj.access as Record<string, unknown>;
+  if (access.gates !== undefined && access.gates !== null && !Array.isArray(access.gates)) {
+    return { valid: false, error: 'access.gates must be an array when present.' };
+  }
+  if (access.gate !== undefined && access.gate !== null && (typeof access.gate !== 'object' || Array.isArray(access.gate))) {
+    return { valid: false, error: 'access.gate must be an object or null when present.' };
+  }
+  if (access.garage !== undefined && access.garage !== null && (typeof access.garage !== 'object' || Array.isArray(access.garage))) {
+    return { valid: false, error: 'access.garage must be an object or null when present.' };
+  }
+  if (access.driveway !== undefined && access.driveway !== null && (typeof access.driveway !== 'object' || Array.isArray(access.driveway))) {
+    return { valid: false, error: 'access.driveway must be an object or null when present.' };
+  }
+
+  // 3. Optional collection structures consumed by visualization components
+  if (obj.vegetation_nodes !== undefined && obj.vegetation_nodes !== null && !Array.isArray(obj.vegetation_nodes)) {
+    return { valid: false, error: 'vegetation_nodes must be an array when present.' };
+  }
+  if (obj.outdoor_elements !== undefined && obj.outdoor_elements !== null && !Array.isArray(obj.outdoor_elements)) {
+    return { valid: false, error: 'outdoor_elements must be an array when present.' };
+  }
+  if (obj.vertical_greenery !== undefined && obj.vertical_greenery !== null) {
+    if (typeof obj.vertical_greenery !== 'object' || Array.isArray(obj.vertical_greenery)) {
+      return { valid: false, error: 'vertical_greenery must be an object when present.' };
+    }
+    const vg = obj.vertical_greenery as Record<string, unknown>;
+    if (vg.elements !== undefined && vg.elements !== null && !Array.isArray(vg.elements)) {
+      return { valid: false, error: 'vertical_greenery.elements must be an array when present.' };
+    }
+  }
+  if (obj.outdoor_lighting !== undefined && obj.outdoor_lighting !== null) {
+    if (typeof obj.outdoor_lighting !== 'object' || Array.isArray(obj.outdoor_lighting)) {
+      return { valid: false, error: 'outdoor_lighting must be an object when present.' };
+    }
+    const ol = obj.outdoor_lighting as Record<string, unknown>;
+    if (ol.nodes !== undefined && ol.nodes !== null && !Array.isArray(ol.nodes)) {
+      return { valid: false, error: 'outdoor_lighting.nodes must be an array when present.' };
+    }
+  }
+  if (obj.validation_summary !== undefined && obj.validation_summary !== null) {
+    if (typeof obj.validation_summary !== 'object' || Array.isArray(obj.validation_summary)) {
+      return { valid: false, error: 'validation_summary must be an object when present.' };
+    }
+  }
+
+  return { valid: true, value: obj as unknown as ExteriorLandscape };
+}
+
+const KNOWN_STATUSES = new Set(['processing', 'completed', 'infeasible', 'failed']);
+
+/**
+ * Classifies execution lifecycle status vs design feasibility outcome across backend channels.
+ * Contract:
+ *  - ComponentRun.status (latestResult) is 'completed' when generation finishes, even if outcome is 'infeasible'.
+ *  - Master JSON processing.elia_engine.status is 'infeasible' for that same run.
+ *  - Therefore: procStatus='infeasible' + latestResultStatus='completed' is a valid terminal infeasible outcome.
+ */
+export function classifyCorrelatedRunStatus(
+  procStatus: string | null,
+  procOutcome: string | null,
+  latestResultStatus: string | null,
+  latestResultOutput: any
+): EliaRunStatusClassification {
+  if (!procStatus && !latestResultStatus) {
+    return { isProcessing: false, terminalOutcome: null, isContradictory: false };
+  }
+
+  // Check for unknown/unrecognized status strings
+  if (procStatus !== null && !KNOWN_STATUSES.has(procStatus)) {
+    return {
+      isProcessing: false,
+      terminalOutcome: null,
+      isContradictory: true,
+      contradictionReason: `Unrecognized processing status '${procStatus}' encountered during reconciliation.`,
+    };
+  }
+  if (latestResultStatus !== null && !KNOWN_STATUSES.has(latestResultStatus)) {
+    return {
+      isProcessing: false,
+      terminalOutcome: null,
+      isContradictory: true,
+      contradictionReason: `Unrecognized latest run status '${latestResultStatus}' encountered during reconciliation.`,
+    };
+  }
+
+  // 1. In-flight processing
+  if (procStatus === 'processing' || latestResultStatus === 'processing') {
+    if (
+      (procStatus === 'processing' && latestResultStatus && latestResultStatus !== 'processing') ||
+      (latestResultStatus === 'processing' && procStatus && procStatus !== 'processing')
+    ) {
+      return {
+        isProcessing: false,
+        terminalOutcome: null,
+        isContradictory: true,
+        contradictionReason: `Channel status mismatch: processing channel reported '${procStatus}', but latest run channel reported '${latestResultStatus}'.`,
+      };
+    }
+    return { isProcessing: true, terminalOutcome: null, isContradictory: false };
+  }
+
+  // 2. Consistent terminal failures
+  if (procStatus === 'failed' && (latestResultStatus === 'failed' || !latestResultStatus)) {
+    return { isProcessing: false, terminalOutcome: 'failed', isContradictory: false };
+  }
+  if (latestResultStatus === 'failed' && (procStatus === 'failed' || !procStatus)) {
+    return { isProcessing: false, terminalOutcome: 'failed', isContradictory: false };
+  }
+
+  // 3. Genuine contradiction: failed vs completed/infeasible
+  if (
+    (procStatus === 'failed' && (latestResultStatus === 'completed' || latestResultStatus === 'infeasible')) ||
+    (latestResultStatus === 'failed' && (procStatus === 'completed' || procStatus === 'infeasible'))
+  ) {
+    return {
+      isProcessing: false,
+      terminalOutcome: null,
+      isContradictory: true,
+      contradictionReason: `Contradictory terminal status: one channel reported failure while the other reported execution completion ('${procStatus}' vs '${latestResultStatus}').`,
+    };
+  }
+
+  // 4. Infeasible design outcome recognition:
+  // Backend contract: ComponentRun.status is 'completed', while processing.elia_engine.status is 'infeasible'.
+  const procIsInfeasible = procStatus === 'infeasible' || procOutcome === 'infeasible';
+  const latestResultHasInfeasibleOutput =
+    latestResultOutput &&
+    typeof latestResultOutput === 'object' &&
+    ((latestResultOutput.validation_summary && latestResultOutput.validation_summary.valid === false) ||
+      (Array.isArray(latestResultOutput.validation_summary?.violations) &&
+        latestResultOutput.validation_summary.violations.length > 0) ||
+      latestResultOutput.outcome === 'infeasible');
+
+  if (procIsInfeasible) {
+    if (latestResultStatus === 'completed' || latestResultStatus === 'infeasible' || !latestResultStatus) {
+      return { isProcessing: false, terminalOutcome: 'infeasible', isContradictory: false };
+    }
+  }
+
+  if (latestResultStatus === 'infeasible') {
+    if (procStatus === 'infeasible' || !procStatus) {
+      return { isProcessing: false, terminalOutcome: 'infeasible', isContradictory: false };
+    }
+    if (procStatus === 'completed') {
+      if (procOutcome !== 'infeasible') {
+        return {
+          isProcessing: false,
+          terminalOutcome: null,
+          isContradictory: true,
+          contradictionReason: `Contradictory status: processing reported completed valid design but latest run reported infeasible outcome.`,
+        };
+      }
+      return { isProcessing: false, terminalOutcome: 'infeasible', isContradictory: false };
+    }
+  }
+
+  // 5. Successful valid execution
+  if (procStatus === 'completed') {
+    if (procOutcome === 'infeasible' || latestResultHasInfeasibleOutput) {
+      return { isProcessing: false, terminalOutcome: 'infeasible', isContradictory: false };
+    }
+    if (latestResultStatus === 'completed' || !latestResultStatus) {
+      return { isProcessing: false, terminalOutcome: 'completed', isContradictory: false };
+    }
+  }
+
+  if (latestResultStatus === 'completed' && !procStatus) {
+    // Missing processing status evidence in Master JSON
+    return {
+      isProcessing: false,
+      terminalOutcome: null,
+      isContradictory: false,
+    };
+  }
+
+  return {
+    isProcessing: false,
+    terminalOutcome: null,
+    isContradictory: true,
+    contradictionReason: `Unsupported status combination: procStatus='${procStatus}', latestResultStatus='${latestResultStatus}'.`,
+  };
 }
 
 export function createDefaultFormState(): EliaFormState {
@@ -96,6 +316,8 @@ export interface EliaWorkflowState {
   isGenerating: boolean;
   actionError: string | null;
   requiresReconciliation: boolean;
+  unresolvedMutation: EliaUnresolvedMutation | null;
+  isReconciling: boolean;
 
   // Latest run channel
   latestRun: ELIAResultResponse | null;
@@ -137,6 +359,15 @@ export class EliaWorkflowController {
   private mutationTokenSeq = 0;
   private activeMutationToken = 0;
 
+  // Mutation epoch tracking to establish request boundaries
+  private mutationEpoch = 0;
+  private activeMutationEpoch: number | null = null;
+
+  // Reconciliation synchronous guard and request tracking
+  private isReconcilingSync = false;
+  private reconciliationReqId = 0;
+  private activeReconciliationToken = 0;
+
   // Stable static server snapshot for SSR without hydration mismatch
   private static serverSnapshot: EliaWorkflowState | null = null;
 
@@ -167,6 +398,8 @@ export class EliaWorkflowController {
         isGenerating: false,
         actionError: null,
         requiresReconciliation: false,
+        unresolvedMutation: null,
+        isReconciling: false,
         latestRun: null,
         latestRunError: null,
         isCheckingRun: false,
@@ -215,6 +448,8 @@ export class EliaWorkflowController {
       isGenerating: false,
       actionError: null,
       requiresReconciliation: false,
+      unresolvedMutation: null,
+      isReconciling: false,
 
       latestRun: null,
       latestRunError: null,
@@ -276,7 +511,7 @@ export class EliaWorkflowController {
     this.state.isActive = true;
     const newSession = ++this.state.sessionSeq;
 
-    // Reset sequence counters so pre-activation requests are obsolete
+    // Reset sequence counters and advance mutation epoch so pre-activation requests are obsolete
     this.contextReqId += 1;
     this.latestRunReqId += 1;
     this.validationReqId += 1;
@@ -284,8 +519,15 @@ export class EliaWorkflowController {
     this.locationSearchReqId += 1;
     this.solarReqId += 1;
 
+    this.mutationEpoch += 1;
+    this.activeMutationEpoch = null;
+
     this.isMutatingSync = false;
     this.activeMutationToken = 0;
+
+    this.isReconcilingSync = false;
+    this.activeReconciliationToken = 0;
+    this.reconciliationReqId += 1;
 
     if (this.state.projectId !== projectId) {
       this.setState({
@@ -317,6 +559,8 @@ export class EliaWorkflowController {
         isGenerating: false,
         actionError: null,
         requiresReconciliation: false,
+        unresolvedMutation: null,
+        isReconciling: false,
 
         latestRun: null,
         latestRunError: null,
@@ -340,6 +584,7 @@ export class EliaWorkflowController {
         isCheckingRun: false,
         isLoadingSolar: false,
         isSearchingLocation: false,
+        isReconciling: false,
       });
     }
 
@@ -362,8 +607,15 @@ export class EliaWorkflowController {
     this.locationSearchReqId += 1;
     this.solarReqId += 1;
 
+    this.mutationEpoch += 1;
+    this.activeMutationEpoch = null;
+
     this.isMutatingSync = false;
     this.activeMutationToken = 0;
+
+    this.isReconcilingSync = false;
+    this.activeReconciliationToken = 0;
+    this.reconciliationReqId += 1;
 
     this.setState({
       isMounted: false,
@@ -375,6 +627,7 @@ export class EliaWorkflowController {
       isCheckingRun: false,
       isLoadingSolar: false,
       isSearchingLocation: false,
+      isReconciling: false,
     });
   }
 
@@ -429,13 +682,15 @@ export class EliaWorkflowController {
    */
   public async loadAuthoritativeContext(
     api: EliaApiInterface,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    targetMutationEpoch?: number
   ): Promise<{ status: 'success' | 'failed' | 'obsolete'; revision?: number | null; master?: any; error?: string }> {
     const pid = this.state.projectId;
     if (!pid || !this.state.isMounted) return { status: 'obsolete' };
 
     const session = this.state.sessionSeq;
     const reqId = ++this.contextReqId;
+    const reqEpoch = this.mutationEpoch;
 
     // Transition context to non-current during refresh to block export and mutations
     this.setState({
@@ -450,31 +705,104 @@ export class EliaWorkflowController {
         return { status: 'obsolete' };
       }
 
+      const isOwnedPostMutation = targetMutationEpoch !== undefined && targetMutationEpoch === this.activeMutationEpoch;
+
+      // An older context read initiated before a newer mutation cannot overwrite post-mutation state
+      if (!isOwnedPostMutation && reqEpoch < this.mutationEpoch) {
+        this.setState({ isLoadingContext: false });
+        return { status: 'obsolete' };
+      }
+
+      // Distinguish legitimate absence from malformed or invalid responses
+      if (!response || typeof response !== 'object' || !('master_json' in response)) {
+        const errorMsg = 'Malformed context response received from server.';
+        this.setState({
+          contextFreshness: this.state.authoritativeMaster ? 'stale' : 'unavailable',
+          contextError: errorMsg,
+          isLoadingContext: false,
+        });
+        return { status: 'failed', error: errorMsg };
+      }
+
       const doc = response.master_json;
+      if (!doc || typeof doc !== 'object' || Array.isArray(doc)) {
+        const errorMsg = 'Malformed Master JSON in context response.';
+        this.setState({
+          contextFreshness: this.state.authoritativeMaster ? 'stale' : 'unavailable',
+          contextError: errorMsg,
+          isLoadingContext: false,
+        });
+        return { status: 'failed', error: errorMsg };
+      }
+
       const rev = response.revision !== undefined && response.revision !== null
         ? response.revision
         : (doc && typeof doc.revision === 'number' ? doc.revision : null);
 
       const revisionChanged = this.state.sourceRevision !== null && rev !== this.state.sourceRevision;
 
-      // Check for accepted exterior in Master JSON (strictly authoritative)
-      const existingExterior = (doc?.exterior_landscape as ExteriorLandscape | null) ?? null;
-      const acceptedLandscape = existingExterior && existingExterior.access ? existingExterior : null;
-      const acceptedProvenance = acceptedLandscape ? {
-        projectId: pid,
-        sourceRevision: rev,
-        sourceSnapshot: doc,
-        runId: acceptedLandscape.run_id,
-      } : null;
+      // Distinguish:
+      // A. Valid accepted exterior
+      // B. Legitimate absence of an exterior
+      // C. Present but malformed exterior
+      let acceptedLandscape: ExteriorLandscape | null = null;
+      let acceptedProvenance: {
+        projectId: string;
+        sourceRevision: number | null;
+        sourceSnapshot?: Record<string, unknown> | null;
+        runId?: string;
+      } | null = null;
+
+      const hasExteriorKey = 'exterior_landscape' in doc;
+      const rawExterior = (doc as any).exterior_landscape;
+
+      if (!hasExteriorKey || rawExterior === null || rawExterior === undefined) {
+        // Legitimate absence: exterior_landscape is explicitly absent or null
+        acceptedLandscape = null;
+        acceptedProvenance = null;
+      } else {
+        // Present: must be validated against the ELIA contract
+        const validation = validateExteriorLandscape(rawExterior);
+        if (!validation.valid) {
+          const errorMsg = `Malformed exterior_landscape in authoritative context: ${validation.error}`;
+          this.setState({
+            contextFreshness: this.state.authoritativeMaster ? 'stale' : 'unavailable',
+            contextError: errorMsg,
+            isLoadingContext: false,
+          });
+          return { status: 'failed', error: errorMsg };
+        }
+        acceptedLandscape = validation.value;
+        acceptedProvenance = {
+          projectId: pid,
+          sourceRevision: rev,
+          sourceSnapshot: doc,
+          runId: acceptedLandscape.run_id,
+        };
+      }
+
+      // Freshness can only be 'current' if no active unowned mutation and no unresolved mutation guard is active
+      const canBeCurrent =
+        (this.activeMutationEpoch === null || isOwnedPostMutation) &&
+        !this.state.requiresReconciliation &&
+        this.state.unresolvedMutation === null &&
+        (reqEpoch === this.mutationEpoch || isOwnedPostMutation);
+
+      // When the authoritative context legitimately contains no accepted exterior,
+      // clear BOTH acceptedLandscape and acceptedProvenance.
+      // If activeView was 'accepted' and no accepted design exists, transition to 'candidate' if candidate exists.
+      const nextActiveView = acceptedLandscape
+        ? this.state.activeView
+        : (this.state.candidate ? 'candidate' : 'accepted');
 
       this.setState({
         authoritativeMaster: doc,
         sourceRevision: rev,
-        contextFreshness: 'current',
-        requiresReconciliation: false,
+        contextFreshness: canBeCurrent ? 'current' : 'stale',
         contextError: null,
-        acceptedLandscape,
-        acceptedProvenance,
+        acceptedLandscape, // Legitimately updated or cleared to null
+        acceptedProvenance, // Legitimately updated or cleared to null
+        activeView: nextActiveView,
         isLoadingContext: false,
         ...(revisionChanged ? { validationResult: null, validationError: null } : {}),
       });
@@ -482,6 +810,11 @@ export class EliaWorkflowController {
       return { status: 'success', revision: rev, master: doc };
     } catch (err: any) {
       if (!this.state.isMounted || this.state.sessionSeq !== session || this.contextReqId !== reqId || this.state.projectId !== pid) {
+        return { status: 'obsolete' };
+      }
+
+      if (reqEpoch < this.mutationEpoch && targetMutationEpoch === undefined) {
+        this.setState({ isLoadingContext: false });
         return { status: 'obsolete' };
       }
 
@@ -517,7 +850,7 @@ export class EliaWorkflowController {
         return { status: 'obsolete' };
       }
 
-      this.setState({ latestRun: run, latestRunError: null, isCheckingRun: false, requiresReconciliation: false });
+      this.setState({ latestRun: run, latestRunError: null, isCheckingRun: false });
       return { status: 'success' };
     } catch (err: any) {
       if (!this.state.isMounted || this.state.sessionSeq !== session || this.latestRunReqId !== reqId || this.state.projectId !== pid) {
@@ -728,15 +1061,19 @@ export class EliaWorkflowController {
       return { status: 'failed', error: 'No active project' };
     }
 
-    if (this.state.requiresReconciliation) {
+    if (this.state.requiresReconciliation || this.state.unresolvedMutation !== null) {
       this.releaseMutationGuard(token);
       this.setState({
-        actionError: 'Project state must be reconciled by refreshing context before submitting another mutation.',
+        actionError: 'Project state must be reconciled before submitting another mutation.',
       });
       return { status: 'failed', error: 'Reconciliation required' };
     }
 
-    if (this.state.contextFreshness !== 'current' || this.state.sourceRevision === null) {
+    if (
+      this.state.isLoadingContext ||
+      this.state.contextFreshness !== 'current' ||
+      this.state.sourceRevision === null
+    ) {
       this.releaseMutationGuard(token);
       const errorMsg = 'Authoritative project context and revision must be confirmed before saving. Refresh context.';
       this.setState({ actionError: errorMsg });
@@ -754,6 +1091,9 @@ export class EliaWorkflowController {
 
     const session = this.state.sessionSeq;
     const reqId = ++this.mutationReqId;
+    const epoch = ++this.mutationEpoch;
+    this.activeMutationEpoch = epoch;
+
     const submittedFingerprint = computeRequirementsFingerprint(this.state.formState);
     const snapshotAtSubmit = deepcopy(this.state.authoritativeMaster);
     const submittedRevision = this.state.sourceRevision;
@@ -772,7 +1112,13 @@ export class EliaWorkflowController {
       }, { signal });
 
       // Step 1: Ownership check after api.run
-      if (!this.state.isMounted || this.state.sessionSeq !== session || this.mutationReqId !== reqId || this.state.projectId !== pid) {
+      if (
+        !this.state.isMounted ||
+        this.state.sessionSeq !== session ||
+        this.mutationReqId !== reqId ||
+        this.state.projectId !== pid ||
+        this.activeMutationEpoch !== epoch
+      ) {
         return { status: 'obsolete' };
       }
 
@@ -812,11 +1158,17 @@ export class EliaWorkflowController {
           isGenerating: false,
         });
 
-        // Step 2: Await loadAuthoritativeContext
-        const refreshResult = await this.loadAuthoritativeContext(api);
+        // Step 2: Await owned loadAuthoritativeContext
+        const refreshResult = await this.loadAuthoritativeContext(api, signal, epoch);
 
         // Recheck ownership after context refresh
-        if (!this.state.isMounted || this.state.sessionSeq !== session || this.mutationReqId !== reqId || this.state.projectId !== pid) {
+        if (
+          !this.state.isMounted ||
+          this.state.sessionSeq !== session ||
+          this.mutationReqId !== reqId ||
+          this.state.projectId !== pid ||
+          this.activeMutationEpoch !== epoch
+        ) {
           return { status: 'obsolete' };
         }
         if (refreshResult.status === 'obsolete') {
@@ -824,8 +1176,13 @@ export class EliaWorkflowController {
         }
 
         // Step 3: Await loadLatestRun ONLY if still owned
-        await this.loadLatestRun(api);
-        if (!this.state.isMounted || this.state.sessionSeq !== session || this.mutationReqId !== reqId || this.state.projectId !== pid) {
+        await this.loadLatestRun(api, signal);
+        if (
+          !this.state.isMounted ||
+          this.state.sessionSeq !== session ||
+          this.mutationReqId !== reqId ||
+          this.state.projectId !== pid
+        ) {
           return { status: 'obsolete' };
         }
 
@@ -849,16 +1206,27 @@ export class EliaWorkflowController {
         });
 
         // Step 2: Refresh context on infeasible run too because processing incremented revision
-        const refreshResult = await this.loadAuthoritativeContext(api);
-        if (!this.state.isMounted || this.state.sessionSeq !== session || this.mutationReqId !== reqId || this.state.projectId !== pid) {
+        const refreshResult = await this.loadAuthoritativeContext(api, signal, epoch);
+        if (
+          !this.state.isMounted ||
+          this.state.sessionSeq !== session ||
+          this.mutationReqId !== reqId ||
+          this.state.projectId !== pid ||
+          this.activeMutationEpoch !== epoch
+        ) {
           return { status: 'obsolete' };
         }
         if (refreshResult.status === 'obsolete') {
           return { status: 'obsolete' };
         }
 
-        await this.loadLatestRun(api);
-        if (!this.state.isMounted || this.state.sessionSeq !== session || this.mutationReqId !== reqId || this.state.projectId !== pid) {
+        await this.loadLatestRun(api, signal);
+        if (
+          !this.state.isMounted ||
+          this.state.sessionSeq !== session ||
+          this.mutationReqId !== reqId ||
+          this.state.projectId !== pid
+        ) {
           return { status: 'obsolete' };
         }
 
@@ -872,7 +1240,13 @@ export class EliaWorkflowController {
         return { status: 'success', refreshStatus: 'success' };
       }
     } catch (err: any) {
-      if (!this.state.isMounted || this.state.sessionSeq !== session || this.mutationReqId !== reqId || this.state.projectId !== pid) {
+      if (
+        !this.state.isMounted ||
+        this.state.sessionSeq !== session ||
+        this.mutationReqId !== reqId ||
+        this.state.projectId !== pid ||
+        this.activeMutationEpoch !== epoch
+      ) {
         return { status: 'obsolete' };
       }
 
@@ -883,20 +1257,407 @@ export class EliaWorkflowController {
         sharedStoreCallbacks?.setComponentStatus?.('elia_engine', 'failed');
       }
 
-      // Ambiguous failure blocks blind resubmission until reconciliation
-      if (!parsed.isStaleRevision && parsed.type !== 'MODEL_UNAVAILABLE') {
+      // Distinguish confirmed pre-execution rejection from ambiguous transport failure
+      const isConfirmedRejection =
+        parsed.isStaleRevision ||
+        parsed.type === 'VALIDATION_ERROR' ||
+        parsed.type === 'AUTH_REQUIRED' ||
+        parsed.type === 'MODEL_UNAVAILABLE';
+
+      if (!isConfirmedRejection) {
+        const unresolvedRecord: EliaUnresolvedMutation = {
+          projectId: pid,
+          sourceRevision: submittedRevision,
+          submittedFingerprint,
+          submittedGenerationMode,
+          snapshotAtSubmit,
+          submittedAt: new Date().toISOString(),
+          status: 'unresolved',
+          reconciliationError: null,
+        };
+
         this.setState({
           requiresReconciliation: true,
+          unresolvedMutation: unresolvedRecord,
           contextFreshness: 'stale',
-          actionError: `${parsed.message} Network outcome uncertain; please refresh context or inspect run history before retrying.`,
+          actionError: `${parsed.message} Network outcome uncertain; reconciliation required before further mutations.`,
         });
       }
 
       this.setState({ isGenerating: false });
       return { status: 'failed', error: parsed.message };
     } finally {
+      if (this.activeMutationEpoch === epoch) {
+        this.activeMutationEpoch = null;
+      }
       this.releaseMutationGuard(token);
     }
+  }
+
+  /**
+   * Channel: Mutation Reconciliation
+   * Explicitly resolves an uncertain/ambiguous mutation using verifiable correlation evidence:
+   *  - doc.processing.elia_engine.source_revision matching unresolved mutation's sourceRevision
+   *  - Correlated terminal run status ('completed', 'infeasible', 'failed')
+   *  - Followed by an owned authoritative context refresh
+   * Unrelated older runs or in-progress runs KEEP the unresolved guard active.
+   */
+  public async reconcileMutation(
+    api: EliaApiInterface,
+    signal?: AbortSignal
+  ): Promise<{
+    status: 'reconciled' | 'processing' | 'unresolved' | 'failed' | 'obsolete';
+    message?: string;
+  }> {
+    const pid = this.state.projectId;
+    if (!pid || !this.state.isMounted || !this.state.isActive) return { status: 'obsolete' };
+
+    // Synchronous guard against overlapping reconciliation calls
+    if (this.isReconcilingSync || this.state.isReconciling) {
+      return { status: 'obsolete' };
+    }
+    this.isReconcilingSync = true;
+    const session = this.state.sessionSeq;
+    const reconToken = ++this.reconciliationReqId;
+    this.activeReconciliationToken = reconToken;
+
+    const isOwned = () => {
+      return (
+        this.state.isMounted &&
+        this.state.isActive &&
+        this.state.sessionSeq === session &&
+        this.state.projectId === pid &&
+        this.reconciliationReqId === reconToken &&
+        this.activeReconciliationToken === reconToken
+      );
+    };
+
+    const unresolved = this.state.unresolvedMutation;
+
+    if (!this.state.requiresReconciliation && !unresolved) {
+      this.isReconcilingSync = false;
+      this.activeReconciliationToken = 0;
+      return { status: 'reconciled', message: 'No reconciliation required.' };
+    }
+
+    const targetSourceRevision = unresolved?.sourceRevision ?? this.state.sourceRevision ?? 0;
+    const knownCorrelatedRunId = unresolved?.correlatedRunId ?? null;
+
+    this.setState({ isReconciling: true, actionError: null });
+
+    try {
+      // 1. Fetch latest run and authoritative context
+      const [runResult, contextResult] = await Promise.allSettled([
+        api.getResult(pid, { signal }),
+        api.getContext(pid, { signal }),
+      ]);
+
+      if (!isOwned()) {
+        return { status: 'obsolete' };
+      }
+
+      // Check for transport failures during reconciliation
+      if (contextResult.status === 'rejected') {
+        const parsed = parseEliaError(contextResult.reason, 'Reconciliation query failed.');
+        this.setState({
+          isReconciling: false,
+          actionError: `Reconciliation check failed: ${parsed.message} Unresolved mutation remains protected.`,
+        });
+        return { status: 'unresolved', message: parsed.message };
+      }
+
+      const ctxResponse = contextResult.value;
+      if (!ctxResponse || typeof ctxResponse !== 'object' || !('master_json' in ctxResponse)) {
+        const msg = 'Malformed context response during reconciliation.';
+        this.setState({ isReconciling: false, actionError: msg });
+        return { status: 'unresolved', message: msg };
+      }
+
+      const doc = ctxResponse.master_json;
+      if (!doc || typeof doc !== 'object' || Array.isArray(doc)) {
+        const msg = 'Malformed Master JSON during reconciliation.';
+        this.setState({ isReconciling: false, actionError: msg });
+        return { status: 'unresolved', message: msg };
+      }
+
+      const currentRev = ctxResponse.revision !== undefined && ctxResponse.revision !== null
+        ? ctxResponse.revision
+        : (typeof doc.revision === 'number' ? doc.revision : null);
+
+      const eliaProc = (doc.processing as any)?.elia_engine;
+      const latestRun = runResult.status === 'fulfilled' ? runResult.value : null;
+
+      // Extract backend evidence
+      const procSourceRevision = eliaProc && typeof eliaProc.source_revision === 'number' ? eliaProc.source_revision : null;
+      const procStatus = eliaProc && typeof eliaProc.status === 'string' ? eliaProc.status : null;
+      const procRunId = eliaProc && typeof eliaProc.run_id === 'string' ? eliaProc.run_id : null;
+
+      // --- CORRELATION EVALUATION (Fix 2) ---
+      // We must correlate evidence to the unresolved mutation (targetSourceRevision).
+      // Problem: Matching procRunId === latestRun.run_id alone does NOT correlate to the unresolved mutation.
+
+      // 1. Check for contradictory revision evidence
+      if (procSourceRevision !== null && knownCorrelatedRunId !== null && procRunId === knownCorrelatedRunId && procSourceRevision !== targetSourceRevision) {
+        const msg = 'Contradictory evidence: captured run ID matches processing metadata but source revision differs.';
+        this.setState({ isReconciling: false, actionError: msg });
+        return { status: 'unresolved', message: msg };
+      }
+
+      // 2. Unrelated newer request
+      // If procSourceRevision > targetSourceRevision, the backend has already processed or is processing a newer request.
+      // This newer run cannot be accepted as completion of our uncertain request.
+      if (procSourceRevision !== null && procSourceRevision > targetSourceRevision) {
+        const msg = `Reconciliation unresolved: Backend metadata (rev ${procSourceRevision}) belongs to a newer request than the uncertain mutation (rev ${targetSourceRevision}). Saving/export remains blocked.`;
+        if (unresolved) {
+          this.setState({
+            unresolvedMutation: { ...unresolved, status: 'unresolved', reconciliationError: msg },
+            requiresReconciliation: true,
+            isReconciling: false,
+            actionError: msg,
+          });
+        } else {
+          this.setState({ requiresReconciliation: true, isReconciling: false, actionError: msg });
+        }
+        return { status: 'unresolved', message: msg };
+      }
+
+      // 3. Unrelated older request
+      // If procSourceRevision < targetSourceRevision, or currentRev <= targetSourceRevision with no matching run:
+      if (
+        (procSourceRevision !== null && procSourceRevision < targetSourceRevision) ||
+        (currentRev !== null && currentRev <= targetSourceRevision && procSourceRevision === null && knownCorrelatedRunId === null)
+      ) {
+        const msg = 'Reconciliation pending: latest backend run belongs to an earlier project revision. The uncertain mutation has not yet registered.';
+        if (unresolved) {
+          this.setState({
+            unresolvedMutation: { ...unresolved, status: 'unresolved', reconciliationError: msg },
+            requiresReconciliation: true,
+            isReconciling: false,
+            actionError: msg,
+          });
+        } else {
+          this.setState({ requiresReconciliation: true, isReconciling: false, actionError: msg });
+        }
+        return { status: 'unresolved', message: msg };
+      }
+
+      // 4. Determine correlation to uncertain mutation
+      let correlatedRunId: string | null = null;
+      if (procSourceRevision === targetSourceRevision && procRunId) {
+        correlatedRunId = procRunId;
+      } else if (knownCorrelatedRunId !== null) {
+        if (latestRun?.run_id === knownCorrelatedRunId || procRunId === knownCorrelatedRunId) {
+          correlatedRunId = knownCorrelatedRunId;
+        }
+      }
+
+      // If no correlation can be proven (e.g. procSourceRevision is null and knownCorrelatedRunId is null,
+      // even if procRunId === latestRun.run_id):
+      if (!correlatedRunId) {
+        const msg = 'API limitation: Backend did not return verifiable correlation evidence matching the uncertain request revision. Unresolved guard remains active.';
+        this.setState({ isReconciling: false, requiresReconciliation: true, actionError: msg });
+        return { status: 'unresolved', message: msg };
+      }
+
+      // 5. Read terminal status ONLY from evidence belonging to the correlated run
+      let statusFromProc: string | null = null;
+      let outcomeFromProc: string | null = null;
+      let statusFromLatestRun: string | null = null;
+      let outputFromLatestRun: any = null;
+
+      if (procRunId === correlatedRunId) {
+        statusFromProc = procStatus;
+        outcomeFromProc = eliaProc && typeof eliaProc.outcome === 'string' ? eliaProc.outcome : null;
+      }
+      if (latestRun?.run_id === correlatedRunId) {
+        statusFromLatestRun = latestRun.status;
+        outputFromLatestRun = latestRun.output;
+      }
+
+      const classification = classifyCorrelatedRunStatus(
+        statusFromProc,
+        outcomeFromProc,
+        statusFromLatestRun,
+        outputFromLatestRun
+      );
+
+      if (classification.isContradictory) {
+        const msg = classification.contradictionReason || `Contradictory status evidence for run ${correlatedRunId}. Guard remains active.`;
+        this.setState({ isReconciling: false, requiresReconciliation: true, actionError: msg });
+        return { status: 'unresolved', message: msg };
+      }
+
+      // 6. Handle processing state
+      if (classification.isProcessing) {
+        const updatedUnresolved: EliaUnresolvedMutation = {
+          ...(unresolved || {
+            projectId: pid,
+            sourceRevision: targetSourceRevision,
+            submittedFingerprint: this.state.lastSubmittedFingerprint || '',
+            submittedGenerationMode: this.state.formState.generationMode,
+            snapshotAtSubmit: null,
+            submittedAt: new Date().toISOString(),
+          }),
+          status: 'processing',
+          correlatedRunId,
+          reconciliationError: null,
+        };
+        this.setState({
+          unresolvedMutation: updatedUnresolved,
+          requiresReconciliation: true,
+          isReconciling: false,
+          actionError: 'Mutation is currently processing on the backend. Please check status again shortly.',
+        });
+        return { status: 'processing', message: 'Mutation is currently processing.' };
+      }
+
+      const terminalOutcome = classification.terminalOutcome;
+      if (!terminalOutcome) {
+        const msg = `Unable to determine terminal outcome for correlated run ${correlatedRunId}. Guard remains active.`;
+        this.setState({ isReconciling: false, requiresReconciliation: true, actionError: msg });
+        return { status: 'unresolved', message: msg };
+      }
+
+      // Store latestRun if it belongs to correlated run
+      if (latestRun && latestRun.run_id === correlatedRunId) {
+        this.setState({ latestRun, latestRunError: null });
+      }
+
+      // 8. Owned Authoritative Context Refresh (Fix 3)
+      const ownedEpoch = ++this.mutationEpoch;
+      this.activeMutationEpoch = ownedEpoch;
+
+      let refreshResult: { status: 'success' | 'failed' | 'obsolete'; revision?: number | null; master?: any; error?: string };
+      try {
+        refreshResult = await this.loadAuthoritativeContext(api, signal, ownedEpoch);
+      } finally {
+        if (this.activeMutationEpoch === ownedEpoch && isOwned()) {
+          this.activeMutationEpoch = null;
+        }
+      }
+
+      if (!isOwned()) {
+        return { status: 'obsolete' };
+      }
+
+      if (refreshResult.status !== 'success') {
+        // Authoritative refresh failed (e.g. transport error or malformed exterior in Master JSON):
+        // Retain the unresolved guard!
+        this.setState({
+          isReconciling: false,
+          requiresReconciliation: true,
+          contextFreshness: 'stale',
+          actionError: 'Correlated terminal run verified, but authoritative context refresh failed. Save and export remain blocked until context refresh succeeds.',
+        });
+        return { status: 'failed', message: 'Context refresh failed after terminal run' };
+      }
+
+      // 9. Successfully refreshed authoritative context
+      // Handle terminal failure vs infeasible vs completed:
+      if (terminalOutcome === 'failed') {
+        this.setState({
+          unresolvedMutation: null,
+          requiresReconciliation: false,
+          isReconciling: false,
+          contextFreshness: 'current',
+          actionError: 'Backend run failed: The uncertain exterior generation failed on the server. Project context refreshed; you may regenerate.',
+        });
+        return { status: 'reconciled', message: 'Reconciled: backend run failed.' };
+      }
+
+      if (terminalOutcome === 'infeasible') {
+        // Keep candidate state if output was returned, but DO NOT promote to accepted design!
+        // The authoritative refresh above already loaded the still-valid accepted design (or null).
+        if (outputFromLatestRun && typeof outputFromLatestRun === 'object') {
+          const candValidation = validateExteriorLandscape(outputFromLatestRun);
+          if (candValidation.valid) {
+            this.setState({
+              candidate: {
+                projectId: pid,
+                runId: correlatedRunId,
+                sourceRevision: targetSourceRevision,
+                sourceSnapshot: doc,
+                submittedFingerprint: unresolved?.submittedFingerprint || '',
+                generationMode: unresolved?.submittedGenerationMode || this.state.formState.generationMode,
+                outcome: 'infeasible',
+                kind: 'persisted_run',
+                landscape: candValidation.value,
+                timestamp: new Date().toISOString(),
+              },
+              activeView: this.state.acceptedLandscape ? this.state.activeView : 'candidate',
+            });
+          }
+        }
+
+        const violations = outputFromLatestRun?.validation_summary?.violations?.join('; ') || 'Site boundary constraints could not be satisfied.';
+        this.setState({
+          unresolvedMutation: null,
+          requiresReconciliation: false,
+          isReconciling: false,
+          contextFreshness: 'current',
+          actionError: `Infeasible Run: ${violations} (Previously accepted design preserved).`,
+        });
+        return { status: 'reconciled', message: 'Reconciled: terminal infeasible run.' };
+      }
+
+      // Terminal status is 'completed' (valid)
+      this.setState({
+        unresolvedMutation: null,
+        requiresReconciliation: false,
+        isReconciling: false,
+        contextFreshness: 'current',
+        actionError: null,
+      });
+
+      return { status: 'reconciled', message: 'Reconciliation completed successfully.' };
+    } catch (err: any) {
+      if (!isOwned()) {
+        return { status: 'obsolete' };
+      }
+
+      const parsed = parseEliaError(err, 'Reconciliation failed.');
+      this.setState({
+        isReconciling: false,
+        requiresReconciliation: true,
+        actionError: `Reconciliation error: ${parsed.message}. Guard remains enabled.`,
+      });
+      return { status: 'unresolved', message: parsed.message };
+    } finally {
+      if (this.activeReconciliationToken === reconToken) {
+        this.isReconcilingSync = false;
+        this.activeReconciliationToken = 0;
+      }
+      if (isOwned()) {
+        this.setState({ isReconciling: false });
+      }
+    }
+  }
+
+  public canGenerateAndSave(): boolean {
+    return (
+      this.state.isMounted &&
+      this.state.isActive &&
+      !this.state.isGenerating &&
+      !this.state.isPreviewing &&
+      !this.state.isValidating &&
+      !this.state.requiresReconciliation &&
+      this.state.unresolvedMutation === null &&
+      this.activeMutationEpoch === null &&
+      !this.state.isLoadingContext &&
+      this.state.sourceRevision !== null &&
+      this.state.contextFreshness === 'current'
+    );
+  }
+
+  public canExportMasterJson(): boolean {
+    return (
+      this.state.authoritativeMaster !== null &&
+      this.state.contextFreshness === 'current' &&
+      !this.state.requiresReconciliation &&
+      this.state.unresolvedMutation === null &&
+      this.activeMutationEpoch === null &&
+      !this.state.isGenerating
+    );
   }
 
   public async searchLocations(

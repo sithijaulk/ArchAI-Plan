@@ -284,3 +284,15 @@ export interface ELIAResultResponse {
   completed_at?: string | null;
 }
 
+export interface EliaUnresolvedMutation {
+  projectId: string;
+  sourceRevision: number;
+  submittedFingerprint: string;
+  submittedGenerationMode: 'baseline' | 'trained_model';
+  snapshotAtSubmit: Record<string, unknown> | null;
+  submittedAt: string;
+  status: 'unresolved' | 'processing' | 'correlated_terminal';
+  correlatedRunId?: string;
+  reconciliationError?: string | null;
+}
+

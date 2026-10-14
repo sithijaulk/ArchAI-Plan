@@ -144,6 +144,47 @@ export default function EliaEnginePage() {
     >
       <div className="p-4 sm:p-6 lg:p-8 space-y-8">
         {/* Top Operational Status Banners */}
+        {state.requiresReconciliation && (
+          <div className="p-4 rounded-xl border border-rose-500/40 bg-rose-950/20 text-rose-200 text-sm flex items-start justify-between gap-3 shadow-sm">
+            <div className="flex items-start gap-2.5">
+              <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+              <div>
+                <div className="font-semibold text-rose-300">
+                  {state.unresolvedMutation?.status === 'processing'
+                    ? 'Mutation Still Processing on Server'
+                    : 'Reconciliation Required'}
+                </div>
+                <p className="mt-0.5 leading-relaxed text-xs">
+                  {state.unresolvedMutation?.status === 'processing'
+                    ? 'The previous exterior layout mutation is still processing on the server. Generate & Save remains blocked until processing completes.'
+                    : state.actionError || 'An uncertain network or transport failure occurred during the previous save request. Generate & Save and authoritative export remain blocked until reconciliation confirms backend state.'}
+                </p>
+                {state.unresolvedMutation && (
+                  <div className="mt-1 text-[11px] font-mono text-rose-300/80">
+                    Source rev: {state.unresolvedMutation.sourceRevision} · Mode: {state.unresolvedMutation.submittedGenerationMode} · Status: {state.unresolvedMutation.status}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-rose-500/40 text-rose-200 hover:bg-rose-900/30 text-xs"
+                onClick={() => controller.reconcileMutation(eliaApi)}
+                disabled={state.isReconciling}
+              >
+                {state.isReconciling ? (
+                  <LoaderCircle className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                )}
+                Check Status & Reconcile
+              </Button>
+            </div>
+          </div>
+        )}
+
         {state.conflictError && (
           <div className="p-4 rounded-xl border border-amber-500/40 bg-amber-950/20 text-amber-200 text-sm flex items-start justify-between gap-3 shadow-sm">
             <div className="flex items-start gap-2.5">
@@ -862,18 +903,10 @@ export default function EliaEnginePage() {
                     type="button"
                     className="w-full electric-glow h-10 text-sm font-semibold"
                     onClick={() => controller.generateAndSave(eliaApi, { setOutput, setComponentStatus })}
-                    disabled={
-                      state.isGenerating ||
-                      state.isPreviewing ||
-                      state.isValidating ||
-                      state.requiresReconciliation ||
-                      state.sourceRevision === null ||
-                      state.sourceRevision === undefined ||
-                      state.contextFreshness !== 'current'
-                    }
+                    disabled={!controller.canGenerateAndSave()}
                     title={
                       state.requiresReconciliation
-                        ? 'Project state must be reconciled by refreshing context before saving'
+                        ? 'Project state must be reconciled before saving'
                         : state.sourceRevision === null || state.sourceRevision === undefined
                         ? 'Authoritative project revision required before saving'
                         : state.contextFreshness !== 'current'
@@ -891,7 +924,7 @@ export default function EliaEnginePage() {
                   </Button>
                   {state.requiresReconciliation && (
                     <p className="text-[10px] text-rose-400 text-center mt-1">
-                      Project state must be reconciled by refreshing context before retrying save.
+                      Project state must be reconciled before retrying save. Click &quot;Check Status &amp; Reconcile&quot; above.
                     </p>
                   )}
                   {!state.requiresReconciliation && (state.sourceRevision === null || state.sourceRevision === undefined || state.contextFreshness !== 'current') && (
@@ -937,6 +970,7 @@ export default function EliaEnginePage() {
               candidateKind={state.candidate?.kind}
               candidateStatus={state.candidate?.outcome === 'infeasible' ? 'infeasible' : 'preview'}
               contextFreshness={state.contextFreshness}
+              requiresReconciliation={state.requiresReconciliation}
               isFormDirtyAgainstCandidate={isFormDirtyAgainstCandidate}
               activeView={state.activeView}
               onToggleView={(view) => controller.toggleActiveView(view)}

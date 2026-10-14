@@ -90,6 +90,7 @@ export interface EliaOutputWrapperProps {
   activeView?: 'candidate' | 'accepted';
   onToggleView?: (view: 'candidate' | 'accepted') => void;
   validationSummary?: ExteriorValidation | null;
+  requiresReconciliation?: boolean;
 }
 
 export function EliaOutputWrapper({
@@ -115,6 +116,7 @@ export function EliaOutputWrapper({
   activeView = 'candidate',
   onToggleView,
   validationSummary,
+  requiresReconciliation = false,
 }: EliaOutputWrapperProps) {
   const [jsonViewTab, setJsonViewTab] = useState<'landscape' | 'master'>('landscape');
   const [activeTab, setActiveTab] = useState<'2d' | '3d' | 'json'>('2d');
@@ -153,9 +155,9 @@ export function EliaOutputWrapper({
     ? (hasAccepted ? 'accepted' : 'empty')
     : (candidateStatus === 'infeasible' ? 'infeasible' : candidateKind);
 
-  // Download handler for authoritative Master JSON (blocked if context is not confirmed current)
+  // Download handler for authoritative Master JSON (blocked if context is not confirmed current or reconciliation pending)
   const handleDownloadMasterJson = () => {
-    if (!masterJson || contextFreshness !== 'current') return;
+    if (!masterJson || contextFreshness !== 'current' || requiresReconciliation) return;
     const blob = new Blob([JSON.stringify(masterJson, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -258,8 +260,14 @@ export function EliaOutputWrapper({
             variant="outline"
             size="sm"
             onClick={handleDownloadMasterJson}
-            disabled={!masterJson || contextFreshness !== 'current'}
-            title={contextFreshness !== 'current' ? 'Master JSON export requires confirmed current context' : 'Download full project Master JSON with exterior landscape layer'}
+            disabled={!masterJson || contextFreshness !== 'current' || requiresReconciliation}
+            title={
+              requiresReconciliation
+                ? 'Master JSON export blocked: project state must be reconciled first'
+                : contextFreshness !== 'current'
+                ? 'Master JSON export requires confirmed current context'
+                : 'Download full project Master JSON with exterior landscape layer'
+            }
           >
             <FileJson className="w-4 h-4 mr-2 text-primary" /> Master JSON
           </Button>
