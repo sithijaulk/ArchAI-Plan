@@ -19,8 +19,8 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-16 items-center justify-between">
+    <header className="sticky top-0 z-50 w-full px-3 pt-3">
+      <div className="container flex h-16 items-center justify-between rounded-2xl border border-white/10 bg-background/65 px-4 shadow-2xl shadow-black/20 backdrop-blur-xl">
         <div className="flex gap-6 md:gap-10">
           <Link href="/" className="flex items-center space-x-2">
             <span className="inline-block font-bold text-xl tracking-tight text-white">
@@ -43,11 +43,6 @@ export default function Navbar() {
           </nav>
         </div>
         <div className="hidden md:flex items-center space-x-4">
-          <Link href="/admin/login">
-            <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-white">
-              Admin Login
-            </Button>
-          </Link>
           <Link href="/start">
             <Button size="sm" className="electric-glow">
               Start Project
@@ -82,9 +77,6 @@ export default function Navbar() {
             <div className="pt-4 flex flex-col gap-2">
               <Link href="/start" onClick={() => setMobileMenuOpen(false)}>
                 <Button className="w-full electric-glow">Start Project</Button>
-              </Link>
-              <Link href="/admin/login" onClick={() => setMobileMenuOpen(false)}>
-                <Button variant="outline" className="w-full">Admin Login</Button>
               </Link>
             </div>
           </nav>
