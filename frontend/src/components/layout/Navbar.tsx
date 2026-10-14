@@ -19,8 +19,8 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-16 items-center justify-between">
+    <header className="sticky top-0 z-50 w-full px-3 pt-3">
+      <div className="container flex h-16 items-center justify-between rounded-2xl border border-white/10 bg-background/65 px-4 shadow-2xl shadow-black/20 backdrop-blur-xl">
         <div className="flex gap-6 md:gap-10">
           <Link href="/" className="flex items-center space-x-2">
             <span className="inline-block font-bold text-xl tracking-tight text-white">

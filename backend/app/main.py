@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .database import Base, engine
-from .routers import auth, gallery, admin_gallery, contact, projects, admin, settings as settings_router, elia
+from .routers import auth, gallery, admin_gallery, contact, projects, admin, about, settings as settings_router, elia
 
 # Configure logging
 logging.basicConfig(
@@ -22,6 +22,8 @@ async def lifespan(app: FastAPI):
     # Startup: ensure upload directories exist
     logger.info(f"Starting {settings.app_name} backend...")
     os.makedirs(os.path.join(settings.upload_dir, "gallery"), exist_ok=True)
+    os.makedirs(os.path.join(settings.upload_dir, "research"), exist_ok=True)
+    os.makedirs(os.path.join(settings.upload_dir, "team"), exist_ok=True)
     logger.info("Upload directories initialized.")
     yield
     logger.info("Shutting down.")
@@ -58,6 +60,8 @@ app.include_router(projects.router, prefix="/api")
 app.include_router(elia.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(settings_router.router, prefix="/api")
+app.include_router(about.router, prefix="/api")
+app.include_router(about.admin_router, prefix="/api")
 
 
 @app.get("/api/health")

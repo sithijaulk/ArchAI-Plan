@@ -45,7 +45,7 @@ export default function Footer() {
       </div>
       
       <div className="container mt-12 pt-8 border-t border-border/40 text-center text-sm text-muted-foreground">
-        <p>&copy; {new Date().getFullYear()} ArchAI-Plan Research Platform. All rights reserved.</p>
+        <p>&copy; {new Date().getFullYear()} ArchAI-Plan Research Platform. Developed by ArchAI Research Team.</p>
       </div>
     </footer>
   )
