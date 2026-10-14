@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .database import Base, engine
-from .routers import auth, gallery, admin_gallery, contact, projects, admin, settings as settings_router
+from .routers import auth, gallery, admin_gallery, contact, projects, admin, settings as settings_router, gab_gen
 
 # Configure logging
 logging.basicConfig(
@@ -57,6 +57,7 @@ app.include_router(contact.admin_router, prefix="/api")
 app.include_router(projects.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(settings_router.router, prefix="/api")
+app.include_router(gab_gen.router, prefix="/api")
 
 
 @app.get("/api/health")
