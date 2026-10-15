@@ -35,9 +35,18 @@ interface OutputPreviewProps {
   component: string;
   data: any;
   masterJson?: any;
+  hide3D?: boolean;
+  hideJson?: boolean;
 }
 
-export function OutputPreview({ projectName, component, data, masterJson }: OutputPreviewProps) {
+export function OutputPreview({ 
+  projectName, 
+  component, 
+  data, 
+  masterJson,
+  hide3D = component.includes('vsai'),
+  hideJson = component.includes('vsai')
+}: OutputPreviewProps) {
   const storeMasterJson = useProjectStore((s) => s.masterJson)
   
   const isElia = component === 'elia-engine'
@@ -47,6 +56,8 @@ export function OutputPreview({ projectName, component, data, masterJson }: Outp
   const effectiveMaster = data?.master_json || masterJson || storeMasterJson
   const floorPlan = data?.corrected_geometry || effectiveMaster?.floor_plan
   const landInfo = effectiveMaster?.land_info
+
+  const showOnly2D = hide3D && hideJson
 
   return (
     <div className="space-y-4">
@@ -60,25 +71,15 @@ export function OutputPreview({ projectName, component, data, masterJson }: Outp
         <div className="flex gap-2">
           <DownloadImageButton filename={`${projectName}-${component}-output.png`} targetId="output-preview" disabled={!data && !floorPlan && !landscape} />
           <DownloadPdfButton filename={`${projectName}-${component}-output.pdf`} targetId="output-preview" disabled={!data && !floorPlan && !landscape} />
-          <DownloadJsonButton filename={`${projectName}-${component}-output.json`} data={data || effectiveMaster} />
+          {!hideJson && (
+            <DownloadJsonButton filename={`${projectName}-${component}-output.json`} data={data || effectiveMaster} />
+          )}
         </div>
       </div>
 
-      <Tabs defaultValue="2d" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-4">
-          <TabsTrigger value="2d" className="flex items-center gap-2">
-            <Layers className="w-4 h-4" /> 2D Preview
-          </TabsTrigger>
-          <TabsTrigger value="3d" className="flex items-center gap-2">
-            <Box className="w-4 h-4" /> 3D Preview
-          </TabsTrigger>
-          <TabsTrigger value="json" className="flex items-center gap-2">
-            <FileJson className="w-4 h-4" /> Output JSON
-          </TabsTrigger>
-        </TabsList>
-        
-        {/* 2D Plan view */}
-        <TabsContent value="2d" id="output-preview" className="mt-0">
+      {showOnly2D ? (
+        /* Direct 2D Plan View when 3D and JSON tabs are removed */
+        <div id="output-preview" className="w-full">
           {landscape ? (
             <EliaLandscape2D landscape={landscape} />
           ) : floorPlan ? (
@@ -92,26 +93,65 @@ export function OutputPreview({ projectName, component, data, masterJson }: Outp
               <p>{data ? 'No 2D geometry is available yet.' : 'No component output is available yet.'}</p>
             </div>
           )}
-        </TabsContent>
+        </div>
+      ) : (
+        <Tabs defaultValue="2d" className="w-full">
+          <TabsList className={`grid w-full ${!hide3D && !hideJson ? 'grid-cols-3' : (!hide3D || !hideJson ? 'grid-cols-2' : 'grid-cols-1')} mb-4`}>
+            <TabsTrigger value="2d" className="flex items-center gap-2">
+              <Layers className="w-4 h-4" /> 2D Preview
+            </TabsTrigger>
+            {!hide3D && (
+              <TabsTrigger value="3d" className="flex items-center gap-2">
+                <Box className="w-4 h-4" /> 3D Preview
+              </TabsTrigger>
+            )}
+            {!hideJson && (
+              <TabsTrigger value="json" className="flex items-center gap-2">
+                <FileJson className="w-4 h-4" /> Output JSON
+              </TabsTrigger>
+            )}
+          </TabsList>
+          
+          {/* 2D Plan view */}
+          <TabsContent value="2d" id="output-preview" className="mt-0">
+            {landscape ? (
+              <EliaLandscape2D landscape={landscape} />
+            ) : floorPlan ? (
+              <FloorPlan2DViewer 
+                floorPlan={floorPlan} 
+                landInfo={landInfo} 
+                rectificationResult={data} 
+              />
+            ) : (
+              <div className="bg-card/50 border border-border p-4 rounded-xl min-h-[400px] flex items-center justify-center text-muted-foreground text-center">
+                <p>{data ? 'No 2D geometry is available yet.' : 'No component output is available yet.'}</p>
+              </div>
+            )}
+          </TabsContent>
 
-        {/* 3D Scene */}
-        <TabsContent value="3d" className="bg-card/50 border border-border rounded-xl overflow-hidden min-h-[480px]">
-          {isElia ? (
-            <ExteriorSceneViewer landscape={landscape} />
-          ) : (
-            <div className="min-h-[480px] flex items-center justify-center text-muted-foreground text-center p-4">
-              <p>{data ? 'No 3D geometry is available yet.' : 'No component output is available yet.'}</p>
-            </div>
+          {/* 3D Scene */}
+          {!hide3D && (
+            <TabsContent value="3d" className="bg-card/50 border border-border rounded-xl overflow-hidden min-h-[480px]">
+              {isElia ? (
+                <ExteriorSceneViewer landscape={landscape} />
+              ) : (
+                <div className="min-h-[480px] flex items-center justify-center text-muted-foreground text-center p-4">
+                  <p>{data ? 'No 3D geometry is available yet.' : 'No component output is available yet.'}</p>
+                </div>
+              )}
+            </TabsContent>
           )}
-        </TabsContent>
-        
-        {/* Master JSON Output Contract */}
-        <TabsContent value="json" className="bg-card/50 border border-border p-4 rounded-xl min-h-[420px] max-h-[560px] overflow-auto mt-0">
-          <pre className="text-xs text-primary-foreground/90 font-mono whitespace-pre-wrap break-all">
-            {data ? JSON.stringify(data, null, 2) : (effectiveMaster ? JSON.stringify(effectiveMaster, null, 2) : 'No component output is available yet.')}
-          </pre>
-        </TabsContent>
-      </Tabs>
+          
+          {/* Master JSON Output Contract */}
+          {!hideJson && (
+            <TabsContent value="json" className="bg-card/50 border border-border p-4 rounded-xl min-h-[420px] max-h-[560px] overflow-auto mt-0">
+              <pre className="text-xs text-primary-foreground/90 font-mono whitespace-pre-wrap break-all">
+                {data ? JSON.stringify(data, null, 2) : (effectiveMaster ? JSON.stringify(effectiveMaster, null, 2) : 'No component output is available yet.')}
+              </pre>
+            </TabsContent>
+          )}
+        </Tabs>
+      )}
     </div>
   )
 }

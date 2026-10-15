@@ -492,11 +492,11 @@ export default function VsaiRectifierPage() {
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
                         <span className="font-semibold text-foreground uppercase tracking-wider text-[10px]">
                           {activeVastuTab === 'defects' 
-                            ? `Defects & Doshas (වාස්තු දෝෂ - ${vastuAnalysis.defects.length})` 
-                            : `Auspicious Alignments (සුබ පිහිටීම් - ${vastuAnalysis.good_aspects.length})`
+                            ? `Defects & Non-Compliant Areas (${vastuAnalysis.defects.length})` 
+                            : `Auspicious Alignments (${vastuAnalysis.good_aspects.length})`
                           }
                         </span>
-                        <span className="text-[10px] text-muted-foreground">Click item to inspect in plan</span>
+                        <span className="text-[10px] text-muted-foreground">Click item to inspect in blueprint</span>
                       </div>
 
                       <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
@@ -661,6 +661,8 @@ export default function VsaiRectifierPage() {
                 component="vsai-rectifier" 
                 data={outputs['vsai_rectifier']} 
                 masterJson={masterJson}
+                hide3D={true}
+                hideJson={true}
               />
             </div>
           </div>

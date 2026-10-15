@@ -94,7 +94,7 @@ export function VastuInspectionModal({
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Vastu Shastra Spatial Compliance Inspection (වාස්තු නිරීක්ෂණය)
+                Vastu Shastra Spatial Compliance Inspection
               </p>
             </div>
           </div>
@@ -156,7 +156,7 @@ export function VastuInspectionModal({
 
                   <div>
                     <span className="text-[11px] uppercase tracking-wider text-muted-foreground flex items-center gap-1 mb-1 font-semibold">
-                      <Compass className="w-3 h-3 text-primary" /> Sector (දිශාව)
+                      <Compass className="w-3 h-3 text-primary" /> Directional Sector
                     </span>
                     <span className="text-sm font-bold text-primary">
                       {item.sector_display || item.sector || 'Center (Brahmasthan)'}
@@ -182,7 +182,7 @@ export function VastuInspectionModal({
               {/* Description Card */}
               <div className="p-4 rounded-xl bg-card border border-border/60 space-y-2">
                 <h4 className="text-xs uppercase font-semibold tracking-wider text-muted-foreground flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-primary" /> Vastu Evaluation (විග්‍රහය)
+                  <ShieldCheck className="w-3.5 h-3.5 text-primary" /> Vastu Evaluation Analysis
                 </h4>
                 <p className="text-sm text-foreground/90 leading-relaxed">
                   {item.description}
@@ -193,7 +193,7 @@ export function VastuInspectionModal({
               {isDefect && defect?.remedy && (
                 <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200/95 space-y-2">
                   <h4 className="text-xs uppercase font-bold tracking-wider text-amber-300 flex items-center gap-1.5">
-                    <Lightbulb className="w-4 h-4 text-amber-400" /> Recommended Remedy (වාස්තු පිළියම)
+                    <Lightbulb className="w-4 h-4 text-amber-400" /> Recommended Vastu Remedy
                   </h4>
                   <p className="text-xs sm:text-sm text-amber-100/90 leading-relaxed font-sans">
                     {defect.remedy}
@@ -205,7 +205,7 @@ export function VastuInspectionModal({
               {!isDefect && (
                 <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-200 space-y-2">
                   <h4 className="text-xs uppercase font-bold tracking-wider text-emerald-300 flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-emerald-400" /> Harmonious Energy (සුබ ඵල)
+                    <Sparkles className="w-4 h-4 text-emerald-400" /> Harmonious Energy & Benefits
                   </h4>
                   <p className="text-xs sm:text-sm text-emerald-100/90 leading-relaxed">
                     This spatial placement strictly honors the traditional Vedic orientation principles, optimizing energy flow, ventilation, and family prosperity.
