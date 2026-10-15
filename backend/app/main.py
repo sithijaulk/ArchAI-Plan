@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .database import Base, engine
-from .routers import auth, gallery, admin_gallery, contact, projects, admin, about, settings as settings_router
+from .routers import auth, gallery, admin_gallery, contact, projects, admin, about, settings as settings_router, elia, gab_gen
 
 # Configure logging
 logging.basicConfig(
@@ -57,10 +57,12 @@ app.include_router(admin_gallery.router, prefix="/api")
 app.include_router(contact.router, prefix="/api")
 app.include_router(contact.admin_router, prefix="/api")
 app.include_router(projects.router, prefix="/api")
+app.include_router(elia.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(settings_router.router, prefix="/api")
 app.include_router(about.router, prefix="/api")
 app.include_router(about.admin_router, prefix="/api")
+app.include_router(gab_gen.router, prefix="/api")
 
 # Add ESAI Routers
 from .routers import esai

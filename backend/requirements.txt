@@ -14,3 +14,6 @@ pillow
 python-slugify
 shapely
 pytest
+numpy
+pvlib
+httpx
