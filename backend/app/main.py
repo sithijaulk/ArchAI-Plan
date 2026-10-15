@@ -67,6 +67,10 @@ from .routers import esai
 app.include_router(esai.project_router)
 app.include_router(esai.global_router)
 
+# Add ESAI Router
+from .routers import esai
+app.include_router(esai.router)
+
 
 @app.get("/api/health")
 def health_check():
