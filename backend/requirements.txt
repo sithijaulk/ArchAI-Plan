@@ -12,3 +12,8 @@ pwdlib[argon2]
 email-validator
 pillow
 python-slugify
+shapely
+pytest
+numpy
+pvlib
+httpx

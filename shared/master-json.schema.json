@@ -34,7 +34,20 @@
     },
     "exterior_landscape": {
       "type": "object",
-      "description": "ELIA-Engine: Exterior planning, greenery, solar vectors"
+      "description": "ELIA-Engine: Exterior planning, greenery, solar vectors",
+      "properties": {
+        "version": { "type": "string" },
+        "site_analysis": { "type": "object" },
+        "utility_safety": { "type": "object" },
+        "access": { "type": "object" },
+        "environment": { "type": "object" },
+        "vegetation_nodes": { "type": "array" },
+        "vertical_greenery": { "type": "object" },
+        "outdoor_lighting": { "type": "object" },
+        "outdoor_elements": { "type": "array" },
+        "validation_summary": { "type": "object" },
+        "metrics": { "type": "object" }
+      }
     },
     "processing": {
       "type": "object",
@@ -60,7 +73,13 @@
         "elia_engine": {
           "type": "object",
           "properties": {
-            "status": { "type": "string", "enum": ["pending", "processing", "completed", "failed", "skipped"] }
+            "status": { "type": "string", "enum": ["pending", "processing", "completed", "failed", "skipped"] },
+            "run_id": { "type": "string" },
+            "version": { "type": "string" },
+            "started_at": { "type": ["string", "null"] },
+            "completed_at": { "type": ["string", "null"] },
+            "outcome": { "type": "string", "enum": ["valid", "infeasible"] },
+            "error_code": { "type": "string" }
           }
         }
       }

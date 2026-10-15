@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, Text, JSON, ForeignKey
+from sqlalchemy import Column, String, DateTime, Text, JSON, ForeignKey, Integer
 from sqlalchemy.orm import relationship
 from ..database import Base
 
@@ -13,6 +13,7 @@ class Project(Base):
     description = Column(Text, nullable=True)
     current_component = Column(String(50), nullable=True)
     master_json = Column(JSON, default=dict)
+    revision = Column(Integer, nullable=False, default=1)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
