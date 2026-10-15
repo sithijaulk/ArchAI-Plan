@@ -2,12 +2,13 @@ import { MasterJson } from './master-json';
 
 export interface Project {
   id: string;
-  projectName: string;
+  project_name: string;
+  projectName?: string;
   description?: string;
-  current_component: string | null;
+  current_component?: string | null;
   master_json: MasterJson;
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface ProjectCreate {
@@ -20,4 +21,72 @@ export interface ProjectUpdate {
   description?: string;
   current_component?: string;
   master_json?: Partial<MasterJson>;
+}
+
+export interface VastuReadinessCheck {
+  ready: boolean;
+  reason?: string | null;
+}
+
+export interface VastuReadiness {
+  status: 'READY' | 'PARTIALLY_READY' | 'NOT_READY';
+  padavinyasa_9x9: VastuReadinessCheck;
+  brahmasthan: VastuReadinessCheck;
+  entrance_32_pada: VastuReadinessCheck;
+  directional_room_placement: VastuReadinessCheck;
+}
+
+export interface ElementCounts {
+  rooms: number;
+  structural_elements: number;
+  walls: number;
+  doors: number;
+  windows: number;
+}
+
+export interface SpatialSummary {
+  room_count: number;
+  rooms: Array<{
+    id: string;
+    name: string;
+    type: string;
+    points_count: number;
+  }>;
+  structural_elements_count: number;
+  walls_count?: number;
+  doors_count?: number;
+  windows_count?: number;
+  orientation: string;
+  road_facing: string;
+  area_sqft?: number | null;
+  boundary_points_count?: number;
+  bounding_box?: {
+    min_x: number;
+    max_x: number;
+    min_y: number;
+    max_y: number;
+    width: number;
+    height: number;
+  } | null;
+}
+
+export interface ValidationResult {
+  status: 'VALID' | 'VALID_WITH_WARNINGS' | 'INVALID' | 'INSUFFICIENT_DATA';
+  is_valid: boolean;
+  can_rectify: boolean;
+  errors: string[];
+  warnings: string[];
+  missing_fields: string[];
+  summary: string;
+  element_counts: ElementCounts;
+  vastu_readiness: VastuReadiness;
+  spatial_summary: SpatialSummary;
+}
+
+export interface UploadMasterJsonResponse {
+  project: Project;
+  file_saved_path: string;
+  filename: string;
+  spatial_summary: SpatialSummary;
+  validation?: ValidationResult;
 }

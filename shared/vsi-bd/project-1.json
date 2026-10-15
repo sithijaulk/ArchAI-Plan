@@ -1,0 +1,343 @@
+{
+  "project_id": "project-1",
+  "project_name": "Sample House",
+  "land_info": {
+    "orientation": "north"
+  },
+  "buildable_footprint": {
+    "source": "baseline"
+  },
+  "floor_plan": {
+    "rooms": [
+      {
+        "id": "living",
+        "name": "Submitted baseline",
+        "polygon": [
+          [
+            0,
+            0
+          ],
+          [
+            4,
+            0
+          ],
+          [
+            4,
+            4
+          ],
+          [
+            0,
+            4
+          ]
+        ]
+      },
+      {
+        "id": "bedroom",
+        "name": "Bedroom",
+        "polygon": [
+          [
+            4,
+            0
+          ],
+          [
+            8,
+            0
+          ],
+          [
+            8,
+            4
+          ],
+          [
+            4,
+            4
+          ]
+        ]
+      }
+    ],
+    "structural_elements": [
+      {
+        "id": "column-1",
+        "polygon": [
+          [
+            1,
+            1
+          ],
+          [
+            1.2,
+            1
+          ],
+          [
+            1.2,
+            1.2
+          ],
+          [
+            1,
+            1.2
+          ]
+        ]
+      }
+    ]
+  },
+  "structural_rectification": {
+    "status": "completed",
+    "original_geometry": {
+      "rooms": [
+        {
+          "id": "living",
+          "name": "Submitted baseline",
+          "polygon": [
+            [
+              0,
+              0
+            ],
+            [
+              4,
+              0
+            ],
+            [
+              4,
+              4
+            ],
+            [
+              0,
+              4
+            ]
+          ]
+        },
+        {
+          "id": "bedroom",
+          "name": "Bedroom",
+          "polygon": [
+            [
+              4,
+              0
+            ],
+            [
+              8,
+              0
+            ],
+            [
+              8,
+              4
+            ],
+            [
+              4,
+              4
+            ]
+          ]
+        }
+      ],
+      "structural_elements": [
+        {
+          "id": "column-1",
+          "polygon": [
+            [
+              1,
+              1
+            ],
+            [
+              1.2,
+              1
+            ],
+            [
+              1.2,
+              1.2
+            ],
+            [
+              1,
+              1.2
+            ]
+          ]
+        }
+      ]
+    },
+    "corrected_geometry": {
+      "rooms": [
+        {
+          "id": "living",
+          "name": "Submitted baseline",
+          "polygon": [
+            [
+              0,
+              0
+            ],
+            [
+              4,
+              0
+            ],
+            [
+              4,
+              4
+            ],
+            [
+              0,
+              4
+            ]
+          ]
+        },
+        {
+          "id": "bedroom",
+          "name": "Bedroom",
+          "polygon": [
+            [
+              4,
+              0
+            ],
+            [
+              8,
+              0
+            ],
+            [
+              8,
+              4
+            ],
+            [
+              4,
+              4
+            ]
+          ]
+        }
+      ],
+      "structural_elements": [
+        {
+          "id": "column-1",
+          "polygon": [
+            [
+              1,
+              1
+            ],
+            [
+              1.2,
+              1
+            ],
+            [
+              1.2,
+              1.2
+            ],
+            [
+              1,
+              1.2
+            ]
+          ]
+        }
+      ]
+    },
+    "vastu_compliance_score": null,
+    "score_status": "unavailable",
+    "rule_results": [
+      {
+        "rule_id": "vastu.padavinyasa_9x9",
+        "group": "vastu_grid",
+        "description": "9x9 Vastu Padavinyasa grid evaluation",
+        "configured": false,
+        "status": "unconfigured",
+        "weight": null,
+        "reason": "Grid origin, orientation, cell semantics, and applicable constraints are unspecified."
+      },
+      {
+        "rule_id": "vastu.brahmasthan",
+        "group": "vastu_grid",
+        "description": "Brahmasthan evaluation",
+        "configured": false,
+        "status": "unconfigured",
+        "weight": null,
+        "reason": "The applicable Brahmasthan definition and element constraints are unspecified."
+      },
+      {
+        "rule_id": "vastu.main_door_32_pada",
+        "group": "entrance",
+        "description": "32-Pada main entrance evaluation",
+        "configured": false,
+        "status": "unconfigured",
+        "weight": null,
+        "reason": "The entrance reference frame, pada boundaries, and acceptable padas are unspecified."
+      },
+      {
+        "rule_id": "structure.grid_alignment",
+        "group": "structural_alignment",
+        "description": "Structural grid-alignment evaluation",
+        "configured": false,
+        "status": "unconfigured",
+        "weight": null,
+        "reason": "The civil-engineering grid dimensions, tolerances, and structural references are unspecified."
+      },
+      {
+        "rule_id": "vastu.directional_constraints",
+        "group": "directional",
+        "description": "Directional room-use evaluation",
+        "configured": false,
+        "status": "unconfigured",
+        "weight": null,
+        "reason": "The directional requirements, orientation source, and room-use mapping are unspecified."
+      }
+    ],
+    "violations": [],
+    "corrections": [],
+    "rule_coverage": {
+      "total": 5,
+      "configured": 0,
+      "applicable": 0,
+      "evaluated": 0,
+      "passed": 0,
+      "failed": 0,
+      "unconfigured": 5,
+      "unevaluable": 0,
+      "coverage_percent": null
+    },
+    "unevaluable_rules": [],
+    "unconfigured_rules": [
+      {
+        "rule_id": "vastu.padavinyasa_9x9",
+        "reason": "Grid origin, orientation, cell semantics, and applicable constraints are unspecified."
+      },
+      {
+        "rule_id": "vastu.brahmasthan",
+        "reason": "The applicable Brahmasthan definition and element constraints are unspecified."
+      },
+      {
+        "rule_id": "vastu.main_door_32_pada",
+        "reason": "The entrance reference frame, pada boundaries, and acceptable padas are unspecified."
+      },
+      {
+        "rule_id": "structure.grid_alignment",
+        "reason": "The civil-engineering grid dimensions, tolerances, and structural references are unspecified."
+      },
+      {
+        "rule_id": "vastu.directional_constraints",
+        "reason": "The directional requirements, orientation source, and room-use mapping are unspecified."
+      }
+    ],
+    "geometry_checks": {
+      "room_polygons_valid": true,
+      "structural_element_polygons_valid": true,
+      "room_overlaps": []
+    },
+    "warnings": [
+      "No Vastu or structural rules are configured from validated project definitions.",
+      "Image segmentation and image-to-vector extraction require Stage 2 AI processing."
+    ],
+    "processed_at": "2026-10-12T20:26:55.890894+00:00"
+  },
+  "interior_layout": {
+    "furniture": [
+      "sofa"
+    ]
+  },
+  "exterior_landscape": {
+    "garden": true
+  },
+  "processing": {
+    "gab_gen": {
+      "status": "completed"
+    },
+    "vsai_rectifier": {
+      "status": "completed"
+    },
+    "esai_engine": {
+      "status": "pending"
+    },
+    "elia_engine": {
+      "status": "pending"
+    }
+  }
+}
