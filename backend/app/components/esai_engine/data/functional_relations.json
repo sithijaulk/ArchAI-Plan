@@ -1,0 +1,45 @@
+{
+  "version": "1.0",
+  "rules": [
+    {
+      "primary_category": "sofa",
+      "related_category": "coffee_table",
+      "relation_type": "facing",
+      "optimal_distance_m": 0.45,
+      "min_distance_m": 0.35,
+      "max_distance_m": 0.55
+    },
+    {
+      "primary_category": "sofa",
+      "related_category": "tv_console",
+      "relation_type": "viewing",
+      "optimal_distance_m": 2.50,
+      "min_distance_m": 1.80,
+      "max_distance_m": 4.00
+    },
+    {
+      "primary_category": "bed",
+      "related_category": "bedside_table",
+      "relation_type": "flanking",
+      "optimal_distance_m": 0.10,
+      "min_distance_m": 0.05,
+      "max_distance_m": 0.25
+    },
+    {
+      "primary_category": "desk",
+      "related_category": "office_chair",
+      "relation_type": "paired",
+      "optimal_distance_m": 0.20,
+      "min_distance_m": 0.10,
+      "max_distance_m": 0.40
+    },
+    {
+      "primary_category": "dining_table",
+      "related_category": "dining_chair",
+      "relation_type": "surrounding",
+      "optimal_distance_m": 0.15,
+      "min_distance_m": 0.05,
+      "max_distance_m": 0.30
+    }
+  ]
+}
