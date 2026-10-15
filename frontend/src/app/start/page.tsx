@@ -9,18 +9,12 @@ import { Label } from '@/components/ui/label'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card'
 import { ArrowRight, Upload, CheckCircle2, Compass, Home, Sparkles, Loader2, FileJson } from 'lucide-react'
 
+import { SpatialSummary } from '@/types/project'
+
 interface UploadResult {
   filename: string
   file_saved_path: string | null
-  spatial_summary: {
-    room_count: number
-    rooms: Array<{ id: string; name: string; type: string; points_count: number }>
-    structural_elements_count: number
-    orientation: string
-    road_facing: string
-    area_sqft?: number
-    boundary_points_count: number
-  }
+  spatial_summary: SpatialSummary
 }
 
 export default function StartProjectPage() {

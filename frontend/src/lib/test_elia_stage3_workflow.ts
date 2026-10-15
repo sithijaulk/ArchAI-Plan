@@ -2462,7 +2462,7 @@ async function runAllTests() {
       getResult: async () => ({
         run_id: 'run_corr_inf',
         status: 'completed',
-        output: candidateOutput,
+        output: candidateOutput as any,
       }),
       getContext: async () => ({
         master_json: {
@@ -2548,7 +2548,7 @@ async function runAllTests() {
           run_id: 'run_rev5_correlated',
           access: {},
           validation_summary: { valid: false, violations: ['Garage exceeds setback'] },
-        },
+        } as any,
       }),
       getContext: async () => ({
         master_json: snapshotB,
@@ -2589,7 +2589,7 @@ async function runAllTests() {
     })
 
     // Directly simulate an unresolved mutation where snapshotAtSubmit is unavailable (null)
-    controller.setState({
+    (controller as any).setState({
       requiresReconciliation: true,
       unresolvedMutation: {
         projectId: 'proj_missing_snapshot',
@@ -2625,7 +2625,7 @@ async function runAllTests() {
           run_id: 'run_nosnap',
           access: {},
           validation_summary: { valid: false, violations: ['Driveway slope excessive'] },
-        },
+        } as any,
       }),
       getContext: async () => ({
         master_json: laterDoc,
