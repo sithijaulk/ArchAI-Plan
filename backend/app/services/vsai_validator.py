@@ -461,6 +461,15 @@ def validate_master_json(
         "directional_room_placement": {"ready": directional_ready, "reason": directional_reason},
     }
 
+    # Evaluate full Vastu Shastra rules & score via extensible Vastu Engine
+    vastu_analysis = None
+    try:
+        from .vastu_engine import evaluate_vastu_shastra
+        if isinstance(data, dict):
+            vastu_analysis = evaluate_vastu_shastra(data)
+    except Exception as v_err:
+        logger.warning(f"Vastu engine execution error: {v_err}")
+
     return {
         "status": overall_status,
         "is_valid": is_valid,
@@ -472,6 +481,7 @@ def validate_master_json(
         "element_counts": element_counts,
         "vastu_readiness": vastu_readiness,
         "spatial_summary": spatial_summary,
+        "vastu_analysis": vastu_analysis,
     }
 
 

@@ -70,6 +70,66 @@ export interface SpatialSummary {
   } | null;
 }
 
+export interface VastuGoodAspect {
+  rule_id: string;
+  title: string;
+  room_id?: string | null;
+  room_name?: string;
+  sector?: string;
+  sector_display?: string;
+  polygon?: [number, number][];
+  description: string;
+  points_earned: number;
+}
+
+export interface VastuDefect {
+  rule_id: string;
+  title: string;
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'INFO';
+  room_id?: string | null;
+  room_name?: string;
+  sector?: string;
+  sector_display?: string;
+  polygon?: [number, number][];
+  description: string;
+  remedy?: string;
+  points_deducted: number;
+}
+
+export interface VastuAnalysis {
+  score: number;
+  grade: string;
+  grade_description: string;
+  good_aspects: VastuGoodAspect[];
+  defects: VastuDefect[];
+  total_rules_evaluated: number;
+  passed_rules_count: number;
+  failed_rules_count: number;
+  room_sectors?: Record<string, {
+    id: string;
+    name: string;
+    type: string;
+    sector: string;
+    sector_display: string;
+    centroid: [number, number];
+    polygon: [number, number][];
+    overlaps_brahmasthan: boolean;
+  }>;
+  brahmasthan?: {
+    status: string;
+    obstructing_rooms: string[];
+  };
+  bounding_box?: {
+    min_x: number;
+    max_x: number;
+    min_y: number;
+    max_y: number;
+    width: number;
+    height: number;
+    area_sqft: number;
+  };
+}
+
 export interface ValidationResult {
   status: 'VALID' | 'VALID_WITH_WARNINGS' | 'INVALID' | 'INSUFFICIENT_DATA';
   is_valid: boolean;
@@ -81,6 +141,7 @@ export interface ValidationResult {
   element_counts: ElementCounts;
   vastu_readiness: VastuReadiness;
   spatial_summary: SpatialSummary;
+  vastu_analysis?: VastuAnalysis;
 }
 
 export interface UploadMasterJsonResponse {
@@ -89,4 +150,5 @@ export interface UploadMasterJsonResponse {
   filename: string;
   spatial_summary: SpatialSummary;
   validation?: ValidationResult;
+  vastu_analysis?: VastuAnalysis;
 }

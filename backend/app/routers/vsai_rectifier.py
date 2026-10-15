@@ -284,3 +284,58 @@ def get_vsai_history(project_id: str, db: Session = Depends(get_db)):
             "result": result or None,
         })
     return {"project_id": project_id, "runs": items}
+
+
+@router.get(
+    "/vastu-rules",
+    summary="Get extensible Vastu Shastra rules configuration",
+)
+def get_vastu_rules():
+    from ..services.vastu_engine import load_vastu_rules
+    return {"rules": load_vastu_rules()}
+
+
+@router.post(
+    "/vastu-analysis",
+    summary="Directly evaluate Vastu Shastra score and defects on supplied JSON",
+)
+def evaluate_vastu_direct(data: dict):
+    from ..services.vastu_engine import evaluate_vastu_shastra
+    return evaluate_vastu_shastra(data)
+
+
+@router.get(
+    "/{project_id}/vastu-analysis",
+    summary="Get comprehensive Vastu compliance score, good aspects, and defects",
+)
+def get_project_vastu_analysis(project_id: str, db: Session = Depends(get_db)):
+    from ..services.vastu_engine import evaluate_vastu_shastra
+    master_json = None
+    try:
+        project = db.query(Project).filter(Project.id == project_id).first()
+        if project and isinstance(project.master_json, dict):
+            master_json = project.master_json
+    except Exception:
+        pass
+
+    if not master_json:
+        shared_root = Path(__file__).resolve().parents[3] / "shared"
+        candidates = [
+            shared_root / "vsi-bd" / f"{project_id}.json",
+            shared_root / "vsai-bd" / f"{project_id}.json",
+            Path(settings.upload_dir).resolve() / "projects" / project_id / "master_input.json",
+        ]
+        for c in candidates:
+            if c.exists():
+                try:
+                    with open(c, "r", encoding="utf-8") as f:
+                        master_json = json.load(f)
+                    break
+                except Exception:
+                    pass
+
+    if not master_json:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project Master JSON not found")
+
+    return evaluate_vastu_shastra(master_json)
+

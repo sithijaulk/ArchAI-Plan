@@ -1,7 +1,7 @@
 "use client"
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { Badge } from '@/components/ui/badge'
-import { Compass, Maximize2, Layers, CheckCircle2 } from 'lucide-react'
+import { Compass, Maximize2, Layers, CheckCircle2, Grid3X3 } from 'lucide-react'
 
 interface Room {
   id: string;
@@ -28,6 +28,10 @@ interface FloorPlan2DViewerProps {
     boundary_points?: [number, number][];
   };
   rectificationResult?: any;
+  highlightRoomId?: string | null;
+  highlightColor?: string;
+  dimOthers?: boolean;
+  showVastuGridDefault?: boolean;
 }
 
 const ROOM_COLORS: Record<string, { fill: string; stroke: string; text: string }> = {
@@ -67,8 +71,23 @@ function calculateArea(points: [number, number][]): number {
   return Math.abs(area / 2)
 }
 
-export function FloorPlan2DViewer({ floorPlan, landInfo, rectificationResult }: FloorPlan2DViewerProps) {
+export function FloorPlan2DViewer({
+  floorPlan,
+  landInfo,
+  rectificationResult,
+  highlightRoomId,
+  highlightColor = '#ef4444',
+  dimOthers = false,
+  showVastuGridDefault = false,
+}: FloorPlan2DViewerProps) {
   const [hoveredRoom, setHoveredRoom] = useState<Room | null>(null)
+  const [showVastuGrid, setShowVastuGrid] = useState<boolean>(showVastuGridDefault)
+
+  useEffect(() => {
+    if (showVastuGridDefault !== undefined) {
+      setShowVastuGrid(showVastuGridDefault)
+    }
+  }, [showVastuGridDefault])
 
   const rooms = useMemo(() => floorPlan?.rooms || [], [floorPlan])
   const columns = useMemo(() => floorPlan?.structural_elements || [], [floorPlan])
@@ -91,64 +110,81 @@ export function FloorPlan2DViewer({ floorPlan, landInfo, rectificationResult }: 
     const maxX = Math.max(...xs)
     const minY = Math.min(...ys)
     const maxY = Math.max(...ys)
-    const width = Math.max(maxX - minX, 10)
-    const height = Math.max(maxY - minY, 10)
 
-    const padding = Math.max(width, height) * 0.12
+    const paddingX = Math.max((maxX - minX) * 0.1, 4)
+    const paddingY = Math.max((maxY - minY) * 0.1, 4)
+
     return {
-      minX: minX - padding,
-      minY: minY - padding,
-      maxX: maxX + padding,
-      maxY: maxY + padding,
-      width: width + padding * 2,
-      height: height + padding * 2,
+      minX: minX - paddingX,
+      minY: minY - paddingY,
+      maxX: maxX + paddingX,
+      maxY: maxY + paddingY,
+      width: Math.max((maxX - minX) + paddingX * 2, 20),
+      height: Math.max((maxY - minY) + paddingY * 2, 20),
+      rawMinX: minX,
+      rawMaxX: maxX,
+      rawMinY: minY,
+      rawMaxY: maxY,
+      rawWidth: maxX - minX,
+      rawHeight: maxY - minY,
     }
   }, [rooms, columns, boundary])
 
-  if (rooms.length === 0) {
-    return (
-      <div className="min-h-[400px] flex flex-col items-center justify-center p-8 text-center text-muted-foreground border border-dashed border-border/60 rounded-xl bg-card/20">
-        <Layers className="w-12 h-12 mb-3 text-muted-foreground/40" />
-        <h4 className="text-base font-semibold text-foreground">No 2D Geometry to Display</h4>
-        <p className="text-xs max-w-sm mt-1">
-          Upload a Master JSON containing floor plan polygon geometry to view the 2D architectural blueprint layout.
-        </p>
-      </div>
-    )
-  }
-
-  // Flip Y coordinate so (0,0) is bottom-left in standard Cartesian layout
   const toSvgY = (y: number) => {
-    return bounds.minY + bounds.maxY - y
+    return bounds.minY + bounds.height - (y - bounds.minY)
   }
 
-  const formatPoints = (polygon: [number, number][]) => {
-    return polygon.map(([x, y]) => `${x},${toSvgY(y)}`).join(' ')
+  const formatPoints = (points: [number, number][]) => {
+    return points.map(p => `${p[0]},${toSvgY(p[1])}`).join(' ')
   }
+
+  // 3x3 Vastu Padavinyasa grid lines calculation
+  const vastuGridSectors = useMemo(() => {
+    if (!bounds.rawWidth || !bounds.rawHeight) return null
+    const x1 = bounds.rawMinX
+    const x2 = bounds.rawMinX + bounds.rawWidth / 3
+    const x3 = bounds.rawMinX + (2 * bounds.rawWidth) / 3
+    const x4 = bounds.rawMaxX
+
+    const y1 = bounds.rawMinY
+    const y2 = bounds.rawMinY + bounds.rawHeight / 3
+    const y3 = bounds.rawMinY + (2 * bounds.rawHeight) / 3
+    const y4 = bounds.rawMaxY
+
+    return { x1, x2, x3, x4, y1, y2, y3, y4 }
+  }, [bounds])
 
   return (
-    <div className="relative flex flex-col w-full bg-slate-950/80 border border-border/70 rounded-2xl overflow-hidden shadow-2xl backdrop-blur">
-      {/* Top Banner / HUD */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-border/40 bg-card/40 text-xs">
-        <div className="flex items-center gap-3">
-          <span className="font-semibold text-primary flex items-center gap-1.5 font-mono">
-            <Layers className="w-4 h-4" /> 2D Vector Blueprint
-          </span>
-          <Badge variant="outline" className="text-[11px] font-mono border-primary/30 text-primary">
-            {rooms.length} Rooms
+    <div className="flex flex-col w-full h-full bg-slate-950/70 border border-border/60 rounded-2xl overflow-hidden backdrop-blur">
+      {/* Top Status Bar */}
+      <div className="flex items-center justify-between px-4 py-2.5 bg-card/60 border-b border-border/40 text-xs">
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="gap-1.5 py-0.5 font-medium border-primary/30 text-primary">
+            <Layers className="w-3.5 h-3.5" /> 2D Vector Blueprint
           </Badge>
-          {columns.length > 0 && (
-            <Badge variant="outline" className="text-[11px] font-mono border-red-500/30 text-red-400">
-              {columns.length} Columns
-            </Badge>
-          )}
+          <span className="text-muted-foreground">{rooms.length} Rooms</span>
+          {columns.length > 0 && <span className="text-muted-foreground">• {columns.length} Columns</span>}
         </div>
 
-        {/* Orientation & Compass */}
-        <div className="flex items-center gap-2 font-mono text-[11px] text-muted-foreground">
-          <Compass className="w-4 h-4 text-primary animate-pulse" />
-          <span>Orientation:</span>
-          <span className="font-semibold text-foreground">{landInfo?.orientation || 'North'}</span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowVastuGrid(!showVastuGrid)}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors border ${
+              showVastuGrid
+                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 ring-1 ring-amber-500/30'
+                : 'bg-muted/30 text-muted-foreground border-border/50 hover:text-foreground'
+            }`}
+          >
+            <Grid3X3 className="w-3.5 h-3.5" />
+            <span>9x9 Vastu Grid</span>
+          </button>
+
+          <div className="flex items-center gap-1 text-muted-foreground">
+            <Compass className="w-3.5 h-3.5 text-primary" />
+            <span>Orientation:</span>
+            <span className="font-semibold text-foreground">{landInfo?.orientation || 'North'}</span>
+          </div>
         </div>
       </div>
 
@@ -178,6 +214,10 @@ export function FloorPlan2DViewer({ floorPlan, landInfo, rectificationResult }: 
             <filter id="column-glow" x="-50%" y="-50%" width="200%" height="200%">
               <feDropShadow dx="0" dy="0" stdDeviation="0.8" floodColor="#f43f5e" floodOpacity="0.8" />
             </filter>
+            {/* Room Highlight Glow Filter */}
+            <filter id="room-highlight-glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="0" stdDeviation="2.0" floodColor={highlightColor} floodOpacity="0.9" />
+            </filter>
           </defs>
 
           {/* Grid Background */}
@@ -188,6 +228,75 @@ export function FloorPlan2DViewer({ floorPlan, landInfo, rectificationResult }: 
             height={bounds.height}
             fill="url(#blueprint-grid)"
           />
+
+          {/* 3x3 Vastu Padavinyasa Grid Overlay */}
+          {showVastuGrid && vastuGridSectors && (
+            <g className="vastu-grid-overlay pointer-events-none">
+              {/* Brahmasthan central core fill */}
+              <rect
+                x={vastuGridSectors.x2}
+                y={toSvgY(vastuGridSectors.y3)}
+                width={vastuGridSectors.x3 - vastuGridSectors.x2}
+                height={toSvgY(vastuGridSectors.y2) - toSvgY(vastuGridSectors.y3)}
+                fill="rgba(234, 179, 8, 0.12)"
+                stroke="rgba(234, 179, 8, 0.6)"
+                strokeWidth="1.2"
+                strokeDasharray="3,2"
+              />
+              <text
+                x={(vastuGridSectors.x2 + vastuGridSectors.x3) / 2}
+                y={(toSvgY(vastuGridSectors.y2) + toSvgY(vastuGridSectors.y3)) / 2}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill="#fbbf24"
+                fontSize={Math.max(bounds.width * 0.024, 2.0)}
+                fontWeight="700"
+                className="font-mono tracking-widest drop-shadow opacity-80"
+              >
+                BRAHMASTHAN
+              </text>
+
+              {/* Grid vertical lines */}
+              <line
+                x1={vastuGridSectors.x2}
+                y1={toSvgY(vastuGridSectors.y1)}
+                x2={vastuGridSectors.x2}
+                y2={toSvgY(vastuGridSectors.y4)}
+                stroke="rgba(234, 179, 8, 0.4)"
+                strokeWidth="0.8"
+                strokeDasharray="2,2"
+              />
+              <line
+                x1={vastuGridSectors.x3}
+                y1={toSvgY(vastuGridSectors.y1)}
+                x2={vastuGridSectors.x3}
+                y2={toSvgY(vastuGridSectors.y4)}
+                stroke="rgba(234, 179, 8, 0.4)"
+                strokeWidth="0.8"
+                strokeDasharray="2,2"
+              />
+
+              {/* Grid horizontal lines */}
+              <line
+                x1={vastuGridSectors.x1}
+                y1={toSvgY(vastuGridSectors.y2)}
+                x2={vastuGridSectors.x4}
+                y2={toSvgY(vastuGridSectors.y2)}
+                stroke="rgba(234, 179, 8, 0.4)"
+                strokeWidth="0.8"
+                strokeDasharray="2,2"
+              />
+              <line
+                x1={vastuGridSectors.x1}
+                y1={toSvgY(vastuGridSectors.y3)}
+                x2={vastuGridSectors.x4}
+                y2={toSvgY(vastuGridSectors.y3)}
+                stroke="rgba(234, 179, 8, 0.4)"
+                strokeWidth="0.8"
+                strokeDasharray="2,2"
+              />
+            </g>
+          )}
 
           {/* Land / Plot Boundary (if defined) */}
           {boundary.length >= 3 && (
@@ -203,9 +312,24 @@ export function FloorPlan2DViewer({ floorPlan, landInfo, rectificationResult }: 
           {/* Rooms Polygons */}
           {rooms.map((room, idx) => {
             const isHovered = hoveredRoom?.id === room.id
+            const hlLower = (highlightRoomId || '').toLowerCase().trim()
+            const rIdLower = (room.id || '').toLowerCase().trim()
+            const rNameLower = (room.name || '').toLowerCase().trim()
+            const rTypeLower = (room.type || '').toLowerCase().trim()
+            
+            const isTargetHighlight = Boolean(
+              highlightRoomId && (
+                rIdLower === hlLower ||
+                (rNameLower && (rNameLower.includes(hlLower) || hlLower.includes(rNameLower))) ||
+                (rTypeLower && (rTypeLower.includes(hlLower) || hlLower.includes(rTypeLower)))
+              )
+            )
             const color = getRoomColor(room.type, room.name)
             const [cx, cy] = getPolygonCenter(room.polygon)
             const area = calculateArea(room.polygon)
+
+            // Dim others when inspecting a specific room
+            const opacity = dimOthers && highlightRoomId && !isTargetHighlight ? 0.22 : 1.0
 
             return (
               <g 
@@ -213,13 +337,19 @@ export function FloorPlan2DViewer({ floorPlan, landInfo, rectificationResult }: 
                 onMouseEnter={() => setHoveredRoom(room)}
                 onMouseLeave={() => setHoveredRoom(null)}
                 className="cursor-pointer transition-all duration-200"
+                style={{ opacity, transition: 'opacity 0.25s ease-in-out' }}
               >
                 {/* Room Geometry */}
                 <polygon
                   points={formatPoints(room.polygon)}
-                  fill={isHovered ? color.fill.replace('0.25', '0.45').replace('0.22', '0.42') : color.fill}
-                  stroke={color.stroke}
-                  strokeWidth={isHovered ? '1.5' : '1.0'}
+                  fill={
+                    isTargetHighlight
+                      ? `${highlightColor}33`
+                      : (isHovered ? color.fill.replace('0.25', '0.45').replace('0.22', '0.42') : color.fill)
+                  }
+                  stroke={isTargetHighlight ? highlightColor : color.stroke}
+                  strokeWidth={isTargetHighlight ? '2.8' : (isHovered ? '1.8' : '1.0')}
+                  filter={isTargetHighlight ? 'url(#room-highlight-glow)' : undefined}
                   className="transition-all"
                 />
 
@@ -229,9 +359,9 @@ export function FloorPlan2DViewer({ floorPlan, landInfo, rectificationResult }: 
                   y={toSvgY(cy) - 1.2}
                   textAnchor="middle"
                   dominantBaseline="middle"
-                  fill={color.text}
+                  fill={isTargetHighlight ? highlightColor : color.text}
                   fontSize={Math.max(bounds.width * 0.032, 2.2)}
-                  fontWeight="600"
+                  fontWeight={isTargetHighlight ? '800' : '600'}
                   className="pointer-events-none drop-shadow"
                 >
                   {room.name || room.type || `Room ${idx + 1}`}
@@ -244,7 +374,7 @@ export function FloorPlan2DViewer({ floorPlan, landInfo, rectificationResult }: 
                     y={toSvgY(cy) + 1.6}
                     textAnchor="middle"
                     dominantBaseline="middle"
-                    fill="rgba(255, 255, 255, 0.6)"
+                    fill="rgba(255, 255, 255, 0.7)"
                     fontSize={Math.max(bounds.width * 0.022, 1.6)}
                     fontFamily="monospace"
                     className="pointer-events-none"
@@ -294,7 +424,7 @@ export function FloorPlan2DViewer({ floorPlan, landInfo, rectificationResult }: 
         </svg>
 
         {/* Compass Rose Widget in Top-Right */}
-        <div className="absolute top-4 right-4 p-2.5 rounded-xl bg-slate-900/90 border border-border/50 backdrop-blur shadow-lg flex flex-col items-center">
+        <div className="absolute top-4 right-4 p-2.5 rounded-xl bg-slate-900/90 border border-border/50 backdrop-blur shadow-lg flex flex-col items-center select-none">
           <div className="text-[10px] font-bold text-red-500 font-mono tracking-tighter">▲ N</div>
           <div className="w-5 h-5 relative flex items-center justify-center my-0.5">
             <div className="w-0.5 h-full bg-border" />
@@ -310,18 +440,21 @@ export function FloorPlan2DViewer({ floorPlan, landInfo, rectificationResult }: 
         <span className="text-[11px] font-semibold text-muted-foreground mr-1">Rooms:</span>
         {rooms.map((room, idx) => {
           const color = getRoomColor(room.type, room.name)
+          const isTargetHighlight = highlightRoomId && (room.id === highlightRoomId || room.name?.toLowerCase().includes(highlightRoomId.toLowerCase()))
           return (
             <div
               key={room.id || idx}
               className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors cursor-pointer ${
-                hoveredRoom?.id === room.id ? 'border-primary ring-2 ring-primary/20' : 'border-border/50'
+                isTargetHighlight
+                  ? 'ring-2 ring-red-500 border-red-500 bg-red-500/20'
+                  : (hoveredRoom?.id === room.id ? 'border-primary ring-2 ring-primary/20' : 'border-border/50')
               }`}
-              style={{ backgroundColor: color.fill }}
+              style={{ backgroundColor: isTargetHighlight ? undefined : color.fill }}
               onMouseEnter={() => setHoveredRoom(room)}
               onMouseLeave={() => setHoveredRoom(null)}
             >
-              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color.stroke }} />
-              <span style={{ color: color.text }}>{room.name || room.type}</span>
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: isTargetHighlight ? highlightColor : color.stroke }} />
+              <span style={{ color: isTargetHighlight ? '#fff' : color.text }}>{room.name || room.type}</span>
             </div>
           )
         })}

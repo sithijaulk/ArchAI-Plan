@@ -1,13 +1,14 @@
 "use client"
-import React, { useRef, useState } from 'react'
+import React, { useRef, useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { FeatureWorkflowShell } from '@/components/workflow/FeatureWorkflowShell'
 import { OutputPreview } from '@/components/output/OutputPreview'
 import { ValidationSummaryCard } from '@/components/validation/ValidationSummaryCard'
+import { VastuInspectionModal } from '@/components/visualization/VastuInspectionModal'
 import { useProjectStore } from '@/store/projectStore'
 import { vsaiApi } from '@/lib/api/vsai'
 import { projectsApi } from '@/lib/api/projects'
-import { ValidationResult } from '@/types/project'
+import { ValidationResult, VastuAnalysis, VastuGoodAspect, VastuDefect } from '@/types/project'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
@@ -17,13 +18,18 @@ import {
   Upload, 
   CheckCircle2, 
   AlertCircle, 
+  AlertTriangle,
   Layers, 
   Sparkles, 
   FileJson,
   Loader2,
-  ShieldCheck,
+  ShieldCheck, 
   Cpu,
-  ArrowRight
+  ArrowRight,
+  Eye,
+  Check,
+  TrendingUp,
+  RotateCcw
 } from 'lucide-react'
 
 const DEMO_MASTER_JSON = {
@@ -62,6 +68,27 @@ const DEMO_MASTER_JSON = {
   }
 }
 
+function getGradeBadgeColor(grade: string) {
+  switch (grade) {
+    case 'A+':
+    case 'A':
+      return 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40'
+    case 'B':
+      return 'bg-sky-500/15 text-sky-400 border-sky-500/40'
+    case 'C':
+      return 'bg-amber-500/15 text-amber-400 border-amber-500/40'
+    default:
+      return 'bg-destructive/15 text-destructive border-destructive/40'
+  }
+}
+
+function getScoreColor(score: number) {
+  if (score >= 80) return 'text-emerald-400'
+  if (score >= 65) return 'text-sky-400'
+  if (score >= 50) return 'text-amber-400'
+  return 'text-rose-500'
+}
+
 export default function VsaiRectifierPage() {
   const router = useRouter()
   const { 
@@ -80,12 +107,41 @@ export default function VsaiRectifierPage() {
   const [isDragging, setIsDragging] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null)
+  
+  // Vastu Shastra Engine States
+  const [vastuAnalysis, setVastuAnalysis] = useState<VastuAnalysis | null>(null)
+  const [isEvaluatingVastu, setIsEvaluatingVastu] = useState(false)
+  const [activeVastuTab, setActiveVastuTab] = useState<'defects' | 'good'>('defects')
+  const [selectedVastuItem, setSelectedVastuItem] = useState<(VastuGoodAspect | VastuDefect) | null>(null)
+  const [isInspectionModalOpen, setIsInspectionModalOpen] = useState(false)
+
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const rooms = (masterJson?.floor_plan as any)?.rooms || []
   const structuralElements = (masterJson?.floor_plan as any)?.structural_elements || []
   const landInfo = (masterJson?.land_info as any) || {}
   const hasGeometry = Boolean(projectId && rooms.length > 0)
+
+  // Direct Vastu Evaluator function
+  const evaluateVastu = useCallback(async (contractJson: any) => {
+    if (!contractJson?.floor_plan?.rooms || contractJson.floor_plan.rooms.length === 0) return
+    setIsEvaluatingVastu(true)
+    try {
+      const analysis = await vsaiApi.evaluateVastuDirect(contractJson)
+      setVastuAnalysis(analysis)
+    } catch (err: any) {
+      console.warn('Vastu evaluation fallback error:', err)
+    } finally {
+      setIsEvaluatingVastu(false)
+    }
+  }, [])
+
+  // Auto-trigger evaluation when geometry loads if not already loaded
+  useEffect(() => {
+    if (hasGeometry && !vastuAnalysis && !isEvaluatingVastu) {
+      evaluateVastu(masterJson)
+    }
+  }, [hasGeometry, masterJson, vastuAnalysis, isEvaluatingVastu, evaluateVastu])
 
   const handleProcess = async () => {
     if (!projectId) return
@@ -95,6 +151,13 @@ export default function VsaiRectifierPage() {
       const result = await vsaiApi.run(projectId)
       setOutput('vsai_rectifier', result)
       setComponentStatus('vsai_rectifier', 'completed')
+      
+      // Re-evaluate vastu after rectification
+      if (result?.master_json) {
+        await evaluateVastu(result.master_json)
+      } else {
+        await evaluateVastu(masterJson)
+      }
     } catch (e: any) {
       setComponentStatus('vsai_rectifier', 'failed')
       setUploadError(e?.response?.data?.detail || e?.message || 'Processing failed')
@@ -107,16 +170,29 @@ export default function VsaiRectifierPage() {
     if (!file) return
     setUploadError(null)
     setValidationResult(null)
+    setVastuAnalysis(null)
     setIsUploading(true)
     try {
       const response = await projectsApi.uploadMasterJson(file)
       loadProject(response.project)
-      if (response.validation) setValidationResult(response.validation)
+      
+      if (response.validation) {
+        setValidationResult(response.validation)
+        if (response.validation.vastu_analysis) {
+          setVastuAnalysis(response.validation.vastu_analysis)
+        }
+      }
+      
+      if (!response.validation?.vastu_analysis) {
+        await evaluateVastu(response.project?.master_json)
+      }
     } catch (err: any) {
-      // 422: backend returned validation error with structured payload
       const detail = err?.response?.data?.detail
       if (detail?.validation) {
         setValidationResult(detail.validation)
+        if (detail.validation.vastu_analysis) {
+          setVastuAnalysis(detail.validation.vastu_analysis)
+        }
         setUploadError(detail.message || 'Validation failed — see details below.')
       } else {
         setUploadError(detail || err?.message || 'Failed to upload Master JSON')
@@ -142,6 +218,11 @@ export default function VsaiRectifierPage() {
       const demoFile = new File([demoBlob], 'lotus_villa_baseline.json', { type: 'application/json' })
       const response = await projectsApi.uploadMasterJson(demoFile)
       loadProject(response.project)
+      if (response.validation?.vastu_analysis) {
+        setVastuAnalysis(response.validation.vastu_analysis)
+      } else {
+        await evaluateVastu(DEMO_MASTER_JSON)
+      }
     } catch (err: any) {
       setUploadError(err?.response?.data?.detail || err?.message || 'Failed to load demo baseline geometry')
     } finally {
@@ -171,6 +252,11 @@ export default function VsaiRectifierPage() {
   const handleSkip = async () => {
     await skipComponent('vsai_rectifier')
     router.push('/features/esai-engine')
+  }
+
+  const openInspection = (item: VastuGoodAspect | VastuDefect) => {
+    setSelectedVastuItem(item)
+    setIsInspectionModalOpen(true)
   }
 
   return (
@@ -330,82 +416,218 @@ export default function VsaiRectifierPage() {
               {/* Spatial Metadata & Geometry Inspector */}
               <div className="space-y-4">
 
-                {/* Validation Summary Card */}
-                {validationResult && (
+                {/* Validation Summary Card (if errors exist) */}
+                {validationResult && !validationResult.is_valid && (
                   <ValidationSummaryCard validation={validationResult} />
                 )}
 
-                {!validationResult && (
-                  <div className="p-4 rounded-xl bg-card/60 border border-green-500/20 backdrop-blur space-y-3">
+                {/* --- VASTU COMPLIANCE SCORE CARD --- */}
+                {vastuAnalysis ? (
+                  <div className="p-4 rounded-xl bg-card/80 border border-border/80 shadow-sm backdrop-blur space-y-4">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-green-500 flex items-center gap-1.5">
-                        <CheckCircle2 className="w-4 h-4" /> Baseline Geometry Active
-                      </span>
-                      <Badge variant="outline" className="text-[11px] font-mono">
-                        {rooms.length} Rooms
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                          <Compass className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                            Vastu Compliance Score
+                          </div>
+                          <div className="text-[11px] text-muted-foreground">
+                            {vastuAnalysis.total_rules_evaluated} Rules Evaluated
+                          </div>
+                        </div>
+                      </div>
+
+                      <Badge 
+                        variant="outline" 
+                        className={`text-xs px-2.5 py-0.5 font-bold ${getGradeBadgeColor(vastuAnalysis.grade)}`}
+                      >
+                        Grade {vastuAnalysis.grade}
                       </Badge>
                     </div>
 
-                    {/* Orientation & Land */}
-                    <div className="pt-2 border-t border-border/40 grid grid-cols-2 gap-2 text-xs">
+                    {/* Numerical Score Display */}
+                    <div className="flex items-end justify-between px-2 py-1 bg-muted/20 rounded-lg border border-border/40">
                       <div>
-                        <span className="text-muted-foreground flex items-center gap-1 mb-0.5">
-                          <Compass className="w-3.5 h-3.5 text-primary" /> Orientation
-                        </span>
-                        <span className="font-medium text-foreground">
-                          {landInfo.orientation || 'Not specified'}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground mb-0.5 block">Road Facing</span>
-                        <span className="font-medium text-foreground">
-                          {landInfo.road_facing || 'Not specified'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {landInfo.area_sqft && (
-                      <div className="text-xs text-muted-foreground">
-                        Total Area: <span className="font-medium text-foreground">{landInfo.area_sqft.toLocaleString()} sqft</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Detected Rooms List */}
-                {!validationResult && (
-                  <div className="space-y-2">
-                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                      <Home className="w-3.5 h-3.5" /> Spatial Rooms ({rooms.length})
-                    </label>
-                    <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 text-xs">
-                      {rooms.map((room: any, index: number) => (
-                        <div
-                          key={room.id || index}
-                          className="p-2.5 rounded-lg bg-muted/40 border border-border/40 flex items-center justify-between"
-                        >
-                          <div>
-                            <div className="font-medium text-foreground">
-                              {room.name || room.type || room.id}
-                            </div>
-                            <div className="text-[10px] text-muted-foreground font-mono">
-                              ID: {room.id}
-                            </div>
-                          </div>
-                          <Badge variant="secondary" className="text-[10px]">
-                            {Array.isArray(room.polygon) ? `${room.polygon.length} vertices` : 'Polygon'}
-                          </Badge>
+                        <div className={`text-3xl font-extrabold tracking-tight ${getScoreColor(vastuAnalysis.score)}`}>
+                          {vastuAnalysis.score}%
                         </div>
-                      ))}
+                        <div className="text-[11px] text-muted-foreground mt-0.5">
+                          {vastuAnalysis.grade_description}
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setActiveVastuTab('defects')}
+                          className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all border ${
+                            activeVastuTab === 'defects'
+                              ? 'bg-destructive/20 border-destructive/50 text-destructive shadow-sm'
+                              : 'bg-muted/30 border-transparent text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          <AlertTriangle className="w-3.5 h-3.5" />
+                          <span>{vastuAnalysis.defects.length} Defects</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setActiveVastuTab('good')}
+                          className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all border ${
+                            activeVastuTab === 'good'
+                              ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400 shadow-sm'
+                              : 'bg-muted/30 border-transparent text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>{vastuAnalysis.good_aspects.length} Good</span>
+                        </button>
+                      </div>
                     </div>
+
+                    {/* Vastu Rules Interactive Inspector List */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span className="font-semibold text-foreground uppercase tracking-wider text-[10px]">
+                          {activeVastuTab === 'defects' 
+                            ? `Defects & Doshas (වාස්තු දෝෂ - ${vastuAnalysis.defects.length})` 
+                            : `Auspicious Alignments (සුබ පිහිටීම් - ${vastuAnalysis.good_aspects.length})`
+                          }
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">Click item to inspect in plan</span>
+                      </div>
+
+                      <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
+                        {activeVastuTab === 'defects' ? (
+                          vastuAnalysis.defects.length === 0 ? (
+                            <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs text-center">
+                              No critical Vastu defects detected! Excellent layout.
+                            </div>
+                          ) : (
+                            vastuAnalysis.defects.map((defect, i) => (
+                              <div
+                                key={defect.rule_id || i}
+                                onClick={() => openInspection(defect)}
+                                className="group p-3 rounded-xl bg-destructive/10 hover:bg-destructive/15 border border-destructive/30 hover:border-destructive/60 transition-all cursor-pointer flex flex-col gap-1.5 shadow-sm"
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex items-center gap-1.5">
+                                    <AlertTriangle className="w-3.5 h-3.5 text-destructive shrink-0 mt-0.5" />
+                                    <span className="text-xs font-bold text-destructive group-hover:underline">
+                                      {defect.title}
+                                    </span>
+                                  </div>
+                                  <Badge variant="outline" className="text-[9px] uppercase px-1.5 py-0 border-destructive/40 text-destructive bg-destructive/10">
+                                    -{defect.points_deducted} pts
+                                  </Badge>
+                                </div>
+                                <div className="text-[11px] text-muted-foreground line-clamp-2">
+                                  {defect.description}
+                                </div>
+                                <div className="flex items-center justify-between pt-1 border-t border-destructive/20 text-[10px]">
+                                  <span className="text-foreground/80 font-mono">
+                                    {defect.room_name || 'Room'} • {defect.sector_display || defect.sector}
+                                  </span>
+                                  <span className="text-destructive font-semibold flex items-center gap-1 opacity-90 group-hover:opacity-100">
+                                    <Eye className="w-3 h-3" /> Inspect in 2D
+                                  </span>
+                                </div>
+                              </div>
+                            ))
+                          )
+                        ) : (
+                          vastuAnalysis.good_aspects.length === 0 ? (
+                            <div className="p-4 rounded-lg bg-muted/30 border border-border/50 text-muted-foreground text-xs text-center">
+                              No compliant rules identified in this orientation.
+                            </div>
+                          ) : (
+                            vastuAnalysis.good_aspects.map((good, i) => (
+                              <div
+                                key={good.rule_id || i}
+                                onClick={() => openInspection(good)}
+                                className="group p-3 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/30 hover:border-emerald-500/60 transition-all cursor-pointer flex flex-col gap-1.5 shadow-sm"
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex items-center gap-1.5">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                                    <span className="text-xs font-bold text-emerald-400 group-hover:underline">
+                                      {good.title}
+                                    </span>
+                                  </div>
+                                  <Badge variant="outline" className="text-[9px] uppercase px-1.5 py-0 border-emerald-500/40 text-emerald-400 bg-emerald-500/10">
+                                    +{good.points_earned} pts
+                                  </Badge>
+                                </div>
+                                <div className="text-[11px] text-muted-foreground line-clamp-2">
+                                  {good.description}
+                                </div>
+                                <div className="flex items-center justify-between pt-1 border-t border-emerald-500/20 text-[10px]">
+                                  <span className="text-foreground/80 font-mono">
+                                    {good.room_name || 'Room'} • {good.sector_display || good.sector}
+                                  </span>
+                                  <span className="text-emerald-400 font-semibold flex items-center gap-1 opacity-90 group-hover:opacity-100">
+                                    <Eye className="w-3 h-3" /> Inspect in 2D
+                                  </span>
+                                </div>
+                              </div>
+                            ))
+                          )
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-xl bg-card/60 border border-border/50 backdrop-blur space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-primary flex items-center gap-1.5">
+                        <Compass className="w-4 h-4" /> Vastu Evaluation
+                      </span>
+                      {isEvaluatingVastu && (
+                        <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                          <Loader2 className="w-3 h-3 animate-spin text-primary" /> Calculating...
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Running dynamic 3x3 Padavinyasa analysis on floor plan orientation...
+                    </p>
                   </div>
                 )}
 
-                {!validationResult && structuralElements.length > 0 && (
-                  <div className="p-2.5 rounded-lg bg-muted/20 border border-border/30 text-xs text-muted-foreground">
-                    <span className="font-medium text-foreground">{structuralElements.length}</span> structural elements detected.
+                {/* Baseline Geometry Details */}
+                <div className="p-3.5 rounded-xl bg-muted/20 border border-border/40 space-y-2.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground flex items-center gap-1">
+                      <Compass className="w-3.5 h-3.5 text-primary" /> Orientation:
+                    </span>
+                    <span className="font-semibold text-foreground">
+                      {landInfo.orientation || 'North'}
+                    </span>
                   </div>
-                )}
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Road Facing:</span>
+                    <span className="font-semibold text-foreground">
+                      {landInfo.road_facing || 'Not specified'}
+                    </span>
+                  </div>
+                  {landInfo.area_sqft && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Plot Area:</span>
+                      <span className="font-semibold text-foreground">
+                        {landInfo.area_sqft.toLocaleString()} sqft
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between pt-1.5 border-t border-border/40">
+                    <span className="text-muted-foreground">Detected Rooms:</span>
+                    <span className="font-mono text-primary font-bold">
+                      {rooms.length} Rooms
+                    </span>
+                  </div>
+                </div>
+
               </div>
 
               {/* Action Button */}
@@ -444,6 +666,15 @@ export default function VsaiRectifierPage() {
           </div>
         </div>
       )}
+
+      {/* Vastu Shastra Room Inspection Popup Modal */}
+      <VastuInspectionModal
+        isOpen={isInspectionModalOpen}
+        onClose={() => setIsInspectionModalOpen(false)}
+        item={selectedVastuItem}
+        floorPlan={masterJson?.floor_plan}
+        landInfo={masterJson?.land_info}
+      />
     </FeatureWorkflowShell>
   )
 }
