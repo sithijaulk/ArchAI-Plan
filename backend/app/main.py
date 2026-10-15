@@ -25,6 +25,11 @@ async def lifespan(app: FastAPI):
     os.makedirs(os.path.join(settings.upload_dir, "research"), exist_ok=True)
     os.makedirs(os.path.join(settings.upload_dir, "team"), exist_ok=True)
     logger.info("Upload directories initialized.")
+    try:
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database tables initialized.")
+    except Exception as db_err:
+        logger.warning(f"Could not auto-create database tables: {db_err}")
     yield
     logger.info("Shutting down.")
 
