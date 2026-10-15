@@ -1,6 +1,5 @@
 {
   "version": "1.0",
-<<<<<<< HEAD
   "provenance": "Architectural Graphic Standards & Ergonomic Furniture Specifications (All dimensions in meters)",
   "items": [
     {
@@ -354,15 +353,6 @@
       "rendering_model_id": "model_bath_shower_01",
       "material_variants": ["glass_chrome"],
       "enabled": true
-=======
-  "items": [
-    {
-      "id": "BED_Q_01",
-      "category": "bed",
-      "name": "Queen Bed Standard",
-      "dimensions": {"width": 1.52, "length": 2.03, "height": 0.5},
-      "clearance_rule_id": "BED_CLR_01"
->>>>>>> 9bad7e69e2c866a8ea4d6b80b58f75bdfe121d9d
     }
   ]
 }
