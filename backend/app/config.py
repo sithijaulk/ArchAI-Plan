@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     backend_url: str = "http://localhost:8000"
     upload_dir: str = "app/uploads"
     max_upload_mb: int = 10
+    elia_model_artifact_path: str | None = None
+    elia_model_service_url: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

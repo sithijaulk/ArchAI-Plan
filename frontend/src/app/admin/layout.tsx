@@ -17,7 +17,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (pathname === '/admin/login') return
     authApi.getMe().then(() => setAuthorized(true)).catch(() => router.replace('/admin/login'))
   }, [pathname, router])
-  
+
   if (pathname === '/admin/login') {
     return <>{children}</>
   }
@@ -54,7 +54,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <span className="font-bold text-xl tracking-tight text-white">ArchAI-Plan</span>
           <span className="text-xs font-semibold text-primary">ADMIN CONSOLE</span>
         </div>
-        
+
         <nav className="flex-1 p-4 space-y-2">
           {navItems.map((item) => {
             const isActive = pathname === item.href || (pathname.startsWith(`${item.href}/`) && item.href !== '/admin');
@@ -62,8 +62,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <Link key={item.href} href={item.href} onClick={() => setIsMobileOpen(false)}>
                 <div className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
-                  isActive 
-                    ? "bg-primary text-primary-foreground" 
+                  isActive
+                    ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}>
                   {item.icon}
@@ -73,7 +73,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             )
           })}
         </nav>
-        
+
         <div className="p-4 border-t border-border/50 space-y-2">
           <a href="/" target="_blank" rel="noopener noreferrer">
             <Button variant="outline" className="w-full justify-start text-muted-foreground hover:text-foreground">
