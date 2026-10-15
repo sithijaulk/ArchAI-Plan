@@ -1,5 +1,4 @@
 """
-<<<<<<< HEAD
 ESAI-Engine Component Package
 Stage 1: Complete Backend Foundation (Geometry, Catalog, Standards, Requirements, Validation, and APIs)
 Without AI Genetic Algorithm Optimization.
@@ -29,6 +28,9 @@ from .validators import EsaiInputValidator
 from .repositories import EsaiDatabaseRepository
 from .placeholder import run
 
+def get_engine_version():
+    return "1.0.0"
+
 __all__ = [
     "EsaiEngineService",
     "StructuralInputDTO",
@@ -53,11 +55,5 @@ __all__ = [
     "EsaiInputValidator",
     "EsaiDatabaseRepository",
     "run",
+    "get_engine_version",
 ]
-=======
-ESAI-Engine (Ergonomic Spatial Intelligence AI) - Stage 1
-"""
-
-def get_engine_version():
-    return "1.0.0"
->>>>>>> 9bad7e69e2c866a8ea4d6b80b58f75bdfe121d9d
