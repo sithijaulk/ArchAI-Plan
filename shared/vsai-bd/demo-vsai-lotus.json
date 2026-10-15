@@ -1,0 +1,229 @@
+{
+  "project_id": "demo-vsai-lotus",
+  "project_name": "Lotus Villa - Residential Plan",
+  "land_info": {
+    "boundary_points": [
+      [
+        0,
+        0
+      ],
+      [
+        50,
+        0
+      ],
+      [
+        50,
+        60
+      ],
+      [
+        0,
+        60
+      ]
+    ],
+    "area_sqft": 3000,
+    "orientation": "North-East",
+    "road_facing": "North"
+  },
+  "buildable_footprint": {
+    "polygon": [
+      [
+        5,
+        5
+      ],
+      [
+        45,
+        5
+      ],
+      [
+        45,
+        55
+      ],
+      [
+        5,
+        55
+      ]
+    ]
+  },
+  "floor_plan": {
+    "rooms": [
+      {
+        "id": "room-living",
+        "name": "Living Room",
+        "type": "living",
+        "polygon": [
+          [
+            5,
+            5
+          ],
+          [
+            25,
+            5
+          ],
+          [
+            25,
+            25
+          ],
+          [
+            5,
+            25
+          ]
+        ]
+      },
+      {
+        "id": "room-kitchen",
+        "name": "Kitchen",
+        "type": "kitchen",
+        "polygon": [
+          [
+            25,
+            5
+          ],
+          [
+            45,
+            5
+          ],
+          [
+            45,
+            20
+          ],
+          [
+            25,
+            20
+          ]
+        ]
+      },
+      {
+        "id": "room-master-bed",
+        "name": "Master Bedroom",
+        "type": "master_bedroom",
+        "polygon": [
+          [
+            5,
+            25
+          ],
+          [
+            25,
+            25
+          ],
+          [
+            25,
+            50
+          ],
+          [
+            5,
+            50
+          ]
+        ]
+      },
+      {
+        "id": "room-pooja",
+        "name": "Pooja Room",
+        "type": "pooja",
+        "polygon": [
+          [
+            25,
+            20
+          ],
+          [
+            35,
+            20
+          ],
+          [
+            35,
+            30
+          ],
+          [
+            25,
+            30
+          ]
+        ]
+      },
+      {
+        "id": "room-bath",
+        "name": "Common Bathroom",
+        "type": "bathroom",
+        "polygon": [
+          [
+            35,
+            20
+          ],
+          [
+            45,
+            20
+          ],
+          [
+            45,
+            30
+          ],
+          [
+            35,
+            30
+          ]
+        ]
+      }
+    ],
+    "structural_elements": [
+      {
+        "id": "col-1",
+        "type": "column",
+        "polygon": [
+          [
+            5,
+            5
+          ],
+          [
+            6,
+            5
+          ],
+          [
+            6,
+            6
+          ],
+          [
+            5,
+            6
+          ]
+        ]
+      },
+      {
+        "id": "col-2",
+        "type": "column",
+        "polygon": [
+          [
+            25,
+            5
+          ],
+          [
+            26,
+            5
+          ],
+          [
+            26,
+            6
+          ],
+          [
+            25,
+            6
+          ]
+        ]
+      }
+    ]
+  },
+  "structural_rectification": {},
+  "interior_layout": {},
+  "exterior_landscape": {},
+  "processing": {
+    "gab_gen": {
+      "status": "completed"
+    },
+    "vsai_rectifier": {
+      "status": "pending"
+    },
+    "esai_engine": {
+      "status": "pending"
+    },
+    "elia_engine": {
+      "status": "pending"
+    }
+  }
+}

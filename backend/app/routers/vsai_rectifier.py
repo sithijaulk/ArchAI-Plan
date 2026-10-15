@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import uuid
@@ -42,34 +43,84 @@ def run_vsai(
     data: VsaiRunRequest | None = None,
     db: Session = Depends(get_db),
 ):
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if project is None:
+    project = None
+    try:
+        project = db.query(Project).filter(Project.id == project_id).first()
+    except Exception as db_err:
+        logger.warning("Database unavailable in run_vsai: %s", db_err)
+
+    stored_master_json = None
+    if project is not None:
+        stored_master_json = project.master_json
+    else:
+        shared_root = Path(__file__).resolve().parents[3] / "shared"
+        candidates = [
+            shared_root / "vsi-bd" / f"{project_id}.json",
+            shared_root / "vsai-bd" / f"{project_id}.json",
+            Path(settings.upload_dir).resolve() / "projects" / project_id / "master_input.json",
+        ]
+        for cp in candidates:
+            if cp.is_file():
+                try:
+                    with open(cp, "r", encoding="utf-8") as f:
+                        stored_master_json = json.load(f)
+                    break
+                except Exception:
+                    pass
+
+    if stored_master_json is None and (data is None or data.master_json is None):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
+    if stored_master_json is None and data is not None:
+        stored_master_json = deepcopy(data.master_json)
+
     supplied = data.master_json if data else None
-    original_snapshot = deepcopy(supplied if supplied is not None else project.master_json)
+    original_snapshot = deepcopy(supplied if supplied is not None else stored_master_json)
     started_at = datetime.now(timezone.utc).replace(tzinfo=None)
     logger.info("Starting VSAI Stage 1 processing for project %s", project_id)
     try:
-        master_json = prepare_master_json(project_id, project.master_json, supplied)
+        master_json = prepare_master_json(project_id, stored_master_json, supplied)
         output = run_vsai_rectifier(master_json)
         completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
-        run = ComponentRun(
-            project_id=project_id,
-            component_name=COMPONENT_NAME,
-            status="completed",
-            input_json=original_snapshot,
-            output_json=output,
-            started_at=started_at,
-            completed_at=completed_at,
-        )
-        project.master_json = output["master_json"]
-        db.add(run)
-        db.commit()
+
+        # Update disk files in shared/vsi-bd and shared/vsai-bd
+        try:
+            shared_root = Path(__file__).resolve().parents[3] / "shared"
+            for folder in ["vsi-bd", "vsai-bd"]:
+                target_file = shared_root / folder / f"{project_id}.json"
+                if target_file.parent.exists():
+                    with open(target_file, "w", encoding="utf-8") as f:
+                        json.dump(output["master_json"], f, indent=2)
+        except Exception as disk_err:
+            logger.warning("Could not update disk file: %s", disk_err)
+
+        run_id = str(uuid.uuid4())
+        try:
+            run = ComponentRun(
+                project_id=project_id,
+                component_name=COMPONENT_NAME,
+                status="completed",
+                input_json=original_snapshot,
+                output_json=output,
+                started_at=started_at,
+                completed_at=completed_at,
+            )
+            if project is not None:
+                project.master_json = output["master_json"]
+            db.add(run)
+            db.commit()
+            run_id = run.id
+        except Exception as db_err:
+            logger.warning("Could not persist run to database: %s", db_err)
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
         logger.info("Completed VSAI Stage 1 processing for project %s", project_id)
         return {
-            "run_id": run.id,
-            "status": run.status,
+            "run_id": run_id,
+            "status": "completed",
             **output["result"],
             "master_json": output["master_json"],
         }
@@ -78,7 +129,10 @@ def run_vsai(
         logger.warning("Rejected VSAI input for project %s: %s", project_id, error)
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)) from error
     except Exception as error:
-        db.rollback()
+        try:
+            db.rollback()
+        except Exception:
+            pass
         logger.exception("VSAI processing failed for project %s", project_id)
         _record_failed_run(db, project_id, original_snapshot, started_at, f"{type(error).__name__}: {error}")
         raise HTTPException(
@@ -94,29 +148,32 @@ def _record_failed_run(
     started_at: datetime,
     error_message: str,
 ) -> None:
-    db.rollback()
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if (
-        project is not None
-        and isinstance(project.master_json, dict)
-        and project.master_json.get("project_id") == project_id
-        and isinstance(project.master_json.get("processing"), dict)
-    ):
-        project.master_json = merge_master_json(
-            project.master_json,
-            {"processing": {COMPONENT_NAME: {"status": "failed"}}},
+    try:
+        db.rollback()
+        project = db.query(Project).filter(Project.id == project_id).first()
+        if (
+            project is not None
+            and isinstance(project.master_json, dict)
+            and project.master_json.get("project_id") == project_id
+            and isinstance(project.master_json.get("processing"), dict)
+        ):
+            project.master_json = merge_master_json(
+                project.master_json,
+                {"processing": {COMPONENT_NAME: {"status": "failed"}}},
+            )
+        run = ComponentRun(
+            project_id=project_id,
+            component_name=COMPONENT_NAME,
+            status="failed",
+            input_json=input_snapshot,
+            error_message=error_message[:4000],
+            started_at=started_at,
+            completed_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
-    run = ComponentRun(
-        project_id=project_id,
-        component_name=COMPONENT_NAME,
-        status="failed",
-        input_json=input_snapshot,
-        error_message=error_message[:4000],
-        started_at=started_at,
-        completed_at=datetime.now(timezone.utc).replace(tzinfo=None),
-    )
-    db.add(run)
-    db.commit()
+        db.add(run)
+        db.commit()
+    except Exception as ex:
+        logger.warning("Could not record failed run in DB: %s", ex)
 
 
 @router.post(

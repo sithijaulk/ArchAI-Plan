@@ -4,6 +4,7 @@ import unittest
 from copy import deepcopy
 from datetime import datetime
 from io import BytesIO
+from pathlib import Path
 
 os.environ["DATABASE_URL"] = "mysql+pymysql://test:test@localhost/archai_test"
 
@@ -379,6 +380,23 @@ class VsaiApiTests(unittest.TestCase):
             run = db.query(ComponentRun).one()
             self.assertIsInstance(run.started_at, datetime)
             self.assertIsInstance(run.completed_at, datetime)
+
+    def test_upload_master_json_saves_file_and_extracts_spatial_summary(self):
+        import json
+        payload = json.dumps(sample_master("custom-upload")).encode("utf-8")
+        response = self.client.post(
+            "/api/projects/upload-master-json",
+            files={"file": ("my_floor_plan.json", payload, "application/json")},
+        )
+        self.assertEqual(response.status_code, 201, response.text)
+        data = response.json()
+        self.assertEqual(data["filename"], "my_floor_plan.json")
+        self.assertEqual(data["spatial_summary"]["room_count"], 2)
+        self.assertEqual(data["spatial_summary"]["orientation"], "north")
+        self.assertIsNotNone(data["file_saved_path"])
+        repo_root = Path(__file__).resolve().parents[2]
+        shared_disk_path = repo_root / "shared" / "vsi-bd" / "my_floor_plan.json"
+        self.assertTrue(os.path.isfile(str(shared_disk_path)))
 
 
 if __name__ == "__main__":
