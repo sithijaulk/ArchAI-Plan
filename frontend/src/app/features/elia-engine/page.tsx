@@ -32,6 +32,7 @@ import {
   Info,
   Layers,
   History,
+  Upload,
 } from 'lucide-react'
 
 const DEMO_SAMPLE_MASTER_JSON = {
@@ -93,6 +94,65 @@ export default function EliaEnginePage() {
 
   // Local UI state for location search query input
   const [cityQuery, setCityQuery] = useState('')
+
+  // Component 3 (ESAI / Master JSON) upload state & handler
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [jsonUploadError, setJsonUploadError] = useState<string | null>(null)
+  const [jsonUploadSuccess, setJsonUploadSuccess] = useState<string | null>(null)
+
+  const handleComponent3JsonUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    setJsonUploadError(null)
+    setJsonUploadSuccess(null)
+    try {
+      if (!file.name.toLowerCase().endsWith('.json')) {
+        throw new Error('Please select a valid JSON file (.json).')
+      }
+      const text = await file.text()
+      const parsed = JSON.parse(text)
+
+      // Merge parsed Component 3 or Master JSON into upstream project state
+      const targetProjectId = parsed.project_id || projectId || 'imported-c3-project'
+      const targetProjectName = parsed.project_name || projectName || file.name.replace(/\.json$/i, '')
+      const newMasterJson: any = {
+        ...(masterJson || DEMO_SAMPLE_MASTER_JSON),
+        ...parsed,
+        project_id: targetProjectId,
+        project_name: targetProjectName,
+      }
+
+      if (parsed.house_exterior_polygon) {
+        newMasterJson.house_exterior_polygon = parsed.house_exterior_polygon
+      }
+      if (parsed.land_info) {
+        newMasterJson.land_info = parsed.land_info
+      }
+      if (parsed.interior_layout) {
+        newMasterJson.interior_layout = parsed.interior_layout
+      }
+      if (parsed.utilities) {
+        newMasterJson.utilities = parsed.utilities
+      }
+      if (parsed.location) {
+        newMasterJson.location = parsed.location
+      }
+
+      loadProject({
+        id: targetProjectId,
+        project_name: targetProjectName,
+        master_json: newMasterJson,
+      })
+
+      setJsonUploadSuccess(`Successfully loaded Component 3 data from "${file.name}"!`)
+      setTimeout(() => setJsonUploadSuccess(null), 6000)
+    } catch (err: any) {
+      setJsonUploadError(err.message || 'Failed to parse JSON file.')
+      setTimeout(() => setJsonUploadError(null), 6000)
+    } finally {
+      event.target.value = ''
+    }
+  }
 
   // Coherent project lifecycle: activation on mount/project change, deactivation on cleanup
   useEffect(() => {
@@ -386,6 +446,46 @@ export default function EliaEnginePage() {
                     {siteViewModel.geometryMessage || 'Upstream site geometry required from previous components.'}
                   </div>
                 )}
+
+                {/* Component 3 / Master JSON Upload Section */}
+                <div className="pt-3 border-t border-border/40 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-foreground font-medium block text-xs">Component 3 (ESAI) Output JSON</span>
+                      <span className="text-muted-foreground text-[10px]">Load house footprint, interior layout & land geometry</span>
+                    </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".json,application/json"
+                      className="hidden"
+                      onChange={handleComponent3JsonUpload}
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs border-primary/40 hover:bg-primary/10 text-primary gap-1.5 shrink-0"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      Upload JSON
+                    </Button>
+                  </div>
+
+                  {jsonUploadSuccess && (
+                    <div className="p-2 rounded bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 text-[11px] flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <span>{jsonUploadSuccess}</span>
+                    </div>
+                  )}
+
+                  {jsonUploadError && (
+                    <div className="p-2 rounded bg-rose-950/40 border border-rose-500/40 text-rose-300 text-[11px] flex items-center gap-1.5">
+                      <XCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                      <span>{jsonUploadError}</span>
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
 
