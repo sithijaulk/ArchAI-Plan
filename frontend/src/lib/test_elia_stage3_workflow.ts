@@ -2463,7 +2463,7 @@ async function runAllTests() {
         run_id: 'run_corr_inf',
         status: 'completed',
         output: candidateOutput,
-      }),
+      } as any),
       getContext: async () => ({
         master_json: {
           id: 'proj_recon_inf',
@@ -2549,7 +2549,7 @@ async function runAllTests() {
           access: {},
           validation_summary: { valid: false, violations: ['Garage exceeds setback'] },
         },
-      }),
+      } as any),
       getContext: async () => ({
         master_json: snapshotB,
         revision: 8,
@@ -2586,10 +2586,10 @@ async function runAllTests() {
         master_json: { id: 'proj_missing_snapshot', revision: 2, exterior_landscape: acceptedExterior },
         revision: 2,
       }),
-    })
+    });
 
     // Directly simulate an unresolved mutation where snapshotAtSubmit is unavailable (null)
-    controller.setState({
+    ;(controller as any).setState({
       requiresReconciliation: true,
       unresolvedMutation: {
         projectId: 'proj_missing_snapshot',
@@ -2600,7 +2600,7 @@ async function runAllTests() {
         submittedAt: new Date().toISOString(),
         status: 'unresolved',
       },
-    })
+    });
 
     const laterDoc = {
       id: 'proj_missing_snapshot',
@@ -2614,7 +2614,7 @@ async function runAllTests() {
           source_revision: 2,
         },
       },
-    }
+    };
 
     const resRecon = await controller.reconcileMutation({
       ...noopApi,
@@ -2626,38 +2626,38 @@ async function runAllTests() {
           access: {},
           validation_summary: { valid: false, violations: ['Driveway slope excessive'] },
         },
-      }),
+      } as any),
       getContext: async () => ({
         master_json: laterDoc,
         revision: 3,
       }),
-    })
+    });
 
-    assert.strictEqual(resRecon.status, 'reconciled')
+    assert.strictEqual(resRecon.status, 'reconciled');
     // Candidate sourceSnapshot MUST be null (explicitly unavailable) — never substituted with laterDoc!
-    const cand = controller.getState().candidate
-    assert.ok(cand !== null)
-    assert.strictEqual(cand.sourceSnapshot, null)
-    assert.strictEqual(cand.sourceRevision, 2)
+    const cand = controller.getState().candidate;
+    assert.ok(cand !== null);
+    assert.strictEqual(cand.sourceSnapshot, null);
+    assert.strictEqual(cand.sourceRevision, 2);
 
     // Accepted view remains usable and truthful
-    assert.strictEqual(controller.getState().acceptedLandscape?.run_id, 'acc_usable')
-    assert.strictEqual(controller.getState().sourceRevision, 3)
-    assert.strictEqual((controller.getState().authoritativeMaster as any)?.site_name, 'Later Current Context C')
-    assert.strictEqual(controller.canExportMasterJson(), true)
+    assert.strictEqual(controller.getState().acceptedLandscape?.run_id, 'acc_usable');
+    assert.strictEqual(controller.getState().sourceRevision, 3);
+    assert.strictEqual((controller.getState().authoritativeMaster as any)?.site_name, 'Later Current Context C');
+    assert.strictEqual(controller.canExportMasterJson(), true);
 
-    passTest('Defect 2.9: Missing submitted snapshot is not silently paired with current context while accepted view remains usable')
+    passTest('Defect 2.9: Missing submitted snapshot is not silently paired with current context while accepted view remains usable');
   }
 
   // ---------------------------------------------------------------------------
   // 56. Defect 2.10: Project switch during reconciliation prevents old response from overwriting new project candidate or guard
   // ---------------------------------------------------------------------------
   {
-    const controller = new EliaWorkflowController('proj_switch_recon_A')
-    controller.activate('proj_switch_recon_A')
+    const controller = new EliaWorkflowController('proj_switch_recon_A');
+    controller.activate('proj_switch_recon_A');
 
     // Establish unresolved state on proj_switch_recon_A
-    controller.setState({
+    ;(controller as any).setState({
       requiresReconciliation: true,
       unresolvedMutation: {
         projectId: 'proj_switch_recon_A',
