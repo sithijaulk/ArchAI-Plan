@@ -1,7 +1,10 @@
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, Boolean, Text
-from ..database import Base
+try:
+    from .database import Base
+except (ImportError, ValueError):
+    from app.database import Base
 
 
 class ContactMessage(Base):

@@ -1,8 +1,11 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, Integer, ForeignKey, Text
+from sqlalchemy import Column, String, DateTime, Integer, ForeignKey
 from sqlalchemy.orm import relationship
-from database import Base
+try:
+    from .database import Base
+except (ImportError, ValueError):
+    from app.database import Base
 
 
 class GalleryImage(Base):
