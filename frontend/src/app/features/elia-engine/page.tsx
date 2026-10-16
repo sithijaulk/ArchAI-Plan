@@ -34,14 +34,53 @@ import {
   History,
 } from 'lucide-react'
 
+const DEMO_SAMPLE_MASTER_JSON = {
+  project_id: 'demo-sample-project',
+  project_name: 'ELIA Residential Villa Demo',
+  units: 'm',
+  location: { latitude: 6.9271, longitude: 79.8612, city: 'Colombo', country: 'Sri Lanka' },
+  land_info: {
+    boundary_points: [[0, 0], [40, 0], [40, 30], [0, 30]],
+    road_facing: 'south',
+    calculated_north_bearing: 0,
+    units: 'm',
+  },
+  house_exterior_polygon: [[10, 8], [22, 8], [22, 22], [10, 22]],
+  utilities: {
+    well: { known: true, position: [2, 27] },
+    septic_tank: { known: true, position: [22, 27] },
+  },
+  interior_layout: {
+    rooms: [{ id: 'R1', furniture: ['sofa'] }],
+  },
+  exterior_landscape: {},
+  processing: {
+    gab_gen: { status: 'completed' },
+    vsai_rectifier: { status: 'completed' },
+    esai_engine: { status: 'completed' },
+    elia_engine: { status: 'pending' },
+  },
+}
+
 export default function EliaEnginePage() {
   const router = useRouter()
-  const { projectId, projectName, masterJson, setComponentStatus, setOutput } = useProjectStore()
+  const { projectId, projectName, masterJson, loadProject, setComponentStatus, setOutput } = useProjectStore()
+
+  // Initialize demo project fallback if user visits directly without a preselected project
+  useEffect(() => {
+    if (!projectId) {
+      loadProject({
+        id: 'demo-sample-project',
+        project_name: 'ELIA Residential Villa Demo',
+        master_json: DEMO_SAMPLE_MASTER_JSON as any,
+      })
+    }
+  }, [projectId, loadProject])
 
   // Production state controller instance
   const controllerRef = useRef<EliaWorkflowController | null>(null)
   if (!controllerRef.current) {
-    controllerRef.current = new EliaWorkflowController(projectId)
+    controllerRef.current = new EliaWorkflowController(projectId || 'demo-sample-project')
   }
   const controller = controllerRef.current
 
@@ -57,19 +96,18 @@ export default function EliaEnginePage() {
 
   // Coherent project lifecycle: activation on mount/project change, deactivation on cleanup
   useEffect(() => {
-    controller.activate(projectId)
-    if (!projectId) {
-      router.push('/start')
-      return
-    }
+    const currentId = projectId || 'demo-sample-project'
+    controller.activate(currentId)
 
-    controller.loadAuthoritativeContext(eliaApi)
-    controller.loadLatestRun(eliaApi)
+    if (projectId && projectId !== 'demo-sample-project') {
+      controller.loadAuthoritativeContext(eliaApi)
+      controller.loadLatestRun(eliaApi)
+    }
 
     return () => {
       controller.deactivate()
     }
-  }, [projectId, controller, router])
+  }, [projectId, controller])
 
   // Warn on browser unload if form has unsaved edits
   useEffect(() => {
@@ -86,7 +124,7 @@ export default function EliaEnginePage() {
   // Upstream Site View Model
   const displayMasterJson = state.activeView === 'candidate'
     ? (state.candidate?.sourceSnapshot ?? null)
-    : (state.authoritativeMaster || masterJson)
+    : (state.authoritativeMaster || masterJson || DEMO_SAMPLE_MASTER_JSON)
 
   const displayRevision = state.activeView === 'candidate'
     ? (state.candidate?.sourceRevision !== undefined ? state.candidate.sourceRevision : null)
@@ -96,7 +134,7 @@ export default function EliaEnginePage() {
     return extractNormalizedUpstreamGeometry(
       displayMasterJson,
       null,
-      projectId || undefined,
+      projectId || 'demo-sample-project',
       displayRevision,
       state.activeView === 'accepted'
     )
@@ -130,7 +168,6 @@ export default function EliaEnginePage() {
     await controller.loadSolar(eliaApi, state.formState.selectedLocation)
   }
 
-  if (!projectId) return null
 
   const form = state.formState
 
