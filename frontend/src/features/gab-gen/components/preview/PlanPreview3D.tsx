@@ -19,7 +19,7 @@ const BuildingScene: React.FC<{
   selectedFloorIndex: number | 'all';
   explodedMode: boolean;
 }> = ({ data, selectedFloorIndex, explodedMode }) => {
-  const landPoly = data.land_info?.source_land_polygon || [];
+  const landPoly = useMemo(() => data.land_info?.source_land_polygon || [], [data.land_info?.source_land_polygon]);
   const floors = data.floor_plan?.floors || [];
 
   // Center coordinates around (0,0) for clean Three.js framing
@@ -188,7 +188,7 @@ export const PlanPreview3D: React.FC<PlanPreview3DProps> = ({
   if (!data) {
     return (
       <div className="h-[480px] flex items-center justify-center text-muted-foreground text-xs">
-        No 3D blueprint data generated yet. Click "Generate Blueprint" to begin.
+        No 3D blueprint data generated yet. Click &quot;Generate Blueprint&quot; to begin.
       </div>
     );
   }

@@ -107,7 +107,7 @@ export default function AdminGalleryPage() {
               )) : (
                 <tr>
                   <td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">
-                    No projects found. Click 'Add Project' to create one.
+                    No projects found. Click &apos;Add Project&apos; to create one.
                   </td>
                 </tr>
               )}
