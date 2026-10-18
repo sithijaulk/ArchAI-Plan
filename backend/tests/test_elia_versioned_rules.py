@@ -1551,6 +1551,12 @@ def test_defect_1_b06_valid_door_geometry_and_clearance_passes(base_master_json)
             "polygon": [[10, 8.5], [11, 8.5], [11, 9.5], [10, 9.5]],
             "escape_route_polygon": [[10, 8.5], [12, 8.5], [12, 10.5], [10, 10.5]],
         }],
+        "egress_destinations": [{
+            "id": "dest_exit",
+            "floor_id": "F1",
+            "surface_id": "balc_f1",
+            "polygon": [[12, 8.5], [13, 8.5], [13, 10.5], [12, 10.5]],
+        }],
         "guardrail_profile": {
             "verified_climbability_assessment": True,
             "revision": 2,
@@ -3064,6 +3070,12 @@ def test_b06_fully_valid_matching_route_and_scoped_assessments_passes(base_maste
             "polygon": [[10, 8.5], [11, 8.5], [11, 9.5], [10, 9.5]],
             "escape_route_polygon": [[10, 8.5], [12, 8.5], [12, 10.5], [10, 10.5]],
         }],
+        "egress_destinations": [{
+            "id": "dest_exit",
+            "floor_id": "F1",
+            "surface_id": "b1",
+            "polygon": [[12, 8.5], [13, 8.5], [13, 10.5], [12, 10.5]],
+        }],
         "guardrail_profile": {
             "verified_climbability_assessment": True,
             "revision": 2,
@@ -3576,6 +3588,796 @@ def test_caller_b06_obstruction_produces_blocked_approval(base_master_json):
     assert r_map["B06"]["outcome"] == RuleOutcome.FAIL.value
     assert res["approval_status"] != "compliant"
     assert res["approval_status"] == "conditional_draft_review_required"
+
+
+# =============================================================================
+# COMPREHENSIVE VERIFIED REGRESSION TESTS: B09 APPROVED CONFIGURATION
+# =============================================================================
+
+def test_b09_approved_config_unchanged_passes(base_master_json):
+    """B09: Unchanged valid configuration against trusted approval passes."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["revision"] = 2
+    planter = {
+        "json_id": "p1",
+        "floor_id": "F1",
+        "elevation_m": 3.0,
+        "supporting_surface_type": "balcony",
+        "support_json_id": "b1",
+        "position": [12.0, 10.0, 3.0],
+        "rotation_degrees": 45.0,
+        "scale": 1.0,
+        "dimensions": {"width_m": 0.8, "depth_m": 0.8, "height_m": 0.5},
+        "soil_volume_m3": 0.2,
+        "saturated_weight_kg": 150.0,
+    }
+    master["structural_evidence"] = {
+        "max_saturated_load_kn_m2": 4.0,
+        "approved_revision": 2,
+        "scope": ["b1"],
+        "approved_configuration": [deepcopy(planter)],
+    }
+    cand = {
+        "vegetation_nodes": [deepcopy(planter)],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["B09"]["outcome"] == RuleOutcome.PASS.value
+
+
+def test_b09_approved_config_rotation_0_to_90_requires_review(base_master_json):
+    """B09: Approved planter rotation changing from 0 to 90 degrees requires review."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["revision"] = 2
+    approved_planter = {
+        "json_id": "p1",
+        "floor_id": "F1",
+        "elevation_m": 3.0,
+        "supporting_surface_type": "balcony",
+        "support_json_id": "b1",
+        "position": [12.0, 10.0],
+        "rotation_degrees": 0.0,
+    }
+    cand_planter = deepcopy(approved_planter)
+    cand_planter["rotation_degrees"] = 90.0
+
+    master["structural_evidence"] = {
+        "max_saturated_load_kn_m2": 4.0,
+        "approved_revision": 2,
+        "scope": ["b1"],
+        "approved_configuration": [approved_planter],
+    }
+    cand = {
+        "vegetation_nodes": [cand_planter],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["B09"]["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert any("planter_rotation_changed" in str(aff) for aff in r_map["B09"]["affected_object_ids"])
+
+
+def test_b09_approved_config_rotation_0_to_360_equivalent_passes(base_master_json):
+    """B09: Equivalent rotation 0 to 360 degrees is preserved as unchanged pass."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["revision"] = 2
+    approved_planter = {
+        "json_id": "p1",
+        "floor_id": "F1",
+        "elevation_m": 3.0,
+        "supporting_surface_type": "balcony",
+        "support_json_id": "b1",
+        "position": [12.0, 10.0],
+        "rotation_degrees": 0.0,
+    }
+    cand_planter = deepcopy(approved_planter)
+    cand_planter["rotation_degrees"] = 360.0
+
+    master["structural_evidence"] = {
+        "max_saturated_load_kn_m2": 4.0,
+        "approved_revision": 2,
+        "scope": ["b1"],
+        "approved_configuration": [approved_planter],
+    }
+    cand = {
+        "vegetation_nodes": [cand_planter],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["B09"]["outcome"] == RuleOutcome.PASS.value
+
+
+def test_b09_approved_config_z_only_position_change_requires_review(base_master_json):
+    """B09: Position change [5, 5, 3] to [5, 5, 9] must not be ignored; requires review."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["revision"] = 2
+    approved_planter = {
+        "json_id": "p1",
+        "floor_id": "F1",
+        "supporting_surface_type": "balcony",
+        "support_json_id": "b1",
+        "position": [5.0, 5.0, 3.0],
+    }
+    cand_planter = deepcopy(approved_planter)
+    cand_planter["position"] = [5.0, 5.0, 9.0]
+
+    master["structural_evidence"] = {
+        "max_saturated_load_kn_m2": 4.0,
+        "approved_revision": 2,
+        "scope": ["b1"],
+        "approved_configuration": [approved_planter],
+    }
+    cand = {
+        "vegetation_nodes": [cand_planter],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["B09"]["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert any("planter_position_changed" in str(aff) for aff in r_map["B09"]["affected_object_ids"])
+
+
+def test_b09_approved_config_elevation_only_change_requires_review(base_master_json):
+    """B09: Elevation-only change from 3.0 to 4.5 requires review."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["revision"] = 2
+    approved_planter = {
+        "json_id": "p1",
+        "floor_id": "F1",
+        "elevation_m": 3.0,
+        "supporting_surface_type": "balcony",
+        "support_json_id": "b1",
+        "position": [12.0, 10.0],
+    }
+    cand_planter = deepcopy(approved_planter)
+    cand_planter["elevation_m"] = 4.5
+
+    master["structural_evidence"] = {
+        "max_saturated_load_kn_m2": 4.0,
+        "approved_revision": 2,
+        "scope": ["b1"],
+        "approved_configuration": [approved_planter],
+    }
+    cand = {
+        "vegetation_nodes": [cand_planter],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["B09"]["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert any("planter_elevation_changed" in str(aff) for aff in r_map["B09"]["affected_object_ids"])
+
+
+def test_b09_approved_config_missing_previously_present_position_requires_review(base_master_json):
+    """B09: Missing previously present position in candidate requires review."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["revision"] = 2
+    approved_planter = {
+        "json_id": "p1",
+        "floor_id": "F1",
+        "supporting_surface_type": "balcony",
+        "support_json_id": "b1",
+        "position": [12.0, 10.0, 3.0],
+    }
+    cand_planter = {
+        "json_id": "p1",
+        "floor_id": "F1",
+        "supporting_surface_type": "balcony",
+        "support_json_id": "b1",
+        "elevation_m": 3.0,
+    }
+    master["structural_evidence"] = {
+        "max_saturated_load_kn_m2": 4.0,
+        "approved_revision": 2,
+        "scope": ["b1"],
+        "approved_configuration": [approved_planter],
+    }
+    cand = {
+        "vegetation_nodes": [cand_planter],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["B09"]["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+
+
+def test_b09_approved_config_malformed_and_boolean_coordinates(base_master_json):
+    """B09: Non-finite floats and booleans used as numbers in candidate are rejected."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["revision"] = 2
+    approved_planter = {
+        "json_id": "p1",
+        "floor_id": "F1",
+        "supporting_surface_type": "balcony",
+        "support_json_id": "b1",
+        "position": [12.0, 10.0],
+    }
+    cand_planter = deepcopy(approved_planter)
+    cand_planter["position"] = [True, float("inf")]
+
+    master["structural_evidence"] = {
+        "max_saturated_load_kn_m2": 4.0,
+        "approved_revision": 2,
+        "scope": ["b1"],
+        "approved_configuration": [approved_planter],
+    }
+    cand = {
+        "vegetation_nodes": [cand_planter],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["B09"]["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+
+
+def test_b09_approved_config_scale_change_requires_review(base_master_json):
+    """B09: Scale change from 1.0 to 1.5 requires review."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["revision"] = 2
+    approved_planter = {
+        "json_id": "p1",
+        "floor_id": "F1",
+        "supporting_surface_type": "balcony",
+        "support_json_id": "b1",
+        "position": [12.0, 10.0],
+        "scale": 1.0,
+    }
+    cand_planter = deepcopy(approved_planter)
+    cand_planter["scale"] = 1.5
+
+    master["structural_evidence"] = {
+        "max_saturated_load_kn_m2": 4.0,
+        "approved_revision": 2,
+        "scope": ["b1"],
+        "approved_configuration": [approved_planter],
+    }
+    cand = {
+        "vegetation_nodes": [cand_planter],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["B09"]["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert any("planter_scale_changed" in str(aff) for aff in r_map["B09"]["affected_object_ids"])
+
+
+def test_b09_approved_config_duplicate_ids_flagged(base_master_json):
+    """B09: Duplicate IDs in approved configuration do not silently overwrite; require review."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["revision"] = 2
+    p1 = {
+        "json_id": "p1",
+        "floor_id": "F1",
+        "supporting_surface_type": "balcony",
+        "support_json_id": "b1",
+        "position": [12.0, 10.0],
+    }
+    p1_dup = deepcopy(p1)
+    p1_dup["position"] = [15.0, 10.0]
+
+    master["structural_evidence"] = {
+        "max_saturated_load_kn_m2": 4.0,
+        "approved_revision": 2,
+        "scope": ["b1"],
+        "approved_configuration": [p1, p1_dup],
+    }
+    cand = {
+        "vegetation_nodes": [deepcopy(p1)],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["B09"]["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert any("duplicate_approved_planter_id" in str(aff) for aff in r_map["B09"]["affected_object_ids"])
+
+
+def test_b09_approved_config_no_input_mutation(base_master_json):
+    """B09: Evaluating candidate against approved configuration does not mutate inputs."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["revision"] = 2
+    planter = {
+        "json_id": "p1",
+        "floor_id": "F1",
+        "elevation_m": 3.0,
+        "supporting_surface_type": "balcony",
+        "support_json_id": "b1",
+        "position": [12.0, 10.0],
+    }
+    master["structural_evidence"] = {
+        "max_saturated_load_kn_m2": 4.0,
+        "approved_revision": 2,
+        "scope": ["b1"],
+        "approved_configuration": [deepcopy(planter)],
+    }
+    cand = {
+        "vegetation_nodes": [deepcopy(planter)],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    master_before = deepcopy(master)
+    cand_before = deepcopy(cand)
+    evaluate_rules(cand, context, master, reqs)
+    assert master == master_before
+    assert cand == cand_before
+
+
+# =============================================================================
+# COMPREHENSIVE VERIFIED REGRESSION TESTS: B06 ROUTE CONNECTIVITY & EGRESS DESTINATIONS
+# =============================================================================
+
+def test_b06_door_polygon_reused_as_route_no_destination_requires_review(base_master_json):
+    """B06: Route polygon identical to doorway polygon with no destination must never pass."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["revision"] = 2
+    door_coords = [[10.0, 8.5], [11.0, 8.5], [11.0, 9.5], [10.0, 9.5]]
+    master["building_exterior"] = {
+        "balconies": [{"json_id": "b1", "floor_id": "F1", "elevation_m": 0.0, "polygon": [[10, 8], [16, 8], [16, 14], [10, 14]]}],
+        "balcony_doors": [{
+            "id": "door_1",
+            "floor_id": "F1",
+            "surface_id": "b1",
+            "polygon": door_coords,
+            "escape_route_polygon": deepcopy(door_coords),  # identical to doorway!
+        }],
+        "guardrail_profile": {"verified_climbability_assessment": True, "revision": 2, "scope": ["b1", "F1"]},
+    }
+    cand = {
+        "vegetation_nodes": [{
+            "json_id": "planter_safe",
+            "floor_id": "F1",
+            "supporting_surface_type": "balcony",
+            "support_json_id": "b1",
+            "position": [14.0, 12.0],
+            "footprint": [[13.5, 11.5], [14.5, 11.5], [14.5, 12.5], [13.5, 12.5]],
+        }],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["B06"]["outcome"] != RuleOutcome.PASS.value
+    assert r_map["B06"]["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+
+
+def test_b06_route_touches_door_but_does_not_reach_destination_requires_review(base_master_json):
+    """B06: Route corridor touches door but stops short of destination -> REVIEW_REQUIRED."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["revision"] = 2
+    master["building_exterior"] = {
+        "balconies": [{"json_id": "b1", "floor_id": "F1", "elevation_m": 0.0, "polygon": [[10, 8], [16, 8], [16, 14], [10, 14]]}],
+        "balcony_doors": [{
+            "id": "door_1",
+            "floor_id": "F1",
+            "surface_id": "b1",
+            "polygon": [[10, 8.5], [11, 8.5], [11, 9.5], [10, 9.5]],
+            "escape_route_polygon": [[10, 8.5], [12, 8.5], [12, 10.5], [10, 10.5]],
+        }],
+        "egress_destinations": [{
+            "id": "far_stair",
+            "floor_id": "F1",
+            "surface_id": "b1",
+            # Destination is at x=14..15, but route only goes to x=12
+            "polygon": [[14.5, 8.5], [15.5, 8.5], [15.5, 10.5], [14.5, 10.5]],
+        }],
+        "guardrail_profile": {"verified_climbability_assessment": True, "revision": 2, "scope": ["b1", "F1"]},
+    }
+    cand = {
+        "vegetation_nodes": [{
+            "json_id": "planter_safe",
+            "floor_id": "F1",
+            "supporting_surface_type": "balcony",
+            "support_json_id": "b1",
+            "position": [14.0, 12.0],
+            "footprint": [[13.5, 11.5], [14.5, 11.5], [14.5, 12.5], [13.5, 12.5]],
+        }],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["B06"]["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert "escape_route_connectivity" in r_map["B06"]["missing_inputs"]
+
+
+def test_b06_route_touches_destination_but_not_door_requires_review(base_master_json):
+    """B06: Route touches destination but does not connect to access door -> REVIEW_REQUIRED."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["revision"] = 2
+    master["building_exterior"] = {
+        "balconies": [{"json_id": "b1", "floor_id": "F1", "elevation_m": 0.0, "polygon": [[10, 8], [16, 8], [16, 14], [10, 14]]}],
+        "balcony_doors": [{
+            "id": "door_1",
+            "floor_id": "F1",
+            "surface_id": "b1",
+            "polygon": [[10, 8.5], [11, 8.5], [11, 9.5], [10, 9.5]],
+        }],
+        "escape_routes": [{
+            "id": "route_at_dest",
+            "floor_id": "F1",
+            "surface_id": "b1",
+            # Route is adjacent to destination [13..14] but detached from door [10..11]
+            "polygon": [[12.5, 8.5], [13.5, 8.5], [13.5, 10.5], [12.5, 10.5]],
+        }],
+        "egress_destinations": [{
+            "id": "dest_exit",
+            "floor_id": "F1",
+            "surface_id": "b1",
+            "polygon": [[13.5, 8.5], [14.5, 8.5], [14.5, 10.5], [13.5, 10.5]],
+        }],
+        "guardrail_profile": {"verified_climbability_assessment": True, "revision": 2, "scope": ["b1", "F1"]},
+    }
+    cand = {
+        "vegetation_nodes": [{
+            "json_id": "planter_safe",
+            "floor_id": "F1",
+            "supporting_surface_type": "balcony",
+            "support_json_id": "b1",
+            "position": [14.0, 12.0],
+            "footprint": [[13.5, 11.5], [14.5, 11.5], [14.5, 12.5], [13.5, 12.5]],
+        }],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["B06"]["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert "escape_route_connectivity" in r_map["B06"]["missing_inputs"]
+
+
+def test_b06_separate_route_components_touching_opposite_endpoints_requires_review(base_master_json):
+    """B06: Two disconnected route pieces touching opposite endpoints do not form a route."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["revision"] = 2
+    master["building_exterior"] = {
+        "balconies": [{"json_id": "b1", "floor_id": "F1", "elevation_m": 0.0, "polygon": [[10, 8], [16, 8], [16, 14], [10, 14]]}],
+        "balcony_doors": [{
+            "id": "door_1",
+            "floor_id": "F1",
+            "surface_id": "b1",
+            "polygon": [[10, 8.5], [11, 8.5], [11, 9.5], [10, 9.5]],
+        }],
+        "escape_routes": [
+            # Component 1 touches door
+            {"id": "route_1", "surface_id": "b1", "polygon": [[10, 8.5], [11.5, 8.5], [11.5, 9.5], [10, 9.5]]},
+            # Component 2 touches destination (gap between 11.5 and 13.0)
+            {"id": "route_2", "surface_id": "b1", "polygon": [[13.0, 8.5], [14.0, 8.5], [14.0, 9.5], [13.0, 9.5]]},
+        ],
+        "egress_destinations": [{
+            "id": "dest_exit",
+            "floor_id": "F1",
+            "surface_id": "b1",
+            "polygon": [[14.0, 8.5], [15.0, 8.5], [15.0, 9.5], [14.0, 9.5]],
+        }],
+        "guardrail_profile": {"verified_climbability_assessment": True, "revision": 2, "scope": ["b1", "F1"]},
+    }
+    cand = {
+        "vegetation_nodes": [{
+            "json_id": "planter_safe",
+            "floor_id": "F1",
+            "supporting_surface_type": "balcony",
+            "support_json_id": "b1",
+            "position": [14.0, 12.0],
+            "footprint": [[13.5, 11.5], [14.5, 11.5], [14.5, 12.5], [13.5, 12.5]],
+        }],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["B06"]["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert "escape_route_connectivity" in r_map["B06"]["missing_inputs"]
+
+
+def test_b06_destination_from_another_balcony_or_floor_excluded(base_master_json):
+    """B06: Egress destination associated with a different surface or floor is excluded."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["revision"] = 2
+    master["building_exterior"] = {
+        "balconies": [
+            {"json_id": "b1", "floor_id": "F1", "polygon": [[10, 8], [16, 8], [16, 14], [10, 14]]},
+            {"json_id": "b2", "floor_id": "F1", "polygon": [[20, 8], [26, 8], [26, 14], [20, 14]]},
+        ],
+        "balcony_doors": [{
+            "id": "door_1",
+            "floor_id": "F1",
+            "surface_id": "b1",
+            "polygon": [[10, 8.5], [11, 8.5], [11, 9.5], [10, 9.5]],
+            "escape_route_polygon": [[10, 8.5], [12, 8.5], [12, 10.5], [10, 10.5]],
+        }],
+        "egress_destinations": [{
+            "id": "dest_other",
+            "floor_id": "F1",
+            "surface_id": "b2",  # Different surface!
+            "polygon": [[12, 8.5], [13, 8.5], [13, 10.5], [12, 10.5]],
+        }],
+        "guardrail_profile": {"verified_climbability_assessment": True, "revision": 2, "scope": ["b1", "b2", "F1"]},
+    }
+    cand = {
+        "vegetation_nodes": [{
+            "json_id": "planter_safe",
+            "floor_id": "F1",
+            "supporting_surface_type": "balcony",
+            "support_json_id": "b1",
+            "position": [14.0, 12.0],
+            "footprint": [[13.5, 11.5], [14.5, 11.5], [14.5, 12.5], [13.5, 12.5]],
+        }],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["B06"]["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert "designated_egress_destination" in r_map["B06"]["missing_inputs"]
+
+
+def test_b06_malformed_destination_geometry_unknown(base_master_json):
+    """B06: Malformed destination geometry yields UNKNOWN."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["revision"] = 2
+    master["building_exterior"] = {
+        "balconies": [{"json_id": "b1", "floor_id": "F1", "polygon": [[10, 8], [16, 8], [16, 14], [10, 14]]}],
+        "balcony_doors": [{
+            "id": "door_1",
+            "floor_id": "F1",
+            "surface_id": "b1",
+            "polygon": [[10, 8.5], [11, 8.5], [11, 9.5], [10, 9.5]],
+            "escape_route_polygon": [[10, 8.5], [12, 8.5], [12, 10.5], [10, 10.5]],
+        }],
+        "egress_destinations": [{
+            "id": "bad_dest",
+            "floor_id": "F1",
+            "surface_id": "b1",
+            "polygon": "malformed_coordinates",
+        }],
+        "guardrail_profile": {"verified_climbability_assessment": True, "revision": 2, "scope": ["b1", "F1"]},
+    }
+    cand = {
+        "vegetation_nodes": [{
+            "json_id": "planter_safe",
+            "floor_id": "F1",
+            "supporting_surface_type": "balcony",
+            "support_json_id": "b1",
+            "position": [14.0, 12.0],
+            "footprint": [[13.5, 11.5], [14.5, 11.5], [14.5, 12.5], [13.5, 12.5]],
+        }],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["B06"]["outcome"] == RuleOutcome.UNKNOWN.value
+    assert "valid_egress_destination_geometry" in r_map["B06"]["missing_inputs"]
+
+
+def test_b06_polygon_hole_placement_and_tolerance_contact(base_master_json):
+    """B06: Planter inside polygon hole does not obstruct, boundary contact within tolerance passes."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["revision"] = 2
+    # Route polygon with interior hole at [13.0, 11.0] to [15.0, 13.0]
+    # Door: [10, 8.5] to [11, 9.5]
+    # Route shell: [10, 8.5] to [16, 8.5] to [16, 13.5] to [10, 13.5]
+    # Route hole: [13.0, 11.0] to [15.0, 11.0] to [15.0, 13.0] to [13.0, 13.0]
+    # Destination: [16.0, 8.5] to [17.0, 8.5] to [17.0, 10.5] to [16.0, 10.5]
+    route_with_hole = {
+        "shell": [[10.0, 8.5], [16.0, 8.5], [16.0, 13.5], [10.0, 13.5]],
+        "holes": [[[13.0, 11.0], [15.0, 11.0], [15.0, 13.0], [13.0, 13.0]]],
+    }
+    master["building_exterior"] = {
+        "balconies": [{"json_id": "b1", "floor_id": "F1", "elevation_m": 0.0, "polygon": [[10, 8], [17, 8], [17, 14], [10, 14]]}],
+        "balcony_doors": [{
+            "id": "door_1",
+            "floor_id": "F1",
+            "surface_id": "b1",
+            "polygon": [[10.0, 8.5], [11.0, 8.5], [11.0, 9.5], [10.0, 9.5]],
+        }],
+        "escape_routes": [{
+            "id": "route_holed",
+            "floor_id": "F1",
+            "surface_id": "b1",
+            "polygon": route_with_hole,
+        }],
+        "egress_destinations": [{
+            "id": "dest_exit",
+            "floor_id": "F1",
+            "surface_id": "b1",
+            "polygon": [[16.0, 8.5], [17.0, 8.5], [17.0, 10.5], [16.0, 10.5]],
+        }],
+        "guardrail_profile": {"verified_climbability_assessment": True, "revision": 2, "scope": ["b1", "F1"]},
+    }
+    # Planter placed strictly inside the hole [13.5, 11.5] to [14.5, 12.5]
+    cand = {
+        "vegetation_nodes": [{
+            "json_id": "planter_in_hole",
+            "floor_id": "F1",
+            "supporting_surface_type": "balcony",
+            "support_json_id": "b1",
+            "position": [14.0, 12.0],
+            "footprint": [[13.5, 11.5], [14.5, 11.5], [14.5, 12.5], [13.5, 12.5]],
+        }],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    # Does not intersect the corridor because it sits in the hole!
+    assert r_map["B06"]["outcome"] == RuleOutcome.PASS.value
+
+
+# =============================================================================
+# COMPREHENSIVE VERIFIED REGRESSION TESTS: SUPPORTING SURFACE RESOLUTION
+# =============================================================================
+
+def test_supporting_surface_missing_id_uniquely_resolvable_passes_b06(base_master_json):
+    """B06: Planter missing explicit support_json_id resolves uniquely by floor and passes B06."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["revision"] = 2
+    master["building_exterior"] = {
+        "balconies": [{"json_id": "balc_unique", "floor_id": "F1", "elevation_m": 0.0, "polygon": [[10, 8], [16, 8], [16, 14], [10, 14]]}],
+        "balcony_doors": [{
+            "id": "door_1",
+            "floor_id": "F1",
+            "surface_id": "balc_unique",
+            "polygon": [[10, 8.5], [11, 8.5], [11, 9.5], [10, 9.5]],
+            "escape_route_polygon": [[10, 8.5], [12, 8.5], [12, 10.5], [10, 10.5]],
+        }],
+        "egress_destinations": [{
+            "id": "dest_exit",
+            "floor_id": "F1",
+            "surface_id": "balc_unique",
+            "polygon": [[12, 8.5], [13, 8.5], [13, 10.5], [12, 10.5]],
+        }],
+        "guardrail_profile": {"verified_climbability_assessment": True, "revision": 2, "scope": ["balc_unique", "F1"]},
+    }
+    cand = {
+        "vegetation_nodes": [{
+            "json_id": "planter_unresolved_id",
+            "floor_id": "F1",
+            "supporting_surface_type": "balcony",
+            # support_json_id intentionally omitted!
+            "position": [14.0, 12.0],
+            "footprint": [[13.5, 11.5], [14.5, 11.5], [14.5, 12.5], [13.5, 12.5]],
+        }],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    # Genuinely resolvable unique surface must PASS B06!
+    assert r_map["B06"]["outcome"] == RuleOutcome.PASS.value
+
+
+def test_supporting_surface_multiple_possible_surfaces_no_guessing(base_master_json):
+    """B06: Planter missing explicit surface with multiple balconies on floor requires review."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["revision"] = 2
+    master["building_exterior"] = {
+        "balconies": [
+            {"json_id": "b1", "floor_id": "F1", "polygon": [[10, 8], [16, 8], [16, 14], [10, 14]]},
+            {"json_id": "b2", "floor_id": "F1", "polygon": [[20, 8], [26, 8], [26, 14], [20, 14]]},
+        ],
+        "balcony_doors": [{
+            "id": "door_1",
+            "floor_id": "F1",
+            "surface_id": "b1",
+            "polygon": [[10, 8.5], [11, 8.5], [11, 9.5], [10, 9.5]],
+        }],
+        "guardrail_profile": {"verified_climbability_assessment": True, "revision": 2, "scope": ["b1", "b2", "F1"]},
+    }
+    cand = {
+        "vegetation_nodes": [{
+            "json_id": "planter_ambiguous",
+            "floor_id": "F1",
+            "supporting_surface_type": "balcony",
+            # support_json_id omitted with 2 balconies on floor F1
+            "position": [14.0, 12.0],
+            "footprint": [[13.5, 11.5], [14.5, 11.5], [14.5, 12.5], [13.5, 12.5]],
+        }],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["B06"]["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert "supporting_surface_identity" in r_map["B06"]["missing_inputs"]
+
+
+def test_supporting_surface_contradictory_floor(base_master_json):
+    """B06: Planter explicit surface b1 (Floor 1) contradictory with floor_id F2 requires review."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["revision"] = 2
+    master["building_exterior"] = {
+        "balconies": [{"json_id": "b1", "floor_id": "F1", "polygon": [[10, 8], [16, 8], [16, 14], [10, 14]]}],
+        "balcony_doors": [{"id": "door_1", "floor_id": "F1", "surface_id": "b1", "polygon": [[10, 8.5], [11, 8.5], [11, 9.5], [10, 9.5]]}],
+        "guardrail_profile": {"verified_climbability_assessment": True, "revision": 2, "scope": ["b1", "F1"]},
+    }
+    cand = {
+        "vegetation_nodes": [{
+            "json_id": "planter_mismatch",
+            "floor_id": "F2",  # Contradictory floor!
+            "supporting_surface_type": "balcony",
+            "support_json_id": "b1",
+            "position": [14.0, 12.0],
+            "footprint": [[13.5, 11.5], [14.5, 11.5], [14.5, 12.5], [13.5, 12.5]],
+        }],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["B06"]["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert "supporting_surface_identity" in r_map["B06"]["missing_inputs"]
+
 
 
 

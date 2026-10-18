@@ -92,7 +92,24 @@ def parse_polygon_representation(raw: Any) -> tuple[Polygon | None, str]:
         (Polygon | None, status)
         where status is one of "valid", "malformed", "non_finite", "invalid_topology"
     """
-    if not isinstance(raw, (list, tuple)) or len(raw) == 0:
+    if isinstance(raw, Mapping):
+        shell_raw = raw.get("shell") or raw.get("exterior") or raw.get("coordinates")
+        holes_raw = raw.get("holes") or raw.get("interiors") or []
+        if shell_raw is None:
+            return None, "malformed"
+    elif isinstance(raw, (list, tuple)) and len(raw) > 0:
+        is_list_of_rings = (
+            isinstance(raw[0], (list, tuple))
+            and len(raw[0]) > 0
+            and isinstance(raw[0][0], (list, tuple))
+        )
+        if is_list_of_rings:
+            shell_raw = raw[0]
+            holes_raw = raw[1:]
+        else:
+            shell_raw = raw
+            holes_raw = []
+    else:
         return None, "malformed"
 
     def _clean_ring(ring_raw: Any) -> tuple[list[tuple[float, float]] | None, str]:
@@ -108,19 +125,6 @@ def parse_polygon_representation(raw: Any) -> tuple[Polygon | None, str]:
                 return None, "non_finite"
             clean.append((x, y))
         return clean, "valid"
-
-    is_list_of_rings = (
-        isinstance(raw[0], (list, tuple))
-        and len(raw[0]) > 0
-        and isinstance(raw[0][0], (list, tuple))
-    )
-
-    if is_list_of_rings:
-        shell_raw = raw[0]
-        holes_raw = raw[1:]
-    else:
-        shell_raw = raw
-        holes_raw = []
 
     ext_pts, ext_status = _clean_ring(shell_raw)
     if ext_pts is None:
@@ -266,7 +270,12 @@ def resolve_supporting_surface(
     if dup_ids:
         return None, "duplicate_id"
 
-    supp_id = str(planter.get("support_json_id") or planter.get("supporting_surface_id") or "").strip()
+    supp_id = str(
+        planter.get("support_json_id")
+        or planter.get("supporting_surface_id")
+        or planter.get("balcony_id")
+        or ""
+    ).strip()
     pl_floor = planter.get("floor_id")
     pl_elev = to_finite_float(planter.get("elevation_m"))
 
@@ -778,39 +787,80 @@ def compare_approved_planter_configuration(
     """Compare candidate balcony planters against the trusted approved configuration.
     
     Returns a list of violation / change strings. An empty list indicates verified alignment.
+    Never mutates inputs. Validates coordinates, orientations, scale, and properties.
     """
     diffs: list[str] = []
 
-    # Normalize approved planters into a list of dicts
+    if approved_raw is None or not isinstance(approved_raw, (list, Mapping)):
+        return ["missing_or_malformed_approved_configuration"]
+
+    # Normalize approved planters into a list of dicts without mutating source
     approved_list: list[Mapping[str, Any]] = []
     if isinstance(approved_raw, list):
-        approved_list = [p for p in approved_raw if isinstance(p, Mapping)]
+        for idx, p in enumerate(approved_raw):
+            if not isinstance(p, Mapping):
+                diffs.append(f"malformed_approved_planter_entry(index_{idx})")
+            else:
+                approved_list.append(dict(p))
     elif isinstance(approved_raw, Mapping):
-        if "vegetation_nodes" in approved_raw and isinstance(approved_raw["vegetation_nodes"], list):
-            approved_list = [p for p in approved_raw["vegetation_nodes"] if isinstance(p, Mapping)]
-        elif "planters" in approved_raw and isinstance(approved_raw["planters"], list):
-            approved_list = [p for p in approved_raw["planters"] if isinstance(p, Mapping)]
-        elif "elements" in approved_raw and isinstance(approved_raw["elements"], list):
-            approved_list = [p for p in approved_raw["elements"] if isinstance(p, Mapping)]
-        else:
+        matched_container = False
+        for container_key in ("vegetation_nodes", "planters", "elements"):
+            if container_key in approved_raw:
+                matched_container = True
+                raw_items = approved_raw[container_key]
+                if not isinstance(raw_items, list):
+                    diffs.append(f"malformed_approved_configuration_container({container_key})")
+                else:
+                    for idx, p in enumerate(raw_items):
+                        if not isinstance(p, Mapping):
+                            diffs.append(f"malformed_approved_planter_entry({container_key}_{idx})")
+                        else:
+                            approved_list.append(dict(p))
+                break
+        if not matched_container:
             for k, v in approved_raw.items():
-                if isinstance(v, Mapping):
+                if not isinstance(v, Mapping):
+                    diffs.append(f"malformed_approved_planter_entry({k})")
+                else:
                     d = dict(v)
                     if "json_id" not in d and "id" not in d:
-                        d["json_id"] = k
+                        d["json_id"] = str(k)
                     approved_list.append(d)
 
+    if not approved_list and not diffs:
+        return ["empty_approved_configuration"]
+
+    # Build app_by_id and detect duplicate / missing IDs in approved configuration
+    seen_app_ids: set[str] = set()
     app_by_id: dict[str, Mapping[str, Any]] = {}
-    for p in approved_list:
+    for idx, p in enumerate(approved_list):
         pid = str(p.get("json_id") or p.get("id") or "").strip()
-        if pid:
+        if not pid:
+            diffs.append(f"approved_planter_missing_id(index_{idx})")
+        elif pid in seen_app_ids:
+            diffs.append(f"duplicate_approved_planter_id({pid})")
+        else:
+            seen_app_ids.add(pid)
             app_by_id[pid] = p
 
+    # Build cand_by_id and detect duplicate / missing IDs in candidate planters
+    seen_cand_ids: set[str] = set()
     cand_by_id: dict[str, Mapping[str, Any]] = {}
-    for p in candidate_planters:
-        pid = str(p.get("json_id") or p.get("id") or "").strip()
-        if pid:
-            cand_by_id[pid] = p
+    if not isinstance(candidate_planters, Sequence):
+        diffs.append("malformed_candidate_planters_sequence")
+    else:
+        for idx, p in enumerate(candidate_planters):
+            if not isinstance(p, Mapping):
+                diffs.append(f"malformed_candidate_planter(index_{idx})")
+                continue
+            pid = str(p.get("json_id") or p.get("id") or "").strip()
+            if not pid:
+                diffs.append(f"candidate_planter_missing_id(index_{idx})")
+            elif pid in seen_cand_ids:
+                diffs.append(f"duplicate_candidate_planter_id({pid})")
+            else:
+                seen_cand_ids.add(pid)
+                cand_by_id[pid] = dict(p)
 
     # Membership checks
     for cid in sorted(cand_by_id.keys()):
@@ -826,64 +876,206 @@ def compare_approved_planter_configuration(
         a = app_by_id[pid]
         c = cand_by_id[pid]
 
-        # Supporting surface
+        # 1. Supporting surface
         a_surf = str(a.get("support_json_id") or a.get("supporting_surface_id") or a.get("balcony_id") or "").strip()
         c_surf = str(c.get("support_json_id") or c.get("supporting_surface_id") or c.get("balcony_id") or "").strip()
-        if a_surf and c_surf != a_surf:
+        if a_surf != c_surf:
             diffs.append(f"planter_surface_changed({pid}: {a_surf} -> {c_surf})")
 
-        # Floor
+        # 2. Floor
         a_fl = str(a.get("floor_id") or "").strip()
         c_fl = str(c.get("floor_id") or "").strip()
-        if a_fl and c_fl != a_fl:
+        if a_fl != c_fl:
             diffs.append(f"planter_floor_changed({pid}: {a_fl} -> {c_fl})")
 
-        # Footprint / Polygon
+        # 3. Footprint / Polygon
         a_poly = a.get("footprint") or a.get("polygon")
         c_poly = c.get("footprint") or c.get("polygon")
-        if a_poly is not None or c_poly is not None:
-            if a_poly is None or c_poly is None:
+        if (a_poly is not None) != (c_poly is not None):
+            diffs.append(f"planter_footprint_changed({pid})")
+        elif a_poly is not None and c_poly is not None:
+            eq, st = are_polygons_equivalent(a_poly, c_poly)
+            if st == "invalid" or not eq:
                 diffs.append(f"planter_footprint_changed({pid})")
-            else:
-                eq, _ = are_polygons_equivalent(a_poly, c_poly)
-                if not eq:
-                    diffs.append(f"planter_footprint_changed({pid})")
 
-        # Position (tolerance 1e-3)
-        a_pos = a.get("position")
-        c_pos = c.get("position")
-        if a_pos is not None or c_pos is not None:
-            if a_pos is None or c_pos is None or not isinstance(a_pos, (list, tuple)) or not isinstance(c_pos, (list, tuple)):
-                diffs.append(f"planter_position_changed({pid})")
-            elif len(a_pos) < 2 or len(c_pos) < 2:
-                diffs.append(f"planter_position_changed({pid})")
+        # 4. Position (including all represented coordinates: X, Y, Z)
+        has_a_pos = "position" in a and a["position"] is not None
+        has_c_pos = "position" in c and c["position"] is not None
+        if has_a_pos != has_c_pos:
+            if has_a_pos:
+                diffs.append(f"planter_position_removed({pid})")
             else:
-                ax, ay = to_finite_float(a_pos[0]), to_finite_float(a_pos[1])
-                cx, cy = to_finite_float(c_pos[0]), to_finite_float(c_pos[1])
-                if ax is None or ay is None or cx is None or cy is None or abs(cx - ax) > 1e-3 or abs(cy - ay) > 1e-3:
-                    diffs.append(f"planter_position_changed({pid}: {a_pos} -> {c_pos})")
+                diffs.append(f"planter_position_added({pid})")
+        elif has_a_pos and has_c_pos:
+            a_pos = a["position"]
+            c_pos = c["position"]
+            a_ok = isinstance(a_pos, (list, tuple)) and len(a_pos) >= 2
+            c_ok = isinstance(c_pos, (list, tuple)) and len(c_pos) >= 2
+            if not a_ok:
+                diffs.append(f"approved_position_malformed({pid})")
+            if not c_ok:
+                diffs.append(f"candidate_position_malformed({pid})")
+            if a_ok and c_ok:
+                ax = to_finite_float(a_pos[0])
+                ay = to_finite_float(a_pos[1])
+                cx = to_finite_float(c_pos[0])
+                cy = to_finite_float(c_pos[1])
+                if ax is None or ay is None:
+                    diffs.append(f"approved_position_malformed({pid})")
+                if cx is None or cy is None:
+                    diffs.append(f"candidate_position_malformed({pid})")
+                if ax is not None and ay is not None and cx is not None and cy is not None:
+                    if abs(cx - ax) > 1e-3 or abs(cy - ay) > 1e-3:
+                        diffs.append(f"planter_position_changed({pid}: {a_pos} -> {c_pos})")
+                    else:
+                        # Check Z coordinate
+                        a_has_z = len(a_pos) >= 3
+                        c_has_z = len(c_pos) >= 3
+                        if a_has_z and c_has_z:
+                            az = to_finite_float(a_pos[2])
+                            cz = to_finite_float(c_pos[2])
+                            if az is None:
+                                diffs.append(f"approved_z_coordinate_malformed({pid})")
+                            if cz is None:
+                                diffs.append(f"candidate_z_coordinate_malformed({pid})")
+                            if az is not None and cz is not None and abs(cz - az) > 1e-3:
+                                diffs.append(f"planter_position_changed({pid}: {a_pos} -> {c_pos})")
+                        elif a_has_z and not c_has_z:
+                            az = to_finite_float(a_pos[2])
+                            if az is None:
+                                diffs.append(f"approved_z_coordinate_malformed({pid})")
+                            else:
+                                diffs.append(f"planter_position_changed({pid}: {a_pos} -> {c_pos})")
+                        elif not a_has_z and c_has_z:
+                            cz = to_finite_float(c_pos[2])
+                            if cz is None:
+                                diffs.append(f"candidate_z_coordinate_malformed({pid})")
+                            else:
+                                diffs.append(f"planter_position_changed({pid}: {a_pos} -> {c_pos})")
 
-        # Dimensions
-        a_dims = a.get("dimensions") or {} if isinstance(a.get("dimensions"), Mapping) else {}
-        c_dims = c.get("dimensions") or {} if isinstance(c.get("dimensions"), Mapping) else {}
+        # 5. Elevation (elevation_m)
+        has_a_elev = "elevation_m" in a and a["elevation_m"] is not None
+        has_c_elev = "elevation_m" in c and c["elevation_m"] is not None
+        if has_a_elev != has_c_elev:
+            if has_a_elev:
+                diffs.append(f"planter_elevation_removed({pid})")
+            else:
+                diffs.append(f"planter_elevation_added({pid})")
+        elif has_a_elev and has_c_elev:
+            ae = to_finite_float(a["elevation_m"])
+            ce = to_finite_float(c["elevation_m"])
+            if ae is None:
+                diffs.append(f"approved_elevation_malformed({pid})")
+            if ce is None:
+                diffs.append(f"candidate_elevation_malformed({pid})")
+            if ae is not None and ce is not None and abs(ce - ae) > 1e-3:
+                diffs.append(f"planter_elevation_changed({pid}: {ae} -> {ce})")
+
+        # Check internal contradictions between position[2] and elevation_m
+        if has_a_pos and isinstance(a["position"], (list, tuple)) and len(a["position"]) >= 3 and has_a_elev:
+            az = to_finite_float(a["position"][2])
+            ae = to_finite_float(a["elevation_m"])
+            if az is not None and ae is not None and abs(az - ae) > 1e-3:
+                diffs.append(f"approved_elevation_contradiction({pid}: z={az} vs elev={ae})")
+        if has_c_pos and isinstance(c["position"], (list, tuple)) and len(c["position"]) >= 3 and has_c_elev:
+            cz = to_finite_float(c["position"][2])
+            ce = to_finite_float(c["elevation_m"])
+            if cz is not None and ce is not None and abs(cz - ce) > 1e-3:
+                diffs.append(f"candidate_elevation_contradiction({pid}: z={cz} vs elev={ce})")
+
+        # 6. Orientation (rotation_degrees or rotation)
+        a_rot = a.get("rotation_degrees") if a.get("rotation_degrees") is not None else a.get("rotation")
+        c_rot = c.get("rotation_degrees") if c.get("rotation_degrees") is not None else c.get("rotation")
+        has_a_rot = a_rot is not None
+        has_c_rot = c_rot is not None
+        if has_a_rot != has_c_rot:
+            if has_a_rot:
+                diffs.append(f"planter_rotation_removed({pid})")
+            else:
+                diffs.append(f"planter_rotation_added({pid})")
+        elif has_a_rot and has_c_rot:
+            ar = to_finite_float(a_rot)
+            cr = to_finite_float(c_rot)
+            if ar is None:
+                diffs.append(f"approved_rotation_malformed({pid})")
+            if cr is None:
+                diffs.append(f"candidate_rotation_malformed({pid})")
+            if ar is not None and cr is not None:
+                drot = abs(cr - ar) % 360.0
+                if drot > 180.0:
+                    drot = 360.0 - drot
+                if drot > 1e-3:
+                    diffs.append(f"planter_rotation_changed({pid}: {ar}° -> {cr}°)")
+
+        # 7. Scale (scale or scale_xyz)
+        a_sc = a.get("scale") if a.get("scale") is not None else a.get("scale_xyz")
+        c_sc = c.get("scale") if c.get("scale") is not None else c.get("scale_xyz")
+        has_a_sc = a_sc is not None
+        has_c_sc = c_sc is not None
+        if has_a_sc != has_c_sc:
+            if has_a_sc:
+                diffs.append(f"planter_scale_removed({pid})")
+            else:
+                diffs.append(f"planter_scale_added({pid})")
+        elif has_a_sc and has_c_sc:
+            if isinstance(a_sc, (list, tuple)) and isinstance(c_sc, (list, tuple)):
+                if len(a_sc) != len(c_sc):
+                    diffs.append(f"planter_scale_changed({pid}: {a_sc} -> {c_sc})")
+                else:
+                    for s1, s2 in zip(a_sc, c_sc):
+                        v1 = to_finite_float(s1)
+                        v2 = to_finite_float(s2)
+                        if v1 is None or v2 is None or abs(v2 - v1) > 1e-3:
+                            diffs.append(f"planter_scale_changed({pid}: {a_sc} -> {c_sc})")
+                            break
+            else:
+                v1 = to_finite_float(a_sc)
+                v2 = to_finite_float(c_sc)
+                if v1 is None or v2 is None:
+                    if a_sc != c_sc:
+                        diffs.append(f"planter_scale_changed({pid}: {a_sc} -> {c_sc})")
+                elif abs(v2 - v1) > 1e-3:
+                    diffs.append(f"planter_scale_changed({pid}: {v1} -> {v2})")
+
+        # 8. Dimensions
+        a_dims = a.get("dimensions") if isinstance(a.get("dimensions"), Mapping) else {}
+        c_dims = c.get("dimensions") if isinstance(c.get("dimensions"), Mapping) else {}
         for dk in ("width_m", "depth_m", "height_m", "diameter_m", "length_m"):
-            av = to_finite_float(a.get(dk) or a_dims.get(dk))
-            cv = to_finite_float(c.get(dk) or c_dims.get(dk))
-            if av is not None or cv is not None:
-                if av is None or cv is None or abs(cv - av) > 1e-3:
-                    diffs.append(f"planter_dimension_changed({pid}.{dk}: {av} -> {cv})")
+            raw_a = a.get(dk) if a.get(dk) is not None else a_dims.get(dk)
+            raw_c = c.get(dk) if c.get(dk) is not None else c_dims.get(dk)
+            if raw_a is not None or raw_c is not None:
+                if raw_a is None:
+                    diffs.append(f"planter_dimension_added({pid}.{dk})")
+                elif raw_c is None:
+                    diffs.append(f"planter_dimension_removed({pid}.{dk})")
+                else:
+                    av = to_finite_float(raw_a)
+                    cv = to_finite_float(raw_c)
+                    if av is None:
+                        diffs.append(f"approved_dimension_malformed({pid}.{dk})")
+                    if cv is None:
+                        diffs.append(f"candidate_dimension_malformed({pid}.{dk})")
+                    if av is not None and cv is not None and abs(cv - av) > 1e-3:
+                        diffs.append(f"planter_dimension_changed({pid}.{dk}: {av} -> {cv})")
 
-        # Elevation
-        a_elev = to_finite_float(a.get("elevation_m"))
-        c_elev = to_finite_float(c.get("elevation_m"))
-        if a_elev is not None or c_elev is not None:
-            if a_elev is None or c_elev is None or abs(c_elev - a_elev) > 1e-3:
-                diffs.append(f"planter_elevation_changed({pid}: {a_elev} -> {c_elev})")
-
-        # Load-related / container properties
+        # 9. Load-related / container properties
         for prop in ("soil_volume_m3", "saturated_weight_kg", "container_type", "plant_id", "species_id", "vegetation_id"):
             if prop in a or prop in c:
-                if a.get(prop) != c.get(prop):
-                    diffs.append(f"planter_load_property_changed({pid}.{prop}: {a.get(prop)} -> {c.get(prop)})")
+                raw_a = a.get(prop)
+                raw_c = c.get(prop)
+                if prop in ("soil_volume_m3", "saturated_weight_kg") and (raw_a is not None or raw_c is not None):
+                    av = to_finite_float(raw_a)
+                    cv = to_finite_float(raw_c)
+                    if raw_a is not None and av is None:
+                        diffs.append(f"approved_load_property_malformed({pid}.{prop})")
+                    if raw_c is not None and cv is None:
+                        diffs.append(f"candidate_load_property_malformed({pid}.{prop})")
+                    if av is not None and cv is not None:
+                        if abs(cv - av) > 1e-3:
+                            diffs.append(f"planter_load_property_changed({pid}.{prop}: {av} -> {cv})")
+                    elif raw_a != raw_c:
+                        diffs.append(f"planter_load_property_changed({pid}.{prop}: {raw_a} -> {raw_c})")
+                elif raw_a != raw_c:
+                    diffs.append(f"planter_load_property_changed({pid}.{prop}: {raw_a} -> {raw_c})")
 
     return diffs

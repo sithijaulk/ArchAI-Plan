@@ -29,6 +29,7 @@ from .evaluation_helpers import (
     collect_canonical_objects,
     compare_locked_object_properties,
     compare_approved_planter_configuration,
+    are_polygons_equivalent,
 )
 
 
@@ -857,15 +858,18 @@ def evaluate_rules(
         balconies_raw = _safe_get(master_json, "building_exterior", "balconies") or _safe_get(master_json, "balconies") or []
         if not isinstance(balconies_raw, list):
             balconies_raw = [balconies_raw] if isinstance(balconies_raw, Mapping) else []
+        available_balcony_surfaces = [b for b in balconies_raw if isinstance(b, Mapping)]
 
         obstructed_doors: list[str] = []
         obstructed_routes: list[str] = []
         malformed_doors: list[str] = []
         malformed_routes: list[str] = []
+        malformed_destinations: list[str] = []
         missing_footprint_planters: list[str] = []
         unresolved_surface_planters: list[str] = []
         missing_door_surfaces: list[str] = []
         missing_route_surfaces: list[str] = []
+        missing_destination_surfaces: list[str] = []
         disconnected_routes_surfaces: list[str] = []
 
         # Find escape routes from exterior context, doors, or balconies
@@ -878,7 +882,20 @@ def evaluate_rules(
         if not isinstance(escape_routes_raw, list):
             escape_routes_raw = [escape_routes_raw] if isinstance(escape_routes_raw, Mapping) else []
 
-        # Group candidate balcony planters by authoritative surface
+        # Find designated egress destinations from exterior context
+        egress_destinations_raw = (
+            _safe_get(master_json, "building_exterior", "egress_destinations")
+            or _safe_get(master_json, "building_exterior", "designated_egress_destinations")
+            or _safe_get(master_json, "building_exterior", "escape_destinations")
+            or _safe_get(master_json, "egress_destinations")
+            or _safe_get(master_json, "escape_destinations")
+            or _safe_get(master_json, "destinations")
+            or []
+        )
+        if not isinstance(egress_destinations_raw, list):
+            egress_destinations_raw = [egress_destinations_raw] if isinstance(egress_destinations_raw, Mapping) else []
+
+        # Group candidate balcony planters by authoritative surface using resolve_supporting_surface
         surface_groups: dict[str, dict[str, Any]] = {}
         for v in balcony_elements:
             vid = v.get("json_id", "balcony_plant")
@@ -887,25 +904,22 @@ def evaluate_rules(
                 missing_footprint_planters.append(vid)
                 continue
 
-            surf_id = str(v.get("support_json_id") or v.get("supporting_surface_id") or v.get("balcony_id") or "").strip()
-            if not surf_id:
-                resolved_surf, res_status = resolve_supporting_surface(v, master_json)
-                if resolved_surf and res_status == "valid":
-                    surf_id = resolved_surf
-                else:
-                    unresolved_surface_planters.append(vid)
-                    continue
+            resolved_surf, res_status = resolve_supporting_surface(v, available_balcony_surfaces)
+            if not resolved_surf or res_status != "resolved":
+                unresolved_surface_planters.append(vid)
+                continue
 
-            fl_id = str(v.get("floor_id") or "").strip()
-            if not fl_id:
-                for b in balconies_raw:
-                    if isinstance(b, Mapping) and str(b.get("json_id") or b.get("id") or "").strip() == surf_id:
-                        fl_id = str(b.get("floor_id") or "").strip()
-                        break
+            surf_id = str(resolved_surf.get("json_id") or resolved_surf.get("id") or "").strip()
+            if not surf_id:
+                unresolved_surface_planters.append(vid)
+                continue
+
+            fl_id = str(resolved_surf.get("floor_id") or v.get("floor_id") or "").strip()
 
             if surf_id not in surface_groups:
                 surface_groups[surf_id] = {
                     "floor_id": fl_id,
+                    "surface_obj": resolved_surf,
                     "planters": [],
                 }
             surface_groups[surf_id]["planters"].append((vid, planter_geom, v))
@@ -914,6 +928,7 @@ def evaluate_rules(
         for surf_id, s_data in surface_groups.items():
             s_floor = s_data["floor_id"]
             s_planters = s_data["planters"]
+            s_obj = s_data["surface_obj"]
 
             # 1. Matching doors for this surface
             matching_doors = []
@@ -924,9 +939,11 @@ def evaluate_rules(
                 d_fl = str(d.get("floor_id") or "").strip()
                 if d_surf:
                     if d_surf == surf_id:
+                        if d_fl and s_floor and d_fl != s_floor:
+                            continue
                         matching_doors.append(d)
                 elif d_fl and s_floor and d_fl == s_floor:
-                    balcs_on_fl = [b for b in balconies_raw if isinstance(b, Mapping) and str(b.get("floor_id") or "").strip() == s_floor]
+                    balcs_on_fl = [b for b in available_balcony_surfaces if str(b.get("floor_id") or "").strip() == s_floor]
                     surfs_on_fl = [sid for sid, sdata in surface_groups.items() if sdata.get("floor_id") == s_floor]
                     if len(balcs_on_fl) <= 1 and len(surfs_on_fl) <= 1:
                         matching_doors.append(d)
@@ -948,7 +965,95 @@ def evaluate_rules(
                             if d_poly.intersects(planter_geom):
                                 obstructed_doors.append(f"{vid} blocks {did}")
 
-            # 2. Escape routes for this surface
+            # 2. Designated egress destinations for this surface
+            candidate_destinations = []
+            for dest in egress_destinations_raw:
+                if not isinstance(dest, Mapping):
+                    continue
+                dest_surf = str(dest.get("surface_id") or dest.get("balcony_id") or dest.get("support_json_id") or "").strip()
+                dest_fl = str(dest.get("floor_id") or "").strip()
+                if dest_surf:
+                    if dest_surf == surf_id:
+                        if dest_fl and s_floor and dest_fl != s_floor:
+                            continue
+                        candidate_destinations.append(dest)
+                elif dest_fl and s_floor and dest_fl == s_floor:
+                    balcs_on_fl = [b for b in available_balcony_surfaces if str(b.get("floor_id") or "").strip() == s_floor]
+                    surfs_on_fl = [sid for sid, sdata in surface_groups.items() if sdata.get("floor_id") == s_floor]
+                    if len(balcs_on_fl) <= 1 and len(surfs_on_fl) <= 1:
+                        candidate_destinations.append(dest)
+
+            for dest_key in ("egress_destinations", "escape_destinations"):
+                d_list = s_obj.get(dest_key)
+                if isinstance(d_list, list):
+                    candidate_destinations.extend([x for x in d_list if isinstance(x, Mapping)])
+                elif isinstance(d_list, Mapping):
+                    candidate_destinations.append(d_list)
+
+            if s_obj.get("destination_polygon"):
+                candidate_destinations.append({"id": f"{surf_id}_destination", "polygon": s_obj.get("destination_polygon")})
+            elif isinstance(s_obj.get("egress_destination"), Mapping):
+                candidate_destinations.append(s_obj.get("egress_destination"))
+
+            for d in matching_doors:
+                if d.get("destination_polygon"):
+                    candidate_destinations.append({"id": f"{d.get('id', 'door')}_dest", "polygon": d.get("destination_polygon")})
+                elif isinstance(d.get("egress_destination"), Mapping):
+                    candidate_destinations.append(d.get("egress_destination"))
+
+            for r in escape_routes_raw:
+                if isinstance(r, Mapping):
+                    r_surf = str(r.get("surface_id") or r.get("balcony_id") or r.get("support_json_id") or "").strip()
+                    r_fl = str(r.get("floor_id") or "").strip()
+                    r_match = False
+                    if r_surf and r_surf == surf_id:
+                        r_match = not (r_fl and s_floor and r_fl != s_floor)
+                    elif r_fl and s_floor and r_fl == s_floor:
+                        balcs_on_fl = [b for b in available_balcony_surfaces if str(b.get("floor_id") or "").strip() == s_floor]
+                        surfs_on_fl = [sid for sid, sdata in surface_groups.items() if sdata.get("floor_id") == s_floor]
+                        r_match = (len(balcs_on_fl) <= 1 and len(surfs_on_fl) <= 1)
+                    if r_match:
+                        if r.get("destination_polygon"):
+                            candidate_destinations.append({"id": f"{r.get('id', 'route')}_dest", "polygon": r.get("destination_polygon")})
+                        elif isinstance(r.get("egress_destination"), Mapping):
+                            candidate_destinations.append(r.get("egress_destination"))
+
+            valid_destinations_for_surface = []
+            if not candidate_destinations:
+                missing_destination_surfaces.append(surf_id)
+            else:
+                for dest in candidate_destinations:
+                    dest_id = str(dest.get("id") or dest.get("json_id") or "destination")
+                    geom_raw = (
+                        dest.get("polygon")
+                        or dest.get("destination_polygon")
+                        or dest.get("footprint")
+                        or dest.get("geometry")
+                        or dest.get("boundary")
+                        or dest.get("position")
+                        or dest.get("point")
+                    )
+                    if geom_raw is None:
+                        if dest_id not in malformed_destinations:
+                            malformed_destinations.append(dest_id)
+                        continue
+                    if isinstance(geom_raw, (list, tuple)) and len(geom_raw) == 2 and not isinstance(geom_raw[0], (list, tuple)):
+                        px = to_finite_float(geom_raw[0])
+                        py = to_finite_float(geom_raw[1])
+                        if px is not None and py is not None:
+                            valid_destinations_for_surface.append((dest_id, Point(px, py), dest))
+                        else:
+                            if dest_id not in malformed_destinations:
+                                malformed_destinations.append(dest_id)
+                    else:
+                        d_poly, d_status = parse_polygon_representation(geom_raw)
+                        if d_poly is None or d_status != "valid":
+                            if dest_id not in malformed_destinations:
+                                malformed_destinations.append(dest_id)
+                        else:
+                            valid_destinations_for_surface.append((dest_id, d_poly, dest))
+
+            # 3. Escape routes for this surface
             relevant_routes = []
             for r in escape_routes_raw:
                 if not isinstance(r, Mapping):
@@ -957,9 +1062,11 @@ def evaluate_rules(
                 r_fl = str(r.get("floor_id") or "").strip()
                 if r_surf:
                     if r_surf == surf_id:
+                        if r_fl and s_floor and r_fl != s_floor:
+                            continue
                         relevant_routes.append(r)
                 elif r_fl and s_floor and r_fl == s_floor:
-                    balcs_on_fl = [b for b in balconies_raw if isinstance(b, Mapping) and str(b.get("floor_id") or "").strip() == s_floor]
+                    balcs_on_fl = [b for b in available_balcony_surfaces if str(b.get("floor_id") or "").strip() == s_floor]
                     surfs_on_fl = [sid for sid, sdata in surface_groups.items() if sdata.get("floor_id") == s_floor]
                     if len(balcs_on_fl) <= 1 and len(surfs_on_fl) <= 1:
                         relevant_routes.append(r)
@@ -975,15 +1082,13 @@ def evaluate_rules(
                     })
 
             # Check balcony-attached routes
-            for b in balconies_raw:
-                if isinstance(b, Mapping) and str(b.get("json_id") or b.get("id") or "").strip() == surf_id:
-                    b_route = b.get("escape_route_polygon") or b.get("corridor_polygon") or b.get("escape_route")
-                    if b_route:
-                        relevant_routes.append({
-                            "json_id": f"{surf_id}_route",
-                            "polygon": b_route,
-                            "_from_balcony": b,
-                        })
+            b_route = s_obj.get("escape_route_polygon") or s_obj.get("corridor_polygon") or s_obj.get("escape_route")
+            if b_route:
+                relevant_routes.append({
+                    "json_id": f"{surf_id}_route",
+                    "polygon": b_route,
+                    "_from_balcony": s_obj,
+                })
 
             valid_routes_for_surface = []
             if not relevant_routes:
@@ -994,7 +1099,6 @@ def evaluate_rules(
                     rid = str(r_entry.get("json_id") or r_entry.get("id") or "escape_route")
                     r_poly_raw = r_entry.get("polygon") or r_entry.get("corridor_polygon")
                     if r_poly_raw is None:
-                        # Bare boolean flag or missing polygon
                         continue
                     has_any_geom = True
                     r_poly, r_status = parse_polygon_representation(r_poly_raw)
@@ -1010,20 +1114,84 @@ def evaluate_rules(
                 if not has_any_geom or (not valid_routes_for_surface and not malformed_routes):
                     missing_route_surfaces.append(surf_id)
 
-            # 3. Connectivity check: valid route must connect to a valid door for this surface
-            if valid_routes_for_surface and valid_doors_for_surface:
-                connected = False
-                for (rid, r_poly, _) in valid_routes_for_surface:
-                    for (did, d_poly, _) in valid_doors_for_surface:
-                        if r_poly.intersects(d_poly) or r_poly.touches(d_poly) or r_poly.distance(d_poly) <= 1e-3:
-                            connected = True
-                            break
-                    if connected:
-                        break
-                if not connected:
-                    disconnected_routes_surfaces.append(surf_id)
+            # 4. Connectivity check: continuous route connecting door to designated egress destination
+            if valid_routes_for_surface and valid_doors_for_surface and valid_destinations_for_surface:
+                r_polys = [r_poly for (_, r_poly, _) in valid_routes_for_surface]
+                n_routes = len(r_polys)
+                adj = [[] for _ in range(n_routes)]
+                for i in range(n_routes):
+                    for j in range(i + 1, n_routes):
+                        p1 = r_polys[i]
+                        p2 = r_polys[j]
+                        if p1.intersects(p2) or p1.touches(p2) or p1.distance(p2) <= 1e-3:
+                            adj[i].append(j)
+                            adj[j].append(i)
 
-        # 4. Climbability assessment per surface/project
+                visited = [False] * n_routes
+                components = []
+                for i in range(n_routes):
+                    if not visited[i]:
+                        comp = []
+                        q = [i]
+                        visited[i] = True
+                        while q:
+                            curr = q.pop()
+                            comp.append(curr)
+                            for nb in adj[curr]:
+                                if not visited[nb]:
+                                    visited[nb] = True
+                                    q.append(nb)
+                        components.append(comp)
+
+                def component_connects(comp_indices, door_poly, destination_geom) -> bool:
+                    # Single route component must not be identical to the door clearance polygon
+                    if len(comp_indices) == 1:
+                        single_poly = r_polys[comp_indices[0]]
+                        eq, _ = are_polygons_equivalent(single_poly, door_poly)
+                        if eq:
+                            return False
+
+                    # Designated destination must not be identical to the door polygon
+                    if isinstance(destination_geom, Polygon):
+                        eq_dest, _ = are_polygons_equivalent(destination_geom, door_poly)
+                        if eq_dest:
+                            return False
+
+                    touches_door = any(
+                        r_polys[idx].intersects(door_poly)
+                        or r_polys[idx].touches(door_poly)
+                        or r_polys[idx].distance(door_poly) <= 1e-3
+                        for idx in comp_indices
+                    )
+                    touches_dest = any(
+                        r_polys[idx].intersects(destination_geom)
+                        or r_polys[idx].touches(destination_geom)
+                        or r_polys[idx].distance(destination_geom) <= 1e-3
+                        for idx in comp_indices
+                    )
+                    return touches_door and touches_dest
+
+                all_doors_connected = True
+                for (did, d_poly, _) in valid_doors_for_surface:
+                    door_connected = False
+                    for (dest_id, dest_geom, _) in valid_destinations_for_surface:
+                        for comp in components:
+                            if component_connects(comp, d_poly, dest_geom):
+                                door_connected = True
+                                break
+                        if door_connected:
+                            break
+                    if not door_connected:
+                        all_doors_connected = False
+                        break
+
+                if not all_doors_connected:
+                    disconnected_routes_surfaces.append(surf_id)
+            elif valid_routes_for_surface and valid_doors_for_surface and not valid_destinations_for_surface and not malformed_destinations:
+                if surf_id not in missing_destination_surfaces:
+                    missing_destination_surfaces.append(surf_id)
+
+        # 5. Climbability assessment per surface/project
         climbability_assessed = False
         climbability_rev_valid = False
         climbability_rev_matches = False
@@ -1103,6 +1271,17 @@ def evaluate_rules(
                 explanation="Malformed corridor geometry prevents verifying clear pedestrian escape.",
                 practical_remedy="Provide valid coordinate sequences for escape route corridors in Master JSON.",
             )
+        elif malformed_destinations:
+            record_result(
+                rB06,
+                applicability="applicable",
+                outcome=RuleOutcome.UNKNOWN,
+                affected_objects=malformed_destinations,
+                missing_inputs=["valid_egress_destination_geometry"],
+                evidence=f"Balcony egress destinations {malformed_destinations} contain malformed or non-finite geometry; escape safety cannot be certified.",
+                explanation="Malformed destination geometry prevents verifying complete pedestrian escape path.",
+                practical_remedy="Provide valid coordinate sequences for egress destinations in Master JSON.",
+            )
         elif missing_footprint_planters:
             record_result(
                 rB06,
@@ -1166,9 +1345,9 @@ def evaluate_rules(
                 outcome=RuleOutcome.REVIEW_REQUIRED,
                 affected_objects=affected if affected else [v.get("json_id", "balcony_plant") for v in balcony_elements],
                 missing_inputs=["escape_route_connectivity"],
-                evidence=f"Escape route polygon is disconnected from balcony access door on surface(s): {disconnected_routes_surfaces}.",
+                evidence=f"Escape route polygon is disconnected from balcony access door or designated egress destination on surface(s): {disconnected_routes_surfaces}.",
                 explanation="Continuous connection between access door and designated egress destination is required.",
-                practical_remedy="Ensure escape route corridor touches or intersects balcony access door clearance.",
+                practical_remedy="Ensure escape route corridor continuously connects balcony access door clearance to designated egress destination.",
             )
         elif not climbability_assessed:
             record_result(
@@ -1214,14 +1393,29 @@ def evaluate_rules(
                 explanation="Global or mismatched flags cannot certify non-climbability for specific balcony surfaces.",
                 practical_remedy="Specify applicable surface or floor scope in guardrail_profile matching candidate planters.",
             )
+        elif missing_destination_surfaces:
+            affected = [
+                v.get("json_id", "balcony_plant") for v in balcony_elements
+                if str(v.get("support_json_id") or v.get("supporting_surface_id") or v.get("balcony_id") or "").strip() in missing_destination_surfaces
+            ]
+            record_result(
+                rB06,
+                applicability="applicable",
+                outcome=RuleOutcome.REVIEW_REQUIRED,
+                affected_objects=affected if affected else [v.get("json_id", "balcony_plant") for v in balcony_elements],
+                missing_inputs=["designated_egress_destination", "escape_route_connectivity"],
+                evidence=f"No designated egress destination evidence found for affected surface(s): {missing_destination_surfaces}; escape connectivity uncertified.",
+                explanation="A route touching a door is insufficient without a designated egress destination (e.g. exit stair, secondary escape opening).",
+                practical_remedy="Provide designated egress destination geometry in Master JSON.",
+            )
         else:
             record_result(
                 rB06,
                 applicability="applicable",
                 outcome=RuleOutcome.PASS,
                 affected_objects=[v.get("json_id", "balcony_plant") for v in balcony_elements],
-                evidence="Balcony doors and escape route clear of all planter footprints and verified scoped non-climbability assessment satisfied.",
-                explanation="Escape route clear and non-climbable zone maintained on matching floor and scoped surface.",
+                evidence="Balcony doors, escape routes, and designated egress destinations clear of all planter footprints with continuous connectivity and verified scoped non-climbability assessment satisfied.",
+                explanation="Escape route clear and continuous to designated egress destination, and non-climbable zone maintained on matching floor and scoped surface.",
             )
 
     # B07: Balcony Drainage and Runoff Containment
