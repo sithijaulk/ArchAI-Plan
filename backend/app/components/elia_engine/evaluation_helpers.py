@@ -12,7 +12,7 @@ Provides robust, contract-aligned helpers for:
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from shapely import affinity
@@ -769,3 +769,121 @@ def compare_locked_object_properties(
         violations.append(f"locked_floor_changed({rid}: {r_fl} -> {c_fl})")
 
     return violations
+
+
+def compare_approved_planter_configuration(
+    approved_raw: Any,
+    candidate_planters: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    """Compare candidate balcony planters against the trusted approved configuration.
+    
+    Returns a list of violation / change strings. An empty list indicates verified alignment.
+    """
+    diffs: list[str] = []
+
+    # Normalize approved planters into a list of dicts
+    approved_list: list[Mapping[str, Any]] = []
+    if isinstance(approved_raw, list):
+        approved_list = [p for p in approved_raw if isinstance(p, Mapping)]
+    elif isinstance(approved_raw, Mapping):
+        if "vegetation_nodes" in approved_raw and isinstance(approved_raw["vegetation_nodes"], list):
+            approved_list = [p for p in approved_raw["vegetation_nodes"] if isinstance(p, Mapping)]
+        elif "planters" in approved_raw and isinstance(approved_raw["planters"], list):
+            approved_list = [p for p in approved_raw["planters"] if isinstance(p, Mapping)]
+        elif "elements" in approved_raw and isinstance(approved_raw["elements"], list):
+            approved_list = [p for p in approved_raw["elements"] if isinstance(p, Mapping)]
+        else:
+            for k, v in approved_raw.items():
+                if isinstance(v, Mapping):
+                    d = dict(v)
+                    if "json_id" not in d and "id" not in d:
+                        d["json_id"] = k
+                    approved_list.append(d)
+
+    app_by_id: dict[str, Mapping[str, Any]] = {}
+    for p in approved_list:
+        pid = str(p.get("json_id") or p.get("id") or "").strip()
+        if pid:
+            app_by_id[pid] = p
+
+    cand_by_id: dict[str, Mapping[str, Any]] = {}
+    for p in candidate_planters:
+        pid = str(p.get("json_id") or p.get("id") or "").strip()
+        if pid:
+            cand_by_id[pid] = p
+
+    # Membership checks
+    for cid in sorted(cand_by_id.keys()):
+        if cid not in app_by_id:
+            diffs.append(f"unapproved_planter_added({cid})")
+
+    for aid in sorted(app_by_id.keys()):
+        if aid not in cand_by_id:
+            diffs.append(f"approved_planter_removed({aid})")
+
+    # Property comparisons for matching objects
+    for pid in sorted(set(app_by_id.keys()) & set(cand_by_id.keys())):
+        a = app_by_id[pid]
+        c = cand_by_id[pid]
+
+        # Supporting surface
+        a_surf = str(a.get("support_json_id") or a.get("supporting_surface_id") or a.get("balcony_id") or "").strip()
+        c_surf = str(c.get("support_json_id") or c.get("supporting_surface_id") or c.get("balcony_id") or "").strip()
+        if a_surf and c_surf != a_surf:
+            diffs.append(f"planter_surface_changed({pid}: {a_surf} -> {c_surf})")
+
+        # Floor
+        a_fl = str(a.get("floor_id") or "").strip()
+        c_fl = str(c.get("floor_id") or "").strip()
+        if a_fl and c_fl != a_fl:
+            diffs.append(f"planter_floor_changed({pid}: {a_fl} -> {c_fl})")
+
+        # Footprint / Polygon
+        a_poly = a.get("footprint") or a.get("polygon")
+        c_poly = c.get("footprint") or c.get("polygon")
+        if a_poly is not None or c_poly is not None:
+            if a_poly is None or c_poly is None:
+                diffs.append(f"planter_footprint_changed({pid})")
+            else:
+                eq, _ = are_polygons_equivalent(a_poly, c_poly)
+                if not eq:
+                    diffs.append(f"planter_footprint_changed({pid})")
+
+        # Position (tolerance 1e-3)
+        a_pos = a.get("position")
+        c_pos = c.get("position")
+        if a_pos is not None or c_pos is not None:
+            if a_pos is None or c_pos is None or not isinstance(a_pos, (list, tuple)) or not isinstance(c_pos, (list, tuple)):
+                diffs.append(f"planter_position_changed({pid})")
+            elif len(a_pos) < 2 or len(c_pos) < 2:
+                diffs.append(f"planter_position_changed({pid})")
+            else:
+                ax, ay = to_finite_float(a_pos[0]), to_finite_float(a_pos[1])
+                cx, cy = to_finite_float(c_pos[0]), to_finite_float(c_pos[1])
+                if ax is None or ay is None or cx is None or cy is None or abs(cx - ax) > 1e-3 or abs(cy - ay) > 1e-3:
+                    diffs.append(f"planter_position_changed({pid}: {a_pos} -> {c_pos})")
+
+        # Dimensions
+        a_dims = a.get("dimensions") or {} if isinstance(a.get("dimensions"), Mapping) else {}
+        c_dims = c.get("dimensions") or {} if isinstance(c.get("dimensions"), Mapping) else {}
+        for dk in ("width_m", "depth_m", "height_m", "diameter_m", "length_m"):
+            av = to_finite_float(a.get(dk) or a_dims.get(dk))
+            cv = to_finite_float(c.get(dk) or c_dims.get(dk))
+            if av is not None or cv is not None:
+                if av is None or cv is None or abs(cv - av) > 1e-3:
+                    diffs.append(f"planter_dimension_changed({pid}.{dk}: {av} -> {cv})")
+
+        # Elevation
+        a_elev = to_finite_float(a.get("elevation_m"))
+        c_elev = to_finite_float(c.get("elevation_m"))
+        if a_elev is not None or c_elev is not None:
+            if a_elev is None or c_elev is None or abs(c_elev - a_elev) > 1e-3:
+                diffs.append(f"planter_elevation_changed({pid}: {a_elev} -> {c_elev})")
+
+        # Load-related / container properties
+        for prop in ("soil_volume_m3", "saturated_weight_kg", "container_type", "plant_id", "species_id", "vegetation_id"):
+            if prop in a or prop in c:
+                if a.get(prop) != c.get(prop):
+                    diffs.append(f"planter_load_property_changed({pid}.{prop}: {a.get(prop)} -> {c.get(prop)})")
+
+    return diffs
