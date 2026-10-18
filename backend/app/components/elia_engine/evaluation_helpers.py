@@ -52,32 +52,72 @@ def extract_physical_footprint(
         - "missing_dimensions"
         - "malformed"
         - "non_finite"
+        - "invalid_rotation"
     """
     if not isinstance(obj, Mapping):
         return None, "malformed"
+
+    # Validate rotation if explicitly supplied
+    rot_raw = obj.get("rotation_degrees")
+    if rot_raw is None:
+        rot_raw = obj.get("rotation")
+    rot: float | None = None
+    if rot_raw is not None:
+        if isinstance(rot_raw, bool):
+            return None, "invalid_rotation"
+        rot = to_finite_float(rot_raw)
+        if rot is None:
+            return None, "invalid_rotation"
 
     # 1. Explicit polygon or footprint provided
     poly_raw = obj.get("footprint") or obj.get("polygon")
     if poly_raw is not None:
         if not isinstance(poly_raw, (list, tuple)) or len(poly_raw) < 3:
             return None, "malformed"
-        clean_pts = []
-        for pt in poly_raw:
-            if not isinstance(pt, (list, tuple)) or len(pt) < 2:
+        
+        has_holes = (
+            isinstance(poly_raw[0], (list, tuple))
+            and len(poly_raw[0]) >= 3
+            and isinstance(poly_raw[0][0], (list, tuple))
+        )
+        if has_holes:
+            ext_raw = poly_raw[0]
+            holes_raw = poly_raw[1:]
+        else:
+            ext_raw = poly_raw
+            holes_raw = []
+
+        def _clean_pts(raw_pts: Any) -> tuple[list[tuple[float, float]] | None, str]:
+            if not isinstance(raw_pts, (list, tuple)) or len(raw_pts) < 3:
                 return None, "malformed"
-            x = to_finite_float(pt[0])
-            y = to_finite_float(pt[1])
-            if x is None or y is None:
-                return None, "non_finite"
-            clean_pts.append((x, y))
+            clean = []
+            for pt in raw_pts:
+                if not isinstance(pt, (list, tuple)) or len(pt) < 2:
+                    return None, "malformed"
+                x = to_finite_float(pt[0])
+                y = to_finite_float(pt[1])
+                if x is None or y is None:
+                    return None, "non_finite"
+                clean.append((x, y))
+            return clean, "ok"
+
+        ext_pts, err = _clean_pts(ext_raw)
+        if ext_pts is None:
+            return None, err
+
+        int_rings = []
+        for h_raw in holes_raw:
+            h_pts, h_err = _clean_pts(h_raw)
+            if h_pts is None:
+                return None, h_err
+            int_rings.append(h_pts)
+
         try:
-            poly = Polygon(clean_pts)
+            poly = Polygon(ext_pts, int_rings)
             if not poly.is_valid or poly.is_empty or poly.area <= 0:
                 return None, "malformed"
-            # Apply rotation if present
-            rot = to_finite_float(obj.get("rotation_degrees"))
-            if rot is not None and rot % 360.0 != 0:
-                poly = affinity.rotate(poly, rot, origin="center")
+            # Explicit polygons are already defined in project/world coordinates;
+            # do not rotate world coordinates a second time.
             return poly, "valid"
         except Exception:
             return None, "malformed"
@@ -97,22 +137,35 @@ def extract_physical_footprint(
     w = None
     d = None
     if isinstance(dims, Mapping):
-        w = to_positive_finite_float(dims.get("width_m") or dims.get("width"))
-        d = to_positive_finite_float(dims.get("depth_m") or dims.get("depth") or dims.get("length_m") or dims.get("length"))
-    if w is None:
-        w = to_positive_finite_float(obj.get("width_m") or obj.get("width"))
-    if d is None:
-        d = to_positive_finite_float(obj.get("depth_m") or obj.get("depth") or obj.get("length_m") or obj.get("length"))
+        w = to_positive_finite_float(dims.get("width_m") if dims.get("width_m") is not None else dims.get("width"))
+        d = to_positive_finite_float(
+            dims.get("depth_m") if dims.get("depth_m") is not None
+            else (dims.get("depth") if dims.get("depth") is not None
+            else (dims.get("length_m") if dims.get("length_m") is not None
+            else dims.get("length")))
+        )
+    if w is None and obj.get("width_m") is not None:
+        w = to_positive_finite_float(obj["width_m"])
+    elif w is None and obj.get("width") is not None:
+        w = to_positive_finite_float(obj["width"])
 
-    # Explicit rule: Do not invent 0.4m defaults or substitute canopy radius!
+    if d is None and obj.get("depth_m") is not None:
+        d = to_positive_finite_float(obj["depth_m"])
+    elif d is None and obj.get("depth") is not None:
+        d = to_positive_finite_float(obj["depth"])
+    elif d is None and obj.get("length_m") is not None:
+        d = to_positive_finite_float(obj["length_m"])
+    elif d is None and obj.get("length") is not None:
+        d = to_positive_finite_float(obj["length"])
+
+    # Strict rule: Do not invent 0.4m defaults or substitute canopy radius!
     if w is None or d is None:
         return None, "missing_dimensions"
 
     try:
         b = box(px - w / 2.0, py - d / 2.0, px + w / 2.0, py + d / 2.0)
-        rot = to_finite_float(obj.get("rotation_degrees"))
         if rot is not None and rot % 360.0 != 0:
-            b = affinity.rotate(b, rot, origin="center")
+            b = affinity.rotate(b, rot, origin=(px, py))
         return b, "valid"
     except Exception:
         return None, "malformed"
@@ -174,7 +227,11 @@ def resolve_supporting_surface(
     if pl_floor:
         matching = [s for s in available_surfaces if isinstance(s, Mapping) and str(s.get("floor_id") or "").strip() == str(pl_floor).strip()]
         if len(matching) == 1:
-            return matching[0], "resolved"
+            surf = matching[0]
+            surf_elev = to_finite_float(surf.get("elevation_m"))
+            if pl_elev is not None and surf_elev is not None and abs(pl_elev - surf_elev) > 0.5:
+                return None, "contradictory_elevation"
+            return surf, "resolved"
         elif len(matching) > 1:
             return None, "missing_evidence"
         else:
@@ -188,6 +245,8 @@ def resolve_supporting_surface(
         ]
         if len(matching) == 1:
             return matching[0], "resolved"
+        elif len(matching) > 1:
+            return None, "missing_evidence"
 
     # A single balcony in the project is not proof that every planter belongs to it
     return None, "missing_evidence"
@@ -328,7 +387,7 @@ def validate_guardrail_protection(
 
 def collect_canonical_objects(
     root: Mapping[str, Any],
-) -> tuple[dict[str, dict[str, Any]], list[str]]:
+) -> tuple[dict[str, dict[str, Any]], list[str], list[dict[str, Any]]]:
     """Index all supported ELIA candidate or reference objects symmetrically.
     
     Covers:
@@ -339,50 +398,90 @@ def collect_canonical_objects(
     - vertical_greenery.elements
     
     Returns:
-        (objects_by_id, duplicate_ids)
+        (objects_by_id, duplicate_ids, unindexable_items)
     """
     objs_by_id: dict[str, dict[str, Any]] = {}
     dup_ids: list[str] = []
+    unindexable: list[dict[str, Any]] = []
 
     def _add_item(item: Any, default_type: str = "element"):
         if not isinstance(item, Mapping):
+            unindexable.append({"raw": item, "_error": "malformed_object"})
             return
-        iid = str(item.get("json_id") or item.get("id") or item.get("featureId") or "").strip()
-        if not iid:
+
+        aliases: dict[str, str] = {}
+        for k in ("json_id", "id", "featureId"):
+            v = item.get(k)
+            if v is not None:
+                aliases[k] = str(v).strip()
+
+        distinct_non_empty = set(val for val in aliases.values() if val)
+        if len(distinct_non_empty) > 1:
+            # Conflicting ID aliases on the same object
+            unindexable.append(dict(item, _error="conflicting_id_aliases"))
             return
+
+        if not distinct_non_empty:
+            # Missing or empty identifier
+            unindexable.append(dict(item, _error="missing_id"))
+            return
+
+        iid = list(distinct_non_empty)[0]
         if iid in objs_by_id:
             dup_ids.append(iid)
+
         d_item = dict(item)
         if "type" not in d_item and default_type:
             d_item["type"] = default_type
         objs_by_id[iid] = d_item
 
     if not isinstance(root, Mapping):
-        return objs_by_id, dup_ids
+        return objs_by_id, dup_ids, unindexable
 
     # 1. Vegetation nodes
-    for v in root.get("vegetation_nodes") or []:
-        _add_item(v, "vegetation")
+    v_nodes = root.get("vegetation_nodes")
+    if isinstance(v_nodes, list):
+        for v in v_nodes:
+            _add_item(v, "vegetation")
+    elif v_nodes is not None:
+        unindexable.append({"_container": "vegetation_nodes", "_error": "malformed_container"})
 
     # 2. Outdoor elements
-    for o in root.get("outdoor_elements") or []:
-        _add_item(o, "outdoor_element")
+    o_elems = root.get("outdoor_elements")
+    if isinstance(o_elems, list):
+        for o in o_elems:
+            _add_item(o, "outdoor_element")
+    elif o_elems is not None:
+        unindexable.append({"_container": "outdoor_elements", "_error": "malformed_container"})
 
     # 3. Outdoor lighting nodes
     lighting_container = root.get("outdoor_lighting")
     if isinstance(lighting_container, Mapping):
-        for lt in lighting_container.get("nodes") or []:
-            _add_item(lt, "lighting_fixture")
+        nodes = lighting_container.get("nodes")
+        if isinstance(nodes, list):
+            for lt in nodes:
+                _add_item(lt, "lighting_fixture")
     elif isinstance(lighting_container, list):
         for lt in lighting_container:
             _add_item(lt, "lighting_fixture")
+    elif lighting_container is not None:
+        unindexable.append({"_container": "outdoor_lighting", "_error": "malformed_container"})
 
     # 4. Access objects
     access_container = root.get("access")
     if isinstance(access_container, Mapping):
+        skip_keys = set()
+        if "gates" in access_container and "gate" in access_container and isinstance(access_container.get("gates"), list):
+            gate_obj = access_container.get("gate")
+            if isinstance(gate_obj, Mapping):
+                gid = str(gate_obj.get("json_id") or gate_obj.get("id") or "").strip()
+                if any(isinstance(g, Mapping) and str(g.get("json_id") or g.get("id") or "").strip() == gid for g in access_container["gates"]):
+                    skip_keys.add("gate")
+
         for acc_k, acc_v in access_container.items():
+            if acc_k in skip_keys:
+                continue
             if isinstance(acc_v, Mapping):
-                # Ensure type defaults to the access key if not set
                 _add_item(acc_v, acc_k)
             elif isinstance(acc_v, list):
                 for sub_item in acc_v:
@@ -390,17 +489,104 @@ def collect_canonical_objects(
     elif isinstance(access_container, list):
         for acc_item in access_container:
             _add_item(acc_item, "access_element")
+    elif access_container is not None:
+        unindexable.append({"_container": "access", "_error": "malformed_container"})
 
     # 5. Vertical greenery elements
     vert_container = root.get("vertical_greenery")
     if isinstance(vert_container, Mapping):
-        for vg in vert_container.get("elements") or []:
-            _add_item(vg, "vertical_greenery")
+        elements = vert_container.get("elements")
+        if isinstance(elements, list):
+            for vg in elements:
+                _add_item(vg, "vertical_greenery")
     elif isinstance(vert_container, list):
         for vg in vert_container:
             _add_item(vg, "vertical_greenery")
+    elif vert_container is not None:
+        unindexable.append({"_container": "vertical_greenery", "_error": "malformed_container"})
 
-    return objs_by_id, sorted(set(dup_ids))
+    return objs_by_id, sorted(set(dup_ids)), unindexable
+
+
+def are_polygons_equivalent(r_poly_raw: Any, c_poly_raw: Any) -> tuple[bool, str]:
+    """Compare two polygon definitions for geometric equivalence.
+    
+    Allows cyclic vertex shift, ring direction (CW vs CCW), and closure format.
+    Preserves holes and units.
+    Rejects invalid polygons (even if both share identical invalid serialization).
+    
+    Returns:
+        (is_equivalent, status)
+        where status is one of "equivalent", "changed", "invalid", "missing"
+    """
+    if r_poly_raw is None or c_poly_raw is None:
+        return False, "missing"
+
+    def _parse_poly(raw: Any) -> Polygon | None:
+        if not isinstance(raw, (list, tuple)) or len(raw) < 3:
+            return None
+        has_holes = (
+            isinstance(raw[0], (list, tuple))
+            and len(raw[0]) >= 3
+            and isinstance(raw[0][0], (list, tuple))
+        )
+        if has_holes:
+            ext_raw = raw[0]
+            holes_raw = raw[1:]
+        else:
+            ext_raw = raw
+            holes_raw = []
+
+        def _clean_pts(pts: Any) -> list[tuple[float, float]] | None:
+            if not isinstance(pts, (list, tuple)) or len(pts) < 3:
+                return None
+            res = []
+            for p in pts:
+                if not isinstance(p, (list, tuple)) or len(p) < 2:
+                    return None
+                x = to_finite_float(p[0])
+                y = to_finite_float(p[1])
+                if x is None or y is None:
+                    return None
+                res.append((x, y))
+            return res
+
+        ext = _clean_pts(ext_raw)
+        if ext is None:
+            return None
+        holes = []
+        for h in holes_raw:
+            cleaned_h = _clean_pts(h)
+            if cleaned_h is None:
+                return None
+            holes.append(cleaned_h)
+        try:
+            poly = Polygon(ext, holes)
+            if not poly.is_valid or poly.is_empty or poly.area <= 0:
+                return None
+            return poly
+        except Exception:
+            return None
+
+    g_r = _parse_poly(r_poly_raw)
+    g_c = _parse_poly(c_poly_raw)
+    if g_r is None or g_c is None:
+        return False, "invalid"
+
+    if len(g_r.interiors) != len(g_c.interiors):
+        return False, "changed"
+
+    if g_r.equals(g_c):
+        return True, "equivalent"
+
+    # Strict tolerance check: Hausdorff distance <= 1e-3 m and symmetric difference area <= 1e-4 m²
+    try:
+        if g_r.hausdorff_distance(g_c) <= 1e-3 and g_r.symmetric_difference(g_c).area <= 1e-4:
+            return True, "equivalent"
+    except Exception:
+        pass
+
+    return False, "changed"
 
 
 def compare_locked_object_properties(
@@ -528,13 +714,11 @@ def compare_locked_object_properties(
         if c_poly is None:
             violations.append(f"locked_polygon_removed({rid})")
         else:
-            try:
-                g_r = Polygon(r_poly)
-                g_c = Polygon(c_poly)
-                if not g_r.equals_exact(g_c, tolerance=1e-3):
-                    violations.append(f"locked_polygon_changed({rid})")
-            except Exception:
+            equiv, status = are_polygons_equivalent(r_poly, c_poly)
+            if status == "invalid":
                 violations.append(f"locked_polygon_invalid({rid})")
+            elif not equiv:
+                violations.append(f"locked_polygon_changed({rid})")
 
     # 9. Support surface and floor
     r_supp = ref_obj.get("support_json_id") or ref_obj.get("supporting_surface_id")

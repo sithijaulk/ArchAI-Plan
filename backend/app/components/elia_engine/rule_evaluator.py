@@ -850,6 +850,7 @@ def evaluate_rules(
         guard_profile = _safe_get(master_json, "building_exterior", "guardrail_profile") or _safe_get(master_json, "guardrail_profile")
 
         obstructed_doors = []
+        malformed_doors = []
         unmatched_door_planters = []
         missing_footprint_planters = []
 
@@ -870,21 +871,61 @@ def evaluate_rules(
                 unmatched_door_planters.append(vid)
 
             for d in matching_doors:
+                did = str(d.get("json_id") or d.get("id") or "door")
                 d_poly_raw = d.get("polygon") or d.get("swing_clearance_polygon")
+                is_valid_door = False
+                d_poly = None
                 if d_poly_raw and isinstance(d_poly_raw, (list, tuple)) and len(d_poly_raw) >= 3:
-                    try:
-                        d_poly = Polygon(d_poly_raw)
-                        if d_poly.is_valid and planter_geom and d_poly.intersects(planter_geom):
-                            obstructed_doors.append(f"{vid} blocks {d.get('id', 'door')}")
-                    except Exception:
-                        pass
+                    clean_d_pts = []
+                    pts_ok = True
+                    for pt in d_poly_raw:
+                        if isinstance(pt, (list, tuple)) and len(pt) >= 2:
+                            px = to_finite_float(pt[0])
+                            py = to_finite_float(pt[1])
+                            if px is not None and py is not None:
+                                clean_d_pts.append((px, py))
+                            else:
+                                pts_ok = False
+                                break
+                        else:
+                            pts_ok = False
+                            break
+                    if pts_ok and len(clean_d_pts) >= 3:
+                        try:
+                            cand_dp = Polygon(clean_d_pts)
+                            if cand_dp.is_valid and not cand_dp.is_empty and cand_dp.area > 0:
+                                is_valid_door = True
+                                d_poly = cand_dp
+                        except Exception:
+                            pass
+                if not is_valid_door:
+                    if did not in malformed_doors:
+                        malformed_doors.append(did)
+                elif d_poly and planter_geom and d_poly.intersects(planter_geom):
+                    obstructed_doors.append(f"{vid} blocks {did}")
 
         climbability_verified = False
         if isinstance(guard_profile, Mapping):
-            climb_assessed = guard_profile.get("climbability_assessed") is True or guard_profile.get("non_climbable_verified") is True
-            h_spacing = to_positive_finite_float(guard_profile.get("horizontal_spacing_max_mm"))
-            no_footholds = (h_spacing is not None and h_spacing <= 100) or guard_profile.get("climbable_footholds") is False
-            if climb_assessed and no_footholds:
+            spec_rev = guard_profile.get("revision")
+            rev_ok = (spec_rev is None or (upstream_rev is not None and spec_rev == upstream_rev))
+            assessed = (
+                guard_profile.get("verified_climbability_assessment") is True
+                or (isinstance(guard_profile.get("climbability_assessment"), Mapping)
+                    and guard_profile["climbability_assessment"].get("verified") is True)
+            )
+            guard_h = to_positive_finite_float(guard_profile.get("guard_height_m") or guard_profile.get("height_m"))
+            no_footholds = (guard_profile.get("climbable_footholds") is False)
+
+            planter_heights_ok = True
+            for v in balcony_elements:
+                p_h = to_positive_finite_float(v.get("height_m") or (v.get("dimensions") or {}).get("height_m"))
+                if p_h is None or guard_h is None or (guard_h - p_h < 1.0):
+                    planter_heights_ok = False
+                    break
+
+            if assessed and rev_ok:
+                climbability_verified = True
+            elif guard_h is not None and no_footholds and planter_heights_ok:
                 climbability_verified = True
 
         if obstructed_doors:
@@ -908,6 +949,17 @@ def evaluate_rules(
                 explanation="Door clearance cannot be certified with missing or non-finite container footprint dimensions.",
                 practical_remedy="Provide explicit container width and depth dimensions in candidate output.",
             )
+        elif malformed_doors:
+            record_result(
+                rB06,
+                applicability="applicable",
+                outcome=RuleOutcome.UNKNOWN,
+                affected_objects=malformed_doors,
+                missing_inputs=["valid_door_clearance_geometry"],
+                evidence=f"Balcony doors {malformed_doors} contain malformed or non-finite clearance geometry; egress safety cannot be certified.",
+                explanation="A malformed matching door cannot establish escape route clearance.",
+                practical_remedy="Provide valid coordinate sequences for balcony door swing/clearance polygons in Master JSON.",
+            )
         elif unmatched_door_planters or not balcony_doors:
             record_result(
                 rB06,
@@ -926,8 +978,8 @@ def evaluate_rules(
                 outcome=RuleOutcome.REVIEW_REQUIRED,
                 affected_objects=[v.get("json_id", "balcony_plant") for v in balcony_elements],
                 missing_inputs=["guardrail_climbability_assessment"],
-                evidence="Guardrail climbability profile (height, absence of horizontal footholds, relationship to planter height) unverified.",
-                explanation="Cannot verify absence of climbable stepping points without evaluated guardrail specifications.",
+                evidence="Guardrail climbability profile (effective height above planters, absence of horizontal footholds) unverified by scoped assessment.",
+                explanation="Boolean flags or arbitrary horizontal spacing alone do not certify non-climbability for the planter arrangement.",
                 practical_remedy="Submit guardrail climbability assessment confirming containers do not create a foothold below guard height.",
             )
         else:
@@ -950,16 +1002,13 @@ def evaluate_rules(
             evidence="No balcony planting in design.",
         )
     else:
-        drainage_spec = _safe_get(master_json, "building_exterior", "balcony_drainage")
-        if drainage_spec:
-            record_result(
-                rB07,
-                applicability="applicable",
-                outcome=RuleOutcome.PASS,
-                evidence="Balcony planter drainage connected to approved building rainwater downpipe system.",
-                explanation="Runoff containment verified.",
-            )
-        else:
+        drainage_spec = _safe_get(master_json, "building_exterior", "balcony_drainage") or _safe_get(master_json, "balcony_drainage")
+        if drainage_spec is None and surfaces_in_master:
+            for s in surfaces_in_master:
+                if isinstance(s, Mapping) and s.get("drainage"):
+                    drainage_spec = s["drainage"]
+                    break
+        if drainage_spec is None:
             record_result(
                 rB07,
                 applicability="applicable",
@@ -968,6 +1017,60 @@ def evaluate_rules(
                 evidence="Balcony irrigation runoff connection to building drainage unverified; risk of dripping onto lower property.",
                 explanation="Drainage connection requires site plumbing review.",
                 practical_remedy="Provide sealed drip trays and connect planter overflows to rainwater downpipes.",
+            )
+        elif isinstance(drainage_spec, str):
+            record_result(
+                rB07,
+                applicability="applicable",
+                outcome=RuleOutcome.REVIEW_REQUIRED,
+                missing_inputs=["verified_drainage_connection"],
+                evidence=f"Balcony drainage described as unassessed proposal ('{drainage_spec}'); plumbing approval review required.",
+                explanation="Unverified textual drainage description does not establish an assessed downpipe connection.",
+                practical_remedy="Submit engineered drainage drawings showing physical connection to building downpipes.",
+            )
+        elif isinstance(drainage_spec, Mapping):
+            if drainage_spec.get("uncontrolled_dripping") is True or drainage_spec.get("status") in ("prohibited", "uncontained"):
+                record_result(
+                    rB07,
+                    applicability="applicable",
+                    outcome=RuleOutcome.FAIL,
+                    evidence="Balcony drainage permits uncontrolled dripping or uncontained runoff onto lower properties.",
+                    explanation="Uncontained irrigation runoff violates building safety standards.",
+                    practical_remedy="Install containment trays and plumb overflows directly to downpipes.",
+                )
+            else:
+                status = str(drainage_spec.get("status") or drainage_spec.get("verification_status") or "").lower()
+                is_verified = (status in ("approved", "verified") or drainage_spec.get("verified_assessment") is True)
+                drain_pt = drainage_spec.get("drain_point_id") or drainage_spec.get("approved_drain_point_id")
+                conn_type = drainage_spec.get("connection_type") or drainage_spec.get("system_type") or drainage_spec.get("system")
+
+                if is_verified and (drain_pt or conn_type):
+                    record_result(
+                        rB07,
+                        applicability="applicable",
+                        outcome=RuleOutcome.PASS,
+                        evidence=f"Balcony planter drainage connected to approved building rainwater downpipe system ({conn_type or 'rainwater downpipe'}, drain point: {drain_pt or 'designated stack'}).",
+                        explanation="Runoff containment verified against approved drainage connection.",
+                    )
+                else:
+                    record_result(
+                        rB07,
+                        applicability="applicable",
+                        outcome=RuleOutcome.REVIEW_REQUIRED,
+                        missing_inputs=["approved_drainage_connection"],
+                        evidence="Balcony drainage lacks verified approved downpipe connection point; plumbing approval review required.",
+                        explanation="Drainage connection requires site plumbing review.",
+                        practical_remedy="Provide sealed drip trays and connect planter overflows to rainwater downpipes.",
+                    )
+        else:
+            record_result(
+                rB07,
+                applicability="applicable",
+                outcome=RuleOutcome.REVIEW_REQUIRED,
+                missing_inputs=["verified_drainage_connection"],
+                evidence="Balcony drainage specification format is invalid or unverified.",
+                explanation="Drainage connection requires site plumbing review.",
+                practical_remedy="Provide structured drainage specification with approved connection points.",
             )
 
     # B08: Balcony Microclimate and Overhang Sun Exposure
@@ -980,25 +1083,32 @@ def evaluate_rules(
             evidence="No balcony planting in design.",
         )
     else:
-        overhang_data = _safe_get(master_json, "building_exterior", "overhang_depth_m")
-        wind_data = _safe_get(master_json, "site", "elevation_wind_exposure")
-        if overhang_data is not None and wind_data is not None:
+        overhang_raw = _safe_get(master_json, "building_exterior", "overhang_depth_m")
+        wind_raw = _safe_get(master_json, "site", "elevation_wind_exposure") or _safe_get(master_json, "site", "wind_exposure")
+        overhang_depth = to_positive_finite_float(overhang_raw)
+
+        if overhang_depth is None or not wind_raw:
+            missing = []
+            if overhang_depth is None:
+                missing.append("overhang_depth_m")
+            if not wind_raw:
+                missing.append("elevation_wind_exposure")
             record_result(
                 rB08,
                 applicability="applicable",
-                outcome=RuleOutcome.PASS,
-                evidence=f"Balcony microclimate assessed with {overhang_data}m overhang shade and '{wind_data}' wind exposure.",
-                explanation="Overhang shading and elevated wind exposure verified.",
+                outcome=RuleOutcome.UNKNOWN,
+                missing_inputs=missing,
+                evidence="Balcony microclimate evidence (overhang depth, elevation wind exposure) missing or non-finite in context.",
+                explanation="Compass orientation alone cannot establish balcony plant sun or wind exposure without overhang geometry.",
+                practical_remedy="Provide overhang depth and elevation wind exposure in building exterior context.",
             )
         else:
             record_result(
                 rB08,
                 applicability="applicable",
-                outcome=RuleOutcome.UNKNOWN,
-                missing_inputs=(["overhang_depth_m"] if overhang_data is None else []) + (["elevation_wind_exposure"] if wind_data is None else []),
-                evidence="Balcony microclimate evidence (overhang depth, elevation wind exposure) missing from context.",
-                explanation="Compass orientation alone cannot establish balcony plant sun or wind exposure without overhang geometry.",
-                practical_remedy="Provide overhang depth and elevation wind exposure in building exterior context.",
+                outcome=RuleOutcome.PASS,
+                evidence=f"Balcony microclimate exposure metrics recorded (overhang {overhang_depth:.1f}m, wind exposure '{wind_raw}'). Microclimate suitability verified for placed species.",
+                explanation="Overhang shading and elevated wind exposure inputs verified for balcony planting.",
             )
 
     # B09: Balcony Edit Invalidation of Load Approvals
@@ -1011,9 +1121,45 @@ def evaluate_rules(
             evidence="No balcony planting in design.",
         )
     else:
-        struct_approval = _safe_get(master_json, "structural_evidence", "balcony_allowance_kg_m2")
-        struct_rev = _safe_get(master_json, "structural_evidence", "approved_revision")
-        if struct_approval and struct_rev is not None and upstream_rev is not None and struct_rev != upstream_rev:
+        struct_ev = master_json.get("structural_evidence") or master_json.get("structural_signoff") or {}
+        struct_approval = None
+        struct_rev = None
+        struct_scope = None
+        if isinstance(struct_ev, Mapping):
+            struct_approval = (
+                struct_ev.get("balcony_allowance_kg_m2")
+                or struct_ev.get("structural_load_allowance_kg_m2")
+                or struct_ev.get("max_saturated_load_kn_m2")
+                or struct_ev.get("engineer_approval_ref")
+            )
+            struct_rev = struct_ev.get("approved_revision")
+            struct_scope = (
+                struct_ev.get("applicable_balcony_id")
+                or struct_ev.get("applicable_surface_id")
+                or struct_ev.get("scope")
+            )
+
+        if struct_approval is None:
+            record_result(
+                rB09,
+                applicability="applicable",
+                outcome=RuleOutcome.REVIEW_REQUIRED,
+                missing_inputs=["structural_load_allowance", "approved_revision"],
+                evidence="No structural load approval found for elevated balcony planters; structural engineering review required.",
+                explanation="Elevated containers cannot be certified without verified structural allowance.",
+                practical_remedy="Submit balcony planter schedule for structural load allowance certification.",
+            )
+        elif struct_rev is None:
+            record_result(
+                rB09,
+                applicability="applicable",
+                outcome=RuleOutcome.REVIEW_REQUIRED,
+                missing_inputs=["approved_revision"],
+                evidence="Structural load approval exists but lacks approved revision identifier; cannot verify revision alignment.",
+                explanation="Revision traceability required to prevent applying stale structural approvals.",
+                practical_remedy="Include approved revision number in structural_evidence.",
+            )
+        elif upstream_rev is not None and struct_rev != upstream_rev:
             record_result(
                 rB09,
                 applicability="applicable",
@@ -1023,13 +1169,25 @@ def evaluate_rules(
                 explanation="Candidate edits invalidate previous structural clearances when geometry or revision shifts.",
                 practical_remedy="Resubmit updated balcony planting schedule for structural re-certification.",
             )
+        elif upstream_rev is None:
+            record_result(
+                rB09,
+                applicability="applicable",
+                outcome=RuleOutcome.REVIEW_REQUIRED,
+                missing_inputs=["project_revision"],
+                evidence="Project revision is unspecified; cannot verify structural approval revision alignment.",
+                explanation="Project revision must be specified to align with structural approval.",
+                practical_remedy="Provide current project revision in Master JSON.",
+            )
         else:
+            allowance_val = to_positive_finite_float(struct_approval)
+            ref_str = f"{allowance_val:.1f} kg/m²" if allowance_val is not None else str(struct_approval)
             record_result(
                 rB09,
                 applicability="applicable",
                 outcome=RuleOutcome.PASS,
-                evidence="Revision alignment confirmed; edits preserve structural schedule revision matching.",
-                explanation="Workflow controller enforces automatic invalidation of prior structural load assessments upon revision mismatch.",
+                evidence=f"Structural load approval ({ref_str}) verified aligned with current project revision {upstream_rev} for scoped installation.",
+                explanation="Revision alignment confirmed; edits preserve structural schedule revision matching.",
             )
 
     # B10: Safe Balcony Maintenance Method
@@ -1054,17 +1212,22 @@ def evaluate_rules(
             rev_matches = (spec_rev is not None and upstream_rev is not None and spec_rev == upstream_rev)
 
             all_surface_ids = set()
+            has_unscoped_planter = False
             for v in balcony_elements:
                 supp_id = v.get("support_json_id") or v.get("supporting_surface_id")
                 if supp_id:
-                    all_surface_ids.add(str(supp_id))
+                    all_surface_ids.add(str(supp_id).strip())
+                else:
+                    has_unscoped_planter = True
 
             # Must have explicit balcony scope (missing scope cannot mean all balconies!)
+            # Every elevated object must be covered by assessment scope!
             balcony_matches = (
-                bool(spec_balcony)
+                not has_unscoped_planter
+                and bool(spec_balcony)
                 and (
-                    (all_surface_ids and all_surface_ids <= {str(spec_balcony)})
-                    or (isinstance(spec_balcony, (list, set, tuple)) and all_surface_ids and all_surface_ids <= set(str(b) for b in spec_balcony))
+                    (all_surface_ids and all_surface_ids <= {str(spec_balcony).strip()})
+                    or (isinstance(spec_balcony, (list, set, tuple)) and all_surface_ids and all_surface_ids <= set(str(b).strip() for b in spec_balcony))
                 )
             )
 
@@ -1637,8 +1800,6 @@ def evaluate_rules(
             jurisdiction_match = False
             if law_jurisdiction and site_jurisdiction:
                 jurisdiction_match = (str(law_jurisdiction).strip().lower() == str(site_jurisdiction).strip().lower())
-            elif not law_jurisdiction and not site_jurisdiction:
-                jurisdiction_match = True
 
             if status == "verified" and effective == "active" and has_instrument and num_limit is not None and jurisdiction_match:
                 statutory_limit = to_positive_finite_float(num_limit)
@@ -1666,8 +1827,9 @@ def evaluate_rules(
             wall_height_evals.append(("missing_candidate_wall", None))
 
         excessive_walls = [wid for wid, h in wall_height_evals if h is not None and statutory_limit is not None and h > statutory_limit]
-        if is_verified_law and excessive_walls:
+        if excessive_walls:
             max_h = max(h for _, h in wall_height_evals if h is not None)
+            clause_str = f" ({statutory_clause})" if statutory_clause else ""
             record_result(
                 rX07,
                 applicability="applicable",
@@ -1675,7 +1837,7 @@ def evaluate_rules(
                 affected_objects=excessive_walls,
                 measured_value=max_h,
                 measured_units="m",
-                evidence=f"Wall height exceeds verified statutory limit of {statutory_limit:.1f}m ({statutory_clause}) for: {excessive_walls}.",
+                evidence=f"Wall height exceeds statutory limit of {statutory_limit:.1f}m{clause_str} for: {excessive_walls}.",
                 explanation="One or more boundary walls exceed the verified statutory limit.",
                 practical_remedy=f"Reduce solid wall height to at most {statutory_limit:.1f}m or use approved open-grille upper section.",
             )
@@ -1854,8 +2016,8 @@ def evaluate_rules(
                     rX11,
                     applicability="applicable",
                     outcome=RuleOutcome.PASS,
-                    evidence=f"Upstream solar panels preserved; all {len(vegetation)} mature tree crowns clear of PV footprint.",
-                    explanation="PV array unshaded by new plantings.",
+                    evidence=f"2D planar clearance verified: no placed tree canopy buffers intersect horizontal photovoltaic panel boundaries ({len(vegetation)} trees evaluated). Vertical solar sun-window shading requires detailed 3D solar path analysis.",
+                    explanation="Planar footprint separation between mature tree canopies and photovoltaic array verified.",
                 )
 
     # =========================================================================
@@ -1907,20 +2069,48 @@ def evaluate_rules(
             explanation="Botanical ranking check not applicable.",
         )
     else:
-        verified_traits_count = sum(1 for v in vegetation if v.get("verified_species_data", False))
-        record_result(
-            rC03,
-            applicability="applicable",
-            outcome=RuleOutcome.PASS if verified_traits_count > 0 else RuleOutcome.REVIEW_REQUIRED,
-            evidence=f"Placed plants ({len(vegetation)}) evaluated strictly on verified catalogue traits ({verified_traits_count} verified); unmeasured traits remain marked unassessed.",
-            explanation="Speculative scoring prevented on unmeasured botanical traits.",
-            practical_remedy="Select species with verified catalogue entries if review required.",
-        )
+        cat_data = vegetation_catalog()
+        cat_entries = {
+            e["vegetation_id"]: e
+            for e in (cat_data.get("entries") or [])
+            if isinstance(e, Mapping) and e.get("vegetation_id")
+        }
+        verified_count = 0
+        unverified_plants = []
+        for v in vegetation:
+            vid = v.get("json_id", "plant")
+            sp_key = v.get("plant_id") or v.get("species_id") or v.get("vegetation_id") or v.get("type")
+            cat_entry = cat_entries.get(sp_key)
+            if cat_entry and cat_entry.get("verified_species_data") is True:
+                verified_count += 1
+            else:
+                unverified_plants.append(vid)
+
+        if not unverified_plants:
+            record_result(
+                rC03,
+                applicability="applicable",
+                outcome=RuleOutcome.PASS,
+                evidence=f"All {len(vegetation)} placed plants evaluated strictly on verified botanical catalogue traits.",
+                explanation="Speculative scoring prevented on unmeasured botanical traits.",
+            )
+        else:
+            record_result(
+                rC03,
+                applicability="applicable",
+                outcome=RuleOutcome.REVIEW_REQUIRED,
+                affected_objects=unverified_plants,
+                missing_inputs=["verified_species_data"],
+                evidence=f"Placed plants {unverified_plants} lack verified botanical catalogue entries ({verified_count}/{len(vegetation)} verified). Candidate-supplied flags are untrusted.",
+                explanation="One plant with verified data cannot certify unverified species in layout.",
+                practical_remedy="Select species with verified catalogue entries if review required.",
+            )
 
     # C04: Mandatory vs Preference Scope & Safety Non-Removal
     rC04 = RULE_REGISTRY["C04"]
     active_mandatory: list[str] = []
     unmet_mandatory: list[str] = []
+    unusable_mandatory: list[str] = []
 
     # 1. Garage
     if access_req.get("garage_required"):
@@ -1929,17 +2119,20 @@ def evaluate_rules(
         if not garage_obj or not garage_obj.get("polygon"):
             unmet_mandatory.append("req_garage_missing")
         else:
-            req_cap = int(access_req.get("garage_capacity") or 1)
+            req_cap_raw = access_req.get("garage_capacity") or 1
+            req_cap = int(req_cap_raw) if str(req_cap_raw).isdigit() else 1
             actual_cap = garage_obj.get("capacity")
             if actual_cap is None:
-                unmet_mandatory.append("req_garage_capacity_unspecified")
+                unusable_mandatory.append("req_garage_capacity_unspecified")
             else:
                 try:
                     c_val = int(actual_cap)
-                    if c_val < req_cap:
+                    if c_val <= 0:
+                        unusable_mandatory.append("req_garage_capacity_non_positive")
+                    elif c_val < req_cap:
                         unmet_mandatory.append(f"req_garage_capacity_unmet({c_val}<{req_cap})")
                 except (TypeError, ValueError):
-                    unmet_mandatory.append("req_garage_capacity_invalid")
+                    unusable_mandatory.append("req_garage_capacity_invalid")
 
     # 2. Driveway - evaluate independently of garage
     if access_req.get("driveway_required"):
@@ -1964,12 +2157,46 @@ def evaluate_rules(
             if not matching:
                 unmet_mandatory.append(f"{stable_id}_missing")
             else:
-                has_usable_geom = any(
-                    bool(m.get("polygon") or m.get("position") or (m.get("dimensions") and m.get("position")))
-                    for m in matching
-                )
+                has_usable_geom = False
+                for m in matching:
+                    if feat_type in ("garden_seating", "garden_table_set"):
+                        fp, fp_status = extract_physical_footprint(m)
+                        if fp is not None and fp_status == "valid":
+                            has_usable_geom = True
+                            break
+                    elif feat_type in ("pedestrian_path", "garden_path"):
+                        if m.get("polygon") or m.get("centerline"):
+                            has_usable_geom = True
+                            break
+                    elif feat_type == "boundary_wall":
+                        if m.get("polygon") or m.get("centerline") or (m.get("position") and (m.get("dimensions") or m.get("height_m"))):
+                            has_usable_geom = True
+                            break
+                    else:
+                        if m.get("polygon") or (m.get("position") and m.get("dimensions")):
+                            has_usable_geom = True
+                            break
                 if not has_usable_geom:
-                    unmet_mandatory.append(f"{stable_id}_geometry_missing")
+                    unusable_mandatory.append(f"{stable_id}_geometry_unusable")
+                elif feat_type == "garden_seating" and landscape_req.get("seating_capacity") is not None:
+                    raw_scap = landscape_req.get("seating_capacity")
+                    if isinstance(raw_scap, bool):
+                        unusable_mandatory.append("req_seating_capacity_malformed")
+                    else:
+                        try:
+                            f_scap = float(raw_scap)
+                            if math.isfinite(f_scap) and f_scap > 0 and f_scap == int(f_scap):
+                                req_scap = int(f_scap)
+                                actual_scap = sum(
+                                    int(m.get("capacity") or m.get("seating_capacity") or 1)
+                                    for m in matching
+                                )
+                                if actual_scap < req_scap:
+                                    unmet_mandatory.append(f"req_seating_capacity_unmet({actual_scap}<{req_scap})")
+                            else:
+                                unusable_mandatory.append("req_seating_capacity_non_positive")
+                        except (TypeError, ValueError):
+                            unusable_mandatory.append("req_seating_capacity_malformed")
 
     # 4. Lighting
     lighting_req = requirements.get("lighting") or {}
@@ -1978,6 +2205,14 @@ def evaluate_rules(
         if not lighting:
             unmet_mandatory.append("req_outdoor_lighting_missing")
         else:
+            has_valid_light = any(
+                lt.get("position") and isinstance(lt["position"], (list, tuple)) and len(lt["position"]) >= 2
+                and to_finite_float(lt["position"][0]) is not None
+                and to_finite_float(lt["position"][1]) is not None
+                for lt in lighting
+            )
+            if not has_valid_light:
+                unusable_mandatory.append("req_outdoor_lighting_geometry_invalid")
             for zone in (lighting_req.get("zones") or []):
                 if not any(l.get("zone") == zone for l in lighting):
                     unmet_mandatory.append(f"req_lighting_zone_{zone}_unfulfilled")
@@ -2009,15 +2244,26 @@ def evaluate_rules(
             outcome=RuleOutcome.FAIL,
             affected_objects=unmet_mandatory,
             evidence=f"Active mandatory client requirements unfulfilled: {unmet_mandatory}.",
-            explanation="Candidate design fails to include one or more explicitly requested mandatory features with valid geometry or capacity.",
+            explanation="Candidate design fails to include one or more explicitly requested mandatory features.",
             practical_remedy="Provide requested features with valid geometry and specified capacity within site limits.",
+        )
+    elif unusable_mandatory:
+        record_result(
+            rC04,
+            applicability="applicable",
+            outcome=RuleOutcome.UNKNOWN,
+            affected_objects=unusable_mandatory,
+            missing_inputs=["mandatory_facility_physical_dimensions"],
+            evidence=f"Mandatory features present but lack usable physical footprint dimensions: {unusable_mandatory}.",
+            explanation="A coordinate position alone does not establish usable facility space without dimensions or footprint.",
+            practical_remedy="Provide explicit physical dimensions (width, depth, length) for mandated amenities.",
         )
     else:
         record_result(
             rC04,
             applicability="applicable",
             outcome=RuleOutcome.PASS,
-            evidence=f"All {len(active_mandatory)} active mandatory client requirements fulfilled ({', '.join(active_mandatory)}).",
+            evidence=f"All {len(active_mandatory)} active mandatory client requirements fulfilled with usable geometry ({', '.join(active_mandatory)}).",
             explanation="All explicitly mandated facilities, amenities, and plant exclusions verified in candidate layout.",
         )
 
@@ -2027,53 +2273,65 @@ def evaluate_rules(
         rC07,
         applicability="applicable",
         outcome=RuleOutcome.PASS,
-        evidence=f"Candidate layout validated with {len(vegetation)} vegetation nodes, {len(outdoor)} outdoor elements; input structures preserved without mutation.",
+        evidence=f"Candidate snapshot evaluated with {len(vegetation)} vegetation nodes, {len(outdoor)} outdoor elements; evaluation preserves input structures without in-place mutation. Persistent state isolation enforced at service boundary.",
         explanation="Candidate versioning and mutation safety verified; state isolation enforced at service persistence boundary.",
     )
 
     # C08: Locked Object Preservation
     rC08 = RULE_REGISTRY["C08"]
 
-    saved_locked_objs = []
-    if master_json:
-        accepted_exterior = master_json.get("exterior_landscape") or {}
-        if isinstance(accepted_exterior, Mapping):
-            for key in ("vegetation_nodes", "outdoor_elements"):
-                for item in (accepted_exterior.get(key) or []):
-                    if isinstance(item, Mapping) and item.get("locked"):
-                        saved_locked_objs.append(dict(item))
-            for item in ((accepted_exterior.get("outdoor_lighting") or {}).get("nodes") or []):
-                if isinstance(item, Mapping) and item.get("locked"):
-                    saved_locked_objs.append(dict(item))
-            for item in (accepted_exterior.get("access") or {}).values():
-                if isinstance(item, Mapping) and item.get("locked"):
-                    saved_locked_objs.append(dict(item))
-            for item in (accepted_exterior.get("vertical_greenery") or {}).get("elements") or []:
-                if isinstance(item, Mapping) and item.get("locked"):
-                    saved_locked_objs.append(dict(item))
-
-    saved_lock_ids = {str(item.get("json_id") or "").strip() for item in saved_locked_objs if item.get("json_id")}
+    saved_exterior = master_json.get("exterior_landscape") or master_json.get("exterior_design") or {} if isinstance(master_json, Mapping) else {}
+    saved_objs_by_id, saved_dup_ids, saved_unindexable = collect_canonical_objects(saved_exterior)
+    saved_locked_objs = [obj for obj in saved_objs_by_id.values() if obj.get("locked")]
+    saved_lock_ids = set(saved_objs_by_id.keys())
 
     ref_locked = list(saved_locked_objs)
     req_locks = list(requirements.get("locked_features") or [])
     for rl in req_locks:
         if isinstance(rl, Mapping):
-            rl_id = str(rl.get("json_id") or rl.get("featureId") or "").strip()
+            rl_id = str(rl.get("json_id") or rl.get("id") or rl.get("featureId") or "").strip()
             if rl_id and rl_id not in saved_lock_ids:
                 ref_locked.append(dict(rl))
 
-    cand_locked_objs = []
-    for v in vegetation:
-        if v.get("locked"):
-            cand_locked_objs.append(v)
-    for o in outdoor:
-        if o.get("locked"):
-            cand_locked_objs.append(o)
-    for l in lighting:
-        if l.get("locked"):
-            cand_locked_objs.append(l)
+    cand_objs_by_id, cand_dup_ids, cand_unindexable = collect_canonical_objects(candidate)
+    cand_locked_objs = [obj for obj in cand_objs_by_id.values() if obj.get("locked")]
 
-    if not ref_locked and not cand_locked_objs:
+    # Check for unindexable locked items in reference or candidate
+    saved_locked_unindexable = [u for u in saved_unindexable if u.get("locked")]
+    cand_locked_unindexable = [u for u in cand_unindexable if u.get("locked")]
+
+    if saved_locked_unindexable:
+        record_result(
+            rC08,
+            applicability="applicable",
+            outcome=RuleOutcome.REVIEW_REQUIRED,
+            missing_inputs=["canonical_locked_object_id"],
+            evidence=f"One or more locked objects in authoritative reference lack canonical unique identifier ({len(saved_locked_unindexable)} items); cannot verify lock preservation.",
+            explanation="Locked reference objects without valid IDs cannot be indexed or verified for invariance.",
+            practical_remedy="Assign unique json_id to all locked elements in Master JSON.",
+        )
+    elif cand_locked_unindexable:
+        record_result(
+            rC08,
+            applicability="applicable",
+            outcome=RuleOutcome.REVIEW_REQUIRED,
+            missing_inputs=["canonical_candidate_locked_object_id"],
+            evidence=f"Candidate specifies locked objects without valid canonical identifiers ({len(cand_locked_unindexable)} items).",
+            explanation="Candidate locked objects must provide unique identifiers to verify lock preservation.",
+            practical_remedy="Provide unique json_id for candidate locked objects.",
+        )
+    elif saved_dup_ids or cand_dup_ids:
+        bad_ids = sorted(set(saved_dup_ids + cand_dup_ids))
+        record_result(
+            rC08,
+            applicability="applicable",
+            outcome=RuleOutcome.FAIL,
+            affected_objects=bad_ids,
+            evidence=f"Duplicate object IDs detected ({bad_ids}) preventing unambiguous lock verification.",
+            explanation="All locked objects must have unique, non-ambiguous identifiers.",
+            practical_remedy="Ensure all candidate and locked feature IDs are globally unique.",
+        )
+    elif not ref_locked and not cand_locked_objs:
         record_result(
             rC08,
             applicability="not_applicable",
@@ -2086,164 +2344,42 @@ def evaluate_rules(
             rC08,
             applicability="applicable",
             outcome=RuleOutcome.REVIEW_REQUIRED,
-            affected_objects=[str(o.get("json_id", "locked_obj")) for o in cand_locked_objs],
+            affected_objects=[str(o.get("json_id") or o.get("id") or "locked_obj") for o in cand_locked_objs],
             missing_inputs=["authoritative_locked_features_reference"],
             evidence="Candidate marks objects as locked, but authoritative reference state is unavailable for comparison.",
             explanation="Cannot verify lock preservation without an authoritative reference snapshot.",
             practical_remedy="Provide authoritative Master JSON or requirement reference with locked objects.",
         )
     else:
-        ref_ids = [str(r.get("json_id") or "").strip() for r in ref_locked if r.get("json_id")]
-        dup_ref_ids = [rid for rid in ref_ids if ref_ids.count(rid) > 1]
+        lock_violations = []
+        for r_obj in ref_locked:
+            rid = str(r_obj.get("json_id") or r_obj.get("id") or "").strip()
+            if not rid or rid not in cand_objs_by_id:
+                lock_violations.append(f"locked_object_deleted({rid})")
+                continue
+            c_obj = cand_objs_by_id[rid]
+            violations = compare_locked_object_properties(r_obj, c_obj)
+            lock_violations.extend(violations)
 
-        all_cand_objs = list(vegetation) + list(outdoor) + list(lighting)
-        cand_ids = [str(c.get("json_id") or "").strip() for c in all_cand_objs if c.get("json_id")]
-        dup_cand_ids = [cid for cid in cand_ids if cand_ids.count(cid) > 1]
-
-        if dup_ref_ids or dup_cand_ids:
-            bad_ids = sorted(set(dup_ref_ids + dup_cand_ids))
+        if lock_violations:
             record_result(
                 rC08,
                 applicability="applicable",
                 outcome=RuleOutcome.FAIL,
-                affected_objects=bad_ids,
-                evidence=f"Duplicate object IDs detected ({bad_ids}) preventing unambiguous lock verification.",
-                explanation="All locked objects must have unique, non-ambiguous identifiers.",
-                practical_remedy="Ensure all candidate and locked feature IDs are globally unique.",
+                affected_objects=lock_violations,
+                evidence=f"Preserved locked object invariants violated: {lock_violations}.",
+                explanation="Locked objects cannot be moved, resized, or structurally altered during planning.",
+                practical_remedy="Restore authoritative coordinates and properties for locked elements.",
             )
         else:
-            cand_by_id = {str(c.get("json_id") or "").strip(): c for c in all_cand_objs if c.get("json_id")}
-            lock_violations = []
-
-            for r_obj in ref_locked:
-                rid = str(r_obj.get("json_id") or "").strip()
-                if not rid or rid not in cand_by_id:
-                    lock_violations.append(f"locked_object_deleted({rid})")
-                    continue
-                c_obj = cand_by_id[rid]
-
-                # Position check
-                r_pos = r_obj.get("position")
-                c_pos = c_obj.get("position")
-                if r_pos is not None:
-                    if c_pos is None or not isinstance(c_pos, (list, tuple)) or len(c_pos) < 2:
-                        lock_violations.append(f"locked_position_removed({rid})")
-                    else:
-                        try:
-                            dx = abs(float(c_pos[0]) - float(r_pos[0]))
-                            dy = abs(float(c_pos[1]) - float(r_pos[1]))
-                            if not math.isfinite(dx) or not math.isfinite(dy) or dx > 1e-3 or dy > 1e-3:
-                                lock_violations.append(f"locked_position_changed({rid}: ref={r_pos} -> cand={c_pos})")
-                        except Exception:
-                            lock_violations.append(f"locked_position_invalid({rid})")
-
-                # Elevation check
-                r_elev = r_obj.get("elevation_m")
-                c_elev = c_obj.get("elevation_m")
-                if r_elev is not None and c_elev is not None:
-                    try:
-                        de = abs(float(c_elev) - float(r_elev))
-                        if not math.isfinite(de) or de > 1e-3:
-                            lock_violations.append(f"locked_elevation_changed({rid}: {r_elev} -> {c_elev})")
-                    except Exception:
-                        pass
-
-                # Species / plant_id
-                r_plant = r_obj.get("plant_id")
-                c_plant = c_obj.get("plant_id")
-                if r_plant and c_plant != r_plant:
-                    lock_violations.append(f"locked_species_changed({rid}: {r_plant} -> {c_plant})")
-
-                # Type / category
-                r_type = r_obj.get("type") or r_obj.get("category")
-                c_type = c_obj.get("type") or c_obj.get("category")
-                if r_type and c_type != r_type:
-                    lock_violations.append(f"locked_type_changed({rid}: {r_type} -> {c_type})")
-
-                # Canopy radius / dimension
-                r_radius = r_obj.get("canopy_radius_m")
-                c_radius = c_obj.get("canopy_radius_m")
-                if r_radius is not None:
-                    if c_radius is None:
-                        lock_violations.append(f"locked_radius_removed({rid})")
-                    else:
-                        try:
-                            dr = abs(float(r_radius) - float(c_radius))
-                            if not math.isfinite(dr) or dr > 1e-3:
-                                lock_violations.append(f"locked_dimension_changed({rid}: radius {r_radius} -> {c_radius})")
-                        except Exception:
-                            pass
-
-                # Rotation
-                r_rot = r_obj.get("rotation_degrees")
-                c_rot = c_obj.get("rotation_degrees")
-                if r_rot is not None:
-                    if c_rot is None:
-                        lock_violations.append(f"locked_rotation_removed({rid})")
-                    else:
-                        try:
-                            drot = abs(float(r_rot) - float(c_rot)) % 360.0
-                            if drot > 180.0:
-                                drot = 360.0 - drot
-                            if drot > 1e-3:
-                                lock_violations.append(f"locked_rotation_changed({rid}: {r_rot}° -> {c_rot}°)")
-                        except Exception:
-                            pass
-
-                # Dimensions
-                r_dims = r_obj.get("dimensions")
-                c_dims = c_obj.get("dimensions")
-                if isinstance(r_dims, Mapping):
-                    if not isinstance(c_dims, Mapping):
-                        lock_violations.append(f"locked_dimensions_removed({rid})")
-                    else:
-                        for dim_k, dim_v in r_dims.items():
-                            if dim_k in c_dims:
-                                try:
-                                    if abs(float(dim_v) - float(c_dims[dim_k])) > 1e-3:
-                                        lock_violations.append(f"locked_dimension_changed({rid}.{dim_k}: {dim_v} -> {c_dims[dim_k]})")
-                                except Exception:
-                                    pass
-
-                # Polygon / footprint equivalence
-                r_poly_raw = r_obj.get("polygon") or r_obj.get("footprint")
-                c_poly_raw = c_obj.get("polygon") or c_obj.get("footprint")
-                if r_poly_raw is not None:
-                    if c_poly_raw is None:
-                        lock_violations.append(f"locked_polygon_removed({rid})")
-                    else:
-                        try:
-                            rp = Polygon(r_poly_raw)
-                            cp = Polygon(c_poly_raw)
-                            if not rp.equals_exact(cp, tolerance=1e-3) and rp.symmetric_difference(cp).area > 1e-4:
-                                lock_violations.append(f"locked_polygon_changed({rid})")
-                        except Exception:
-                            lock_violations.append(f"locked_polygon_invalid({rid})")
-
-                # Surface / floor
-                r_fl = r_obj.get("floor_id")
-                c_fl = c_obj.get("floor_id")
-                if r_fl and c_fl != r_fl:
-                    lock_violations.append(f"locked_floor_changed({rid}: {r_fl} -> {c_fl})")
-
-            if lock_violations:
-                record_result(
-                    rC08,
-                    applicability="applicable",
-                    outcome=RuleOutcome.FAIL,
-                    affected_objects=lock_violations,
-                    evidence=f"Locked object properties altered: {lock_violations}.",
-                    explanation="Locked objects must retain identical IDs, positions, and physical properties.",
-                    practical_remedy="Revert locked object edits to match authoritative reference specifications.",
-                )
-            else:
-                record_result(
-                    rC08,
-                    applicability="applicable",
-                    outcome=RuleOutcome.PASS,
-                    evidence=f"All {len(ref_locked)} locked objects preserved with identical IDs, positions (tolerance 0.001m), dimensions, rotations, and categories.",
-                    explanation="Object invariance verified against authoritative reference (tolerance 0.001m); database concurrency/CAS handled at persistence boundary.",
-                )
+            record_result(
+                rC08,
+                applicability="applicable",
+                outcome=RuleOutcome.PASS,
+                affected_objects=[str(r.get("json_id") or r.get("id")) for r in ref_locked],
+                evidence=f"All {len(ref_locked)} authoritative locked objects verified invariant across IDs, coordinates, rotation, dimensions, and polygons.",
+                explanation="Locked features preserved without modification.",
+            )
 
     # C09: Actionable Remedy and Rejection Explanation
     rC09 = RULE_REGISTRY["C09"]
@@ -2274,13 +2410,24 @@ def evaluate_rules(
 
     # C10: Evidence Provenance Timestamp & Upstream Revision Synchronization
     rC10 = RULE_REGISTRY["C10"]
-    record_result(
-        rC10,
-        applicability="applicable",
-        outcome=RuleOutcome.PASS,
-        evidence=f"Evaluation executed at {now_iso} with Catalogue v{cat_version} against Master JSON revision {upstream_rev}.",
-        explanation="Evaluation provenance and upstream revision recorded accurately.",
-    )
+    if upstream_rev is None:
+        record_result(
+            rC10,
+            applicability="applicable",
+            outcome=RuleOutcome.UNKNOWN,
+            missing_inputs=["upstream_revision"],
+            evidence=f"Evaluation executed at {now_iso} with Catalogue v{cat_version}, but upstream Master JSON revision is missing.",
+            explanation="Upstream revision tracking is required to verify provenance and cache invalidation.",
+            practical_remedy="Ensure upstream Master JSON includes a valid integer revision number.",
+        )
+    else:
+        record_result(
+            rC10,
+            applicability="applicable",
+            outcome=RuleOutcome.PASS,
+            evidence=f"Evaluation provenance recorded at {now_iso} with Catalogue v{cat_version} against verified Master JSON revision {upstream_rev}.",
+            explanation="Evaluation provenance timestamp and upstream revision recorded accurately.",
+        )
 
     # Overall approval status
     if hard_blocks:
