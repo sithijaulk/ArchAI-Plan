@@ -49,6 +49,15 @@ export interface EliaFormState {
   lightingSpacingM?: number | string;
   verticalGreeneryMode: 'automatic' | 'preferred' | 'disabled';
 
+  // Environmental & Customer Preferences (Panel Feedback)
+  maintenancePreference: 'low' | 'medium' | 'high' | 'no_preference';
+  waterAvailability: 'limited' | 'regular' | 'irrigation_available' | 'unknown';
+  climateZone?: 'wet_zone' | 'intermediate_zone' | 'dry_zone' | 'arid_zone' | 'unknown';
+  siteExposure?: 'sheltered' | 'moderate' | 'exposed' | 'coastal_wind' | 'unknown';
+  preferredPlantIds?: string[];
+  plantIdsToAvoid?: string[];
+  lockedFeatures?: any[];
+
   // Location & Solar
   selectedLocation: EliaSelectedLocation | null;
   includeLiveSolar: boolean;
@@ -247,7 +256,7 @@ export function serializeRequirements(form: Partial<EliaFormState>): ELIARequire
   const req: ELIARequirements = {
     units: 'm',
     design_style: form.designStyle || 'contemporary',
-    greenery_level: form.greeneryDensity || 'medium',
+    ...(form.greeneryDensity ? { greenery_level: form.greeneryDensity } : {}),
     landscape_priority: 'balanced',
     vertical_greenery_enabled: form.verticalGreeneryMode !== 'disabled',
     include_live_solar: Boolean(form.includeLiveSolar),
@@ -260,7 +269,7 @@ export function serializeRequirements(form: Partial<EliaFormState>): ELIARequire
     landscape: {
       garden_required: Boolean(form.gardenRequired),
       lawn_required: Boolean(form.lawnRequired),
-      greenery_density: form.greeneryDensity || 'medium',
+      ...(form.greeneryDensity ? { greenery_density: form.greeneryDensity } : {}),
       shade_tree_preference: Boolean(form.shadeTreePreference),
       garden_seating_required: Boolean(form.gardenSeatingRequired),
       garden_table_set_required: Boolean(form.gardenTableSetRequired),
@@ -347,6 +356,31 @@ export function serializeRequirements(form: Partial<EliaFormState>): ELIARequire
       req.longitude = lon;
       req.timezone = form.selectedLocation.timezone || null;
     }
+  }
+
+  // Environmental & Customer Factors (Panel Feedback)
+  if (form.maintenancePreference) {
+    req.maintenance_preference = form.maintenancePreference;
+    req.low_maintenance_preference = form.maintenancePreference === 'low';
+  }
+  if (form.waterAvailability) {
+    req.water_availability = form.waterAvailability;
+  }
+
+  if (form.climateZone && form.climateZone !== 'unknown') {
+    req.climate_zone = form.climateZone;
+  }
+  if (form.siteExposure && form.siteExposure !== 'unknown') {
+    req.site_exposure = form.siteExposure;
+  }
+  if (form.preferredPlantIds && form.preferredPlantIds.length > 0) {
+    req.preferred_plant_ids = form.preferredPlantIds;
+  }
+  if (form.plantIdsToAvoid && form.plantIdsToAvoid.length > 0) {
+    req.plant_ids_to_avoid = form.plantIdsToAvoid;
+  }
+  if (form.lockedFeatures && form.lockedFeatures.length > 0) {
+    req.locked_features = form.lockedFeatures;
   }
 
   return req;

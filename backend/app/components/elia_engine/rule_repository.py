@@ -28,3 +28,4 @@ def vegetation_catalog() -> dict[str, Any]:
 
 def lighting_rules() -> dict[str, Any]:
     return _load("lighting_rules.json")
+

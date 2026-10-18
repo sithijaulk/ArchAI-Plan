@@ -7,13 +7,14 @@ import { useProjectStore } from '@/store/projectStore'
 import { eliaApi } from '@/lib/api/elia'
 import { extractNormalizedUpstreamGeometry } from '@/lib/eliaGeometry'
 import { computeRequirementsFingerprint } from '@/lib/eliaSerialization'
-import { EliaWorkflowController, EliaWorkflowState } from '@/lib/eliaWorkflowController'
+import { EliaWorkflowController } from '@/lib/eliaWorkflowController'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import type { FactorAssessmentRow, FactorsAssessment } from '@/types/elia'
 import {
   LoaderCircle,
   MapPin,
@@ -32,56 +33,57 @@ import {
   Info,
   Layers,
   History,
-  Upload,
+  Droplets,
+  Sliders,
+  Lock,
+  Unlock,
+  Trash2,
+  Undo2,
+  RotateCcw,
+  Check,
+  ShieldCheck,
+  Tag,
+  ArrowUp,
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
 } from 'lucide-react'
 
-const DEMO_SAMPLE_MASTER_JSON = {
-  project_id: 'demo-sample-project',
-  project_name: 'ELIA Residential Villa Demo',
-  units: 'm',
-  location: { latitude: 6.9271, longitude: 79.8612, city: 'Colombo', country: 'Sri Lanka' },
-  land_info: {
-    boundary_points: [[0, 0], [40, 0], [40, 30], [0, 30]],
-    road_facing: 'south',
-    calculated_north_bearing: 0,
-    units: 'm',
-  },
-  house_exterior_polygon: [[10, 8], [22, 8], [22, 22], [10, 22]],
-  utilities: {
-    well: { known: true, position: [2, 27] },
-    septic_tank: { known: true, position: [22, 27] },
-  },
-  interior_layout: {
-    rooms: [{ id: 'R1', furniture: ['sofa'] }],
-  },
-  exterior_landscape: {},
-  processing: {
-    gab_gen: { status: 'completed' },
-    vsai_rectifier: { status: 'completed' },
-    esai_engine: { status: 'completed' },
-    elia_engine: { status: 'pending' },
-  },
+const CATALOG_SPECIES_OPTIONS = [
+  { id: 'areca_catechu', name: 'Areca Palm (Puwak)', scientific: 'Areca catechu', category: 'small_tree' },
+  { id: 'plumeria_obtusa', name: 'Frangipani (Araliya)', scientific: 'Plumeria obtusa', category: 'small_tree' },
+  { id: 'bougainvillea_spectabilis', name: 'Bougainvillea', scientific: 'Bougainvillea spectabilis', category: 'climber' },
+  { id: 'heliconia_psittacorum', name: 'Parrot Flower', scientific: 'Heliconia psittacorum', category: 'shrub' },
+  { id: 'codiaeum_variegatum', name: 'Croton (Kos Gaha)', scientific: 'Codiaeum variegatum', category: 'shrub' },
+  { id: 'mesua_ferrea', name: 'Ceylon Ironwood (Naa)', scientific: 'Mesua ferrea', category: 'shade_tree' },
+  { id: 'shade_tree', name: 'Generic Shade Tree', scientific: 'Unassessed', category: 'shade_tree' },
+  { id: 'small_tree', name: 'Generic Small Tree', scientific: 'Unassessed', category: 'small_tree' },
+  { id: 'shrub', name: 'Generic Shrub', scientific: 'Unassessed', category: 'shrub' },
+  { id: 'ground_cover', name: 'Generic Ground Cover', scientific: 'Unassessed', category: 'ground_cover' },
+  { id: 'climber', name: 'Generic Climber', scientific: 'Unassessed', category: 'climber' },
+]
+
+function getPosCoords(pos: unknown): [number, number] | null {
+  if (Array.isArray(pos) && pos.length >= 2 && typeof pos[0] === 'number' && typeof pos[1] === 'number') {
+    return [pos[0], pos[1]]
+  }
+  if (pos && typeof pos === 'object' && 'x' in pos && 'y' in pos) {
+    const o = pos as { x: number; y: number }
+    if (typeof o.x === 'number' && typeof o.y === 'number') {
+      return [o.x, o.y]
+    }
+  }
+  return null
 }
 
 export default function EliaEnginePage() {
   const router = useRouter()
-  const { projectId, projectName, masterJson, loadProject, setComponentStatus, setOutput } = useProjectStore()
+  const { projectId, projectName, masterJson, setComponentStatus, setOutput } = useProjectStore()
 
-  // Initialize demo project fallback if user visits directly without a preselected project
-  useEffect(() => {
-    if (!projectId) {
-      loadProject({
-        id: 'demo-sample-project',
-        project_name: 'ELIA Residential Villa Demo',
-        master_json: DEMO_SAMPLE_MASTER_JSON as any,
-      })
-    }
-  }, [projectId, loadProject])
-
-  // Production state controller instance
+  // Production state controller instance (strictly null-safe without fabricated demo IDs)
   const controllerRef = useRef<EliaWorkflowController | null>(null)
   if (!controllerRef.current) {
-    controllerRef.current = new EliaWorkflowController(projectId || 'demo-sample-project')
+    controllerRef.current = new EliaWorkflowController(projectId || null)
   }
   const controller = controllerRef.current
 
@@ -92,74 +94,34 @@ export default function EliaEnginePage() {
     useCallback(() => EliaWorkflowController.getServerSnapshot(), [])
   )
 
-  // Local UI state for location search query input
+  // Local UI state
   const [cityQuery, setCityQuery] = useState('')
+  const [catalogEntries, setCatalogEntries] = useState(CATALOG_SPECIES_OPTIONS)
+  const [saveCandidateSuccess, setSaveCandidateSuccess] = useState<string | null>(null)
 
-  // Component 3 (ESAI / Master JSON) upload state & handler
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const [jsonUploadError, setJsonUploadError] = useState<string | null>(null)
-  const [jsonUploadSuccess, setJsonUploadSuccess] = useState<string | null>(null)
-
-  const handleComponent3JsonUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-    setJsonUploadError(null)
-    setJsonUploadSuccess(null)
-    try {
-      if (!file.name.toLowerCase().endsWith('.json')) {
-        throw new Error('Please select a valid JSON file (.json).')
+  // Load botanical catalogue from backend
+  useEffect(() => {
+    eliaApi.getVegetationCatalog().then((cat) => {
+      if (cat && Array.isArray(cat.entries) && cat.entries.length > 0) {
+        setCatalogEntries(
+          cat.entries.map((e: any) => ({
+            id: e.vegetation_id,
+            name: e.display_name || e.vegetation_id,
+            scientific: e.scientific_name || 'Unassessed',
+            category: e.category,
+          }))
+        )
       }
-      const text = await file.text()
-      const parsed = JSON.parse(text)
-
-      // Merge parsed Component 3 or Master JSON into upstream project state
-      const targetProjectId = parsed.project_id || projectId || 'imported-c3-project'
-      const targetProjectName = parsed.project_name || projectName || file.name.replace(/\.json$/i, '')
-      const newMasterJson: any = {
-        ...(masterJson || DEMO_SAMPLE_MASTER_JSON),
-        ...parsed,
-        project_id: targetProjectId,
-        project_name: targetProjectName,
-      }
-
-      if (parsed.house_exterior_polygon) {
-        newMasterJson.house_exterior_polygon = parsed.house_exterior_polygon
-      }
-      if (parsed.land_info) {
-        newMasterJson.land_info = parsed.land_info
-      }
-      if (parsed.interior_layout) {
-        newMasterJson.interior_layout = parsed.interior_layout
-      }
-      if (parsed.utilities) {
-        newMasterJson.utilities = parsed.utilities
-      }
-      if (parsed.location) {
-        newMasterJson.location = parsed.location
-      }
-
-      loadProject({
-        id: targetProjectId,
-        project_name: targetProjectName,
-        master_json: newMasterJson,
-      })
-
-      setJsonUploadSuccess(`Successfully loaded Component 3 data from "${file.name}"!`)
-      setTimeout(() => setJsonUploadSuccess(null), 6000)
-    } catch (err: any) {
-      setJsonUploadError(err.message || 'Failed to parse JSON file.')
-      setTimeout(() => setJsonUploadError(null), 6000)
-    } finally {
-      event.target.value = ''
-    }
-  }
+    }).catch(() => {
+      // Fallback stays active
+    })
+  }, [])
 
   // Coherent project lifecycle: activation on mount/project change, deactivation on cleanup
   useEffect(() => {
-    const currentId = projectId || 'demo-sample-project'
-    controller.activate(currentId)
+    controller.activate(projectId || null)
 
-    if (projectId && projectId !== 'demo-sample-project') {
+    if (projectId) {
       controller.loadAuthoritativeContext(eliaApi)
       controller.loadLatestRun(eliaApi)
     }
@@ -181,10 +143,10 @@ export default function EliaEnginePage() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [state.requirementsDirty])
 
-  // Upstream Site View Model
+  // Upstream Site View Model (strictly null if no authoritative project data exists)
   const displayMasterJson = state.activeView === 'candidate'
     ? (state.candidate?.sourceSnapshot ?? null)
-    : (state.authoritativeMaster || masterJson || DEMO_SAMPLE_MASTER_JSON)
+    : (state.authoritativeMaster || masterJson || null)
 
   const displayRevision = state.activeView === 'candidate'
     ? (state.candidate?.sourceRevision !== undefined ? state.candidate.sourceRevision : null)
@@ -194,7 +156,7 @@ export default function EliaEnginePage() {
     return extractNormalizedUpstreamGeometry(
       displayMasterJson,
       null,
-      projectId || 'demo-sample-project',
+      projectId || undefined,
       displayRevision,
       state.activeView === 'accepted'
     )
@@ -215,6 +177,65 @@ export default function EliaEnginePage() {
     ? 'accepted'
     : (state.candidate?.outcome === 'infeasible' ? 'infeasible' : 'preview')
 
+  // Candidate editable objects list for customization
+  const candidateFeatures = useMemo(() => {
+    const l = state.candidate?.landscape
+    if (!l) return []
+    const list: { id: string; type: string; category: string; position: [number, number]; label: string }[] = []
+    if (Array.isArray(l.vegetation_nodes)) {
+      for (const v of l.vegetation_nodes) {
+        const coords = getPosCoords(v.position)
+        if (v.json_id && coords) {
+          list.push({
+            id: v.json_id,
+            type: 'vegetation',
+            category: v.category || 'vegetation',
+            position: coords,
+            label: `Plant: ${v.category || v.json_id} (${coords[0].toFixed(1)}m, ${coords[1].toFixed(1)}m)`,
+          })
+        }
+      }
+    }
+    if (Array.isArray(l.outdoor_elements)) {
+      for (const o of l.outdoor_elements) {
+        const coords = getPosCoords(o.position)
+        if (o.json_id && coords) {
+          list.push({
+            id: o.json_id,
+            type: 'outdoor_element',
+            category: o.category || 'amenity',
+            position: coords,
+            label: `Amenity: ${o.category || o.json_id} (${coords[0].toFixed(1)}m, ${coords[1].toFixed(1)}m)`,
+          })
+        }
+      }
+    }
+    if (Array.isArray(l.outdoor_lighting?.nodes)) {
+      for (const lt of l.outdoor_lighting.nodes) {
+        const coords = getPosCoords(lt.position)
+        if (lt.json_id && coords) {
+          const catStr = typeof lt.fixture_style === 'string' ? lt.fixture_style : 'light'
+          list.push({
+            id: lt.json_id,
+            type: 'lighting',
+            category: catStr,
+            position: coords,
+            label: `Light: ${catStr || lt.json_id} (${coords[0].toFixed(1)}m, ${coords[1].toFixed(1)}m)`,
+          })
+        }
+      }
+    }
+    return list
+  }, [state.candidate?.landscape])
+
+  const selectedFeature = candidateFeatures.find((f) => f.id === state.selectedFeatureId)
+  const lockedFeatureIds = useMemo(() => {
+    return (state.formState.lockedFeatures || []).map((lf: any) => lf.json_id || lf.featureId || '')
+  }, [state.formState.lockedFeatures])
+
+  // Factors assessment data
+  const factorsAssessment: FactorsAssessment | undefined = displayedExterior?.factors_assessment
+
   // Search handler
   const handleLocationSearch = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -228,6 +249,18 @@ export default function EliaEnginePage() {
     await controller.loadSolar(eliaApi, state.formState.selectedLocation)
   }
 
+  // Candidate Save Handler
+  const handleSaveCandidate = async () => {
+    setSaveCandidateSuccess(null)
+    const success = await controller.saveEditedCandidate(eliaApi, {
+      setOutput: (comp, data) => setOutput(comp as any, data),
+      setComponentStatus: (comp, status) => setComponentStatus(comp as any, status),
+    })
+    if (success) {
+      setSaveCandidateSuccess('Customized landscape successfully saved and persisted to Master JSON.')
+      setTimeout(() => setSaveCandidateSuccess(null), 5000)
+    }
+  }
 
   const form = state.formState
 
@@ -240,6 +273,19 @@ export default function EliaEnginePage() {
       onPrev={() => router.push('/features/esai-engine')}
     >
       <div className="p-4 sm:p-6 lg:p-8 space-y-8">
+        {/* Banner: Waiting for upstream project data (displayed when no real project context is loaded) */}
+        {!projectId && (
+          <div className="p-4 rounded-xl border border-blue-500/40 bg-blue-950/20 text-blue-200 text-sm flex items-start gap-3 shadow-sm">
+            <Info className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <div className="font-semibold text-blue-300">Waiting for upstream project data</div>
+              <p className="mt-0.5 text-xs text-blue-200/90 leading-relaxed">
+                No active project is selected. The requirements form can be reviewed and configured below, but spatial plan generation, validation, and saving require an authoritative project with upstream geometry from Components 1–3.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Top Operational Status Banners */}
         {state.requiresReconciliation && (
           <div className="p-4 rounded-xl border border-rose-500/40 bg-rose-950/20 text-rose-200 text-sm flex items-start justify-between gap-3 shadow-sm">
@@ -272,7 +318,7 @@ export default function EliaEnginePage() {
                 disabled={state.isReconciling}
               >
                 {state.isReconciling ? (
-                  <LoaderCircle className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  <LoaderCircle className="w-3.5 h-3.5 animate-spin mr-1.5" />
                 ) : (
                   <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
                 )}
@@ -335,31 +381,10 @@ export default function EliaEnginePage() {
           </div>
         )}
 
-        {state.contextError && (
-          <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-950/20 text-amber-200 text-xs flex items-center justify-between gap-2">
-            <span>{state.contextError} (Displaying last confirmed state).</span>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-6 text-[11px]"
-              onClick={() => controller.loadAuthoritativeContext(eliaApi)}
-            >
-              Retry
-            </Button>
-          </div>
-        )}
-
-        {state.latestRunError && (
-          <div className="p-3 rounded-lg border border-rose-500/30 bg-rose-950/20 text-rose-200 text-xs flex items-center justify-between gap-2">
-            <span>Run History Warning: {state.latestRunError}</span>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-6 text-[11px]"
-              onClick={() => controller.loadLatestRun(eliaApi)}
-            >
-              Retry
-            </Button>
+        {saveCandidateSuccess && (
+          <div className="p-4 rounded-xl border border-emerald-500/40 bg-emerald-950/20 text-emerald-200 text-sm flex items-center gap-2.5 shadow-sm">
+            <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+            <span className="font-medium">{saveCandidateSuccess}</span>
           </div>
         )}
 
@@ -377,7 +402,7 @@ export default function EliaEnginePage() {
                     <Compass className="w-4 h-4 text-primary" /> Inherited Site Context
                   </CardTitle>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {projectName} · Authoritative upstream geometry
+                    {projectName || (projectId ? `Project ${projectId}` : 'No active project')} · Authoritative upstream geometry
                   </p>
                 </div>
                 <Button
@@ -385,10 +410,12 @@ export default function EliaEnginePage() {
                   variant="ghost"
                   className="h-8 w-8 text-muted-foreground"
                   onClick={() => {
-                    controller.loadAuthoritativeContext(eliaApi)
-                    controller.loadLatestRun(eliaApi)
+                    if (projectId) {
+                      controller.loadAuthoritativeContext(eliaApi)
+                      controller.loadLatestRun(eliaApi)
+                    }
                   }}
-                  disabled={state.isLoadingContext}
+                  disabled={!projectId || state.isLoadingContext}
                   title="Reload authoritative project context"
                 >
                   <RefreshCw className={`w-4 h-4 ${state.isLoadingContext ? 'animate-spin' : ''}`} />
@@ -401,7 +428,7 @@ export default function EliaEnginePage() {
                     <span className="font-semibold font-mono text-foreground text-sm">
                       {siteViewModel.landPolygon
                         ? `${siteViewModel.landPolygon.coordinates?.[0]?.length || 0} pts`
-                        : 'Missing'}
+                        : projectId ? 'Missing' : 'Waiting'}
                     </span>
                     <span className="text-[10px] text-muted-foreground block mt-0.5">
                       {siteViewModel.geometryState === 'ready' ? 'Polygon verified' : siteViewModel.geometryState}
@@ -413,7 +440,7 @@ export default function EliaEnginePage() {
                     <span className="font-semibold font-mono text-foreground text-sm">
                       {siteViewModel.housePolygon
                         ? `${siteViewModel.housePolygon.coordinates?.[0]?.length || 0} pts`
-                        : 'Missing'}
+                        : projectId ? 'Missing' : 'Waiting'}
                     </span>
                     <span className="text-[10px] text-muted-foreground block mt-0.5">
                       Height: ~{siteViewModel.buildingHeightM?.toFixed(1) || '3.5'}m {siteViewModel.isHeightEstimated ? '(est)' : ''}
@@ -446,46 +473,6 @@ export default function EliaEnginePage() {
                     {siteViewModel.geometryMessage || 'Upstream site geometry required from previous components.'}
                   </div>
                 )}
-
-                {/* Component 3 / Master JSON Upload Section */}
-                <div className="pt-3 border-t border-border/40 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-foreground font-medium block text-xs">Component 3 (ESAI) Output JSON</span>
-                      <span className="text-muted-foreground text-[10px]">Load house footprint, interior layout & land geometry</span>
-                    </div>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept=".json,application/json"
-                      className="hidden"
-                      onChange={handleComponent3JsonUpload}
-                    />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-8 text-xs border-primary/40 hover:bg-primary/10 text-primary gap-1.5 shrink-0"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      Upload JSON
-                    </Button>
-                  </div>
-
-                  {jsonUploadSuccess && (
-                    <div className="p-2 rounded bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 text-[11px] flex items-center gap-1.5">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                      <span>{jsonUploadSuccess}</span>
-                    </div>
-                  )}
-
-                  {jsonUploadError && (
-                    <div className="p-2 rounded bg-rose-950/40 border border-rose-500/40 text-rose-300 text-[11px] flex items-center gap-1.5">
-                      <XCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                      <span>{jsonUploadError}</span>
-                    </div>
-                  )}
-                </div>
               </CardContent>
             </Card>
 
@@ -507,15 +494,79 @@ export default function EliaEnginePage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-5">
-                <Tabs defaultValue="access" className="w-full">
-                  <TabsList className="grid grid-cols-4 mb-4 text-xs">
+                <Tabs defaultValue="concept" className="w-full">
+                  <TabsList className="grid grid-cols-5 mb-4 text-xs">
+                    <TabsTrigger value="concept" className="text-xs py-1.5"><Sliders className="w-3.5 h-3.5 mr-1" /> Style</TabsTrigger>
                     <TabsTrigger value="access" className="text-xs py-1.5"><Car className="w-3.5 h-3.5 mr-1" /> Access</TabsTrigger>
                     <TabsTrigger value="garden" className="text-xs py-1.5"><Trees className="w-3.5 h-3.5 mr-1" /> Garden</TabsTrigger>
+                    <TabsTrigger value="solar" className="text-xs py-1.5"><Sun className="w-3.5 h-3.5 mr-1" /> Eco</TabsTrigger>
                     <TabsTrigger value="lighting" className="text-xs py-1.5"><Lightbulb className="w-3.5 h-3.5 mr-1" /> Lighting</TabsTrigger>
-                    <TabsTrigger value="solar" className="text-xs py-1.5"><Sun className="w-3.5 h-3.5 mr-1" /> Solar</TabsTrigger>
                   </TabsList>
 
-                  {/* TAB 1: ACCESS & PARKING */}
+                  {/* TAB 1: DESIGN CONCEPT & STYLE */}
+                  <TabsContent value="concept" className="space-y-4">
+                    <div className="space-y-2 p-3 rounded-lg border border-border/40 bg-muted/20">
+                      <Label htmlFor="design-concept" className="text-xs font-semibold text-foreground">Design Concept</Label>
+                      <select
+                        id="design-concept"
+                        value={
+                          ['modern', 'greeny', 'minimalistic', 'minimalist'].includes((form.designStyle || '').toLowerCase())
+                            ? (form.designStyle.toLowerCase() === 'minimalist' ? 'minimalistic' : form.designStyle.toLowerCase())
+                            : ''
+                        }
+                        onChange={(e) => controller.editRequirement({ designStyle: e.target.value })}
+                        className="mt-1 w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                      >
+                        <option value="" disabled>Select a design concept</option>
+                        <option value="modern">Modern</option>
+                        <option value="greeny">Greeny</option>
+                        <option value="minimalistic">Minimalistic</option>
+                      </select>
+                      <p className="text-[11px] text-muted-foreground leading-tight pt-1">
+                        Influences planting density, open space weighting, and amenity arrangement through explicit planner heuristics.
+                      </p>
+                    </div>
+
+                    {/* Maintenance Preference */}
+                    <div className="space-y-2 p-3 rounded-lg border border-border/40 bg-muted/20">
+                      <Label htmlFor="maintenance-pref" className="text-xs font-semibold text-foreground">Maintenance Preference</Label>
+                      <select
+                        id="maintenance-pref"
+                        value={form.maintenancePreference || 'no_preference'}
+                        onChange={(e) => controller.editRequirement({ maintenancePreference: e.target.value as any })}
+                        className="mt-1 w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                      >
+                        <option value="low">Low (Drought-tolerant, slow-growing)</option>
+                        <option value="medium">Medium (Regular pruning & care)</option>
+                        <option value="high">High (Lush ornamental maintenance)</option>
+                        <option value="no_preference">No preference</option>
+                      </select>
+                      <span className="text-[10px] text-muted-foreground block">
+                        Used to filter and score plant species from the botanical catalogue.
+                      </span>
+                    </div>
+
+                    {/* Water Availability / Irrigation */}
+                    <div className="space-y-2 p-3 rounded-lg border border-border/40 bg-muted/20">
+                      <Label htmlFor="water-avail" className="text-xs font-semibold text-foreground">Water Availability / Irrigation</Label>
+                      <select
+                        id="water-avail"
+                        value={form.waterAvailability || 'unknown'}
+                        onChange={(e) => controller.editRequirement({ waterAvailability: e.target.value as any })}
+                        className="mt-1 w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                      >
+                        <option value="limited">Limited (Low irrigation capacity)</option>
+                        <option value="regular">Regular (Standard domestic tap/well supply)</option>
+                        <option value="irrigation_available">Irrigation available (Automated sprinkler/drip)</option>
+                        <option value="unknown">Unknown (Not yet assessed)</option>
+                      </select>
+                      <span className="text-[10px] text-muted-foreground block">
+                        Unknown water availability will not assume optimal hydration.
+                      </span>
+                    </div>
+                  </TabsContent>
+
+                  {/* TAB 2: ACCESS & PARKING */}
                   <TabsContent value="access" className="space-y-4">
                     {/* Garage */}
                     <div className="space-y-3 p-3 rounded-lg border border-border/40 bg-muted/20">
@@ -533,7 +584,7 @@ export default function EliaEnginePage() {
                       {form.garageRequired && (
                         <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/30">
                           <div>
-                            <Label htmlFor="garage-cap" className="text-xs text-muted-foreground">Garage Capacity (vehicles)</Label>
+                            <Label htmlFor="garage-cap" className="text-xs text-muted-foreground">Garage Capacity</Label>
                             <Input
                               id="garage-cap"
                               type="number"
@@ -543,7 +594,6 @@ export default function EliaEnginePage() {
                               onChange={(e) => controller.editRequirement({ garageCapacity: e.target.value })}
                               className="mt-1 h-8 text-xs font-mono"
                             />
-                            <span className="text-[10px] text-muted-foreground">Max 3 in baseline heuristic</span>
                           </div>
                           <div>
                             <Label htmlFor="vehicle-cnt" className="text-xs text-muted-foreground">Vehicle Count</Label>
@@ -577,10 +627,7 @@ export default function EliaEnginePage() {
                       {form.drivewayRequired && (
                         <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/30">
                           <div>
-                            <div className="flex items-center justify-between">
-                              <Label htmlFor="drive-style" className="text-xs text-muted-foreground">Driveway Style</Label>
-                              <span className="text-[9px] text-muted-foreground font-mono">(Recorded pref)</span>
-                            </div>
+                            <Label htmlFor="drive-style" className="text-xs text-muted-foreground">Driveway Style</Label>
                             <select
                               id="drive-style"
                               value={form.drivewayStyle}
@@ -591,9 +638,6 @@ export default function EliaEnginePage() {
                               <option value="straight">Direct Straight</option>
                               <option value="curved">Curved Path</option>
                             </select>
-                            <span className="text-[10px] text-muted-foreground leading-tight block mt-0.5">
-                              Baseline planner uses regulatory geometry path.
-                            </span>
                           </div>
                           <div className="flex items-center pt-5">
                             <label className="flex items-center gap-2 text-xs cursor-pointer">
@@ -642,7 +686,7 @@ export default function EliaEnginePage() {
                     </div>
                   </TabsContent>
 
-                  {/* TAB 2: GARDEN & LANDSCAPE */}
+                  {/* TAB 3: GARDEN & LANDSCAPE */}
                   <TabsContent value="garden" className="space-y-4">
                     <div className="grid grid-cols-2 gap-3">
                       <div>
@@ -659,10 +703,7 @@ export default function EliaEnginePage() {
                         </select>
                       </div>
                       <div>
-                        <div className="flex items-center justify-between">
-                          <Label htmlFor="open-ratio" className="text-xs text-muted-foreground">Open Space Ratio</Label>
-                          <span className="text-[9px] text-muted-foreground font-mono">(Recorded pref)</span>
-                        </div>
+                        <Label htmlFor="open-ratio" className="text-xs text-muted-foreground">Open Space Ratio</Label>
                         <Input
                           id="open-ratio"
                           type="number"
@@ -673,9 +714,6 @@ export default function EliaEnginePage() {
                           onChange={(e) => controller.editRequirement({ openSpaceRatio: e.target.value })}
                           className="mt-1 h-8 text-xs font-mono"
                         />
-                        <span className="text-[10px] text-muted-foreground leading-tight block mt-0.5">
-                          Baseline maximizes ground clearance.
-                        </span>
                       </div>
                     </div>
 
@@ -739,6 +777,39 @@ export default function EliaEnginePage() {
                       </div>
                     </div>
 
+                    {/* Plant Preferences Section */}
+                    <div className="space-y-3 p-3 rounded-lg border border-border/40 bg-muted/20 text-xs">
+                      <Label className="text-xs font-semibold flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5 text-primary" /> Preferred Plant Species
+                      </Label>
+                      <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1 border rounded bg-background">
+                        {catalogEntries.slice(0, 8).map((sp) => {
+                          const isPref = (form.preferredPlantIds || []).includes(sp.id)
+                          return (
+                            <button
+                              key={sp.id}
+                              type="button"
+                              onClick={() => {
+                                const current = form.preferredPlantIds || []
+                                const next = isPref
+                                  ? current.filter((id) => id !== sp.id)
+                                  : [...current, sp.id]
+                                controller.editRequirement({ preferredPlantIds: next })
+                              }}
+                              className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
+                                isPref ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted text-muted-foreground border-border'
+                              }`}
+                            >
+                              {sp.name}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      <span className="text-[10px] text-muted-foreground block">
+                        Selected plants receive score bonuses during vegetation placement.
+                      </span>
+                    </div>
+
                     {/* Boundary Wall */}
                     <div className="space-y-2 p-3 rounded-lg border border-border/40 bg-muted/20">
                       <div className="flex items-center justify-between">
@@ -780,79 +851,47 @@ export default function EliaEnginePage() {
                     </div>
                   </TabsContent>
 
-                  {/* TAB 3: LIGHTING & VERTICAL GREENERY */}
-                  <TabsContent value="lighting" className="space-y-4">
-                    {/* Outdoor Lighting */}
-                    <div className="space-y-3 p-3 rounded-lg border border-border/40 bg-muted/20">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="light-req" className="font-medium cursor-pointer">Outdoor Lighting Plan</Label>
-                        <input
-                          id="light-req"
-                          type="checkbox"
-                          checked={form.lightingRequired}
-                          onChange={(e) => controller.editRequirement({ lightingRequired: e.target.checked })}
-                          className="w-4 h-4 rounded text-primary"
-                        />
-                      </div>
-                      {form.lightingRequired && (
-                        <div className="pt-2 border-t border-border/30">
-                          <Label className="text-xs text-muted-foreground">Lighting Fixture Style</Label>
-                          <select
-                            value={form.lightingStyle}
-                            onChange={(e) => controller.editRequirement({ lightingStyle: e.target.value })}
-                            className="mt-1 w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
-                          >
-                            <option value="minimal">Minimal Bollards</option>
-                            <option value="accent">Pathway & Tree Accent</option>
-                            <option value="ambient">Ambient Perimeter</option>
-                          </select>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Vertical Greenery */}
+                  {/* TAB 4: SOLAR & ENVIRONMENTAL */}
+                  <TabsContent value="solar" className="space-y-4">
+                    {/* Climate Zone */}
                     <div className="space-y-2 p-3 rounded-lg border border-border/40 bg-muted/20">
-                      <Label className="text-xs font-medium">Vertical Greenery Strategy</Label>
+                      <Label htmlFor="climate-zone" className="text-xs font-semibold">Sri Lankan Climate Zone</Label>
                       <select
-                        value={form.verticalGreeneryMode}
-                        onChange={(e) => controller.editRequirement({ verticalGreeneryMode: e.target.value as any })}
+                        id="climate-zone"
+                        value={form.climateZone || 'unknown'}
+                        onChange={(e) => controller.editRequirement({ climateZone: e.target.value as any })}
                         className="mt-1 w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
                       >
-                        <option value="automatic">Automatic (on tight plots)</option>
-                        <option value="preferred">Always Preferred</option>
-                        <option value="disabled">Disabled</option>
+                        <option value="unknown">Unknown (Site analysis required)</option>
+                        <option value="wet_zone">Wet Zone (Colombo, Kandy, Galle, Ratnapura)</option>
+                        <option value="intermediate_zone">Intermediate Zone (Kurunegala, Badulla)</option>
+                        <option value="dry_zone">Dry Zone (Jaffna, Anuradhapura, Hambantota)</option>
                       </select>
-                      <p className="text-[11px] text-muted-foreground leading-tight pt-1">
-                        Applied to external building walls or terraces when ground planting clearance is restricted. Requires upstream house geometry.
-                      </p>
+                      <span className="text-[10px] text-muted-foreground block">
+                        Used to match botanical tolerances against regional rainfall and humidity.
+                      </span>
                     </div>
 
-                    {/* Aesthetic Style & Truthful Disclosures */}
+                    {/* Site Exposure */}
                     <div className="space-y-2 p-3 rounded-lg border border-border/40 bg-muted/20">
-                      <Label className="text-xs font-medium">Aesthetic Concept Label</Label>
+                      <Label htmlFor="site-exposure" className="text-xs font-semibold">Site Sunlight Exposure</Label>
                       <select
-                        value={form.designStyle}
-                        onChange={(e) => controller.editRequirement({ designStyle: e.target.value })}
+                        id="site-exposure"
+                        value={form.siteExposure || 'unknown'}
+                        onChange={(e) => controller.editRequirement({ siteExposure: e.target.value as any })}
                         className="mt-1 w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
                       >
-                        <option value="contemporary">Contemporary Living</option>
-                        <option value="modern">Modern Minimalist</option>
-                        <option value="tropical">Tropical Sri Lankan Modern</option>
-                        <option value="traditional">Traditional Vernacular</option>
+                        <option value="unknown">Unknown (Calculated from orientation/irradiance)</option>
+                        <option value="sheltered">Sheltered (Protected by surrounding buildings)</option>
+                        <option value="moderate">Moderate Exposure</option>
+                        <option value="exposed">High Sun Exposure</option>
+                        <option value="coastal_wind">Coastal Wind / Maritime Exposure</option>
                       </select>
-                      <div className="flex items-start gap-1.5 pt-1 text-[11px] text-muted-foreground leading-tight">
-                        <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-primary" />
-                        <span>
-                          Baseline planner applies regulatory geometry heuristics. The concept style is preserved in project metadata.
-                        </span>
-                      </div>
                     </div>
-                  </TabsContent>
 
-                  {/* TAB 4: SOLAR & LOCATION */}
-                  <TabsContent value="solar" className="space-y-3">
-                    <form onSubmit={handleLocationSearch} className="space-y-2">
-                      <Label htmlFor="elia-city-search" className="text-xs">Search Sri Lankan Locality</Label>
+                    {/* Locality Search */}
+                    <form onSubmit={handleLocationSearch} className="space-y-2 pt-1">
+                      <Label htmlFor="elia-city-search" className="text-xs">Search Locality for Solar Positioning</Label>
                       <div className="flex gap-2">
                         <Input
                           id="elia-city-search"
@@ -874,7 +913,7 @@ export default function EliaEnginePage() {
                     </form>
 
                     {state.locations.length > 0 && (
-                      <div className="max-h-36 overflow-y-auto space-y-1 rounded border border-border p-1 text-xs">
+                      <div className="max-h-32 overflow-y-auto space-y-1 rounded border border-border p-1 text-xs">
                         {state.locations.map((loc) => (
                           <button
                             key={loc.id}
@@ -927,16 +966,36 @@ export default function EliaEnginePage() {
                         </div>
                       </div>
                     )}
+                  </TabsContent>
 
-                    <div className="flex items-center justify-between p-2 rounded border border-border/40 text-xs">
-                      <Label htmlFor="live-solar-toggle" className="cursor-pointer">Include Solar in Run</Label>
-                      <input
-                        id="live-solar-toggle"
-                        type="checkbox"
-                        checked={form.includeLiveSolar}
-                        onChange={(e) => controller.editRequirement({ includeLiveSolar: e.target.checked })}
-                        className="w-3.5 h-3.5 rounded text-primary"
-                      />
+                  {/* TAB 5: LIGHTING & AMENITIES */}
+                  <TabsContent value="lighting" className="space-y-4">
+                    {/* Lighting & Vertical Greenery Options */}
+                    <div className="space-y-3 p-3 rounded-lg border border-border/40 bg-muted/20 text-xs">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="light-req" className="font-medium cursor-pointer">Include Outdoor Lighting Plan</Label>
+                        <input
+                          id="light-req"
+                          type="checkbox"
+                          checked={form.lightingRequired}
+                          onChange={(e) => controller.editRequirement({ lightingRequired: e.target.checked })}
+                          className="w-4 h-4 rounded text-primary"
+                        />
+                      </div>
+                      {form.lightingRequired && (
+                        <div className="pt-2 border-t border-border/30">
+                          <Label className="text-[11px] text-muted-foreground">Lighting Fixture Style</Label>
+                          <select
+                            value={form.lightingStyle}
+                            onChange={(e) => controller.editRequirement({ lightingStyle: e.target.value })}
+                            className="mt-1 w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                          >
+                            <option value="minimal">Minimal Bollards</option>
+                            <option value="accent">Pathway &amp; Tree Accent</option>
+                            <option value="ambient">Ambient Perimeter</option>
+                          </select>
+                        </div>
+                      )}
                     </div>
                   </TabsContent>
                 </Tabs>
@@ -1016,7 +1075,8 @@ export default function EliaEnginePage() {
                     variant="outline"
                     className="w-full text-xs h-9"
                     onClick={() => controller.validateRequirements(eliaApi)}
-                    disabled={state.isValidating || state.isPreviewing || state.isGenerating}
+                    disabled={!projectId || state.isValidating || state.isPreviewing || state.isGenerating}
+                    title={!projectId ? 'Waiting for upstream project context' : 'Validate input requirements against upstream geometry'}
                   >
                     {state.isValidating ? <LoaderCircle className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />}
                     Validate Inputs
@@ -1027,8 +1087,8 @@ export default function EliaEnginePage() {
                     variant="secondary"
                     className="w-full text-xs h-9"
                     onClick={() => controller.previewCandidate(eliaApi)}
-                    disabled={state.isPreviewing || state.isGenerating || state.isValidating}
-                    title="Generate candidate proposal in memory without modifying database"
+                    disabled={!projectId || state.isPreviewing || state.isGenerating || state.isValidating}
+                    title={!projectId ? 'Waiting for upstream project context' : 'Generate candidate proposal in memory without modifying database'}
                   >
                     {state.isPreviewing ? <LoaderCircle className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Eye className="w-3.5 h-3.5 mr-1.5" />}
                     Preview (Unsaved)
@@ -1040,9 +1100,11 @@ export default function EliaEnginePage() {
                     type="button"
                     className="w-full electric-glow h-10 text-sm font-semibold"
                     onClick={() => controller.generateAndSave(eliaApi, { setOutput, setComponentStatus })}
-                    disabled={!controller.canGenerateAndSave()}
+                    disabled={!projectId || !controller.canGenerateAndSave()}
                     title={
-                      state.requiresReconciliation
+                      !projectId
+                        ? 'Waiting for upstream project context'
+                        : state.requiresReconciliation
                         ? 'Project state must be reconciled before saving'
                         : state.sourceRevision === null || state.sourceRevision === undefined
                         ? 'Authoritative project revision required before saving'
@@ -1059,12 +1121,17 @@ export default function EliaEnginePage() {
                       'Generate & Save Landscape'
                     )}
                   </Button>
-                  {state.requiresReconciliation && (
+                  {!projectId && (
+                    <p className="text-[10px] text-blue-400 text-center mt-1">
+                      Waiting for upstream project data. Open an active project from previous components to enable generation.
+                    </p>
+                  )}
+                  {projectId && state.requiresReconciliation && (
                     <p className="text-[10px] text-rose-400 text-center mt-1">
                       Project state must be reconciled before retrying save. Click &quot;Check Status &amp; Reconcile&quot; above.
                     </p>
                   )}
-                  {!state.requiresReconciliation && (state.sourceRevision === null || state.sourceRevision === undefined || state.contextFreshness !== 'current') && (
+                  {projectId && !state.requiresReconciliation && (state.sourceRevision === null || state.sourceRevision === undefined || state.contextFreshness !== 'current') && (
                     <p className="text-[10px] text-amber-400/90 text-center mt-1">
                       Authoritative confirmed project revision required before saving. Click refresh context above.
                     </p>
@@ -1086,10 +1153,10 @@ export default function EliaEnginePage() {
             </Card>
           </div>
 
-          {/* RIGHT COLUMN: Three.js 3D Viewer & 2D Plan View (7 cols) */}
-          <div className="lg:col-span-7">
+          {/* RIGHT COLUMN: Output Viewer, Object Customization & Assessment (7 cols) */}
+          <div className="lg:col-span-7 space-y-6">
             <EliaOutputWrapper
-              projectName={projectName}
+              projectName={projectName || ''}
               projectId={projectId || undefined}
               masterJson={state.authoritativeMaster || masterJson}
               data={displayedExterior}
@@ -1112,7 +1179,333 @@ export default function EliaEnginePage() {
               activeView={state.activeView}
               onToggleView={(view) => controller.toggleActiveView(view)}
               validationSummary={displayedExterior?.validation_summary}
+              selectedFeatureId={state.selectedFeatureId}
+              onSelectFeature={(id) => controller.selectFeature(id)}
+              lockedFeatureIds={lockedFeatureIds}
             />
+
+            {/* 4. CUSTOMER CUSTOMIZATION & PROPERTY EDITOR PANEL */}
+            {state.candidate && state.activeView === 'candidate' && (
+              <Card className="border-border/60 bg-card/60 backdrop-blur-sm">
+                <CardHeader className="pb-3 pt-4 px-5 border-b border-border/40 flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base font-semibold flex items-center gap-2">
+                      <Sliders className="w-4 h-4 text-primary" /> Modify Landscape Proposal
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Select generated plants, seating, or lighting to adjust coordinates, replace species, or lock before regeneration.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={() => controller.undoCandidateEdit()}
+                      disabled={state.candidateEditHistory.length === 0}
+                      title="Undo last modification"
+                    >
+                      <Undo2 className="w-3.5 h-3.5 mr-1" /> Undo
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-xs text-muted-foreground"
+                      onClick={() => controller.resetCandidateEdits()}
+                      disabled={state.candidateEditHistory.length === 0}
+                      title="Reset candidate edits"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5 mr-1" /> Reset
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-5 space-y-4">
+                  {/* Feature Selection Dropdown */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="feature-selector" className="text-xs font-medium">Select Generated Element to Edit</Label>
+                    <select
+                      id="feature-selector"
+                      value={state.selectedFeatureId || ''}
+                      onChange={(e) => controller.selectFeature(e.target.value || null)}
+                      className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                    >
+                      <option value="">-- Choose an exterior object or click it on the 2D Plan --</option>
+                      {candidateFeatures.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {lockedFeatureIds.includes(f.id) ? '🔒 ' : ''}{f.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Property Editor for Selected Feature */}
+                  {selectedFeature ? (
+                    <div className="p-3.5 rounded-lg border border-primary/30 bg-primary/5 space-y-3 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-primary">{selectedFeature.category}</span>
+                          <span className="font-mono text-[10px] text-muted-foreground">({selectedFeature.id})</span>
+                          {lockedFeatureIds.includes(selectedFeature.id) && (
+                            <Badge variant="outline" className="border-amber-500/40 text-amber-300 text-[10px] gap-1">
+                              <Lock className="w-2.5 h-2.5" /> Locked
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            size="sm"
+                            variant={lockedFeatureIds.includes(selectedFeature.id) ? 'default' : 'outline'}
+                            className="h-7 text-xs"
+                            onClick={() => controller.toggleFeatureLock(selectedFeature.id)}
+                            title="Preserve this object position across regenerations"
+                          >
+                            {lockedFeatureIds.includes(selectedFeature.id) ? (
+                              <>
+                                <Unlock className="w-3 h-3 mr-1" /> Unlock
+                              </>
+                            ) : (
+                              <>
+                                <Lock className="w-3 h-3 mr-1" /> Lock
+                              </>
+                            )}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="h-7 text-xs"
+                            onClick={() => controller.removeFeature(selectedFeature.id)}
+                            title="Remove this object from proposal"
+                          >
+                            <Trash2 className="w-3 h-3 mr-1" /> Remove
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Position Coordinates with Nudge Controls */}
+                      <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/30">
+                        <div>
+                          <Label className="text-[11px] text-muted-foreground">X Coordinate (m)</Label>
+                          <div className="flex items-center gap-1 mt-1">
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-7 w-7 text-xs shrink-0"
+                              onClick={() => controller.editFeaturePosition(selectedFeature.id, [selectedFeature.position[0] - 0.5, selectedFeature.position[1]])}
+                              title="Nudge Left -0.5m"
+                            >
+                              <ArrowLeft className="w-3 h-3" />
+                            </Button>
+                            <Input
+                              type="number"
+                              step={0.1}
+                              value={selectedFeature.position[0].toFixed(2)}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value)
+                                if (!isNaN(val)) controller.editFeaturePosition(selectedFeature.id, [val, selectedFeature.position[1]])
+                              }}
+                              className="h-7 text-xs font-mono text-center"
+                            />
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-7 w-7 text-xs shrink-0"
+                              onClick={() => controller.editFeaturePosition(selectedFeature.id, [selectedFeature.position[0] + 0.5, selectedFeature.position[1]])}
+                              title="Nudge Right +0.5m"
+                            >
+                              <ArrowRight className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div>
+                          <Label className="text-[11px] text-muted-foreground">Y Coordinate (m)</Label>
+                          <div className="flex items-center gap-1 mt-1">
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-7 w-7 text-xs shrink-0"
+                              onClick={() => controller.editFeaturePosition(selectedFeature.id, [selectedFeature.position[0], selectedFeature.position[1] - 0.5])}
+                              title="Nudge Down -0.5m"
+                            >
+                              <ArrowDown className="w-3 h-3" />
+                            </Button>
+                            <Input
+                              type="number"
+                              step={0.1}
+                              value={selectedFeature.position[1].toFixed(2)}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value)
+                                if (!isNaN(val)) controller.editFeaturePosition(selectedFeature.id, [selectedFeature.position[0], val])
+                              }}
+                              className="h-7 text-xs font-mono text-center"
+                            />
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-7 w-7 text-xs shrink-0"
+                              onClick={() => controller.editFeaturePosition(selectedFeature.id, [selectedFeature.position[0], selectedFeature.position[1] + 0.5])}
+                              title="Nudge Up +0.5m"
+                            >
+                              <ArrowUp className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Vegetation Replacement Dropdown */}
+                      {selectedFeature.type === 'vegetation' && (
+                        <div className="pt-2 border-t border-border/30">
+                          <Label className="text-[11px] text-muted-foreground">Replace with Alternative Plant Species</Label>
+                          <select
+                            value={selectedFeature.category}
+                            onChange={(e) => {
+                              const chosen = catalogEntries.find((c) => c.id === e.target.value)
+                              if (chosen) {
+                                controller.replaceVegetationPlant(selectedFeature.id, {
+                                  vegetation_id: chosen.id,
+                                  display_name: chosen.name,
+                                  scientific_name: chosen.scientific,
+                                  category: chosen.category,
+                                })
+                              }
+                            }}
+                            className="mt-1 w-full h-8 rounded border border-input bg-background px-2 text-xs"
+                          >
+                            {catalogEntries.map((sp) => (
+                              <option key={sp.id} value={sp.id}>
+                                {sp.name} ({sp.scientific})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-3 text-center text-xs text-muted-foreground border border-dashed rounded-lg">
+                      Click an element in the 2D Plan above or select from the dropdown to edit its position, lock it, or swap species.
+                    </div>
+                  )}
+
+                  {/* Candidate Validation Violations */}
+                  {state.candidateValidationError && (
+                    <div className="p-3 rounded-lg border border-rose-500/40 bg-rose-950/20 text-rose-200 text-xs space-y-1">
+                      <div className="font-semibold flex items-center gap-1.5 text-rose-300">
+                        <XCircle className="w-4 h-4" /> Customization Boundary Violation
+                      </div>
+                      <p>{state.candidateValidationError}</p>
+                      {state.candidateValidationViolations.length > 0 && (
+                        <ul className="list-disc pl-5 pt-1 space-y-0.5 font-mono text-[11px]">
+                          {state.candidateValidationViolations.map((v, i) => (
+                            <li key={i}>{v}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Candidate Validation & Persistence Action Buttons */}
+                  <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/40">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="text-xs h-9"
+                      onClick={() => controller.validateEditedCandidate(eliaApi)}
+                      disabled={!projectId || state.isValidatingCandidate}
+                    >
+                      {state.isValidatingCandidate ? <LoaderCircle className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <ShieldCheck className="w-3.5 h-3.5 mr-1.5" />}
+                      Validate Customization
+                    </Button>
+
+                    <Button
+                      type="button"
+                      className="text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+                      onClick={handleSaveCandidate}
+                      disabled={!projectId || state.isSavingCandidate || state.requiresReconciliation}
+                    >
+                      {state.isSavingCandidate ? <LoaderCircle className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Check className="w-3.5 h-3.5 mr-1.5" />}
+                      Save Customized Design
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* 5. RECOMMENDATIONS ASSESSMENT PANEL (7 Factors) */}
+            {factorsAssessment && (
+              <Card className="border-border/60 bg-card/60 backdrop-blur-sm">
+                <CardHeader className="pb-3 pt-4 px-5 border-b border-border/40">
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-primary" /> Environmental &amp; Customer Factor Assessment
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Concise verification of spatial, botanical, and climatic constraints considered for this landscape proposal.
+                  </p>
+                </CardHeader>
+                <CardContent className="p-5 space-y-4 text-xs">
+                  {/* Factor Evaluation Table */}
+                  <div className="overflow-x-auto rounded-lg border border-border/50">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="bg-muted/50 text-muted-foreground border-b border-border/50 font-medium text-[11px]">
+                        <tr>
+                          <th className="p-2.5">Factor</th>
+                          <th className="p-2.5">Input Value</th>
+                          <th className="p-2.5">Data Source</th>
+                          <th className="p-2.5">Status</th>
+                          <th className="p-2.5">Reason &amp; Limitations</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/30">
+                        {factorsAssessment.factors?.map((row: FactorAssessmentRow, idx: number) => {
+                          const statusBadge =
+                            row.status === 'satisfied' ? (
+                              <Badge variant="outline" className="bg-emerald-950/60 text-emerald-400 border-emerald-500/40 text-[10px]">
+                                Satisfied
+                              </Badge>
+                            ) : row.status === 'unmet' ? (
+                              <Badge variant="outline" className="bg-rose-950/60 text-rose-300 border-rose-500/40 text-[10px]">
+                                Unmet
+                              </Badge>
+                            ) : row.status === 'unknown' ? (
+                              <Badge variant="outline" className="bg-amber-950/60 text-amber-300 border-amber-500/40 text-[10px]">
+                                Unknown
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-muted-foreground border-border/50 text-[10px]">
+                                N/A
+                              </Badge>
+                            )
+
+                          return (
+                            <tr key={idx} className="hover:bg-muted/20">
+                              <td className="p-2.5 font-medium text-foreground">{row.factor_label || row.factor}</td>
+                              <td className="p-2.5 font-mono text-[11px] text-muted-foreground">{row.input_value}</td>
+                              <td className="p-2.5 text-muted-foreground text-[11px]">{row.data_source}</td>
+                              <td className="p-2.5">{statusBadge}</td>
+                              <td className="p-2.5 text-muted-foreground leading-relaxed text-[11px]">{row.reason_and_limitations}</td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Object-Level Explanations */}
+                  {factorsAssessment.object_level_explanations && factorsAssessment.object_level_explanations.length > 0 && (
+                    <div className="p-3 rounded-lg border border-border/40 bg-muted/10 space-y-1.5">
+                      <span className="font-semibold text-muted-foreground block text-[11px]">Vegetation Suitability Insights:</span>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px]">
+                        {factorsAssessment.object_level_explanations.slice(0, 6).map((obj, i: number) => (
+                          <div key={i} className="p-1.5 rounded bg-background border border-border/40 font-mono text-[10px]">
+                            <span className="font-semibold text-primary">{obj.json_id}: </span>
+                            <span className="text-muted-foreground">{obj.suitability_explanation}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </div>

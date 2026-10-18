@@ -91,6 +91,9 @@ export interface EliaOutputWrapperProps {
   onToggleView?: (view: 'candidate' | 'accepted') => void;
   validationSummary?: ExteriorValidation | null;
   requiresReconciliation?: boolean;
+  selectedFeatureId?: string | null;
+  onSelectFeature?: (id: string) => void;
+  lockedFeatureIds?: string[];
 }
 
 export function EliaOutputWrapper({
@@ -117,6 +120,9 @@ export function EliaOutputWrapper({
   onToggleView,
   validationSummary,
   requiresReconciliation = false,
+  selectedFeatureId,
+  onSelectFeature,
+  lockedFeatureIds = [],
 }: EliaOutputWrapperProps) {
   const [jsonViewTab, setJsonViewTab] = useState<'landscape' | 'master'>('landscape');
   const [activeTab, setActiveTab] = useState<'2d' | '3d' | 'json'>('2d');
@@ -398,7 +404,13 @@ export function EliaOutputWrapper({
           {isProcessing ? (
             <LoadingPlaceholder label="Generating exterior spatial plan..." />
           ) : (
-            <EliaLandscape2D viewModel={viewModel} landscape={landscape} />
+            <EliaLandscape2D
+              viewModel={viewModel}
+              landscape={landscape}
+              selectedFeatureId={selectedFeatureId}
+              onSelectFeature={onSelectFeature}
+              lockedFeatureIds={lockedFeatureIds}
+            />
           )}
         </TabsContent>
 

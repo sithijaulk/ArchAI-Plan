@@ -97,6 +97,8 @@ export interface ExteriorLandscape {
   metrics: Record<string, unknown>;
   preference_fulfillment?: PreferenceFulfillment;
   generation_mode?: string;
+  factors_assessment?: FactorsAssessment;
+  concept_rules_applied?: string[];
   /** Raw land polygon coordinates passed back by some baseline implementations */
   land?: GeoJsonGeometry;
   house_exterior?: GeoJsonGeometry;
@@ -208,6 +210,40 @@ export interface EliaLightingRequirements {
   preferred_spacing_m?: number | null;
 }
 
+export interface LockedExteriorFeature {
+  json_id: string;
+  category?: string | null;
+  plant_id?: string | null;
+  position: [number, number];
+  canopy_radius_m?: number | null;
+  height_m?: number | null;
+  locked: boolean;
+}
+
+export type LockedFeatureRequirement = LockedExteriorFeature;
+
+export interface FactorAssessmentRow {
+  factor: string;
+  factor_label: string;
+  input_value: string;
+  data_source: string;
+  status: 'satisfied' | 'unmet' | 'unknown' | 'not_applicable';
+  reason_and_limitations: string;
+}
+
+export interface FactorsAssessment {
+  overall_status: 'satisfactory' | 'compromised' | 'unverified';
+  factors: FactorAssessmentRow[];
+  object_level_explanations: Array<{
+    json_id: string;
+    display_name?: string;
+    category?: string;
+    suitability_explanation?: string;
+    locked?: boolean;
+  }>;
+  summary_notes: string[];
+}
+
 export interface ELIARequirements {
   units?: string;
   design_style?: string;
@@ -223,7 +259,44 @@ export interface ELIARequirements {
   landscape?: EliaLandscapeRequirements;
   vertical_greenery?: EliaVerticalGreeneryRequirements;
   lighting?: EliaLightingRequirements;
+  maintenance_preference?: 'low' | 'medium' | 'high' | 'no_preference';
+  low_maintenance_preference?: boolean | null;
+  water_availability?: 'limited' | 'regular' | 'irrigation_available' | 'unknown';
+  climate_zone?: 'wet_zone' | 'intermediate_zone' | 'dry_zone' | 'arid_zone' | 'unknown';
+  site_exposure?: 'sheltered' | 'moderate' | 'exposed' | 'coastal_wind' | 'unknown';
+  preferred_plant_ids?: string[];
+  plant_ids_to_avoid?: string[];
+  locked_features?: LockedExteriorFeature[];
   additional_requirements?: Record<string, unknown> | string;
+}
+
+export interface CandidateValidationRequest {
+  exterior_landscape: ExteriorLandscape;
+  requirements?: ELIARequirements;
+}
+
+export interface CandidateValidationResponse {
+  valid: boolean;
+  violations: string[];
+  checks_passed: number;
+  checks_total: number;
+  factors_assessment?: FactorsAssessment;
+  canonical_candidate?: ExteriorLandscape;
+}
+
+export interface CandidateSaveRequest {
+  exterior_landscape: ExteriorLandscape;
+  source_revision: number;
+  requirements?: ELIARequirements;
+}
+
+export interface CandidateSaveResponse {
+  project_id: string;
+  run_id: string;
+  status: 'completed' | 'infeasible';
+  outcome: 'valid' | 'infeasible';
+  revision: number;
+  exterior_landscape: ExteriorLandscape;
 }
 
 export interface ELIARequestPayload {

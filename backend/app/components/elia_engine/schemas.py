@@ -92,12 +92,29 @@ class LandscapeRequirements(ELIAInputModel):
     vegetation_to_avoid: list[str] = Field(default_factory=list)
     shade_tree_preference: bool = False
     low_maintenance_preference: bool | None = None
+    maintenance_preference: Literal["low", "medium", "high", "no_preference", "unknown"] | None = None
+    water_availability: Literal["limited", "regular", "irrigation_available", "unknown"] | None = None
+    preferred_plant_ids: list[str] = Field(default_factory=list)
+    plant_ids_to_avoid: list[str] = Field(default_factory=list)
+    climate_zone: str | None = None
+    site_exposure: str | None = None
     pedestrian_path_required: bool = False
     garden_path_required: bool = False
     boundary_wall_required: bool = False
     boundary_wall_type: str | None = None
     boundary_wall_height: FiniteFloat | None = Field(default=None, gt=0)
     boundary_wall_height_m: FiniteFloat | None = Field(default=None, gt=0)
+
+    @model_validator(mode="before")
+    @classmethod
+    def strip_obsolete_financials(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            data = data.copy()
+            data.pop("budget_limit_lkr", None)
+            data.pop("budget_preference", None)
+            data.pop("budget_estimate", None)
+            data.pop("budget_assessment", None)
+        return data
 
 
 class VerticalGreeneryRequirements(ELIAInputModel):
@@ -120,6 +137,13 @@ class ELIARequirements(ELIAInputModel):
     greenery_level: str = "medium"
     landscape_priority: str = "balanced"
     vertical_greenery_enabled: bool = True
+    maintenance_preference: Literal["low", "medium", "high", "no_preference", "unknown"] | None = None
+    water_availability: Literal["limited", "regular", "irrigation_available", "unknown"] | None = None
+    preferred_plant_ids: list[str] = Field(default_factory=list)
+    plant_ids_to_avoid: list[str] = Field(default_factory=list)
+    climate_zone: str | None = None
+    site_exposure: str | None = None
+    locked_features: list[dict[str, Any]] = Field(default_factory=list)
     location: LocationInput = Field(default_factory=LocationInput)
     latitude: FiniteFloat | None = Field(default=None, ge=-90, le=90)
     longitude: FiniteFloat | None = Field(default=None, ge=-180, le=180)
@@ -144,6 +168,10 @@ class ELIARequirements(ELIAInputModel):
             data = data.copy()
             data.pop("normalized_units", None)
             data.pop("_elia_internal_normalized", None)
+            data.pop("budget_limit_lkr", None)
+            data.pop("budget_preference", None)
+            data.pop("budget_estimate", None)
+            data.pop("budget_assessment", None)
         return data
 
     @model_validator(mode="after")
@@ -219,6 +247,16 @@ class ExteriorValidationResponse(ELIAInputModel):
 class ExteriorLandscapeResponse(BaseModel):
     model_config = ConfigDict(extra="allow")
 
+    @model_validator(mode="before")
+    @classmethod
+    def strip_obsolete_financials(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            data = data.copy()
+            obsolete_keys = [k for k in data if any(fin in k.lower() for fin in ("budget", "price", "cost", "quotation", "lkr", "subtotal"))]
+            for k in obsolete_keys:
+                data.pop(k, None)
+        return data
+
     version: str = Field(min_length=1)
     schema_version: str = Field(min_length=1)
     run_id: str = Field(min_length=1)
@@ -235,6 +273,9 @@ class ExteriorLandscapeResponse(BaseModel):
     metrics: dict[str, Any]
 
 
+ExteriorLandscape = ExteriorLandscapeResponse
+
+
 class ELIAResponse(BaseModel):
     project_id: str
     run_id: str
@@ -243,3 +284,17 @@ class ELIAResponse(BaseModel):
     exterior_landscape: ExteriorLandscapeResponse
     master_json_updated: bool
     generation_mode: Literal["trained_model", "baseline"]
+
+
+class CandidateValidationRequest(BaseModel):
+    master_json: dict[str, Any] | None = None
+    exterior_landscape: dict[str, Any]
+    requirements: ELIARequirements = Field(default_factory=ELIARequirements)
+
+
+class CandidateSaveRequest(BaseModel):
+    exterior_landscape: dict[str, Any]
+    source_revision: int = Field(ge=1)
+    requirements: ELIARequirements = Field(default_factory=ELIARequirements)
+    run_id: str | None = None
+

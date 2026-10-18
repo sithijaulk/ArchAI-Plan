@@ -5,6 +5,7 @@ import type {
   EliaCandidateRecord,
   EliaContextFreshness,
   EliaUnresolvedMutation,
+  LockedFeatureRequirement,
 } from '../types/elia';
 import type { SriLankaLocation, LiveSolarConditions } from './api/elia';
 import {
@@ -458,6 +459,15 @@ export function createDefaultFormState(): EliaFormState {
     lightingStyle: 'minimal',
     verticalGreeneryMode: 'automatic',
 
+    // Environmental & Customer Preferences (Panel Feedback)
+    maintenancePreference: 'no_preference',
+    waterAvailability: 'unknown',
+    climateZone: 'unknown',
+    siteExposure: 'unknown',
+    preferredPlantIds: [],
+    plantIdsToAvoid: [],
+    lockedFeatures: [],
+
     selectedLocation: null,
     includeLiveSolar: false,
   };
@@ -517,6 +527,15 @@ export interface EliaWorkflowState {
   locationError: string | null;
   solar: LiveSolarConditions | null;
   isLoadingSolar: boolean;
+
+  // Object Customization channel (Panel Feedback)
+  selectedFeatureId: string | null;
+  candidateEditHistory: ExteriorLandscape[];
+  candidateValidationError: string | null;
+  candidateValidationViolations: string[];
+  isValidatingCandidate: boolean;
+  isSavingCandidate: boolean;
+  saveCandidateError: string | null;
 }
 
 export interface EliaApiInterface {
@@ -527,6 +546,9 @@ export interface EliaApiInterface {
   run(projectId: string, payload: any, options?: { signal?: AbortSignal }): Promise<{ run_id: string; outcome: 'valid' | 'infeasible'; exterior_landscape: ExteriorLandscape; master_json_updated?: boolean }>;
   searchLocations?(query: string, options?: { signal?: AbortSignal }): Promise<{ results: SriLankaLocation[] }>;
   currentSolar?(projectId: string, location: any, options?: { signal?: AbortSignal }): Promise<LiveSolarConditions>;
+  validateCandidate?(projectId: string, payload: any, options?: { signal?: AbortSignal }): Promise<any>;
+  saveCandidate?(projectId: string, payload: any, options?: { signal?: AbortSignal }): Promise<any>;
+  getVegetationCatalog?(options?: { signal?: AbortSignal }): Promise<Record<string, unknown>>;
 }
 
 export class EliaWorkflowController {
@@ -540,6 +562,11 @@ export class EliaWorkflowController {
   private mutationReqId = 0;
   private locationSearchReqId = 0;
   private solarReqId = 0;
+
+  // Candidate edit versioning & async request sequencing
+  private candidateEditVersion = 0;
+  private candidateValidationReqId = 0;
+  private candidateSaveReqId = 0;
 
   // Synchronous guard with token ownership
   private isMutatingSync = false;
@@ -595,6 +622,13 @@ export class EliaWorkflowController {
         locationError: null,
         solar: null,
         isLoadingSolar: false,
+        selectedFeatureId: null,
+        candidateEditHistory: [],
+        candidateValidationError: null,
+        candidateValidationViolations: [],
+        isValidatingCandidate: false,
+        isSavingCandidate: false,
+        saveCandidateError: null,
       }) as EliaWorkflowState;
     }
     return EliaWorkflowController.serverSnapshot;
@@ -647,6 +681,14 @@ export class EliaWorkflowController {
       locationError: null,
       solar: null,
       isLoadingSolar: false,
+
+      selectedFeatureId: null,
+      candidateEditHistory: [],
+      candidateValidationError: null,
+      candidateValidationViolations: [],
+      isValidatingCandidate: false,
+      isSavingCandidate: false,
+      saveCandidateError: null,
     };
   }
 
@@ -705,6 +747,9 @@ export class EliaWorkflowController {
     this.mutationReqId += 1;
     this.locationSearchReqId += 1;
     this.solarReqId += 1;
+    this.candidateValidationReqId += 1;
+    this.candidateSaveReqId += 1;
+    this.candidateEditVersion += 1;
 
     this.mutationEpoch += 1;
     this.activeMutationEpoch = null;
@@ -758,6 +803,14 @@ export class EliaWorkflowController {
         locationError: null,
         solar: null,
         isLoadingSolar: false,
+
+        selectedFeatureId: null,
+        candidateEditHistory: [],
+        candidateValidationError: null,
+        candidateValidationViolations: [],
+        isValidatingCandidate: false,
+        isSavingCandidate: false,
+        saveCandidateError: null,
       });
     } else {
       this.setState({
@@ -793,6 +846,8 @@ export class EliaWorkflowController {
     this.mutationReqId += 1;
     this.locationSearchReqId += 1;
     this.solarReqId += 1;
+    this.candidateValidationReqId += 1;
+    this.candidateSaveReqId += 1;
 
     this.mutationEpoch += 1;
     this.activeMutationEpoch = null;
@@ -828,12 +883,17 @@ export class EliaWorkflowController {
 
   public editRequirement(patch: Partial<EliaFormState>) {
     const updatedForm = { ...this.state.formState, ...patch };
+    if (this.state.candidate) {
+      this.candidateEditVersion += 1;
+    }
     this.setState({
       formState: updatedForm,
       requirementsDirty: true,
       validationResult: null, // Invalidate prior validation success immediately!
       validationError: null,
       actionError: null,
+      candidateValidationError: null,
+      candidateValidationViolations: [],
     });
   }
 
@@ -2015,6 +2075,494 @@ export class EliaWorkflowController {
         isLoadingSolar: false,
       });
       return { status: 'failed' };
+    }
+  }
+
+  public setActiveView(view: 'accepted' | 'candidate') {
+    this.setState({ activeView: view });
+  }
+
+  public selectFeature(featureId: string | null) {
+    this.setState({ selectedFeatureId: featureId });
+  }
+
+  private syncLockedFeaturesFromLandscape(landscape: ExteriorLandscape): LockedFeatureRequirement[] {
+    const locked: LockedFeatureRequirement[] = [];
+    for (const node of landscape.vegetation_nodes || []) {
+      if (node.locked && node.position) {
+        const pos = Array.isArray(node.position) ? node.position : [(node.position as any).x, (node.position as any).y];
+        locked.push({
+          json_id: node.json_id,
+          category: typeof node.category === 'string' ? node.category : undefined,
+          plant_id: typeof (node as any).plant_id === 'string' ? (node as any).plant_id : undefined,
+          position: [pos[0], pos[1]],
+          canopy_radius_m: typeof node.canopy_radius_m === 'number' ? node.canopy_radius_m : undefined,
+          height_m: typeof node.height_m === 'number' ? node.height_m : undefined,
+          locked: true,
+        });
+      }
+    }
+    for (const node of landscape.outdoor_lighting?.nodes || []) {
+      if (node.locked && node.position) {
+        const pos = Array.isArray(node.position) ? node.position : [(node.position as any).x, (node.position as any).y];
+        locked.push({
+          json_id: node.json_id,
+          category: 'lighting',
+          position: [pos[0], pos[1]],
+          locked: true,
+        });
+      }
+    }
+    for (const elem of landscape.outdoor_elements || []) {
+      if (elem.locked && elem.position) {
+        const pos = Array.isArray(elem.position) ? elem.position : [(elem.position as any).x, (elem.position as any).y];
+        locked.push({
+          json_id: elem.json_id,
+          category: elem.type || 'outdoor_element',
+          position: [pos[0], pos[1]],
+          locked: true,
+        });
+      }
+    }
+    return locked;
+  }
+
+  public editFeaturePosition(featureId: string, position: [number, number]) {
+    const candidate = this.state.candidate;
+    if (!candidate || !candidate.landscape) return;
+    const history = [...(this.state.candidateEditHistory || []), deepcopy(candidate.landscape)];
+    const landscape = deepcopy(candidate.landscape);
+    let found = false;
+
+    if (landscape.vegetation_nodes) {
+      for (const node of landscape.vegetation_nodes) {
+        if (node.json_id === featureId) {
+          node.position = [position[0], position[1]];
+          found = true;
+          break;
+        }
+      }
+    }
+
+    if (!found && landscape.outdoor_lighting?.nodes) {
+      for (const node of landscape.outdoor_lighting.nodes) {
+        if (node.json_id === featureId) {
+          node.position = [position[0], position[1]];
+          found = true;
+          break;
+        }
+      }
+    }
+
+    if (!found && landscape.outdoor_elements) {
+      for (const elem of landscape.outdoor_elements) {
+        if (elem.json_id === featureId) {
+          const oldPos = Array.isArray(elem.position) ? elem.position : [0, 0];
+          const dx = position[0] - oldPos[0];
+          const dy = position[1] - oldPos[1];
+          elem.position = [position[0], position[1]];
+          if (elem.polygon && Array.isArray(elem.polygon)) {
+            elem.polygon = elem.polygon.map(([px, py]: [number, number]) => [px + dx, py + dy]);
+          }
+          found = true;
+          break;
+        }
+      }
+    }
+
+    if (found) {
+      this.candidateEditVersion++;
+      const currentLocked = this.syncLockedFeaturesFromLandscape(landscape);
+      this.setState({
+        candidate: {
+          ...candidate,
+          landscape,
+        },
+        candidateEditHistory: history,
+        candidateValidationError: null,
+        candidateValidationViolations: [],
+        formState: {
+          ...this.state.formState,
+          lockedFeatures: currentLocked,
+        },
+      });
+    }
+  }
+
+  public replaceVegetationPlant(featureId: string, newPlantEntry: any) {
+    const candidate = this.state.candidate;
+    if (!candidate || !candidate.landscape?.vegetation_nodes) return;
+    const history = [...(this.state.candidateEditHistory || []), deepcopy(candidate.landscape)];
+    const landscape = deepcopy(candidate.landscape);
+
+    for (const node of landscape.vegetation_nodes) {
+      if (node.json_id === featureId) {
+        node.plant_id = newPlantEntry.vegetation_id;
+        node.display_name = newPlantEntry.display_name;
+        node.scientific_name = newPlantEntry.scientific_name;
+        node.category = newPlantEntry.category || node.category;
+        if (newPlantEntry.mature_height_m) node.height_m = newPlantEntry.mature_height_m;
+        if (newPlantEntry.canopy_radius_m) node.canopy_radius_m = newPlantEntry.canopy_radius_m;
+        if (newPlantEntry.water_demand) node.water_demand = newPlantEntry.water_demand;
+        if (newPlantEntry.maintenance_level) node.maintenance_level = newPlantEntry.maintenance_level;
+        node.verified_species_data = Boolean(newPlantEntry.verified_species_data);
+        node.source_reference = newPlantEntry.source_reference;
+        node.suitability_explanation = `User substituted with catalogue species '${newPlantEntry.scientific_name || newPlantEntry.display_name}'.`;
+        break;
+      }
+    }
+
+    this.candidateEditVersion++;
+    const currentLocked = this.syncLockedFeaturesFromLandscape(landscape);
+    this.setState({
+      candidate: {
+        ...candidate,
+        landscape,
+      },
+      candidateEditHistory: history,
+      candidateValidationError: null,
+      candidateValidationViolations: [],
+      formState: {
+        ...this.state.formState,
+        lockedFeatures: currentLocked,
+      },
+    });
+  }
+
+  public removeFeature(featureId: string) {
+    const candidate = this.state.candidate;
+    if (!candidate || !candidate.landscape) return;
+    const history = [...(this.state.candidateEditHistory || []), deepcopy(candidate.landscape)];
+    const landscape = deepcopy(candidate.landscape);
+
+    landscape.vegetation_nodes = (landscape.vegetation_nodes || []).filter((n) => n.json_id !== featureId);
+    if (landscape.outdoor_lighting?.nodes) {
+      landscape.outdoor_lighting.nodes = landscape.outdoor_lighting.nodes.filter((n) => n.json_id !== featureId);
+    }
+    landscape.outdoor_elements = (landscape.outdoor_elements || []).filter((n) => n.json_id !== featureId);
+
+    this.candidateEditVersion++;
+    const currentLocked = this.syncLockedFeaturesFromLandscape(landscape);
+    this.setState({
+      candidate: {
+        ...candidate,
+        landscape,
+      },
+      candidateEditHistory: history,
+      selectedFeatureId: this.state.selectedFeatureId === featureId ? null : this.state.selectedFeatureId,
+      candidateValidationError: null,
+      candidateValidationViolations: [],
+      formState: {
+        ...this.state.formState,
+        lockedFeatures: currentLocked,
+      },
+    });
+  }
+
+  public toggleFeatureLock(featureId: string) {
+    const candidate = this.state.candidate;
+    if (!candidate || !candidate.landscape) return;
+    const history = [...(this.state.candidateEditHistory || []), deepcopy(candidate.landscape)];
+    const landscape = deepcopy(candidate.landscape);
+
+    for (const node of landscape.vegetation_nodes || []) {
+      if (node.json_id === featureId) {
+        node.locked = !node.locked;
+        break;
+      }
+    }
+    for (const node of landscape.outdoor_lighting?.nodes || []) {
+      if (node.json_id === featureId) {
+        node.locked = !node.locked;
+        break;
+      }
+    }
+    for (const elem of landscape.outdoor_elements || []) {
+      if (elem.json_id === featureId) {
+        elem.locked = !elem.locked;
+        break;
+      }
+    }
+
+    this.candidateEditVersion++;
+    const currentLocked = this.syncLockedFeaturesFromLandscape(landscape);
+
+    this.setState({
+      candidate: {
+        ...candidate,
+        landscape,
+      },
+      candidateEditHistory: history,
+      candidateValidationError: null,
+      candidateValidationViolations: [],
+      formState: {
+        ...this.state.formState,
+        lockedFeatures: currentLocked,
+      },
+    });
+  }
+
+  public undoCandidateEdit() {
+    const history = [...(this.state.candidateEditHistory || [])];
+    if (history.length === 0 || !this.state.candidate) return;
+    const previous = history.pop()!;
+    this.candidateEditVersion++;
+    const currentLocked = this.syncLockedFeaturesFromLandscape(previous);
+    this.setState({
+      candidate: {
+        ...this.state.candidate,
+        landscape: previous,
+      },
+      candidateEditHistory: history,
+      candidateValidationError: null,
+      candidateValidationViolations: [],
+      formState: {
+        ...this.state.formState,
+        lockedFeatures: currentLocked,
+      },
+    });
+  }
+
+  public resetCandidateEdits() {
+    const history = this.state.candidateEditHistory;
+    if (!history || history.length === 0 || !this.state.candidate) return;
+    const initial = history[0];
+    this.candidateEditVersion++;
+    const currentLocked = this.syncLockedFeaturesFromLandscape(initial);
+    this.setState({
+      candidate: {
+        ...this.state.candidate,
+        landscape: initial,
+      },
+      candidateEditHistory: [],
+      candidateValidationError: null,
+      candidateValidationViolations: [],
+      formState: {
+        ...this.state.formState,
+        lockedFeatures: currentLocked,
+      },
+    });
+  }
+
+  public async validateEditedCandidate(api: EliaApiInterface): Promise<boolean> {
+    const { projectId, candidate, formState, isMounted, isActive } = this.state;
+    if (!isMounted || !isActive || !projectId || !candidate?.landscape) return false;
+    if (this.isMutatingSync || this.isReconcilingSync) return false;
+
+    const reqId = ++this.candidateValidationReqId;
+    const capturedVersion = this.candidateEditVersion;
+    const capturedLandscape = deepcopy(candidate.landscape);
+    const capturedRequirements = serializeRequirements(formState);
+
+    this.setState({ isValidatingCandidate: true, candidateValidationError: null, candidateValidationViolations: [] });
+
+    try {
+      const res = await (api as any).validateCandidate(projectId, {
+        exterior_landscape: capturedLandscape,
+        requirements: capturedRequirements,
+      });
+
+      // Ignore stale response if lifecycle changed or candidate was further modified
+      if (
+        !this.state.isMounted ||
+        !this.state.isActive ||
+        this.state.projectId !== projectId ||
+        this.candidateValidationReqId !== reqId ||
+        this.candidateEditVersion !== capturedVersion ||
+        !this.state.candidate
+      ) {
+        return false;
+      }
+
+      if (res.valid) {
+        const canonical = res.canonical_candidate || capturedLandscape;
+        const updatedLandscape: ExteriorLandscape = {
+          ...canonical,
+          factors_assessment: res.factors_assessment || canonical.factors_assessment,
+          validation_summary: {
+            ...canonical.validation_summary,
+            valid: true,
+            violations: [],
+            checks_passed: res.checks_passed ?? canonical.validation_summary?.checks_passed,
+            checks_total: res.checks_total ?? canonical.validation_summary?.checks_total,
+          },
+        };
+        // Explicitly strip any obsolete financial fields
+        delete (updatedLandscape as any).budget_estimate;
+        delete (updatedLandscape as any).budget_assessment;
+
+        this.setState({
+          isValidatingCandidate: false,
+          candidate: {
+            ...this.state.candidate,
+            landscape: updatedLandscape,
+          },
+          candidateValidationError: null,
+          candidateValidationViolations: [],
+        });
+        return true;
+      } else {
+        this.setState({
+          isValidatingCandidate: false,
+          candidateValidationError: 'Customized candidate violates geometric or safety constraints.',
+          candidateValidationViolations: res.violations || [],
+        });
+        return false;
+      }
+    } catch (err: any) {
+      if (
+        !this.state.isMounted ||
+        !this.state.isActive ||
+        this.state.projectId !== projectId ||
+        this.candidateValidationReqId !== reqId
+      ) {
+        return false;
+      }
+      const parsed = parseEliaError(err);
+      this.setState({
+        isValidatingCandidate: false,
+        candidateValidationError: parsed.message,
+        candidateValidationViolations: err.response?.data?.detail?.violations || [],
+      });
+      return false;
+    }
+  }
+
+  public async saveEditedCandidate(
+    api: EliaApiInterface,
+    callbacks?: { setOutput?: (comp: string, data: any) => void; setComponentStatus?: (comp: string, status: any) => void }
+  ): Promise<boolean> {
+    const { projectId, candidate, sourceRevision, formState, isMounted, isActive, isSavingCandidate } = this.state;
+    if (!isMounted || !isActive || !projectId || !candidate?.landscape || sourceRevision === null) return false;
+    if (isSavingCandidate || this.isMutatingSync || this.isReconcilingSync) return false;
+
+    // Prevent duplicate mutations with synchronous guard
+    this.isMutatingSync = true;
+    const reqId = ++this.candidateSaveReqId;
+    const capturedVersion = this.candidateEditVersion;
+    const capturedLandscape = deepcopy(candidate.landscape);
+    const capturedRevision = sourceRevision;
+    const capturedRequirements = serializeRequirements(formState);
+
+    this.setState({ isSavingCandidate: true, saveCandidateError: null });
+
+    try {
+      // 1. Validate the candidate before saving
+      const validateRes = await (api as any).validateCandidate(projectId, {
+        exterior_landscape: capturedLandscape,
+        requirements: capturedRequirements,
+      });
+
+      // Check if project or candidate version changed during validation
+      if (
+        !this.state.isMounted ||
+        !this.state.isActive ||
+        this.state.projectId !== projectId ||
+        this.candidateEditVersion !== capturedVersion ||
+        this.candidateSaveReqId !== reqId
+      ) {
+        this.isMutatingSync = false;
+        this.setState({ isSavingCandidate: false });
+        return false;
+      }
+
+      if (!validateRes.valid) {
+        // Validation failed: preserve unsaved edits in candidate
+        this.isMutatingSync = false;
+        this.setState({
+          isSavingCandidate: false,
+          candidateValidationError: 'Customized candidate violates geometric or safety constraints.',
+          candidateValidationViolations: validateRes.violations || [],
+        });
+        return false;
+      }
+
+      // Use canonical candidate returned from validation if available
+      const canonicalLandscape = validateRes.canonical_candidate || capturedLandscape;
+
+      // 2. Save the validated canonical candidate
+      const res = await (api as any).saveCandidate(projectId, {
+        exterior_landscape: canonicalLandscape,
+        source_revision: capturedRevision,
+        requirements: capturedRequirements,
+      });
+
+      if (
+        !this.state.isMounted ||
+        !this.state.isActive ||
+        this.state.projectId !== projectId ||
+        this.candidateSaveReqId !== reqId
+      ) {
+        this.isMutatingSync = false;
+        return false;
+      }
+
+      if (callbacks?.setOutput) {
+        callbacks.setOutput('elia_engine', res.exterior_landscape);
+      }
+      if (callbacks?.setComponentStatus) {
+        callbacks.setComponentStatus('elia_engine', 'completed');
+      }
+
+      this.setState({
+        isSavingCandidate: false,
+        sourceRevision: res.revision,
+        acceptedLandscape: res.exterior_landscape,
+        acceptedProvenance: {
+          projectId,
+          sourceRevision: res.revision,
+          runId: res.run_id,
+        },
+        candidate: null,
+        candidateEditHistory: [],
+        activeView: 'accepted',
+        selectedFeatureId: null,
+        saveCandidateError: null,
+      });
+
+      this.isMutatingSync = false;
+
+      // Refresh authoritative context after successful save to ensure master JSON is up to date
+      await this.loadAuthoritativeContext(api);
+
+      return true;
+    } catch (err: any) {
+      this.isMutatingSync = false;
+      if (
+        !this.state.isMounted ||
+        !this.state.isActive ||
+        this.state.projectId !== projectId ||
+        this.candidateSaveReqId !== reqId
+      ) {
+        this.setState({ isSavingCandidate: false });
+        return false;
+      }
+
+      const parsed = parseEliaError(err);
+      if (parsed.isStaleRevision) {
+        // 409 Revision conflict: preserve unsaved edits in candidate, report conflict
+        this.setState({
+          isSavingCandidate: false,
+          saveCandidateError: `Revision Conflict (409): The project was modified concurrently (current revision is ${parsed.currentRevision ?? 'newer'}). Your custom edits have been preserved.`,
+        });
+        return false;
+      }
+
+      // If uncertain network outcome (timeout / 5xx / offline), reconcile state
+      if (err.code === 'ECONNABORTED' || !err.response || err.response?.status >= 500) {
+        this.setState({
+          isSavingCandidate: false,
+          saveCandidateError: 'Network or timeout occurred during save. Reconciling project state...',
+        });
+        await this.reconcileMutation(api);
+        return false;
+      }
+
+      this.setState({
+        isSavingCandidate: false,
+        saveCandidateError: parsed.message,
+      });
+      return false;
     }
   }
 

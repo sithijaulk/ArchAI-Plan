@@ -188,12 +188,96 @@ def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str,
     access["vehicle_profiles"] = profiles
 
     landscape = dict(requirements.get("landscape") or {})
+    # Strip obsolete financial fields at read boundary
+    for bf in ("budget_limit_lkr", "budget_preference", "budget_estimate", "budget_assessment"):
+        landscape.pop(bf, None)
+        normalized.pop(bf, None)
+
+    explicit_density = (
+        ("greenery_density" in (requirements.get("landscape") or {}))
+        or ("greenery_level" in requirements)
+        or ("greenery_density" in requirements)
+    )
     greenery_density = landscape.get("greenery_density", requirements.get("greenery_level", "medium"))
     if greenery_density not in elia_rules()["vegetation"]["density_targets"]:
         raise ELIAError("ELIA_INVALID_GREENERY_DENSITY", "Greenery density must be low, medium, or high.")
+    landscape["greenery_density"] = greenery_density
+    landscape["explicit_greenery_density"] = explicit_density
+    normalized["explicit_greenery_density"] = explicit_density
     landscape_priority = requirements.get("landscape_priority", "balanced")
     if landscape_priority not in {"balanced", "maximum_open_space", "maximum_greenery"}:
         raise ELIAError("ELIA_INVALID_LANDSCAPE_PRIORITY", "Landscape priority must be balanced, maximum_open_space, or maximum_greenery.")
+
+    # 1. Design Concept / Style
+    raw_style = requirements.get("design_style") or requirements.get("design_concept") or "contemporary"
+    canonical_style = str(raw_style).strip().lower()
+    if canonical_style == "minimalist":
+        canonical_style = "minimalistic"
+    normalized["design_style"] = canonical_style
+
+    # 2. Maintenance preference
+    maint_pref = requirements.get("maintenance_preference") or landscape.get("maintenance_preference")
+    low_maint = requirements.get("low_maintenance_preference") if requirements.get("low_maintenance_preference") is not None else landscape.get("low_maintenance_preference")
+    if not maint_pref and low_maint is True:
+        maint_pref = "low"
+    elif not maint_pref and low_maint is False:
+        maint_pref = "no_preference"
+    if maint_pref is not None:
+        maint_pref = str(maint_pref).strip().lower()
+        if maint_pref not in {"low", "medium", "high", "no_preference", "unknown"}:
+            raise ELIAError("ELIA_INVALID_MAINTENANCE_PREFERENCE", "Maintenance preference must be low, medium, high, or no_preference.")
+    landscape["maintenance_preference"] = maint_pref
+    if maint_pref is not None:
+        landscape["low_maintenance_preference"] = (maint_pref == "low")
+    normalized["maintenance_preference"] = maint_pref
+
+    # 3. Water availability
+    water_avail = requirements.get("water_availability") or landscape.get("water_availability")
+    if water_avail is not None:
+        water_avail = str(water_avail).strip().lower()
+        if water_avail not in {"limited", "regular", "irrigation_available", "unknown"}:
+            raise ELIAError("ELIA_INVALID_WATER_AVAILABILITY", "Water availability must be limited, regular, irrigation_available, or unknown.")
+    landscape["water_availability"] = water_avail
+    normalized["water_availability"] = water_avail
+
+    # 5. Climate & Environmental Context
+    climate_zone = requirements.get("climate_zone") or landscape.get("climate_zone")
+    if climate_zone is not None:
+        climate_zone = str(climate_zone).strip().lower()
+    normalized["climate_zone"] = climate_zone
+    landscape["climate_zone"] = climate_zone
+
+    site_exposure = requirements.get("site_exposure") or landscape.get("site_exposure")
+    if site_exposure is not None:
+        site_exposure = str(site_exposure).strip().lower()
+    normalized["site_exposure"] = site_exposure
+    landscape["site_exposure"] = site_exposure
+
+    # 6. Specific plant preferences & avoidances
+    pref_plants = list(landscape.get("preferred_plant_ids") or requirements.get("preferred_plant_ids") or [])
+    avoid_plants = list(landscape.get("plant_ids_to_avoid") or requirements.get("plant_ids_to_avoid") or [])
+    landscape["preferred_plant_ids"] = [str(p) for p in pref_plants]
+    landscape["plant_ids_to_avoid"] = [str(p) for p in avoid_plants]
+    normalized["preferred_plant_ids"] = landscape["preferred_plant_ids"]
+    normalized["plant_ids_to_avoid"] = landscape["plant_ids_to_avoid"]
+
+    # 7. Locked features
+    raw_locked = requirements.get("locked_features") or []
+    locked_features = []
+    if isinstance(raw_locked, (list, tuple)):
+        for item in raw_locked:
+            if isinstance(item, Mapping):
+                item_dict = dict(item)
+                if "json_id" in item_dict and "position" in item_dict:
+                    pos = item_dict["position"]
+                    if isinstance(pos, (list, tuple)) and len(pos) == 2:
+                        try:
+                            item_dict["position"] = [float(pos[0]), float(pos[1])]
+                            item_dict["locked"] = True
+                            locked_features.append(item_dict)
+                        except (TypeError, ValueError):
+                            pass
+    normalized["locked_features"] = locked_features
 
     wall_height_m = landscape.get("boundary_wall_height_m")
     if wall_height_m is not None:
@@ -201,6 +285,7 @@ def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str,
     elif landscape.get("boundary_wall_height") is not None:
         landscape["boundary_wall_height_m"] = float(landscape["boundary_wall_height"]) * (1.0 if already_normalized else scale)
     landscape.pop("boundary_wall_height", None)
+
 
     lighting = dict(requirements.get("lighting") or {})
     spacing_m = lighting.get("preferred_spacing_m")

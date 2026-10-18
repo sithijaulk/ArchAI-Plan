@@ -16,12 +16,13 @@ from app.components.elia_engine.exceptions import ELIAError
 from app.components.elia_engine.adapter import normalize_master_json
 from app.components.elia_engine.geometry import feet_to_meters
 from app.components.elia_engine.parser import parse_exterior_context
-from app.components.elia_engine.requirements import normalize_requirements
 from app.components.elia_engine.rule_repository import elia_rules, lighting_rules, vehicle_profiles, vegetation_catalog
-from app.components.elia_engine.schemas import ELIARequest, ELIAResponse, ExteriorLandscapeResponse
+from app.components.elia_engine.schemas import ELIARequest, ELIAResponse, ExteriorLandscapeResponse, CandidateValidationRequest, CandidateSaveRequest
 from app.components.elia_engine.solar import extract_master_location, fetch_live_solar_conditions, search_sri_lanka_locations
 from app.components.elia_engine.generation import generate_exterior
+from app.components.elia_engine.service import validate_candidate_exterior
 from app.components.elia_engine.gate_garage import plan_gate
+from app.components.elia_engine.requirements import normalize_requirements
 from app.components.elia_engine.output import build_processing_master, build_updated_master
 from app.database import get_db
 from app.dependencies import require_admin
@@ -404,3 +405,139 @@ def search_elia_locations(name: str = Query(min_length=2, max_length=100), _admi
                 "attribution": "© OpenStreetMap contributors", "results": search_sri_lanka_locations(name)}
     except ELIAError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+
+
+
+
+@router.post("/projects/{project_id}/elia-engine/validate-candidate")
+def validate_candidate(
+    project_id: str,
+    request: CandidateValidationRequest,
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin)
+):
+    project = _project_or_404(db, project_id)
+    master = project.master_json
+    if not isinstance(master, dict):
+        raise HTTPException(status_code=422, detail={"code": "ELIA_INVALID_MASTER_JSON", "message": "Project has no valid Master JSON object."})
+    try:
+        raw_reqs = (
+            request.requirements.model_dump(mode="json", exclude_none=True, exclude_unset=True)
+            if hasattr(request.requirements, "model_dump")
+            else request.requirements
+        )
+        validation_result = validate_candidate_exterior(
+            master, request.exterior_landscape, raw_reqs
+        )
+        return validation_result
+    except ELIAError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    except Exception as exc:
+        logger.exception("Failed validating candidate for project %s", project_id)
+        raise HTTPException(status_code=500, detail={"code": "ELIA_VALIDATION_ERROR", "message": str(exc)}) from exc
+
+
+@router.post("/projects/{project_id}/elia-engine/save-candidate")
+def save_candidate(
+    project_id: str,
+    request: CandidateSaveRequest,
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin)
+):
+    project = _project_or_404(db, project_id)
+    db.refresh(project)
+    current_revision = int(project.revision or 1)
+    if request.source_revision != current_revision:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "ELIA_STALE_SOURCE_REVISION",
+                "message": "Project was modified by another operation.",
+                "expected_revision": request.source_revision,
+                "current_revision": current_revision
+            }
+        )
+    master = deepcopy(project.master_json)
+    if not isinstance(master, dict):
+        raise HTTPException(status_code=422, detail={"code": "ELIA_INVALID_MASTER_JSON", "message": "Project has no valid Master JSON object."})
+
+    raw_reqs = (
+        request.requirements.model_dump(mode="json", exclude_none=True, exclude_unset=True)
+        if hasattr(request.requirements, "model_dump")
+        else request.requirements
+    )
+    try:
+        validation_result = validate_candidate_exterior(
+            master, request.exterior_landscape, raw_reqs
+        )
+    except ELIAError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+
+    if not validation_result.get("valid"):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "ELIA_INVALID_CANDIDATE",
+                "message": "Candidate exterior design violates geometric, safety, or constraint rules and cannot be saved.",
+                "violations": validation_result.get("violations", []),
+                "checks_passed": validation_result.get("checks_passed"),
+                "checks_total": validation_result.get("checks_total"),
+            }
+        )
+
+    canonical_candidate = validation_result.get("canonical_candidate", request.exterior_landscape)
+
+    run_id = str(uuid4())
+    run = ComponentRun(
+        id=run_id,
+        project_id=project_id,
+        component_name="elia_engine",
+        status="completed",
+        started_at=datetime.now(timezone.utc),
+        completed_at=datetime.now(timezone.utc),
+        input_json={
+            "source_revision": current_revision,
+            "save_mode": "customer_customized_candidate",
+            "requirements": raw_reqs or {},
+        },
+        output_json=_sanitize_nan(canonical_candidate),
+    )
+    db.add(run)
+
+    updated_master = build_updated_master(
+        master, canonical_candidate, run_id, "valid",
+        generation_mode="customized",
+        source_revision=current_revision,
+        model_version=canonical_candidate.get("model_version"),
+    )
+
+    changed = db.execute(
+        update(Project)
+        .where(Project.id == project_id, Project.revision == current_revision)
+        .values(
+            master_json=updated_master,
+            revision=current_revision + 1,
+            current_component="elia_engine"
+        )
+    )
+    if changed.rowcount != 1:
+        db.rollback()
+        current_rev = int(db.query(Project).filter(Project.id == project_id).one().revision)
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "ELIA_STALE_SOURCE_REVISION",
+                "message": "Project changed while saving customized design.",
+                "expected_revision": current_revision,
+                "current_revision": current_rev
+            }
+        )
+    db.commit()
+    return {
+        "project_id": project_id,
+        "run_id": run_id,
+        "status": "completed",
+        "outcome": "valid",
+        "revision": current_revision + 1,
+        "exterior_landscape": canonical_candidate
+    }
