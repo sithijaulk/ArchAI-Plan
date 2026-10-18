@@ -6,7 +6,7 @@ from math import cos, hypot, isfinite, pi, sin
 from typing import Any, Mapping
 
 from shapely import affinity
-from shapely.geometry import LineString, Point, Polygon, shape
+from shapely.geometry import LineString, Point, Polygon, box, shape
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
 

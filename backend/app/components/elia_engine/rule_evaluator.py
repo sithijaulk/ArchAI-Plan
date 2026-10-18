@@ -4,6 +4,7 @@ import math
 from datetime import datetime, timezone
 from typing import Any, Mapping, Sequence
 from shapely.geometry import Point, Polygon, LineString, box, shape
+from shapely.ops import unary_union
 
 from .rule_registry import (
     RULE_REGISTRY,
@@ -15,6 +16,17 @@ from .rule_registry import (
     RuleOutcome,
 )
 from .rule_repository import vegetation_catalog
+from .evaluation_helpers import (
+    to_finite_float,
+    to_positive_finite_float,
+    extract_physical_footprint,
+    resolve_supporting_surface,
+    validate_surface_slab_polygon,
+    is_prohibited_balcony_mounting,
+    validate_guardrail_protection,
+    collect_canonical_objects,
+    compare_locked_object_properties,
+)
 
 
 
@@ -120,6 +132,11 @@ def evaluate_rules(
     ):
         affected = affected_objects or []
         missing = missing_inputs or []
+
+        if applicability == "not_applicable":
+            outcome = RuleOutcome.NOT_APPLICABLE
+        elif outcome == RuleOutcome.NOT_APPLICABLE:
+            applicability = "not_applicable"
 
         res = RuleEvaluationResult(
             rule_id=rule.rule_id,
@@ -714,8 +731,8 @@ def evaluate_rules(
         # Check explicitly prohibited mounting FIRST, regardless of whether other geometry is present
         prohibited_pots = []
         for v in balcony_elements:
-            mounting = str(v.get("mounting_type") or v.get("placement_type") or "").strip().lower()
-            if "railing" in mounting or "on_guard" in mounting or "outside" in mounting or "top" in mounting:
+            mounting = v.get("mounting_type") or v.get("placement_type")
+            if is_prohibited_balcony_mounting(mounting):
                 prohibited_pots.append(v.get("json_id", "balcony_plant"))
         if prohibited_pots:
             record_result(
@@ -729,13 +746,6 @@ def evaluate_rules(
             )
         else:
             balcony_surfaces = surfaces_in_master if isinstance(surfaces_in_master, list) else []
-            surface_by_id = {}
-            for s in balcony_surfaces:
-                if isinstance(s, Mapping):
-                    sid = s.get("json_id") or s.get("id")
-                    if sid:
-                        surface_by_id[str(sid)] = s
-
             unresolved_surfaces = []
             contained_pots = []
             overhanging_pots = []
@@ -744,65 +754,18 @@ def evaluate_rules(
 
             for v in balcony_elements:
                 vid = v.get("json_id", "balcony_plant")
-                supp_id = v.get("support_json_id") or v.get("supporting_surface_id")
-                fl_id = v.get("floor_id")
-
-                matched_surface = None
-                if supp_id and str(supp_id) in surface_by_id:
-                    matched_surface = surface_by_id[str(supp_id)]
-                elif len(balcony_surfaces) == 1 and not supp_id:
-                    s_candidate = balcony_surfaces[0]
-                    if not fl_id or not s_candidate.get("floor_id") or fl_id == s_candidate.get("floor_id"):
-                        matched_surface = s_candidate
-                elif fl_id:
-                    matches = [s for s in balcony_surfaces if isinstance(s, Mapping) and s.get("floor_id") == fl_id]
-                    if len(matches) == 1:
-                        matched_surface = matches[0]
-
-                if not matched_surface:
+                matched_surface, surf_status = resolve_supporting_surface(v, balcony_surfaces)
+                if not matched_surface or surf_status != "resolved":
                     unresolved_surfaces.append(vid)
                     continue
 
-                poly_raw = matched_surface.get("polygon") or matched_surface.get("footprint")
-                if not poly_raw or not isinstance(poly_raw, (list, tuple)) or len(poly_raw) < 3:
-                    missing_geom_pots.append(vid)
-                    continue
-                try:
-                    slab_poly = Polygon(poly_raw)
-                    if not slab_poly.is_valid or slab_poly.is_empty:
-                        missing_geom_pots.append(vid)
-                        continue
-                except Exception:
+                slab_poly, slab_status = validate_surface_slab_polygon(matched_surface)
+                if not slab_poly or slab_status != "valid":
                     missing_geom_pots.append(vid)
                     continue
 
-                planter_geom = None
-                if v.get("footprint"):
-                    try:
-                        pg = Polygon(v["footprint"])
-                        if pg.is_valid and not pg.is_empty:
-                            planter_geom = pg
-                    except Exception:
-                        pass
-                elif v.get("polygon"):
-                    try:
-                        pg = Polygon(v["polygon"])
-                        if pg.is_valid and not pg.is_empty:
-                            planter_geom = pg
-                    except Exception:
-                        pass
-                elif v.get("position") and (v.get("dimensions") or v.get("width_m") or v.get("width")):
-                    dims = v.get("dimensions") or {}
-                    w = float(dims.get("width_m") or dims.get("width") or v.get("width_m") or 0.4)
-                    d = float(dims.get("depth_m") or dims.get("depth") or v.get("depth_m") or 0.4)
-                    px, py = float(v["position"][0]), float(v["position"][1])
-                    planter_geom = box(px - w / 2, py - d / 2, px + w / 2, py + d / 2)
-                elif v.get("position") and v.get("canopy_radius_m"):
-                    px, py = float(v["position"][0]), float(v["position"][1])
-                    r = float(v["canopy_radius_m"])
-                    planter_geom = Point(px, py).buffer(r)
-
-                if planter_geom is None:
+                planter_geom, geom_status = extract_physical_footprint(v)
+                if not planter_geom or geom_status != "valid":
                     missing_geom_pots.append(vid)
                     continue
 
@@ -810,35 +773,15 @@ def evaluate_rules(
                     overhanging_pots.append(vid)
                     continue
 
-                prot_raw = matched_surface.get("protected_region")
-                guard_raw = matched_surface.get("guardrail") or matched_surface.get("guard")
-                if prot_raw and isinstance(prot_raw, (list, tuple)) and len(prot_raw) >= 3:
-                    try:
-                        prot_poly = Polygon(prot_raw)
-                        if prot_poly.is_valid and not prot_poly.covers(planter_geom):
-                            outside_protected_pots.append(vid)
-                            continue
-                    except Exception:
-                        pass
-                elif guard_raw and isinstance(guard_raw, (list, tuple)) and len(guard_raw) >= 2:
-                    try:
-                        if len(guard_raw) >= 3 and guard_raw[0] == guard_raw[-1]:
-                            guard_poly = Polygon(guard_raw)
-                            if guard_poly.is_valid and not guard_poly.covers(planter_geom):
-                                outside_protected_pots.append(vid)
-                                continue
-                        else:
-                            guard_line = LineString(guard_raw)
-                            if guard_line.intersects(planter_geom):
-                                outside_protected_pots.append(vid)
-                                continue
-                    except Exception:
-                        pass
-                elif not guard_raw and not prot_raw:
+                is_prot, prot_status, prot_msg = validate_guardrail_protection(matched_surface, planter_geom)
+                if prot_status == "outside_protected":
+                    outside_protected_pots.append(vid)
+                    continue
+                elif prot_status in ("malformed_guard", "missing_guard", "unresolved_protected_side"):
                     missing_geom_pots.append(vid)
                     continue
-
-                contained_pots.append(vid)
+                elif is_prot:
+                    contained_pots.append(vid)
 
             if overhanging_pots:
                 record_result(
@@ -878,7 +821,7 @@ def evaluate_rules(
                     outcome=RuleOutcome.UNKNOWN,
                     affected_objects=missing_geom_pots,
                     missing_inputs=["balcony_slab_polygon", "guardrail_boundary_geometry"],
-                    evidence=f"Balcony slab polygon or guardrail boundary missing or empty for planters {missing_geom_pots}.",
+                    evidence=f"Balcony slab polygon or guardrail boundary missing or invalid for planters {missing_geom_pots}.",
                     explanation="Cannot verify whether planters are located strictly inside guardrails without verified slab/guardrail edge geometry.",
                     practical_remedy="Provide surveyed or modeled balcony slab polygon and guardrail boundary in Master JSON.",
                 )
@@ -908,63 +851,41 @@ def evaluate_rules(
 
         obstructed_doors = []
         unmatched_door_planters = []
+        missing_footprint_planters = []
 
         for v in balcony_elements:
             vid = v.get("json_id", "balcony_plant")
             fl_id = v.get("floor_id")
 
-            planter_geom = None
-            if v.get("footprint"):
-                try:
-                    pg = Polygon(v["footprint"])
-                    if pg.is_valid and not pg.is_empty:
-                        planter_geom = pg
-                except Exception:
-                    pass
-            elif v.get("polygon"):
-                try:
-                    pg = Polygon(v["polygon"])
-                    if pg.is_valid and not pg.is_empty:
-                        planter_geom = pg
-                except Exception:
-                    pass
-            elif v.get("position") and (v.get("dimensions") or v.get("width_m") or v.get("width")):
-                dims = v.get("dimensions") or {}
-                w = float(dims.get("width_m") or dims.get("width") or v.get("width_m") or 0.4)
-                d = float(dims.get("depth_m") or dims.get("depth") or v.get("depth_m") or 0.4)
-                px, py = float(v["position"][0]), float(v["position"][1])
-                planter_geom = box(px - w / 2, py - d / 2, px + w / 2, py + d / 2)
-            elif v.get("position") and v.get("canopy_radius_m"):
-                px, py = float(v["position"][0]), float(v["position"][1])
-                r = float(v["canopy_radius_m"])
-                planter_geom = Point(px, py).buffer(r)
-            elif v.get("position"):
-                px, py = float(v["position"][0]), float(v["position"][1])
-                planter_geom = Point(px, py)
+            planter_geom, geom_status = extract_physical_footprint(v)
+            if not planter_geom or geom_status != "valid":
+                missing_footprint_planters.append(vid)
+                continue
 
             matching_doors = [
                 d for d in balcony_doors
-                if isinstance(d, Mapping) and (not fl_id or not d.get("floor_id") or d.get("floor_id") == fl_id)
+                if isinstance(d, Mapping) and fl_id and d.get("floor_id") and str(d.get("floor_id")).strip() == str(fl_id).strip()
             ]
             if not matching_doors:
                 unmatched_door_planters.append(vid)
 
             for d in matching_doors:
-                d_poly_raw = d.get("polygon")
-                if d_poly_raw:
+                d_poly_raw = d.get("polygon") or d.get("swing_clearance_polygon")
+                if d_poly_raw and isinstance(d_poly_raw, (list, tuple)) and len(d_poly_raw) >= 3:
                     try:
                         d_poly = Polygon(d_poly_raw)
-                        if planter_geom and d_poly.intersects(planter_geom):
+                        if d_poly.is_valid and planter_geom and d_poly.intersects(planter_geom):
                             obstructed_doors.append(f"{vid} blocks {d.get('id', 'door')}")
                     except Exception:
                         pass
 
         climbability_verified = False
         if isinstance(guard_profile, Mapping):
-            climbability_verified = bool(
-                guard_profile.get("non_climbable_verified")
-                or guard_profile.get("climbable_footholds") is False
-            )
+            climb_assessed = guard_profile.get("climbability_assessed") is True or guard_profile.get("non_climbable_verified") is True
+            h_spacing = to_positive_finite_float(guard_profile.get("horizontal_spacing_max_mm"))
+            no_footholds = (h_spacing is not None and h_spacing <= 100) or guard_profile.get("climbable_footholds") is False
+            if climb_assessed and no_footholds:
+                climbability_verified = True
 
         if obstructed_doors:
             record_result(
@@ -975,6 +896,17 @@ def evaluate_rules(
                 evidence=f"Planter footprint obstructs balcony door clearance/swing: {obstructed_doors}.",
                 explanation="Egress route obstructed by elevated container placement.",
                 practical_remedy="Maintain clear walking corridor and door swing clearance from balcony door.",
+            )
+        elif missing_footprint_planters:
+            record_result(
+                rB06,
+                applicability="applicable",
+                outcome=RuleOutcome.UNKNOWN,
+                affected_objects=missing_footprint_planters,
+                missing_inputs=["planter_physical_footprint_dimensions"],
+                evidence=f"Planters {missing_footprint_planters} lack valid physical container footprint dimensions for door clearance checking.",
+                explanation="Door clearance cannot be certified with missing or non-finite container footprint dimensions.",
+                practical_remedy="Provide explicit container width and depth dimensions in candidate output.",
             )
         elif unmatched_door_planters or not balcony_doors:
             record_result(
@@ -1110,15 +1042,16 @@ def evaluate_rules(
             evidence="No balcony planting in design.",
         )
     else:
-        maint_spec = _safe_get(master_json, "building_exterior", "balcony_maintenance_access")
+        maint_spec = _safe_get(master_json, "building_exterior", "balcony_maintenance_access") or _safe_get(master_json, "balcony_maintenance_access")
         is_verified_maint = False
         maint_evidence = ""
 
         if isinstance(maint_spec, Mapping) and maint_spec.get("verified_assessment") is True:
             spec_rev = maint_spec.get("revision")
-            spec_balcony = maint_spec.get("applicable_balcony_id")
+            spec_balcony = maint_spec.get("applicable_balcony_id") or maint_spec.get("applicable_surface_id")
 
-            rev_matches = (spec_rev is None or upstream_rev is None or spec_rev == upstream_rev)
+            # Must have explicit revision that matches upstream revision
+            rev_matches = (spec_rev is not None and upstream_rev is not None and spec_rev == upstream_rev)
 
             all_surface_ids = set()
             for v in balcony_elements:
@@ -1126,15 +1059,18 @@ def evaluate_rules(
                 if supp_id:
                     all_surface_ids.add(str(supp_id))
 
+            # Must have explicit balcony scope (missing scope cannot mean all balconies!)
             balcony_matches = (
-                not spec_balcony
-                or spec_balcony == "all"
-                or (all_surface_ids and all_surface_ids <= {str(spec_balcony)})
+                bool(spec_balcony)
+                and (
+                    (all_surface_ids and all_surface_ids <= {str(spec_balcony)})
+                    or (isinstance(spec_balcony, (list, set, tuple)) and all_surface_ids and all_surface_ids <= set(str(b) for b in spec_balcony))
+                )
             )
 
             if rev_matches and balcony_matches:
                 is_verified_maint = True
-                maint_evidence = f"Verified maintenance assessment satisfied for balcony {spec_balcony or 'all'} (rev {spec_rev or upstream_rev})."
+                maint_evidence = f"Verified maintenance assessment satisfied for balcony {spec_balcony} (rev {spec_rev})."
 
         if is_verified_maint:
             record_result(
@@ -1635,10 +1571,18 @@ def evaluate_rules(
                 f_poly = Polygon(f["polygon"])
                 if not context.land.covers(f_poly):
                     furniture_conflicts.append(f.get("json_id", "furniture"))
-    if not furniture_conflicts:
+    if not furniture_elements:
         record_result(
             rX06,
-            applicability="applicable" if furniture_elements else "not_applicable",
+            applicability="not_applicable",
+            outcome=RuleOutcome.NOT_APPLICABLE,
+            evidence="No outdoor furniture proposed.",
+            explanation="Furniture spatial clearance check not triggered.",
+        )
+    elif not furniture_conflicts:
+        record_result(
+            rX06,
+            applicability="applicable",
             outcome=RuleOutcome.PASS,
             evidence=f"All {len(furniture_elements)} outdoor seating/dining elements positioned in safe zones with adequate circulation space.",
             explanation="Outdoor furniture spatial clearances verified.",
@@ -1684,70 +1628,66 @@ def evaluate_rules(
 
         if isinstance(legal_prof, Mapping):
             status = str(legal_prof.get("verification_status") or "").lower()
-            effective = str(legal_prof.get("effective_status") or "active").lower()
+            effective = str(legal_prof.get("effective_status") or "").lower()
             has_instrument = bool(legal_prof.get("statutory_instrument") or legal_prof.get("gazette_number"))
             num_limit = legal_prof.get("wall_height_limit_m")
 
             law_jurisdiction = legal_prof.get("jurisdiction")
             site_jurisdiction = loc_auth or _safe_get(master_json, "site", "local_authority")
-            jurisdiction_match = True
-            if law_jurisdiction and site_jurisdiction and str(law_jurisdiction).strip().lower() != str(site_jurisdiction).strip().lower():
-                jurisdiction_match = False
+            jurisdiction_match = False
+            if law_jurisdiction and site_jurisdiction:
+                jurisdiction_match = (str(law_jurisdiction).strip().lower() == str(site_jurisdiction).strip().lower())
+            elif not law_jurisdiction and not site_jurisdiction:
+                jurisdiction_match = True
 
             if status == "verified" and effective == "active" and has_instrument and num_limit is not None and jurisdiction_match:
-                try:
-                    statutory_limit = float(num_limit)
-                    if math.isfinite(statutory_limit) and statutory_limit > 0:
-                        is_verified_law = True
-                        statutory_clause = legal_prof.get("clause") or legal_prof.get("statutory_instrument")
-                except (TypeError, ValueError):
-                    pass
+                statutory_limit = to_positive_finite_float(num_limit)
+                if statutory_limit is not None:
+                    is_verified_law = True
+                    statutory_clause = legal_prof.get("clause") or legal_prof.get("statutory_instrument")
 
         wall_height_evals = []
         missing_wall_height = False
 
         if candidate_walls:
             for w_obj in candidate_walls:
-                wid = w_obj.get("json_id", "boundary_wall")
+                wid = str(w_obj.get("json_id") or "boundary_wall")
                 raw_h = w_obj.get("height_m")
                 if raw_h is None and isinstance(w_obj.get("dimensions"), Mapping):
                     raw_h = w_obj["dimensions"].get("height_m")
-                if raw_h is None:
+                vh = to_positive_finite_float(raw_h)
+                if vh is None:
                     missing_wall_height = True
                     wall_height_evals.append((wid, None))
                 else:
-                    try:
-                        vh = float(raw_h)
-                        if math.isfinite(vh) and vh > 0:
-                            wall_height_evals.append((wid, vh))
-                        else:
-                            missing_wall_height = True
-                            wall_height_evals.append((wid, None))
-                    except (TypeError, ValueError):
-                        missing_wall_height = True
-                        wall_height_evals.append((wid, None))
+                    wall_height_evals.append((wid, vh))
         else:
-            req_h = landscape_req.get("boundary_wall_height_m")
-            if req_h is not None:
-                try:
-                    vh = float(req_h)
-                    if math.isfinite(vh) and vh > 0:
-                        wall_height_evals.append(("requested_wall", vh))
-                    else:
-                        missing_wall_height = True
-                except (TypeError, ValueError):
-                    missing_wall_height = True
-            else:
-                missing_wall_height = True
+            missing_wall_height = True
+            wall_height_evals.append(("missing_candidate_wall", None))
 
-        if missing_wall_height:
+        excessive_walls = [wid for wid, h in wall_height_evals if h is not None and statutory_limit is not None and h > statutory_limit]
+        if is_verified_law and excessive_walls:
+            max_h = max(h for _, h in wall_height_evals if h is not None)
+            record_result(
+                rX07,
+                applicability="applicable",
+                outcome=RuleOutcome.FAIL,
+                affected_objects=excessive_walls,
+                measured_value=max_h,
+                measured_units="m",
+                evidence=f"Wall height exceeds verified statutory limit of {statutory_limit:.1f}m ({statutory_clause}) for: {excessive_walls}.",
+                explanation="One or more boundary walls exceed the verified statutory limit.",
+                practical_remedy=f"Reduce solid wall height to at most {statutory_limit:.1f}m or use approved open-grille upper section.",
+            )
+        elif missing_wall_height or not candidate_walls:
+            missing_objs = [wid for wid, h in wall_height_evals if h is None]
             record_result(
                 rX07,
                 applicability="applicable",
                 outcome=RuleOutcome.UNKNOWN,
-                affected_objects=[wid for wid, h in wall_height_evals if h is None],
+                affected_objects=missing_objs,
                 missing_inputs=["candidate_wall_height_m"],
-                evidence="Candidate boundary wall elements lack explicit, finite height dimensions.",
+                evidence="Candidate boundary wall elements lack explicit, finite height dimensions or proposed wall is absent.",
                 explanation="Evaluator cannot assume 1.8m default for actual proposed walls without geometry specifications.",
                 practical_remedy="Provide explicit height_m in candidate boundary wall dimensions.",
             )
@@ -1767,30 +1707,16 @@ def evaluate_rules(
                 practical_remedy="Submit boundary wall drawings to local planning authority for statutory street-line and height clearance.",
             )
         else:
-            excessive_walls = [wid for wid, h in wall_height_evals if h is not None and h > statutory_limit]
             max_h = max(h for _, h in wall_height_evals if h is not None)
-            if excessive_walls:
-                record_result(
-                    rX07,
-                    applicability="applicable",
-                    outcome=RuleOutcome.FAIL,
-                    affected_objects=excessive_walls,
-                    measured_value=max_h,
-                    measured_units="m",
-                    evidence=f"Wall height exceeds verified statutory limit of {statutory_limit:.1f}m ({statutory_clause}) for: {excessive_walls}.",
-                    explanation="One or more boundary walls exceed the verified statutory limit.",
-                    practical_remedy=f"Reduce solid wall height to at most {statutory_limit:.1f}m or use approved open-grille upper section.",
-                )
-            else:
-                record_result(
-                    rX07,
-                    applicability="applicable",
-                    outcome=RuleOutcome.PASS,
-                    measured_value=max_h,
-                    measured_units="m",
-                    evidence=f"All candidate walls (max {max_h:.1f}m) comply with verified statutory limit of {statutory_limit:.1f}m ({statutory_clause}).",
-                    explanation=f"Boundary wall height conforms to verified clause {statutory_clause}. Complete wall legality remains subject to planning submission.",
-                )
+            record_result(
+                rX07,
+                applicability="applicable",
+                outcome=RuleOutcome.PASS,
+                measured_value=max_h,
+                measured_units="m",
+                evidence=f"All candidate walls (max {max_h:.1f}m) comply with verified statutory limit of {statutory_limit:.1f}m ({statutory_clause}).",
+                explanation=f"Boundary wall height conforms to verified clause {statutory_clause}. Complete wall legality remains subject to planning submission.",
+            )
 
     # X08: Lighting Fixture Circulation and Canopy Clearance
     rX08 = RULE_REGISTRY["X08"]
@@ -1802,10 +1728,18 @@ def evaluate_rules(
                 p_lt = Point(pos[0], pos[1])
                 if not context.land.covers(p_lt):
                     lighting_conflicts.append(lt.get("json_id", "light"))
-    if not lighting_conflicts:
+    if not lighting:
         record_result(
             rX08,
-            applicability="applicable" if lighting else "not_applicable",
+            applicability="not_applicable",
+            outcome=RuleOutcome.NOT_APPLICABLE,
+            evidence="No lighting fixtures in design.",
+            explanation="Lighting circulation and clearance check not triggered.",
+        )
+    elif not lighting_conflicts:
+        record_result(
+            rX08,
+            applicability="applicable",
             outcome=RuleOutcome.PASS,
             evidence=f"All {len(lighting)} light fixtures positioned inside boundary clear of pedestrian trips.",
             explanation="Lighting spatial containment verified.",
@@ -1823,13 +1757,22 @@ def evaluate_rules(
 
     # X09: Lighting Illumination vs Decorative Distinction
     rX09 = RULE_REGISTRY["X09"]
-    record_result(
-        rX09,
-        applicability="applicable" if lighting else "not_applicable",
-        outcome=RuleOutcome.PASS,
-        evidence="Path illumination and perimeter security zones assigned functional illumination footprints.",
-        explanation="Decorative and safety lighting distinguished.",
-    )
+    if not lighting:
+        record_result(
+            rX09,
+            applicability="not_applicable",
+            outcome=RuleOutcome.NOT_APPLICABLE,
+            evidence="No lighting fixtures in design.",
+            explanation="Lighting functional classification check not triggered.",
+        )
+    else:
+        record_result(
+            rX09,
+            applicability="applicable",
+            outcome=RuleOutcome.PASS,
+            evidence="Path illumination and perimeter security zones assigned functional illumination footprints.",
+            explanation="Decorative and safety lighting distinguished.",
+        )
 
     # X10: Existing Photovoltaic Coordination with Roof Slope & Shadow
     rX10 = RULE_REGISTRY["X10"]
@@ -1936,13 +1879,22 @@ def evaluate_rules(
 
     # C02: Disentangled Horticultural Attribute Evaluation
     rC02 = RULE_REGISTRY["C02"]
-    record_result(
-        rC02,
-        applicability="applicable" if vegetation else "not_applicable",
-        outcome=RuleOutcome.PASS,
-        evidence="Water availability, plant water demand, maintenance level, and exclusions evaluated as separate orthogonal parameters in plant ranking.",
-        explanation="Attribute disentanglement verified across catalogue queries.",
-    )
+    if not vegetation:
+        record_result(
+            rC02,
+            applicability="not_applicable",
+            outcome=RuleOutcome.NOT_APPLICABLE,
+            evidence="No vegetation nodes placed in candidate.",
+            explanation="Horticultural attribute evaluation not triggered.",
+        )
+    else:
+        record_result(
+            rC02,
+            applicability="applicable",
+            outcome=RuleOutcome.PASS,
+            evidence="Water availability, plant water demand, maintenance level, and exclusions evaluated as separate orthogonal parameters in plant ranking.",
+            explanation="Attribute disentanglement verified across catalogue queries.",
+        )
 
     # C03: Ranking on Supported Attributes Only
     rC03 = RULE_REGISTRY["C03"]

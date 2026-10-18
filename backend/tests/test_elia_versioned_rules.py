@@ -1290,3 +1290,144 @@ def test_c04_independent_driveway_evaluated_without_requiring_garage(base_master
     assert r_map["C04"]["outcome"] == RuleOutcome.FAIL.value
     assert "req_driveway_missing" in r_map["C04"]["affected_object_ids"]
 
+
+# =============================================================================
+# REPRODUCTION TESTS FOR THE FOUR CONFIRMED EXECUTABLE FAILURES
+# =============================================================================
+
+def test_confirmed_failure_1_b05_malformed_guardrail_does_not_pass(base_master_json):
+    """1. B05: A balcony has valid slab polygon but guardrail='malformed'. Planter is inside slab. Must not PASS."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["building_exterior"] = {
+        "balconies": [{
+            "json_id": "balcony_1",
+            "floor_id": "floor_2",
+            "polygon": [[10, 10], [15, 10], [15, 13], [10, 13]],
+            "guardrail": "malformed",
+        }]
+    }
+    cand = {
+        "vegetation_nodes": [{
+            "json_id": "planter_1",
+            "support_json_id": "balcony_1",
+            "floor_id": "floor_2",
+            "position": [12, 11],
+            "dimensions": {"width_m": 0.5, "depth_m": 0.5},
+            "supporting_surface_type": "balcony",
+        }],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["B05"]["outcome"] != RuleOutcome.PASS.value
+
+
+def test_confirmed_failure_2_b10_unscoped_assessment_does_not_pass(base_master_json):
+    """2. B10: balcony_maintenance_access={'verified_assessment': True} without revision or surface evidence must not PASS."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["surfaces"] = [{
+        "json_id": "balcony_1",
+        "floor_id": "floor_2",
+        "polygon": [[10, 10], [15, 10], [15, 13], [10, 13]],
+        "guardrail": [[10, 13], [15, 13]],
+    }]
+    master["building_exterior"] = {
+        "balcony_maintenance_access": {
+            "verified_assessment": True
+            # No revision and no applicable_balcony_id!
+        }
+    }
+    cand = {
+        "vegetation_nodes": [{
+            "json_id": "planter_1",
+            "support_json_id": "balcony_1",
+            "floor_id": "floor_2",
+            "position": [12, 11],
+            "dimensions": {"width_m": 0.5, "depth_m": 0.5},
+            "supporting_surface_type": "balcony",
+        }],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["B10"]["outcome"] != RuleOutcome.PASS.value
+    assert r_map["B10"]["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+
+
+def test_confirmed_failure_3_c08_protected_property_removal_detected(base_master_json):
+    """3. C08: Saved locked object has position, dimensions, elevation. Candidate keeps position, removes elevation and dims to {} -> must FAIL."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["exterior_landscape"] = {
+        "outdoor_elements": [{
+            "json_id": "bench_locked",
+            "type": "garden_seating",
+            "position": [5, 5],
+            "dimensions": {"width_m": 2.0, "height_m": 3.0},
+            "elevation_m": 3.0,
+            "locked": True,
+        }],
+        "vegetation_nodes": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    cand = {
+        "outdoor_elements": [{
+            "json_id": "bench_locked",
+            "type": "garden_seating",
+            "position": [5, 5],
+            "dimensions": {},  # dimensions removed/cleared
+            # elevation_m removed
+            "locked": True,
+        }],
+        "vegetation_nodes": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["C08"]["outcome"] == RuleOutcome.FAIL.value
+
+
+def test_confirmed_failure_4_c08_unchanged_locked_garage_in_access_passes(base_master_json):
+    """4. C08: Unchanged locked garage in saved access.garage and candidate access.garage must PASS."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    garage_def = {
+        "json_id": "garage_locked_1",
+        "type": "garage",
+        "position": [6, 2],
+        "polygon": [[5, 2], [10, 2], [10, 6], [5, 6]],
+        "locked": True,
+    }
+    master["exterior_landscape"] = {
+        "outdoor_elements": [],
+        "vegetation_nodes": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {
+            "garage": deepcopy(garage_def),
+        },
+    }
+    cand = {
+        "outdoor_elements": [],
+        "vegetation_nodes": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {
+            "garage": deepcopy(garage_def),
+        },
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["C08"]["outcome"] == RuleOutcome.PASS.value
+
+
