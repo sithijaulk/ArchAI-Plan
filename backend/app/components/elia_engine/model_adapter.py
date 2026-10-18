@@ -17,6 +17,8 @@ from .requirements import normalize_requirements
 from .rule_repository import elia_rules
 from .utility_safety import validate_utilities
 from .vehicle_access import validate_vehicle_route
+from .rule_evaluator import evaluate_rules
+from .assessment import build_factors_assessment
 
 
 class ExteriorObject(BaseModel):
@@ -576,15 +578,57 @@ def validate_model_output(result: dict[str, Any], master: Mapping[str, Any],
     result["structural_load_assessed"] = False
     result["vehicle_feasibility_scope"] = "2D centerline turning-radius estimate only; swept-path and full vehicle maneuverability are not established"
 
+    # Evaluate common 54 versioned rules
+    rule_results = evaluate_rules(
+        candidate=result,
+        context=context,
+        master_json=canonical,
+        requirements=requirements,
+        validation_summary={
+            "valid": not violations,
+            "violations": sorted(set(violations)),
+        },
+    )
+
+    for hb in rule_results.get("hard_blocks", []):
+        hb_id = f"rule_violation_{hb['rule_id']}"
+        if hb_id not in violations:
+            violations.append(hb_id)
+
+    factors_assessment = build_factors_assessment(
+        residual_area_m2=max(0.0, context.land.area - context.house.area),
+        land_area_m2=context.land.area,
+        house_area_m2=context.house.area,
+        vegetation=result.get("vegetation_nodes", []),
+        shadow_samples=result.get("shadow_samples", []),
+        requirements=requirements,
+        concept_rules_applied=result.get("concept_rules_applied", []),
+        validation_summary={
+            "valid": not violations,
+            "violations": sorted(set(violations)),
+        },
+        rule_evaluations=rule_results["rule_evaluations"],
+        category_summaries=rule_results["category_summaries"],
+        approval_status=rule_results["approval_status"],
+    )
+
+    result["factors_assessment"] = factors_assessment
+    result["rule_evaluations"] = rule_results["rule_evaluations"]
+    result["rule_summary"] = rule_results["category_summaries"]
+    result["approval_status"] = rule_results["approval_status"]
+    result["hard_blocks"] = rule_results["hard_blocks"]
+    result["conditional_reviews"] = rule_results["conditional_reviews"]
+
+    is_valid = (not violations) and (rule_results["approval_status"] != "blocked")
     result["validation_summary"] = {
-        "valid": not violations,
+        "valid": is_valid,
         "violations": sorted(set(violations)),
         "checks_passed": 0 if violations else 1,
         "checks_total": max(1, len(set(violations))),
         "constraint_satisfaction_rate": 0.0 if violations else 1.0,
         "source": "independent_geometry_and_requirement_validation",
     }
-    return result, "valid" if not violations else "infeasible"
+    return result, "valid" if is_valid else "infeasible"
 
 
 def run_model_generation(master: Mapping[str, Any], requirements: Mapping[str, Any], run_id: str,

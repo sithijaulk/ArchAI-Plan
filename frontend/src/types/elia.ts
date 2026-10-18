@@ -99,6 +99,9 @@ export interface ExteriorLandscape {
   generation_mode?: string;
   factors_assessment?: FactorsAssessment;
   concept_rules_applied?: string[];
+  rule_evaluations?: RuleEvaluationResult[];
+  rule_summary?: Record<string, CategorySummary>;
+  approval_status?: string;
   /** Raw land polygon coordinates passed back by some baseline implementations */
   land?: GeoJsonGeometry;
   house_exterior?: GeoJsonGeometry;
@@ -231,17 +234,60 @@ export interface FactorAssessmentRow {
   reason_and_limitations: string;
 }
 
+export type RuleOutcome = 'pass' | 'fail' | 'unknown' | 'not_applicable' | 'review_required';
+export type RuleClass = 'L' | 'E' | 'P' | 'D';
+export type RuleCategory = 'geometric_validity' | 'environmental_suitability' | 'legal_assessment' | 'elevated_installation' | 'user_preference';
+
+export interface RuleEvaluationResult {
+  rule_id: string;
+  version: string;
+  rule_class: RuleClass;
+  category: string;
+  title: string;
+  applicability: 'applicable' | 'not_applicable' | 'unknown';
+  outcome: RuleOutcome;
+  affected_object_ids?: string[];
+  measured_value?: unknown;
+  measured_units?: string;
+  evidence?: string;
+  missing_inputs?: string[];
+  explanation?: string;
+  practical_remedy?: string;
+  evaluation_time?: string;
+  upstream_revision?: number;
+}
+
+export interface CategorySummary {
+  total: number;
+  pass: number;
+  fail: number;
+  unknown: number;
+  review_required: number;
+  not_applicable: number;
+}
+
 export interface FactorsAssessment {
-  overall_status: 'satisfactory' | 'compromised' | 'unverified';
-  factors: FactorAssessmentRow[];
-  object_level_explanations: Array<{
+  overall_status?: 'satisfactory' | 'compromised' | 'unverified';
+  assessment_version?: string;
+  summary?: {
+    total_factors: number;
+    satisfied: number;
+    unmet: number;
+    unknown: number;
+    not_applicable: number;
+  };
+  factors?: FactorAssessmentRow[];
+  object_level_explanations?: Array<{
     json_id: string;
     display_name?: string;
     category?: string;
     suitability_explanation?: string;
     locked?: boolean;
   }>;
-  summary_notes: string[];
+  summary_notes?: string[];
+  rule_evaluations?: RuleEvaluationResult[];
+  category_summaries?: Record<string, CategorySummary>;
+  approval_status?: string;
 }
 
 export interface ELIARequirements {
@@ -280,7 +326,14 @@ export interface CandidateValidationResponse {
   violations: string[];
   checks_passed: number;
   checks_total: number;
+  constraint_satisfaction_rate?: number;
   factors_assessment?: FactorsAssessment;
+  rule_evaluations?: RuleEvaluationResult[];
+  rule_summary?: Record<string, CategorySummary>;
+  approval_status?: string;
+  hard_blocks?: RuleEvaluationResult[];
+  conditional_reviews?: RuleEvaluationResult[];
+  validation_summary?: ExteriorValidation;
   canonical_candidate?: ExteriorLandscape;
 }
 

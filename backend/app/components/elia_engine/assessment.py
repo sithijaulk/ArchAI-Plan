@@ -15,6 +15,9 @@ def build_factors_assessment(
     concept_rules_applied: Sequence[str] | None = None,
     budget_assessment: Mapping[str, Any] | None = None,
     validation_summary: Mapping[str, Any] | None = None,
+    rule_evaluations: Sequence[Mapping[str, Any]] | None = None,
+    category_summaries: Mapping[str, Any] | None = None,
+    approval_status: str | None = None,
 ) -> dict[str, Any]:
     """Generates the comprehensive 7-factor environmental and customer-specific evaluation.
 
@@ -353,8 +356,8 @@ def build_factors_assessment(
         )
     })
 
-    return {
-        "assessment_version": "2.0",
+    res = {
+        "assessment_version": "2.1",
         "summary": {
             "total_factors": len(factors),
             "satisfied": sum(1 for f in factors if f["status"] == "satisfied"),
@@ -364,4 +367,11 @@ def build_factors_assessment(
         },
         "factors": factors
     }
+    if rule_evaluations is not None:
+        res["rule_evaluations"] = list(rule_evaluations)
+    if category_summaries is not None:
+        res["category_summaries"] = dict(category_summaries)
+    if approval_status is not None:
+        res["approval_status"] = approval_status
+    return res
 

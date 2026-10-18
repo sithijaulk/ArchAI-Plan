@@ -1,12 +1,17 @@
 {
-  "catalogue_version": "2.0",
+  "catalogue_version": "2.1",
   "entries": [
     {
       "vegetation_id": "shade_tree",
       "category": "shade_tree",
       "display_name": "Generic shade tree",
       "scientific_name": null,
-      "climate_suitability": ["wet_zone", "intermediate_zone", "dry_zone", "coastal"],
+      "climate_suitability": [
+        "wet_zone",
+        "intermediate_zone",
+        "dry_zone",
+        "coastal"
+      ],
       "sun_requirement": "site_analysis_required",
       "shade_tolerance": "unknown",
       "water_demand": "moderate",
@@ -27,7 +32,12 @@
       "category": "small_tree",
       "display_name": "Generic small tree",
       "scientific_name": null,
-      "climate_suitability": ["wet_zone", "intermediate_zone", "dry_zone", "coastal"],
+      "climate_suitability": [
+        "wet_zone",
+        "intermediate_zone",
+        "dry_zone",
+        "coastal"
+      ],
       "sun_requirement": "site_analysis_required",
       "shade_tolerance": "unknown",
       "water_demand": "moderate",
@@ -48,7 +58,12 @@
       "category": "shrub",
       "display_name": "Generic shrub",
       "scientific_name": null,
-      "climate_suitability": ["wet_zone", "intermediate_zone", "dry_zone", "coastal"],
+      "climate_suitability": [
+        "wet_zone",
+        "intermediate_zone",
+        "dry_zone",
+        "coastal"
+      ],
       "sun_requirement": "site_analysis_required",
       "shade_tolerance": "unknown",
       "water_demand": "moderate",
@@ -69,7 +84,12 @@
       "category": "ground_cover",
       "display_name": "Generic ground cover",
       "scientific_name": null,
-      "climate_suitability": ["wet_zone", "intermediate_zone", "dry_zone", "coastal"],
+      "climate_suitability": [
+        "wet_zone",
+        "intermediate_zone",
+        "dry_zone",
+        "coastal"
+      ],
       "sun_requirement": "site_analysis_required",
       "shade_tolerance": "unknown",
       "water_demand": "moderate",
@@ -90,7 +110,12 @@
       "category": "climber",
       "display_name": "Generic climber",
       "scientific_name": null,
-      "climate_suitability": ["wet_zone", "intermediate_zone", "dry_zone", "coastal"],
+      "climate_suitability": [
+        "wet_zone",
+        "intermediate_zone",
+        "dry_zone",
+        "coastal"
+      ],
       "sun_requirement": "site_analysis_required",
       "shade_tolerance": "unknown",
       "water_demand": "moderate",
@@ -111,7 +136,12 @@
       "category": "cascading_creeper",
       "display_name": "Generic cascading creeper",
       "scientific_name": null,
-      "climate_suitability": ["wet_zone", "intermediate_zone", "dry_zone", "coastal"],
+      "climate_suitability": [
+        "wet_zone",
+        "intermediate_zone",
+        "dry_zone",
+        "coastal"
+      ],
       "sun_requirement": "site_analysis_required",
       "shade_tolerance": "unknown",
       "water_demand": "moderate",
@@ -132,7 +162,12 @@
       "category": "planter",
       "display_name": "Generic planter",
       "scientific_name": null,
-      "climate_suitability": ["wet_zone", "intermediate_zone", "dry_zone", "coastal"],
+      "climate_suitability": [
+        "wet_zone",
+        "intermediate_zone",
+        "dry_zone",
+        "coastal"
+      ],
       "sun_requirement": "site_analysis_required",
       "shade_tolerance": "unknown",
       "water_demand": "moderate",
@@ -153,7 +188,10 @@
       "category": "small_tree",
       "display_name": "Areca Palm (Puwak)",
       "scientific_name": "Areca catechu",
-      "climate_suitability": ["wet_zone", "intermediate_zone"],
+      "climate_suitability": [
+        "wet_zone",
+        "intermediate_zone"
+      ],
       "sun_requirement": "partial_shade",
       "shade_tolerance": "moderate",
       "water_demand": "moderate",
@@ -174,7 +212,12 @@
       "category": "small_tree",
       "display_name": "Temple Tree / Frangipani (Araliya)",
       "scientific_name": "Plumeria obtusa",
-      "climate_suitability": ["wet_zone", "dry_zone", "coastal", "intermediate_zone"],
+      "climate_suitability": [
+        "wet_zone",
+        "dry_zone",
+        "coastal",
+        "intermediate_zone"
+      ],
       "sun_requirement": "full_sun",
       "shade_tolerance": "low",
       "water_demand": "low",
@@ -195,7 +238,11 @@
       "category": "shade_tree",
       "display_name": "Neem (Kohomba)",
       "scientific_name": "Azadirachta indica",
-      "climate_suitability": ["dry_zone", "intermediate_zone", "wet_zone"],
+      "climate_suitability": [
+        "dry_zone",
+        "intermediate_zone",
+        "wet_zone"
+      ],
       "sun_requirement": "full_sun",
       "shade_tolerance": "low",
       "water_demand": "low",
@@ -216,7 +263,10 @@
       "category": "shade_tree",
       "display_name": "Ceylon Ironwood (Na)",
       "scientific_name": "Mesua ferrea",
-      "climate_suitability": ["wet_zone", "intermediate_zone"],
+      "climate_suitability": [
+        "wet_zone",
+        "intermediate_zone"
+      ],
       "sun_requirement": "full_sun",
       "shade_tolerance": "moderate",
       "water_demand": "moderate",
@@ -237,7 +287,12 @@
       "category": "shrub",
       "display_name": "Bougainvillea",
       "scientific_name": "Bougainvillea spectabilis",
-      "climate_suitability": ["dry_zone", "coastal", "wet_zone", "intermediate_zone"],
+      "climate_suitability": [
+        "dry_zone",
+        "coastal",
+        "wet_zone",
+        "intermediate_zone"
+      ],
       "sun_requirement": "full_sun",
       "shade_tolerance": "low",
       "water_demand": "low",
@@ -258,7 +313,10 @@
       "category": "shrub",
       "display_name": "Parrot's Beak Heliconia",
       "scientific_name": "Heliconia psittacorum",
-      "climate_suitability": ["wet_zone", "intermediate_zone"],
+      "climate_suitability": [
+        "wet_zone",
+        "intermediate_zone"
+      ],
       "sun_requirement": "partial_shade",
       "shade_tolerance": "high",
       "water_demand": "high",
@@ -279,7 +337,11 @@
       "category": "shrub",
       "display_name": "Garden Croton",
       "scientific_name": "Codiaeum variegatum",
-      "climate_suitability": ["wet_zone", "coastal", "intermediate_zone"],
+      "climate_suitability": [
+        "wet_zone",
+        "coastal",
+        "intermediate_zone"
+      ],
       "sun_requirement": "full_sun",
       "shade_tolerance": "moderate",
       "water_demand": "moderate",
@@ -300,28 +362,36 @@
       "category": "ground_cover",
       "display_name": "Boston Sword Fern",
       "scientific_name": "Nephrolepis exaltata",
-      "climate_suitability": ["wet_zone", "intermediate_zone"],
-      "sun_requirement": "full_shade",
+      "climate_suitability": [
+        "wet_zone",
+        "intermediate_zone"
+      ],
+      "sun_requirement": "partial_shade",
       "shade_tolerance": "high",
-      "water_demand": "high",
+      "water_demand": "moderate",
       "maintenance_level": "medium",
-      "mature_height_m": 0.4,
-      "canopy_radius_m": 0.35,
+      "mature_height_m": 0.8,
+      "canopy_radius_m": 0.45,
       "root_clearance_m": 0.2,
       "minimum_spacing_m": 0.6,
       "vertical_suitability": true,
       "planter_suitability": true,
       "render_asset_id": "ground_cover_generic_01",
-      "source_reference": "Ferns of Sri Lanka Checklist; Department of National Botanic Gardens",
+      "source_reference": "S7 NParks FloraFaunaWeb (1557); National Botanic Gardens Sri Lanka",
       "verified_species_data": true,
-      "notes": "Lush ground cover for deep shadow areas and vertical planters"
+      "notes": "Conditional sheltered/shaded candidate; container, wind, mounting and watering suitability remain separate.",
+      "soil_drainage": "moist_well_drained"
     },
     {
       "vegetation_id": "ophiopogon_japonicus",
       "category": "ground_cover",
       "display_name": "Mondo Grass",
       "scientific_name": "Ophiopogon japonicus",
-      "climate_suitability": ["wet_zone", "dry_zone", "intermediate_zone"],
+      "climate_suitability": [
+        "wet_zone",
+        "dry_zone",
+        "intermediate_zone"
+      ],
       "sun_requirement": "adaptable",
       "shade_tolerance": "high",
       "water_demand": "low",
@@ -336,6 +406,162 @@
       "source_reference": "Landscape Ground Covers in Tropical Asia",
       "verified_species_data": true,
       "notes": "Hardy border grass requiring virtually zero trimming"
+    },
+    {
+      "vegetation_id": "portulaca_grandiflora",
+      "category": "ground_cover",
+      "display_name": "Rose Moss (Portulaca)",
+      "scientific_name": "Portulaca grandiflora",
+      "climate_suitability": [
+        "wet_zone",
+        "dry_zone",
+        "coastal",
+        "intermediate_zone"
+      ],
+      "sun_requirement": "full_sun",
+      "shade_tolerance": "low",
+      "water_demand": "low",
+      "soil_drainage": "well_drained_shallow",
+      "maintenance_level": "medium",
+      "mature_height_m": 0.15,
+      "canopy_radius_m": 0.2,
+      "root_clearance_m": 0.1,
+      "minimum_spacing_m": 0.3,
+      "vertical_suitability": false,
+      "planter_suitability": true,
+      "rooftop_suitability": "conditional",
+      "container_suitability": true,
+      "hanging_basket_suitability": true,
+      "render_asset_id": "ground_cover_generic_01",
+      "source_reference": "S6 NParks FloraFaunaWeb (2358)",
+      "verified_species_data": true,
+      "notes": "Conditional sunny low planting/roof-cover candidate; roof system, drainage and local plant status still require assessment."
+    },
+    {
+      "vegetation_id": "ixora_sri_lanka",
+      "category": "shrub",
+      "display_name": "Ixora 'Sri Lanka'",
+      "scientific_name": "Ixora cv. 'Sri Lanka'",
+      "climate_suitability": [
+        "wet_zone",
+        "intermediate_zone",
+        "coastal"
+      ],
+      "sun_requirement": "full_sun",
+      "shade_tolerance": "moderate",
+      "water_demand": "moderate",
+      "soil_drainage": "moist_well_drained",
+      "maintenance_level": "low",
+      "mature_height_m": 0.5,
+      "canopy_radius_m": 0.35,
+      "root_clearance_m": 0.3,
+      "minimum_spacing_m": 0.8,
+      "vertical_suitability": false,
+      "planter_suitability": true,
+      "balcony_suitability": "review_required",
+      "render_asset_id": "shrub_generic_01",
+      "source_reference": "S8 NParks FloraFaunaWeb (5110)",
+      "verified_species_data": true,
+      "notes": "Compact ground planting candidate; name does not prove Sri Lankan native status; do not automatically approve balcony use."
+    },
+    {
+      "vegetation_id": "murraya_paniculata",
+      "category": "small_tree",
+      "display_name": "Orange Jessamine / Kamini (Et-demata)",
+      "scientific_name": "Murraya paniculata",
+      "climate_suitability": [
+        "wet_zone",
+        "intermediate_zone",
+        "dry_zone"
+      ],
+      "sun_requirement": "full_sun",
+      "shade_tolerance": "moderate",
+      "water_demand": "moderate",
+      "soil_drainage": "well_drained",
+      "maintenance_level": "medium",
+      "maintained_height_m": 3.0,
+      "mature_height_m": 8.0,
+      "canopy_radius_m": 1.5,
+      "root_clearance_m": 1.5,
+      "minimum_spacing_m": 2.5,
+      "vertical_suitability": false,
+      "planter_suitability": true,
+      "container_cultivation_supported": true,
+      "render_asset_id": "small_tree_generic_01",
+      "source_reference": "S9 NParks FloraFaunaWeb (2239)",
+      "verified_species_data": true,
+      "notes": "Often maintained around 2.5\u20133.5m; potential growth to 8m; formal topiary can require high maintenance."
+    },
+    {
+      "vegetation_id": "bougainvillea_glabra",
+      "category": "shrub",
+      "display_name": "Lesser Bougainvillea",
+      "scientific_name": "Bougainvillea glabra",
+      "climate_suitability": [
+        "dry_zone",
+        "coastal",
+        "wet_zone",
+        "intermediate_zone"
+      ],
+      "sun_requirement": "full_sun",
+      "shade_tolerance": "low",
+      "water_demand": "low",
+      "soil_drainage": "well_drained",
+      "maintenance_level": "medium",
+      "mature_height_m": 3.0,
+      "canopy_radius_m": 1.2,
+      "root_clearance_m": 1.0,
+      "minimum_spacing_m": 2.0,
+      "vertical_suitability": true,
+      "planter_suitability": true,
+      "hazards": [
+        "thorns"
+      ],
+      "render_asset_id": "shrub_generic_01",
+      "source_reference": "S10 NParks FloraFaunaWeb (7059)",
+      "verified_species_data": true,
+      "notes": "Thorns present; cultivar, growth form, hazards and support/container suitability require verification."
+    },
+    {
+      "vegetation_id": "lagerstroemia_speciosa",
+      "category": "shade_tree",
+      "display_name": "Queen's Crape-myrtle (Muruta)",
+      "scientific_name": "Lagerstroemia speciosa",
+      "climate_suitability": [
+        "wet_zone",
+        "intermediate_zone"
+      ],
+      "sun_requirement": "full_sun",
+      "shade_tolerance": "moderate",
+      "water_demand": "moderate",
+      "soil_drainage": "well_drained",
+      "maintenance_level": "low",
+      "mature_height_m": 15.0,
+      "canopy_radius_m": 5.0,
+      "root_clearance_m": 4.0,
+      "minimum_spacing_m": 8.0,
+      "vertical_suitability": false,
+      "planter_suitability": false,
+      "rooftop_suitability": "excluded",
+      "balcony_suitability": "excluded",
+      "render_asset_id": "shade_tree_generic_01",
+      "source_reference": "S11 NParks FloraFaunaWeb (2991)",
+      "verified_species_data": true,
+      "notes": "Large ground shade tree (potential height to 30m in source); excluded from default balcony/roof recommendations."
     }
-  ]
+  ],
+  "sources": {
+    "S1": "UDA Acts & Regulations Current Practice (https://www.uda.gov.lk/acts-regulations-current-practice.html)",
+    "S2": "UDA Planning & Building Regulations 2235-54_E (https://www.uda.gov.lk/attachments/act/2235-54_E.pdf)",
+    "S3": "UDA Acts & Regulations Planning Hierarchy / Revision Index (https://www.uda.gov.lk/acts-regulations-tree2.html; administrative reference, not botanical legislation)",
+    "S4": "NParks Skyrise Greenery Handbook 2023 (Bringing Greenery Skywards)",
+    "S5": "NParks Trees on Rooftops - Guidelines and Planting Considerations",
+    "S6": "NParks FloraFaunaWeb - Portulaca grandiflora (https://www.nparks.gov.sg/florafaunaweb/flora/2/3/2358)",
+    "S7": "NParks FloraFaunaWeb - Nephrolepis exaltata (https://www.nparks.gov.sg/florafaunaweb/flora/1/5/1557)",
+    "S8": "NParks FloraFaunaWeb - Ixora cv. Sri Lanka (https://www.nparks.gov.sg/florafaunaweb/flora/5/1/5110)",
+    "S9": "NParks FloraFaunaWeb - Murraya paniculata (https://www.nparks.gov.sg/florafaunaweb/flora/2/2/2239)",
+    "S10": "NParks FloraFaunaWeb - Bougainvillea glabra (https://www.nparks.gov.sg/florafaunaweb/flora/7/0/7059)",
+    "S11": "NParks FloraFaunaWeb - Lagerstroemia speciosa (https://www.nparks.gov.sg/florafaunaweb/flora/2/9/2991)",
+    "S12": "NBRO Resilient Construction Manual (https://www.nbro.gov.lk/images/content_image/publications/general_publications/resilient_manual.pdf)"
+  }
 }

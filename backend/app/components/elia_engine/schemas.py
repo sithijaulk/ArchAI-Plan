@@ -271,6 +271,11 @@ class ExteriorLandscapeResponse(BaseModel):
     outdoor_elements: list[ExteriorFeatureResponse] = Field(default_factory=list)
     validation_summary: ExteriorValidationResponse
     metrics: dict[str, Any]
+    factors_assessment: dict[str, Any] | None = None
+    concept_rules_applied: list[str] = Field(default_factory=list)
+    rule_evaluations: list[dict[str, Any]] = Field(default_factory=list)
+    rule_summary: dict[str, Any] | None = None
+    approval_status: str | None = None
 
 
 ExteriorLandscape = ExteriorLandscapeResponse
@@ -290,6 +295,24 @@ class CandidateValidationRequest(BaseModel):
     master_json: dict[str, Any] | None = None
     exterior_landscape: dict[str, Any]
     requirements: ELIARequirements = Field(default_factory=ELIARequirements)
+
+
+class CandidateValidationResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    valid: bool
+    violations: list[str] = Field(default_factory=list)
+    checks_passed: int = Field(default=0, ge=0)
+    checks_total: int = Field(default=0, ge=0)
+    constraint_satisfaction_rate: FiniteFloat = Field(default=0.0, ge=0, le=1)
+    factors_assessment: dict[str, Any] | None = None
+    rule_evaluations: list[dict[str, Any]] = Field(default_factory=list)
+    rule_summary: dict[str, Any] | None = None
+    approval_status: str | None = None
+    hard_blocks: list[dict[str, Any]] = Field(default_factory=list)
+    conditional_reviews: list[dict[str, Any]] = Field(default_factory=list)
+    validation_summary: dict[str, Any] | None = None
+    canonical_candidate: dict[str, Any] | None = None
 
 
 class CandidateSaveRequest(BaseModel):

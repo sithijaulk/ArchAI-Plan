@@ -31,6 +31,7 @@ from .vehicle_access import validate_vehicle_route
 from .vegetation import place_vegetation, _calculate_afternoon_sun_score
 from .vertical_greenery import plan_vertical_greenery
 from .assessment import build_factors_assessment
+from .rule_evaluator import evaluate_rules
 
 logger = logging.getLogger(__name__)
 
@@ -204,6 +205,20 @@ def _empty_result(context: ExteriorContext, requirements: Mapping[str, Any], uti
     area = context.land.area
     validation = {"valid": False, "violations": violations, "checks_passed": 0, "checks_total": max(len(violations), 1),
                   "constraint_satisfaction_rate": 0.0}
+    rule_results = evaluate_rules(
+        candidate={
+            "vegetation_nodes": [],
+            "outdoor_elements": [],
+            "outdoor_lighting": {"nodes": []},
+            "access": {},
+            "vertical_greenery": {},
+        },
+        context=context,
+        master_json=None,
+        requirements=requirements,
+        validation_summary=validation,
+        shadow_samples=shadows,
+    )
     assessment = build_factors_assessment(
         residual_area_m2=max(0.0, area - context.house.area),
         land_area_m2=area,
@@ -213,6 +228,9 @@ def _empty_result(context: ExteriorContext, requirements: Mapping[str, Any], uti
         requirements=requirements,
         concept_rules_applied=[],
         validation_summary=validation,
+        rule_evaluations=rule_results["rule_evaluations"],
+        category_summaries=rule_results["category_summaries"],
+        approval_status="blocked" if violations else rule_results["approval_status"],
     )
     return {
         "version": "1.0", "theme_concept": requirements.get("design_style"), "spatial_strategy": "horizontal",
@@ -229,6 +247,9 @@ def _empty_result(context: ExteriorContext, requirements: Mapping[str, Any], uti
         "outdoor_lighting": {"nodes": []}, "outdoor_elements": [],
         "factors_assessment": assessment,
         "concept_rules_applied": [],
+        "rule_evaluations": rule_results["rule_evaluations"],
+        "rule_summary": rule_results["category_summaries"],
+        "approval_status": "blocked" if violations else rule_results["approval_status"],
         "validation_summary": {**validation, "reason": reason},
         "metrics": collect_metrics(started, area, max(0.0, area - context.house.area), 0, 0, utilities.status,
                                     False, bool(solar), False, validation),
@@ -436,6 +457,22 @@ def run_elia(master_json: Mapping[str, Any], raw_requirements: Mapping[str, Any]
                                                    if validation["checks_total"] else 1.0)
     outcome = "valid" if validation["valid"] else "infeasible"
 
+    candidate_preview = {
+        "vegetation_nodes": vegetation,
+        "outdoor_elements": outdoor,
+        "outdoor_lighting": {"nodes": lighting},
+        "access": {"gate": gate, "garage": garage, "driveway": path_metadata},
+        "vertical_greenery": vertical,
+    }
+    rule_results = evaluate_rules(
+        candidate=candidate_preview,
+        context=context,
+        master_json=master_json,
+        requirements=requirements,
+        validation_summary=validation,
+        shadow_samples=shadows,
+    )
+
     factors_assessment = build_factors_assessment(
         residual_area_m2=residual.area,
         land_area_m2=context.land.area,
@@ -445,6 +482,9 @@ def run_elia(master_json: Mapping[str, Any], raw_requirements: Mapping[str, Any]
         requirements=requirements,
         concept_rules_applied=concept_rules,
         validation_summary=validation,
+        rule_evaluations=rule_results["rule_evaluations"],
+        category_summaries=rule_results["category_summaries"],
+        approval_status=rule_results["approval_status"],
     )
 
     ground_features = []
@@ -528,6 +568,9 @@ def run_elia(master_json: Mapping[str, Any], raw_requirements: Mapping[str, Any]
         "outdoor_elements": outdoor,
         "factors_assessment": factors_assessment,
         "concept_rules_applied": concept_rules,
+        "rule_evaluations": rule_results["rule_evaluations"],
+        "rule_summary": rule_results["category_summaries"],
+        "approval_status": rule_results["approval_status"],
         "preference_fulfillment": {"unsupported_preferences": unsupported_preferences,
                        "unfulfilled_preferences": unfulfilled_preferences,
                        "label_only_preferences": []},
@@ -764,6 +807,31 @@ def validate_candidate_exterior(
         clean_l["position"] = [round(px, 3), round(py, 3)]
         clean_lighting.append(clean_l)
 
+    rule_results = evaluate_rules(
+        candidate={
+            "vegetation_nodes": clean_vegetation,
+            "outdoor_elements": clean_outdoor,
+            "outdoor_lighting": {"nodes": clean_lighting},
+            "access": candidate.get("access", {}),
+            "vertical_greenery": candidate.get("vertical_greenery", {}),
+        },
+        context=context,
+        master_json=master_json,
+        requirements=requirements,
+        validation_summary={
+            "valid": len(violations) == 0,
+            "violations": violations,
+            "checks_passed": checks_passed,
+            "checks_total": checks_total,
+        },
+        shadow_samples=shadow_samples,
+    )
+
+    for hb in rule_results.get("hard_blocks", []):
+        hb_id = f"rule_violation_{hb['rule_id']}"
+        if hb_id not in violations:
+            violations.append(hb_id)
+
     validation_summary = {
         "valid": len(violations) == 0,
         "violations": violations,
@@ -781,6 +849,9 @@ def validate_candidate_exterior(
         requirements=requirements,
         concept_rules_applied=candidate.get("concept_rules_applied", []),
         validation_summary=validation_summary,
+        rule_evaluations=rule_results["rule_evaluations"],
+        category_summaries=rule_results["category_summaries"],
+        approval_status=rule_results["approval_status"],
     )
 
     canonical_candidate = dict(candidate)
@@ -795,6 +866,9 @@ def validate_candidate_exterior(
     }
     canonical_candidate["validation_summary"] = validation_summary
     canonical_candidate["factors_assessment"] = factors_assessment
+    canonical_candidate["rule_evaluations"] = rule_results["rule_evaluations"]
+    canonical_candidate["rule_summary"] = rule_results["category_summaries"]
+    canonical_candidate["approval_status"] = rule_results["approval_status"]
 
     return {
         "valid": validation_summary["valid"],
@@ -803,6 +877,11 @@ def validate_candidate_exterior(
         "checks_total": checks_total,
         "constraint_satisfaction_rate": validation_summary["constraint_satisfaction_rate"],
         "factors_assessment": factors_assessment,
+        "rule_evaluations": rule_results["rule_evaluations"],
+        "rule_summary": rule_results["category_summaries"],
+        "approval_status": rule_results["approval_status"],
+        "hard_blocks": rule_results["hard_blocks"],
+        "conditional_reviews": rule_results["conditional_reviews"],
         "validation_summary": validation_summary,
         "canonical_candidate": canonical_candidate,
     }

@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import type { FactorAssessmentRow, FactorsAssessment } from '@/types/elia'
+import type { FactorAssessmentRow, FactorsAssessment, RuleEvaluationResult, CategorySummary } from '@/types/elia'
 import {
   LoaderCircle,
   MapPin,
@@ -233,8 +233,23 @@ export default function EliaEnginePage() {
     return (state.formState.lockedFeatures || []).map((lf: any) => lf.json_id || lf.featureId || '')
   }, [state.formState.lockedFeatures])
 
-  // Factors assessment data
+  // Factors and Versioned Rule Registry assessment data
+  const [assessmentViewMode, setAssessmentViewMode] = useState<'factors' | 'rules'>('factors')
+  const [selectedRuleCategory, setSelectedRuleCategory] = useState<string>('all')
+
   const factorsAssessment: FactorsAssessment | undefined = displayedExterior?.factors_assessment
+  const ruleEvaluations: RuleEvaluationResult[] = useMemo(() => {
+    return displayedExterior?.rule_evaluations || factorsAssessment?.rule_evaluations || []
+  }, [displayedExterior, factorsAssessment])
+  const categorySummaries = useMemo(() => {
+    return (displayedExterior?.rule_summary || factorsAssessment?.category_summaries || {}) as Record<string, CategorySummary>
+  }, [displayedExterior, factorsAssessment])
+  const approvalStatus = (displayedExterior?.approval_status || factorsAssessment?.approval_status || 'compliant') as string
+
+  const filteredRules = useMemo(() => {
+    if (selectedRuleCategory === 'all') return ruleEvaluations
+    return ruleEvaluations.filter((r) => r.category === selectedRuleCategory)
+  }, [ruleEvaluations, selectedRuleCategory])
 
   // Search handler
   const handleLocationSearch = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -1433,73 +1448,289 @@ export default function EliaEnginePage() {
             {/* 5. RECOMMENDATIONS ASSESSMENT PANEL (7 Factors) */}
             {factorsAssessment && (
               <Card className="border-border/60 bg-card/60 backdrop-blur-sm">
-                <CardHeader className="pb-3 pt-4 px-5 border-b border-border/40">
-                  <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 text-primary" /> Environmental &amp; Customer Factor Assessment
-                  </CardTitle>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Concise verification of spatial, botanical, and climatic constraints considered for this landscape proposal.
-                  </p>
+                <CardHeader className="pb-3 pt-4 px-5 border-b border-border/40 flex flex-row items-center justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-base font-semibold flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-primary" /> Environmental &amp; Versioned Rule Engine Assessment
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Multi-criteria verification across geometric validity, environmental matching, legal reservations, and elevated safety.
+                    </p>
+                  </div>
+                  <div className="shrink-0">
+                    {approvalStatus === 'blocked' ? (
+                      <Badge variant="outline" className="bg-rose-950/80 text-rose-300 border-rose-500/50 text-[11px] px-2.5 py-0.5 font-medium">
+                        Blocked — Hard Violations
+                      </Badge>
+                    ) : approvalStatus === 'conditional_draft_review_required' ? (
+                      <Badge variant="outline" className="bg-amber-950/80 text-amber-300 border-amber-500/50 text-[11px] px-2.5 py-0.5 font-medium">
+                        Conditional Draft — Review Required
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-emerald-950/80 text-emerald-300 border-emerald-500/50 text-[11px] px-2.5 py-0.5 font-medium">
+                        Compliant
+                      </Badge>
+                    )}
+                  </div>
                 </CardHeader>
                 <CardContent className="p-5 space-y-4 text-xs">
-                  {/* Factor Evaluation Table */}
-                  <div className="overflow-x-auto rounded-lg border border-border/50">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead className="bg-muted/50 text-muted-foreground border-b border-border/50 font-medium text-[11px]">
-                        <tr>
-                          <th className="p-2.5">Factor</th>
-                          <th className="p-2.5">Input Value</th>
-                          <th className="p-2.5">Data Source</th>
-                          <th className="p-2.5">Status</th>
-                          <th className="p-2.5">Reason &amp; Limitations</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border/30">
-                        {factorsAssessment.factors?.map((row: FactorAssessmentRow, idx: number) => {
-                          const statusBadge =
-                            row.status === 'satisfied' ? (
-                              <Badge variant="outline" className="bg-emerald-950/60 text-emerald-400 border-emerald-500/40 text-[10px]">
-                                Satisfied
-                              </Badge>
-                            ) : row.status === 'unmet' ? (
-                              <Badge variant="outline" className="bg-rose-950/60 text-rose-300 border-rose-500/40 text-[10px]">
-                                Unmet
-                              </Badge>
-                            ) : row.status === 'unknown' ? (
-                              <Badge variant="outline" className="bg-amber-950/60 text-amber-300 border-amber-500/40 text-[10px]">
-                                Unknown
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="text-muted-foreground border-border/50 text-[10px]">
-                                N/A
-                              </Badge>
-                            )
-
-                          return (
-                            <tr key={idx} className="hover:bg-muted/20">
-                              <td className="p-2.5 font-medium text-foreground">{row.factor_label || row.factor}</td>
-                              <td className="p-2.5 font-mono text-[11px] text-muted-foreground">{row.input_value}</td>
-                              <td className="p-2.5 text-muted-foreground text-[11px]">{row.data_source}</td>
-                              <td className="p-2.5">{statusBadge}</td>
-                              <td className="p-2.5 text-muted-foreground leading-relaxed text-[11px]">{row.reason_and_limitations}</td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
+                  {/* Mode Selector Tabs */}
+                  <div className="flex items-center gap-2 border-b border-border/40 pb-3">
+                    <Button
+                      variant={assessmentViewMode === 'factors' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      className="text-xs h-7 px-3"
+                      onClick={() => setAssessmentViewMode('factors')}
+                    >
+                      7 Environmental &amp; Customer Factors
+                    </Button>
+                    <Button
+                      variant={assessmentViewMode === 'rules' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      className="text-xs h-7 px-3 flex items-center gap-1.5"
+                      onClick={() => setAssessmentViewMode('rules')}
+                    >
+                      <span>Versioned Rule Engine</span>
+                      {ruleEvaluations.length > 0 && (
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 bg-muted text-muted-foreground">
+                          {ruleEvaluations.length}
+                        </Badge>
+                      )}
+                    </Button>
                   </div>
 
-                  {/* Object-Level Explanations */}
-                  {factorsAssessment.object_level_explanations && factorsAssessment.object_level_explanations.length > 0 && (
-                    <div className="p-3 rounded-lg border border-border/40 bg-muted/10 space-y-1.5">
-                      <span className="font-semibold text-muted-foreground block text-[11px]">Vegetation Suitability Insights:</span>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px]">
-                        {factorsAssessment.object_level_explanations.slice(0, 6).map((obj, i: number) => (
-                          <div key={i} className="p-1.5 rounded bg-background border border-border/40 font-mono text-[10px]">
-                            <span className="font-semibold text-primary">{obj.json_id}: </span>
-                            <span className="text-muted-foreground">{obj.suitability_explanation}</span>
+                  {assessmentViewMode === 'factors' ? (
+                    <>
+                      {/* Factor Evaluation Table */}
+                      <div className="overflow-x-auto rounded-lg border border-border/50">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead className="bg-muted/50 text-muted-foreground border-b border-border/50 font-medium text-[11px]">
+                            <tr>
+                              <th className="p-2.5">Factor</th>
+                              <th className="p-2.5">Input Value</th>
+                              <th className="p-2.5">Data Source</th>
+                              <th className="p-2.5">Status</th>
+                              <th className="p-2.5">Reason &amp; Limitations</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border/30">
+                            {factorsAssessment.factors?.map((row: FactorAssessmentRow, idx: number) => {
+                              const statusBadge =
+                                row.status === 'satisfied' ? (
+                                  <Badge variant="outline" className="bg-emerald-950/60 text-emerald-400 border-emerald-500/40 text-[10px]">
+                                    Satisfied
+                                  </Badge>
+                                ) : row.status === 'unmet' ? (
+                                  <Badge variant="outline" className="bg-rose-950/60 text-rose-300 border-rose-500/40 text-[10px]">
+                                    Unmet
+                                  </Badge>
+                                ) : row.status === 'unknown' ? (
+                                  <Badge variant="outline" className="bg-amber-950/60 text-amber-300 border-amber-500/40 text-[10px]">
+                                    Unknown
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-muted-foreground border-border/50 text-[10px]">
+                                    N/A
+                                  </Badge>
+                                )
+
+                              return (
+                                <tr key={idx} className="hover:bg-muted/20">
+                                  <td className="p-2.5 font-medium text-foreground">{row.factor_label || row.factor}</td>
+                                  <td className="p-2.5 font-mono text-[11px] text-muted-foreground">{row.input_value}</td>
+                                  <td className="p-2.5 text-muted-foreground text-[11px]">{row.data_source}</td>
+                                  <td className="p-2.5">{statusBadge}</td>
+                                  <td className="p-2.5 text-muted-foreground leading-relaxed text-[11px]">{row.reason_and_limitations}</td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Object-Level Explanations */}
+                      {factorsAssessment.object_level_explanations && factorsAssessment.object_level_explanations.length > 0 && (
+                        <div className="p-3 rounded-lg border border-border/40 bg-muted/10 space-y-1.5">
+                          <span className="font-semibold text-muted-foreground block text-[11px]">Vegetation Suitability Insights:</span>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px]">
+                            {factorsAssessment.object_level_explanations.slice(0, 6).map((obj, i: number) => (
+                              <div key={i} className="p-1.5 rounded bg-background border border-border/40 font-mono text-[10px]">
+                                <span className="font-semibold text-primary">{obj.json_id}: </span>
+                                <span className="text-muted-foreground">{obj.suitability_explanation}</span>
+                              </div>
+                            ))}
                           </div>
-                        ))}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    /* Versioned Rule Engine Evaluation View */
+                    <div className="space-y-4">
+                      {/* Category Summary Pills */}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                        {[
+                          { key: 'geometric_validity', label: 'Geometric Validity' },
+                          { key: 'environmental_suitability', label: 'Environmental' },
+                          { key: 'legal_assessment', label: 'Legal Assessment' },
+                          { key: 'elevated_installation', label: 'Elevated Systems' },
+                          { key: 'user_preference', label: 'User Preferences' },
+                        ].map((catItem) => {
+                          const catStat = categorySummaries[catItem.key]
+                          const isActive = selectedRuleCategory === catItem.key
+                          return (
+                            <button
+                              key={catItem.key}
+                              type="button"
+                              onClick={() => setSelectedRuleCategory(isActive ? 'all' : catItem.key)}
+                              className={`p-2.5 rounded-lg border text-left transition-all ${
+                                isActive
+                                  ? 'border-primary bg-primary/10 shadow-sm'
+                                  : 'border-border/50 bg-muted/20 hover:bg-muted/40'
+                              }`}
+                            >
+                              <div className="font-medium text-[11px] text-foreground truncate">{catItem.label}</div>
+                              <div className="flex items-center gap-1.5 mt-1 text-[10px] text-muted-foreground">
+                                <span className="text-emerald-400 font-mono">{catStat?.pass || 0} pass</span>
+                                <span>•</span>
+                                <span className="text-amber-300 font-mono">{catStat?.review_required || 0} review</span>
+                                {Boolean(catStat?.fail) && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="text-rose-400 font-mono">{catStat?.fail} fail</span>
+                                  </>
+                                )}
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
+
+                      {/* Category Filter Toolbar */}
+                      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                        <div className="flex items-center gap-2">
+                          <span>Filtering by category:</span>
+                          <Badge variant="outline" className="text-[10px]">
+                            {selectedRuleCategory === 'all' ? 'All Categories' : selectedRuleCategory.replace('_', ' ')}
+                          </Badge>
+                          {selectedRuleCategory !== 'all' && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedRuleCategory('all')}
+                              className="text-primary hover:underline text-[10px]"
+                            >
+                              Reset filter
+                            </button>
+                          )}
+                        </div>
+                        <span>Showing {filteredRules.length} of {ruleEvaluations.length} rules</span>
+                      </div>
+
+                      {/* Rule Table */}
+                      <div className="overflow-x-auto rounded-lg border border-border/50 max-h-96 overflow-y-auto">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead className="bg-muted/50 text-muted-foreground border-b border-border/50 font-medium text-[11px] sticky top-0 z-10 backdrop-blur-sm">
+                            <tr>
+                              <th className="p-2.5 w-16">Rule ID</th>
+                              <th className="p-2.5 w-48">Rule &amp; Category</th>
+                              <th className="p-2.5 w-24">Outcome</th>
+                              <th className="p-2.5 w-36">Affected Objects</th>
+                              <th className="p-2.5">Evidence &amp; Missing Inputs</th>
+                              <th className="p-2.5 w-52">Practical Remedy</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border/30">
+                            {filteredRules.map((r, idx) => {
+                              const outcomeBadge =
+                                r.outcome === 'pass' ? (
+                                  <Badge variant="outline" className="bg-emerald-950/60 text-emerald-400 border-emerald-500/40 text-[10px]">
+                                    Pass
+                                  </Badge>
+                                ) : r.outcome === 'fail' ? (
+                                  <Badge variant="outline" className="bg-rose-950/60 text-rose-300 border-rose-500/40 text-[10px]">
+                                    Fail
+                                  </Badge>
+                                ) : r.outcome === 'review_required' ? (
+                                  <Badge variant="outline" className="bg-amber-950/60 text-amber-300 border-amber-500/40 text-[10px]">
+                                    Review
+                                  </Badge>
+                                ) : r.outcome === 'unknown' ? (
+                                  <Badge variant="outline" className="bg-slate-800 text-slate-300 border-slate-600/40 text-[10px]">
+                                    Unknown
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-muted-foreground border-border/40 text-[10px]">
+                                    N/A
+                                  </Badge>
+                                )
+
+                              const classBadgeColor =
+                                r.rule_class === 'L'
+                                  ? 'bg-purple-950/50 text-purple-300 border-purple-500/30'
+                                  : r.rule_class === 'E'
+                                  ? 'bg-blue-950/50 text-blue-300 border-blue-500/30'
+                                  : r.rule_class === 'D'
+                                  ? 'bg-amber-950/50 text-amber-300 border-amber-500/30'
+                                  : 'bg-muted text-muted-foreground border-border/40'
+
+                              return (
+                                <tr key={idx} className="hover:bg-muted/20">
+                                  <td className="p-2.5 font-mono text-[11px] font-semibold text-foreground">
+                                    <div className="flex items-center gap-1">
+                                      <span>{r.rule_id}</span>
+                                      <Badge variant="outline" className={`text-[9px] px-1 py-0 h-3.5 ${classBadgeColor}`}>
+                                        {r.rule_class}
+                                      </Badge>
+                                    </div>
+                                  </td>
+                                  <td className="p-2.5">
+                                    <div className="font-medium text-foreground text-[11px]">{r.title}</div>
+                                    <div className="text-[10px] text-muted-foreground capitalize mt-0.5">{r.category.replace('_', ' ')}</div>
+                                  </td>
+                                  <td className="p-2.5">{outcomeBadge}</td>
+                                  <td className="p-2.5">
+                                    {r.affected_object_ids && r.affected_object_ids.length > 0 ? (
+                                      <div className="flex flex-wrap gap-1">
+                                        {r.affected_object_ids.slice(0, 3).map((objId, i) => (
+                                          <button
+                                            key={i}
+                                            type="button"
+                                            onClick={() => controller.selectFeature(objId)}
+                                            className="px-1.5 py-0.5 rounded bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 font-mono text-[9px] truncate max-w-[120px]"
+                                            title={`Select ${objId} in viewer`}
+                                          >
+                                            {objId}
+                                          </button>
+                                        ))}
+                                        {r.affected_object_ids.length > 3 && (
+                                          <span className="text-[9px] text-muted-foreground font-mono">
+                                            +{r.affected_object_ids.length - 3}
+                                          </span>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <span className="text-[10px] text-muted-foreground">—</span>
+                                    )}
+                                  </td>
+                                  <td className="p-2.5 text-muted-foreground text-[11px] leading-relaxed">
+                                    <div>{r.evidence}</div>
+                                    {r.missing_inputs && r.missing_inputs.length > 0 && (
+                                      <div className="text-[10px] text-amber-400/90 mt-0.5">
+                                        Missing: {r.missing_inputs.join(', ')}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="p-2.5 text-[10px] text-muted-foreground leading-relaxed">
+                                    {r.practical_remedy ? (
+                                      <span className="text-foreground/90">{r.practical_remedy}</span>
+                                    ) : (
+                                      <span className="text-muted-foreground/60">—</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
                       </div>
                     </div>
                   )}

@@ -17,7 +17,7 @@ from app.components.elia_engine.adapter import normalize_master_json
 from app.components.elia_engine.geometry import feet_to_meters
 from app.components.elia_engine.parser import parse_exterior_context
 from app.components.elia_engine.rule_repository import elia_rules, lighting_rules, vehicle_profiles, vegetation_catalog
-from app.components.elia_engine.schemas import ELIARequest, ELIAResponse, ExteriorLandscapeResponse, CandidateValidationRequest, CandidateSaveRequest
+from app.components.elia_engine.schemas import ELIARequest, ELIAResponse, ExteriorLandscapeResponse, CandidateValidationRequest, CandidateValidationResponse, CandidateSaveRequest
 from app.components.elia_engine.solar import extract_master_location, fetch_live_solar_conditions, search_sri_lanka_locations
 from app.components.elia_engine.generation import generate_exterior
 from app.components.elia_engine.service import validate_candidate_exterior
