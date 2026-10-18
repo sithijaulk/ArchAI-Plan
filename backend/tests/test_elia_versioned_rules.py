@@ -21,6 +21,9 @@ from app.components.elia_engine.rule_repository import vegetation_catalog
 from app.components.elia_engine.evaluation_helpers import (
     extract_physical_footprint,
     are_polygons_equivalent,
+    to_positive_finite_int,
+    parse_polygon_representation,
+    compare_locked_object_properties,
 )
 
 
@@ -1546,11 +1549,13 @@ def test_defect_1_b06_valid_door_geometry_and_clearance_passes(base_master_json)
             "id": "door_good",
             "floor_id": "F1",
             "polygon": [[10, 8.5], [11, 8.5], [11, 9.5], [10, 9.5]],
+            "escape_route_polygon": [[10, 8.5], [12, 8.5], [12, 10.5], [10, 10.5]],
         }],
         "guardrail_profile": {
             "verified_climbability_assessment": True,
             "revision": 2,
             "climbable_footholds": False,
+            "scope": ["balc_f1", "F1"],
         },
     }
     cand = {
@@ -2146,6 +2151,625 @@ def test_audit_immutability_candidate_evaluation_does_not_mutate_inputs(base_mas
     assert cand == cand_copy
     assert reqs == reqs_copy
     assert master == master_copy
+
+
+# =============================================================================
+# Six Confirmed ELIA Defect Regressions (B09, B06, C04, C04-Inf, PolyHoles, LockedCoords)
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# DEFECT 1: B09 Ignores Structural Approval Scope
+# -----------------------------------------------------------------------------
+
+def test_defect_1_b09_wrong_balcony_scope_does_not_pass(base_master_json):
+    """B09: Candidate planter on surface 'b1' with structural evidence scoping 'OTHER' must NOT pass."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["revision"] = 2
+    master["building_exterior"] = {
+        "balconies": [{"json_id": "b1", "floor_id": "F2", "elevation_m": 3.0, "polygon": [[10, 8], [15, 8], [15, 12], [10, 12]]}]
+    }
+    master["structural_evidence"] = {
+        "balcony_allowance_kg_m2": 200,
+        "approved_revision": 2,
+        "applicable_balcony_id": "OTHER",
+    }
+    cand = {
+        "vegetation_nodes": [{
+            "json_id": "planter_1",
+            "floor_id": "F2",
+            "elevation_m": 3.0,
+            "supporting_surface_type": "balcony",
+            "support_json_id": "b1",
+            "position": [12.0, 10.0],
+            "footprint": [[11.5, 9.5], [12.5, 9.5], [12.5, 10.5], [11.5, 10.5]],
+        }],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["B09"]["outcome"] != RuleOutcome.PASS.value
+    assert r_map["B09"]["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert "applicable_surface_scope" in r_map["B09"]["missing_inputs"]
+    assert "planter_1" in r_map["B09"]["affected_object_ids"]
+
+
+def test_defect_1_b09_missing_scope_requires_review(base_master_json):
+    """B09: Structural evidence with allowance and revision but missing scope requires review."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["revision"] = 2
+    master["structural_evidence"] = {
+        "balcony_allowance_kg_m2": 200,
+        "approved_revision": 2,
+    }
+    cand = {
+        "vegetation_nodes": [{
+            "json_id": "planter_1",
+            "floor_id": "F2",
+            "elevation_m": 3.0,
+            "supporting_surface_type": "balcony",
+            "support_json_id": "b1",
+            "position": [12.0, 10.0],
+            "footprint": [[11.5, 9.5], [12.5, 9.5], [12.5, 10.5], [11.5, 10.5]],
+        }],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["B09"]["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert "applicable_surface_scope" in r_map["B09"]["missing_inputs"]
+
+
+def test_defect_1_b09_multiple_planters_partial_scope_requires_review(base_master_json):
+    """B09: Multiple planters where only some surfaces are covered requires review."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["revision"] = 2
+    master["structural_evidence"] = {
+        "balcony_allowance_kg_m2": 200,
+        "approved_revision": 2,
+        "scope": ["b1"],
+    }
+    cand = {
+        "vegetation_nodes": [
+            {
+                "json_id": "planter_covered",
+                "floor_id": "F2",
+                "elevation_m": 3.0,
+                "supporting_surface_type": "balcony",
+                "support_json_id": "b1",
+                "position": [12.0, 10.0],
+                "footprint": [[11.5, 9.5], [12.5, 9.5], [12.5, 10.5], [11.5, 10.5]],
+            },
+            {
+                "json_id": "planter_uncovered",
+                "floor_id": "F2",
+                "elevation_m": 3.0,
+                "supporting_surface_type": "balcony",
+                "support_json_id": "b2",
+                "position": [14.0, 10.0],
+                "footprint": [[13.5, 9.5], [14.5, 9.5], [14.5, 10.5], [13.5, 10.5]],
+            },
+        ],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["B09"]["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert "planter_uncovered" in r_map["B09"]["affected_object_ids"]
+
+
+def test_defect_1_b09_changed_configuration_with_unchanged_revision(base_master_json):
+    """B09: Matching project revision alone does not establish edited planter configuration is covered."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["revision"] = 2
+    master["structural_evidence"] = {
+        "balcony_allowance_kg_m2": 200,
+        "approved_revision": 2,
+        "scope": ["b1"],
+        "approved_configuration_id": "cfg_v1",
+    }
+    cand = {
+        "configuration_id": "cfg_v2",
+        "vegetation_nodes": [{
+            "json_id": "planter_1",
+            "floor_id": "F2",
+            "elevation_m": 3.0,
+            "supporting_surface_type": "balcony",
+            "support_json_id": "b1",
+            "position": [12.0, 10.0],
+            "footprint": [[11.5, 9.5], [12.5, 9.5], [12.5, 10.5], [11.5, 10.5]],
+        }],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["B09"]["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert "approved_configuration_coverage" in r_map["B09"]["missing_inputs"]
+
+
+def test_defect_1_b09_valid_matching_scoped_evidence_passes(base_master_json):
+    """B09: Valid matching scoped evidence and revision passes with accurate units."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["revision"] = 2
+    master["structural_evidence"] = {
+        "max_saturated_load_kn_m2": 3.5,
+        "approved_revision": 2,
+        "scope": ["b1"],
+    }
+    cand = {
+        "vegetation_nodes": [{
+            "json_id": "planter_1",
+            "floor_id": "F2",
+            "elevation_m": 3.0,
+            "supporting_surface_type": "balcony",
+            "support_json_id": "b1",
+            "position": [12.0, 10.0],
+            "footprint": [[11.5, 9.5], [12.5, 9.5], [12.5, 10.5], [11.5, 10.5]],
+        }],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["B09"]["outcome"] == RuleOutcome.PASS.value
+    assert "3.5 kN/m²" in r_map["B09"]["evidence"]
+    assert "kg/m²" not in r_map["B09"]["evidence"]
+
+
+# -----------------------------------------------------------------------------
+# DEFECT 2: B06 Unscoped Flag Still Certifies Escape Safety
+# -----------------------------------------------------------------------------
+
+def test_defect_2_b06_unscoped_flag_does_not_certify_escape(base_master_json):
+    """B06: Unscoped flag plus clear door without revision, surface scope, and escape route must NOT pass."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["building_exterior"] = {
+        "balconies": [{
+            "json_id": "b1",
+            "floor_id": "f1",
+            "elevation_m": 3.0,
+            "polygon": [[10, 8], [16, 8], [16, 14], [10, 14]],
+        }],
+        "balcony_doors": [{
+            "id": "door_1",
+            "floor_id": "f1",
+            "polygon": [[10, 8.5], [11, 8.5], [11, 9.5], [10, 9.5]],
+        }],
+        "guardrail_profile": {
+            "verified_climbability_assessment": True,
+        },
+    }
+    cand = {
+        "vegetation_nodes": [{
+            "json_id": "planter_1",
+            "floor_id": "f1",
+            "supporting_surface_type": "balcony",
+            "support_json_id": "b1",
+            "position": [14.0, 12.0],
+            "footprint": [[13.5, 11.5], [14.5, 11.5], [14.5, 12.5], [13.5, 12.5]],
+        }],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["B06"]["outcome"] != RuleOutcome.PASS.value
+    assert r_map["B06"]["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+
+
+def test_defect_2_b06_stale_revision_does_not_pass(base_master_json):
+    """B06: Guardrail assessment with stale revision requires review."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["revision"] = 2
+    master["building_exterior"] = {
+        "balconies": [{"json_id": "b1", "floor_id": "f1", "polygon": [[10, 8], [16, 8], [16, 14], [10, 14]]}],
+        "balcony_doors": [{
+            "id": "door_1",
+            "floor_id": "f1",
+            "polygon": [[10, 8.5], [11, 8.5], [11, 9.5], [10, 9.5]],
+            "escape_route_polygon": [[10, 8.5], [12, 8.5], [12, 10.5], [10, 10.5]],
+        }],
+        "guardrail_profile": {
+            "verified_climbability_assessment": True,
+            "revision": 1,
+            "scope": ["b1"],
+        },
+    }
+    cand = {
+        "vegetation_nodes": [{
+            "json_id": "planter_1",
+            "floor_id": "f1",
+            "supporting_surface_type": "balcony",
+            "support_json_id": "b1",
+            "position": [14.0, 12.0],
+            "footprint": [[13.5, 11.5], [14.5, 11.5], [14.5, 12.5], [13.5, 12.5]],
+        }],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["B06"]["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert "revalidated_climbability_assessment" in r_map["B06"]["missing_inputs"]
+
+
+def test_defect_2_b06_assessment_for_another_surface_requires_review(base_master_json):
+    """B06: Guardrail assessment scoping another surface does not certify candidate."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["revision"] = 2
+    master["building_exterior"] = {
+        "balconies": [{"json_id": "b1", "floor_id": "f1", "polygon": [[10, 8], [16, 8], [16, 14], [10, 14]]}],
+        "balcony_doors": [{
+            "id": "door_1",
+            "floor_id": "f1",
+            "polygon": [[10, 8.5], [11, 8.5], [11, 9.5], [10, 9.5]],
+            "escape_route_polygon": [[10, 8.5], [12, 8.5], [12, 10.5], [10, 10.5]],
+        }],
+        "guardrail_profile": {
+            "verified_climbability_assessment": True,
+            "revision": 2,
+            "scope": ["balc_other"],
+        },
+    }
+    cand = {
+        "vegetation_nodes": [{
+            "json_id": "planter_1",
+            "floor_id": "f1",
+            "supporting_surface_type": "balcony",
+            "support_json_id": "b1",
+            "position": [14.0, 12.0],
+            "footprint": [[13.5, 11.5], [14.5, 11.5], [14.5, 12.5], [13.5, 12.5]],
+        }],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["B06"]["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert "guardrail_assessment_scope" in r_map["B06"]["missing_inputs"]
+
+
+def test_defect_2_b06_blocked_escape_route_fails_and_known_obstruction_priority(base_master_json):
+    """B06: Blocked escape route fails, and obstruction takes priority over missing climbability assessment."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["revision"] = 2
+    master["building_exterior"] = {
+        "balconies": [{"json_id": "b1", "floor_id": "f1", "polygon": [[10, 8], [16, 8], [16, 14], [10, 14]]}],
+        "balcony_doors": [{
+            "id": "door_1",
+            "floor_id": "f1",
+            "polygon": [[10, 8.5], [11, 8.5], [11, 9.5], [10, 9.5]],
+            # Route corridor overlaps candidate planter
+            "escape_route_polygon": [[10, 8.5], [14, 8.5], [14, 11.0], [10, 11.0]],
+        }],
+        # Climbability assessment missing entirely
+    }
+    cand = {
+        "vegetation_nodes": [{
+            "json_id": "planter_1",
+            "floor_id": "f1",
+            "supporting_surface_type": "balcony",
+            "support_json_id": "b1",
+            "position": [12.0, 10.0],
+            "footprint": [[11.5, 9.5], [12.5, 9.5], [12.5, 10.5], [11.5, 10.5]],
+        }],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    # Known obstruction must FAIL even when other evidence is missing
+    assert r_map["B06"]["outcome"] == RuleOutcome.FAIL.value
+
+
+# -----------------------------------------------------------------------------
+# DEFECT 3: C04 Accepts Boolean Capacity
+# -----------------------------------------------------------------------------
+
+def test_defect_3_to_positive_finite_int_contract():
+    """Verify to_positive_finite_int rejects booleans, non-finite, fractions, and malformed strings."""
+    # Booleans rejected
+    assert to_positive_finite_int(True) is None
+    assert to_positive_finite_int(False) is None
+    # Non-positive numbers rejected
+    assert to_positive_finite_int(0) is None
+    assert to_positive_finite_int(-1) is None
+    assert to_positive_finite_int(-42) is None
+    # Fractional values rejected (not truncated!)
+    assert to_positive_finite_int(1.5) is None
+    assert to_positive_finite_int(0.99) is None
+    assert to_positive_finite_int("1.5") is None
+    # Non-finite floats rejected
+    assert to_positive_finite_int(float("inf")) is None
+    assert to_positive_finite_int(float("-inf")) is None
+    assert to_positive_finite_int(float("nan")) is None
+    # Empty and malformed strings rejected
+    assert to_positive_finite_int(None) is None
+    assert to_positive_finite_int("") is None
+    assert to_positive_finite_int("   ") is None
+    assert to_positive_finite_int("abc") is None
+    assert to_positive_finite_int("inf") is None
+    # Valid positive integers accepted
+    assert to_positive_finite_int(1) == 1
+    assert to_positive_finite_int(4) == 4
+    assert to_positive_finite_int(2.0) == 2
+    assert to_positive_finite_int("3") == 3
+    assert to_positive_finite_int(" 5 ") == 5
+
+
+def test_defect_3_c04_boolean_capacity_in_garage_and_seating_rejected(base_master_json):
+    """C04: Boolean capacity (capacity=True) is rejected and does not pass."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    master = deepcopy(base_master_json)
+    reqs = {
+        "design_style": "modern",
+        "access": {"garage_required": True, "garage_capacity": 1},
+        "landscape": {"garden_seating_required": True, "seating_capacity": 2},
+    }
+    cand = {
+        "vegetation_nodes": [],
+        "outdoor_elements": [{
+            "json_id": "seat_1",
+            "type": "garden_seating",
+            "position": [8, 8],
+            "capacity": True,
+            "dimensions": {"width_m": 2.0, "depth_m": 1.0, "height_m": 0.5},
+        }],
+        "outdoor_lighting": {"nodes": []},
+        "access": {
+            "garage": {
+                "polygon": [[1, 1], [6, 1], [6, 7], [1, 7]],
+                "capacity": True,
+            }
+        },
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["C04"]["outcome"] != RuleOutcome.PASS.value
+    assert r_map["C04"]["outcome"] == RuleOutcome.UNKNOWN.value
+    assert any("garage_capacity_invalid" in aff for aff in r_map["C04"]["affected_object_ids"])
+    assert any("seat_1_capacity_malformed" in aff for aff in r_map["C04"]["affected_object_ids"])
+
+
+# -----------------------------------------------------------------------------
+# DEFECT 4: C04 Infinite Capacity Crashes
+# -----------------------------------------------------------------------------
+
+def test_defect_4_c04_infinite_and_nan_capacity_no_crash(base_master_json):
+    """C04: float('inf') and float('nan') capacity do not raise OverflowError/ValueError."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    master = deepcopy(base_master_json)
+
+    for inf_val in (float("inf"), float("-inf"), float("nan")):
+        reqs = {
+            "design_style": "modern",
+            "access": {"garage_required": True, "garage_capacity": 1},
+            "landscape": {"garden_seating_required": True, "seating_capacity": 2},
+        }
+        cand = {
+            "vegetation_nodes": [],
+            "outdoor_elements": [{
+                "json_id": "seat_1",
+                "type": "garden_seating",
+                "position": [8, 8],
+                "capacity": inf_val,
+                "dimensions": {"width_m": 2.0, "depth_m": 1.0, "height_m": 0.5},
+            }],
+            "outdoor_lighting": {"nodes": []},
+            "access": {
+                "garage": {
+                    "polygon": [[1, 1], [6, 1], [6, 7], [1, 7]],
+                    "capacity": inf_val,
+                }
+            },
+        }
+        res = evaluate_rules(cand, context, master, reqs)
+        r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+        assert r_map["C04"]["outcome"] == RuleOutcome.UNKNOWN.value
+        assert any("garage_capacity_invalid" in aff for aff in r_map["C04"]["affected_object_ids"])
+        assert any("seat_1_capacity_malformed" in aff for aff in r_map["C04"]["affected_object_ids"])
+
+
+# -----------------------------------------------------------------------------
+# DEFECT 5: Valid Polygons with One Hole are Rejected
+# -----------------------------------------------------------------------------
+
+def test_defect_5_polygon_with_one_hole_accepted():
+    """Footprint extraction and polygon equivalence accept valid polygon with one hole."""
+    outer = [[0, 0], [10, 0], [10, 10], [0, 10]]
+    hole = [[2, 2], [3, 2], [3, 3], [2, 3]]
+
+    # 1. extract_physical_footprint
+    poly, status = extract_physical_footprint({"polygon": [outer, hole]})
+    assert status == "valid"
+    assert poly is not None
+    assert poly.is_valid
+    assert len(poly.interiors) == 1
+
+    # 2. are_polygons_equivalent
+    eq, eq_status = are_polygons_equivalent([outer, hole], [outer, hole])
+    assert eq is True
+    assert eq_status == "equivalent"
+
+    # 3. cyclic shift of hole or shell is equivalent
+    hole_shifted = [[3, 2], [3, 3], [2, 3], [2, 2]]
+    eq_shift, _ = are_polygons_equivalent([outer, hole], [outer, hole_shifted])
+    assert eq_shift is True
+
+    # 4. hole removal is detected as changed
+    eq_removed, rem_status = are_polygons_equivalent([outer, hole], [outer])
+    assert eq_removed is False
+    assert rem_status == "changed"
+
+
+def test_defect_5_polygon_invalid_topology_and_outside_holes_rejected():
+    """Polygons with outside holes or self-intersections are rejected with invalid status."""
+    outer = [[0, 0], [10, 0], [10, 10], [0, 10]]
+    hole_outside = [[20, 20], [25, 20], [25, 25], [20, 25]]
+
+    poly, status = parse_polygon_representation([outer, hole_outside])
+    assert poly is None
+    assert status == "invalid_topology"
+
+    _, fp_status = extract_physical_footprint({"polygon": [outer, hole_outside]})
+    assert fp_status == "malformed"
+
+    eq, eq_status = are_polygons_equivalent([outer, hole_outside], [outer])
+    assert eq is False
+    assert eq_status == "invalid"
+
+
+# -----------------------------------------------------------------------------
+# DEFECT 6: Malformed Saved Position Crashes Lock Comparison
+# -----------------------------------------------------------------------------
+
+def test_defect_6_malformed_saved_position_no_crash():
+    """compare_locked_object_properties does not crash with IndexError on truncated positions."""
+    # [1] in reference position
+    v1 = compare_locked_object_properties(
+        {"json_id": "p", "position": [1]},
+        {"json_id": "p", "position": [1, 2]}
+    )
+    assert any("locked_reference_position_malformed" in v for v in v1)
+
+    # [] in reference position
+    v2 = compare_locked_object_properties(
+        {"json_id": "p", "position": []},
+        {"json_id": "p", "position": [1, 2]}
+    )
+    assert any("locked_reference_position_malformed" in v for v in v2)
+
+    # None in reference position
+    v3 = compare_locked_object_properties(
+        {"json_id": "p", "position": None},
+        {"json_id": "p", "position": [1, 2]}
+    )
+    assert any("locked_reference_position_malformed" in v for v in v3)
+
+    # Boolean and NaN in coordinates
+    v4 = compare_locked_object_properties(
+        {"json_id": "p", "position": [True, 1]},
+        {"json_id": "p", "position": [1, 2]}
+    )
+    assert any("locked_reference_position_malformed" in v for v in v4)
+
+    # Malformed candidate position
+    v5 = compare_locked_object_properties(
+        {"json_id": "p", "position": [1, 2]},
+        {"json_id": "p", "position": [1]}
+    )
+    assert any("locked_candidate_position_malformed" in v for v in v5)
+
+    # Removed Z coordinate
+    v6 = compare_locked_object_properties(
+        {"json_id": "p", "position": [1, 2, 3]},
+        {"json_id": "p", "position": [1, 2]}
+    )
+    assert any("locked_z_coordinate_removed" in v for v in v6)
+
+    # Valid unchanged 2D and 3D coordinates
+    v7 = compare_locked_object_properties(
+        {"json_id": "p", "position": [1, 2]},
+        {"json_id": "p", "position": [1, 2]}
+    )
+    assert v7 == []
+
+    v8 = compare_locked_object_properties(
+        {"json_id": "p", "position": [1, 2, 3]},
+        {"json_id": "p", "position": [1, 2, 3]}
+    )
+    assert v8 == []
+
+
+def test_defect_6_c08_evaluator_consumes_malformed_reference_as_review_required(base_master_json):
+    """C08: Malformed reference position produces REVIEW_REQUIRED with explicit diagnostic."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {
+        "design_style": "modern",
+        "locked_features": [{"json_id": "locked_p", "locked": True, "position": [1]}],
+    }
+    master = deepcopy(base_master_json)
+    cand = {
+        "vegetation_nodes": [{"json_id": "locked_p", "locked": True, "position": [1, 2]}],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["C08"]["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert "valid_authoritative_locked_coordinates" in r_map["C08"]["missing_inputs"]
+    assert res["approval_status"] == "conditional_draft_review_required"
+
+
+# -----------------------------------------------------------------------------
+# RELATED ACCEPTANCE CHECKS
+# -----------------------------------------------------------------------------
+
+def test_acceptance_unresolved_checks_cannot_become_compliant(base_master_json):
+    """Unresolved mandatory requirements or lock coordinates cannot produce 'compliant' approval_status."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    master = deepcopy(base_master_json)
+
+    # 1. Unusable mandatory capacity (C04 UNKNOWN)
+    reqs_c04 = {
+        "design_style": "modern",
+        "access": {"garage_required": True, "garage_capacity": True},
+    }
+    cand_c04 = {
+        "vegetation_nodes": [],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {"garage": {"polygon": [[1, 1], [6, 1], [6, 7], [1, 7]], "capacity": 1}},
+    }
+    res_c04 = evaluate_rules(cand_c04, context, master, reqs_c04)
+    assert res_c04["approval_status"] != "compliant"
+    assert res_c04["approval_status"] == "conditional_draft_review_required"
+
+    # 2. Unverifiable lock reference (C08 REVIEW_REQUIRED)
+    reqs_c08 = {
+        "design_style": "modern",
+        "locked_features": [{"json_id": "locked_p", "locked": True, "position": [1]}],
+    }
+    cand_c08 = {
+        "vegetation_nodes": [{"json_id": "locked_p", "locked": True, "position": [1, 2]}],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    res_c08 = evaluate_rules(cand_c08, context, master, reqs_c08)
+    assert res_c08["approval_status"] != "compliant"
+    assert res_c08["approval_status"] == "conditional_draft_review_required"
 
 
 

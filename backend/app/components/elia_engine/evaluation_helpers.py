@@ -39,6 +39,111 @@ def to_positive_finite_float(val: Any) -> float | None:
     return None
 
 
+def to_positive_finite_int(val: Any) -> int | None:
+    """Validate and convert an input to a positive finite integer (> 0).
+    
+    Rejects:
+    - Booleans (True/False)
+    - None, empty string
+    - Non-finite numbers (NaN, inf, -inf)
+    - Fractional floats (e.g. 1.5, 2.7)
+    - Malformed strings (e.g. "abc", "1.5", "inf")
+    - Non-positive numbers (<= 0)
+    
+    Accepts:
+    - Positive integers (e.g. 1, 2, 42)
+    - Whole-number floats (e.g. 2.0 -> 2)
+    - Integral numeric strings (e.g. "2" -> 2)
+    """
+    if val is None or isinstance(val, bool):
+        return None
+    if isinstance(val, int):
+        return val if val > 0 else None
+    if isinstance(val, float):
+        if not math.isfinite(val):
+            return None
+        if val <= 0 or val != int(val):
+            return None
+        return int(val)
+    if isinstance(val, str):
+        s = val.strip()
+        if not s:
+            return None
+        if s.isdigit():
+            v = int(s)
+            return v if v > 0 else None
+        try:
+            f = float(s)
+            if math.isfinite(f) and f > 0 and f == int(f):
+                return int(f)
+        except (ValueError, OverflowError):
+            pass
+        return None
+    return None
+
+
+def parse_polygon_representation(raw: Any) -> tuple[Polygon | None, str]:
+    """Parse a polygon representation, strictly supporting:
+    1. Simple coordinate ring: [[x, y], [x, y], [x, y], ...] (len >= 3)
+    2. Multi-ring sequence: [outer_ring, hole_1, hole_2, ...] where each ring is [[x, y], ...] (len >= 3)
+    3. Nested single-ring: [outer_ring] where outer_ring has len >= 3
+    
+    Returns:
+        (Polygon | None, status)
+        where status is one of "valid", "malformed", "non_finite", "invalid_topology"
+    """
+    if not isinstance(raw, (list, tuple)) or len(raw) == 0:
+        return None, "malformed"
+
+    def _clean_ring(ring_raw: Any) -> tuple[list[tuple[float, float]] | None, str]:
+        if not isinstance(ring_raw, (list, tuple)) or len(ring_raw) < 3:
+            return None, "malformed"
+        clean = []
+        for pt in ring_raw:
+            if not isinstance(pt, (list, tuple)) or len(pt) < 2:
+                return None, "malformed"
+            x = to_finite_float(pt[0])
+            y = to_finite_float(pt[1])
+            if x is None or y is None:
+                return None, "non_finite"
+            clean.append((x, y))
+        return clean, "valid"
+
+    is_list_of_rings = (
+        isinstance(raw[0], (list, tuple))
+        and len(raw[0]) > 0
+        and isinstance(raw[0][0], (list, tuple))
+    )
+
+    if is_list_of_rings:
+        shell_raw = raw[0]
+        holes_raw = raw[1:]
+    else:
+        shell_raw = raw
+        holes_raw = []
+
+    ext_pts, ext_status = _clean_ring(shell_raw)
+    if ext_pts is None:
+        return None, ext_status
+
+    hole_pts_list = []
+    for h_raw in holes_raw:
+        h_pts, h_status = _clean_ring(h_raw)
+        if h_pts is None:
+            return None, h_status
+        hole_pts_list.append(h_pts)
+
+    try:
+        poly = Polygon(ext_pts, hole_pts_list)
+        if not poly.is_valid:
+            return None, "invalid_topology"
+        if poly.is_empty or poly.area <= 0:
+            return None, "malformed"
+        return poly, "valid"
+    except Exception:
+        return None, "invalid_topology"
+
+
 def extract_physical_footprint(
     obj: Mapping[str, Any],
 ) -> tuple[BaseGeometry | None, str]:
@@ -72,55 +177,10 @@ def extract_physical_footprint(
     # 1. Explicit polygon or footprint provided
     poly_raw = obj.get("footprint") or obj.get("polygon")
     if poly_raw is not None:
-        if not isinstance(poly_raw, (list, tuple)) or len(poly_raw) < 3:
-            return None, "malformed"
-        
-        has_holes = (
-            isinstance(poly_raw[0], (list, tuple))
-            and len(poly_raw[0]) >= 3
-            and isinstance(poly_raw[0][0], (list, tuple))
-        )
-        if has_holes:
-            ext_raw = poly_raw[0]
-            holes_raw = poly_raw[1:]
-        else:
-            ext_raw = poly_raw
-            holes_raw = []
-
-        def _clean_pts(raw_pts: Any) -> tuple[list[tuple[float, float]] | None, str]:
-            if not isinstance(raw_pts, (list, tuple)) or len(raw_pts) < 3:
-                return None, "malformed"
-            clean = []
-            for pt in raw_pts:
-                if not isinstance(pt, (list, tuple)) or len(pt) < 2:
-                    return None, "malformed"
-                x = to_finite_float(pt[0])
-                y = to_finite_float(pt[1])
-                if x is None or y is None:
-                    return None, "non_finite"
-                clean.append((x, y))
-            return clean, "ok"
-
-        ext_pts, err = _clean_pts(ext_raw)
-        if ext_pts is None:
-            return None, err
-
-        int_rings = []
-        for h_raw in holes_raw:
-            h_pts, h_err = _clean_pts(h_raw)
-            if h_pts is None:
-                return None, h_err
-            int_rings.append(h_pts)
-
-        try:
-            poly = Polygon(ext_pts, int_rings)
-            if not poly.is_valid or poly.is_empty or poly.area <= 0:
-                return None, "malformed"
-            # Explicit polygons are already defined in project/world coordinates;
-            # do not rotate world coordinates a second time.
-            return poly, "valid"
-        except Exception:
-            return None, "malformed"
+        poly, poly_status = parse_polygon_representation(poly_raw)
+        if poly is None:
+            return None, "malformed" if poly_status in ("malformed", "invalid_topology") else poly_status
+        return poly, "valid"
 
     # 2. Position + Dimensions
     pos = obj.get("position")
@@ -522,54 +582,8 @@ def are_polygons_equivalent(r_poly_raw: Any, c_poly_raw: Any) -> tuple[bool, str
     if r_poly_raw is None or c_poly_raw is None:
         return False, "missing"
 
-    def _parse_poly(raw: Any) -> Polygon | None:
-        if not isinstance(raw, (list, tuple)) or len(raw) < 3:
-            return None
-        has_holes = (
-            isinstance(raw[0], (list, tuple))
-            and len(raw[0]) >= 3
-            and isinstance(raw[0][0], (list, tuple))
-        )
-        if has_holes:
-            ext_raw = raw[0]
-            holes_raw = raw[1:]
-        else:
-            ext_raw = raw
-            holes_raw = []
-
-        def _clean_pts(pts: Any) -> list[tuple[float, float]] | None:
-            if not isinstance(pts, (list, tuple)) or len(pts) < 3:
-                return None
-            res = []
-            for p in pts:
-                if not isinstance(p, (list, tuple)) or len(p) < 2:
-                    return None
-                x = to_finite_float(p[0])
-                y = to_finite_float(p[1])
-                if x is None or y is None:
-                    return None
-                res.append((x, y))
-            return res
-
-        ext = _clean_pts(ext_raw)
-        if ext is None:
-            return None
-        holes = []
-        for h in holes_raw:
-            cleaned_h = _clean_pts(h)
-            if cleaned_h is None:
-                return None
-            holes.append(cleaned_h)
-        try:
-            poly = Polygon(ext, holes)
-            if not poly.is_valid or poly.is_empty or poly.area <= 0:
-                return None
-            return poly
-        except Exception:
-            return None
-
-    g_r = _parse_poly(r_poly_raw)
-    g_c = _parse_poly(c_poly_raw)
+    g_r, r_status = parse_polygon_representation(r_poly_raw)
+    g_c, c_status = parse_polygon_representation(c_poly_raw)
     if g_r is None or g_c is None:
         return False, "invalid"
 
@@ -613,28 +627,51 @@ def compare_locked_object_properties(
         violations.append(f"locked_species_changed({rid}: {r_sp} -> {c_sp})")
 
     # 3. Position (finite coordinates, 2D and 3D)
+    has_r_pos = "position" in ref_obj
     r_pos = ref_obj.get("position")
+    has_c_pos = "position" in cand_obj
     c_pos = cand_obj.get("position")
-    if r_pos is not None:
-        if c_pos is None or not isinstance(c_pos, (list, tuple)) or len(c_pos) < 2:
-            violations.append(f"locked_position_removed({rid})")
+
+    if has_r_pos:
+        if r_pos is None:
+            violations.append(f"locked_reference_position_malformed({rid})")
         else:
-            rx, ry = to_finite_float(r_pos[0]), to_finite_float(r_pos[1])
-            cx, cy = to_finite_float(c_pos[0]), to_finite_float(c_pos[1])
-            if rx is None or ry is None or cx is None or cy is None:
-                violations.append(f"locked_position_invalid({rid})")
-            elif abs(cx - rx) > 1e-3 or abs(cy - ry) > 1e-3:
-                violations.append(f"locked_position_changed({rid}: {r_pos} -> {c_pos})")
-            elif len(r_pos) >= 3:
-                if len(c_pos) < 3:
-                    violations.append(f"locked_z_coordinate_removed({rid})")
-                else:
+            r_pos_ok = isinstance(r_pos, (list, tuple)) and len(r_pos) >= 2
+            rx = to_finite_float(r_pos[0]) if r_pos_ok else None
+            ry = to_finite_float(r_pos[1]) if r_pos_ok else None
+            if not r_pos_ok or rx is None or ry is None:
+                violations.append(f"locked_reference_position_malformed({rid})")
+            elif len(r_pos) >= 3 and to_finite_float(r_pos[2]) is None:
+                violations.append(f"locked_reference_z_coordinate_malformed({rid})")
+            elif not has_c_pos or c_pos is None:
+                violations.append(f"locked_position_removed({rid})")
+            else:
+                c_pos_ok = isinstance(c_pos, (list, tuple)) and len(c_pos) >= 2
+                cx = to_finite_float(c_pos[0]) if c_pos_ok else None
+                cy = to_finite_float(c_pos[1]) if c_pos_ok else None
+                if not c_pos_ok or cx is None or cy is None:
+                    violations.append(f"locked_candidate_position_malformed({rid})")
+                elif len(c_pos) >= 3 and to_finite_float(c_pos[2]) is None:
+                    violations.append(f"locked_candidate_z_coordinate_malformed({rid})")
+                elif abs(cx - rx) > 1e-3 or abs(cy - ry) > 1e-3:
+                    violations.append(f"locked_position_changed({rid}: {r_pos} -> {c_pos})")
+                elif len(r_pos) >= 3:
                     rz = to_finite_float(r_pos[2])
+                    if len(c_pos) < 3:
+                        violations.append(f"locked_z_coordinate_removed({rid})")
+                    else:
+                        cz = to_finite_float(c_pos[2])
+                        if abs(cz - rz) > 1e-3:
+                            violations.append(f"locked_z_coordinate_changed({rid}: {rz} -> {cz})")
+                elif len(c_pos) >= 3:
                     cz = to_finite_float(c_pos[2])
-                    if rz is None or cz is None:
-                        violations.append(f"locked_z_coordinate_invalid({rid})")
-                    elif abs(cz - rz) > 1e-3:
-                        violations.append(f"locked_z_coordinate_changed({rid}: {rz} -> {cz})")
+                    violations.append(f"locked_z_coordinate_changed({rid}: 2D -> 3D({cz}))")
+    elif has_c_pos and c_pos is not None:
+        c_pos_ok = isinstance(c_pos, (list, tuple)) and len(c_pos) >= 2
+        cx = to_finite_float(c_pos[0]) if c_pos_ok else None
+        cy = to_finite_float(c_pos[1]) if c_pos_ok else None
+        if not c_pos_ok or cx is None or cy is None:
+            violations.append(f"locked_candidate_position_malformed({rid})")
 
     # 4. Elevation
     r_elev = ref_obj.get("elevation_m")
