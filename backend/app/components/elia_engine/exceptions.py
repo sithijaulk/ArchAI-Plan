@@ -21,3 +21,12 @@ class InfeasibleLayout(Exception):
         super().__init__(reason)
         self.reason = reason
         self.violations = violations
+
+
+class ELIAPlanningLimitExceeded(ELIAError):
+    """Raised when an algorithmic search, candidate, or computation limit is reached."""
+
+    def __init__(self, message: str = "Planning computation or iteration limit exceeded.", code: str = "ELIA_PLANNING_LIMIT_EXCEEDED", details: dict | None = None) -> None:
+        super().__init__(code=code, message=message, status_code=500)
+        self.details = details or {}
+

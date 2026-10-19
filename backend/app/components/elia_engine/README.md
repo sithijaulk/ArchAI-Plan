@@ -14,6 +14,25 @@ The default solar samples use 09:00, 12:00, and 15:00 local time on the configur
 
 The current configurable well-to-septic separation is 50 ft. The default 5.5 m turning radius is a clearly recorded project configuration fallback, not a universal vehicle fact; vehicle-specific data should be supplied when known. Generic vegetation catalogue entries intentionally have null species measurements. Their configurable plan-view envelopes are rendering/planning envelopes, not verified botanical properties.
 
+## Versioned Exterior Rule Engine
+
+ELIA implements 54 explicit, versioned exterior rules across 8 operational groups:
+- **Group A (A01–A08)**: Context and legal selection (immutable upstream geometry, unit validity, jurisdiction resolution).
+- **Group G (G01–G12)**: Ground planting and available space (geometric polygon union, mature crown clearances, tree preservation, utility buffers).
+- **Group B (B01–B10)**: Balcony planting (structural zone evidence, load verification, drainage runoff, guard routes).
+- **Group R (R01–R12)**: Rooftop planting and elevated trees (extensive vs accessible roofs, structural load schedules, advisory NParks edge distances).
+- **Group V (V01–V06)**: Vertical greenery (climber vs living wall distinctions, saturated anchorage weight, maintenance access).
+- **Group W (W01–W12)**: Sanitation, terrain, water and drainage (well/septic separation screening, common datum groundwater comparisons, gravity drainage feasibility).
+- **Group X (X01–X11)**: Access, parking, gates, furniture, lighting and solar (turning envelopes, gate opening widths, seating clear zones, PV shadow checks).
+- **Group C (C01–C10)**: User preferences, explanation, candidate locks and CAS persistence.
+
+### Rule Classes and Outcomes
+- **Rule Classes**: `L` (Legal/planning candidate), `E` (Engineering/horticultural guidance), `P` (Planner/product policy), `D` (Data-quality/evidence gate).
+- **Rule Outcomes**: `pass`, `fail`, `unknown`, `not_applicable`, `review_required`. Applicability is evaluated strictly prior to compliance; unknown evidence never counts as a pass.
+- **5 Evaluation Categories**: Geometric Validity, Environmental Suitability, Legal Assessment, Elevated Installation, User Preference Satisfaction.
+- **Approval Lifecycle**: Hard physical/boundary violations block acceptance (`approval_status="blocked"`). Elevated or uncertified proposals without professional structural evidence remain viewable as conditional drafts (`approval_status="conditional_draft_review_required"`).
+- **Conditional Starter Plant Catalogue**: Version 2.1 catalogue includes research citations S1–S12 and verified attributes for *Portulaca grandiflora*, *Nephrolepis exaltata*, *Ixora ‘Sri Lanka’*, *Murraya paniculata*, *Bougainvillea glabra*, and *Lagerstroemia speciosa*. Universal plant clearances and financial metrics are excluded.
+
 ## API
 
 Project endpoints require the existing authenticated administrator role because this shared project model has no owner/permission field:

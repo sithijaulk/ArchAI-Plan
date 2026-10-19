@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from math import hypot, isfinite
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 from shapely.geometry import LineString, Point, Polygon
 from shapely.geometry.base import BaseGeometry
@@ -13,7 +13,8 @@ from .gate_garage import garage_polygon
 
 def place_lighting(land: BaseGeometry, residual: BaseGeometry, driveway: LineString | None,
                    gate: Mapping[str, Any] | None, garage: Mapping[str, Any] | None,
-                   requirements: Mapping[str, Any], blocked: BaseGeometry | None = None) -> list[dict[str, Any]]:
+                   requirements: Mapping[str, Any], blocked: BaseGeometry | None = None,
+                   locked_features: Sequence[Mapping[str, Any]] | None = None) -> list[dict[str, Any]]:
     lighting = requirements.get("lighting", {})
     if not lighting.get("required"):
         return []
@@ -28,7 +29,7 @@ def place_lighting(land: BaseGeometry, residual: BaseGeometry, driveway: LineStr
                         "Lighting spacing must be a finite positive number.")
     spacing = max(spacing, rules["minimum_spacing_m"])
 
-    # --- Budget limits ---------------------------------------------------------
+    # --- Algorithmic limits ----------------------------------------------------
     # max_candidates:          total candidate points collected before eligibility
     #                          checking (guards against O(N) candidate generation).
     # max_final_comparison_nodes: maximum number of accepted output nodes
@@ -41,6 +42,47 @@ def place_lighting(land: BaseGeometry, residual: BaseGeometry, driveway: LineStr
     max_final: int = int(rules.get("max_final_comparison_nodes", 500))
     max_spacing_comparisons: int = int(rules.get("max_spacing_comparisons", 250000))
 
+    nodes: list[dict[str, Any]] = []
+    used_ids: set[str] = set()
+
+    # 1. Process Locked Lighting Fixtures First
+    if locked_features is None:
+        locked_features = requirements.get("locked_features") or []
+
+    for locked in locked_features:
+        feat_type = str(locked.get("category") or locked.get("feature_type") or locked.get("type") or "").lower()
+        if feat_type not in {"lighting", "light", "luminaire", "fixture"}:
+            continue
+        jid = str(locked.get("json_id") or "").strip()
+        if not jid:
+            raise ELIAError("ELIA_INVALID_LOCKED_FEATURE", "Locked lighting fixture missing valid identifier.")
+        pos = locked.get("position")
+        if not (isinstance(pos, (list, tuple)) and len(pos) == 2):
+            raise ELIAError("ELIA_INVALID_LOCKED_FEATURE", f"Locked lighting fixture '{jid}' has invalid position.")
+        try:
+            px, py = float(pos[0]), float(pos[1])
+        except (TypeError, ValueError) as exc:
+            raise ELIAError("ELIA_INVALID_LOCKED_FEATURE", f"Locked lighting fixture '{jid}' coordinates must be numeric.") from exc
+        if not (isfinite(px) and isfinite(py)):
+            raise ELIAError("ELIA_INVALID_LOCKED_FEATURE", f"Locked lighting fixture '{jid}' coordinates must be finite.")
+
+        pt = Point(px, py)
+        if not land.covers(pt):
+            raise ELIAError("ELIA_LOCKED_FEATURE_CONFLICT", f"Locked lighting fixture '{jid}' falls outside permissible land boundary.")
+        if blocked is not None and blocked.buffer(0.05).covers(pt):
+            raise ELIAError("ELIA_LOCKED_FEATURE_CONFLICT", f"Locked lighting fixture '{jid}' conflicts with boundary, obstacle, or prior locked feature.")
+
+        # Check pairwise conflict with existing locked lights
+        for prev in nodes:
+            if pt.distance(Point(prev["position"])) < 0.2:
+                raise ELIAError("ELIA_LOCKED_FEATURE_CONFLICT", f"Locked lighting fixture '{jid}' conflicts with prior fixture '{prev.get('json_id')}'.")
+
+        locked_entry = dict(locked)
+        locked_entry["locked"] = True
+        locked_entry["position"] = [px, py]
+        nodes.append(locked_entry)
+        used_ids.add(jid)
+
     zones = lighting.get("zones") or ["gate", "driveway", "garden"]
     candidates: list[tuple[str, Point]] = []
 
@@ -48,14 +90,14 @@ def place_lighting(land: BaseGeometry, residual: BaseGeometry, driveway: LineStr
     # with the zone string to form a uniform (zone: str, point: Point) contract.
     if "gate" in zones and gate:
         if len(candidates) >= max_candidates:
-            raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Total lighting candidates exceed the computation budget.")
+            raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Total lighting candidates exceed the computation limit.")
         candidates.append(("gate", Point(gate["position"])))
 
     if "garage" in zones and garage:
         # _garage_zone_candidates yields Point objects only (no zone tuple).
         for pt in _garage_zone_candidates(garage):
             if len(candidates) >= max_candidates:
-                raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Total lighting candidates exceed the computation budget.")
+                raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Total lighting candidates exceed the computation limit.")
             candidates.append(("garage", pt))
 
     if "driveway" in zones and driveway and driveway.length > 0:
@@ -67,7 +109,7 @@ def place_lighting(land: BaseGeometry, residual: BaseGeometry, driveway: LineStr
             count = max(1, int(line.length // spacing))
             for index in range(1, count + 1):
                 if len(candidates) >= max_candidates:
-                    raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Total lighting candidates exceed the computation budget.")
+                    raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Total lighting candidates exceed the computation limit.")
                 candidates.append(("driveway", line.interpolate(index / (count + 1), normalized=True)))
         except ELIAError:
             raise
@@ -78,35 +120,32 @@ def place_lighting(land: BaseGeometry, residual: BaseGeometry, driveway: LineStr
         # _garden_candidates yields Point objects only.
         for pt in _garden_candidates(residual, spacing):
             if len(candidates) >= max_candidates:
-                raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Total lighting candidates exceed the computation budget.")
+                raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Total lighting candidates exceed the computation limit.")
             candidates.append(("garden", pt))
 
     if "boundary" in zones:
         # _boundary_points yields Point objects only.
         for pt in _boundary_points(land, spacing, max_boundary):
             if len(candidates) >= max_candidates:
-                raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Total lighting candidates exceed the computation budget.")
+                raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Total lighting candidates exceed the computation limit.")
             candidates.append(("boundary", pt))
 
-    nodes: list[dict[str, Any]] = []
     enforced_spacing = spacing - 1e-3
     spacing_comparisons = 0   # cumulative count of spacing comparisons performed
 
     for zone, point in candidates:
-        # point is always a shapely geometry at this point — guaranteed by the
-        # helpers and the collection loops above.
         if not land.covers(point):
             continue
         if blocked is not None and blocked.buffer(0.05).covers(point):
             continue
 
         # Spacing comparisons against every accepted node.
-        # Count each comparison against the cumulative budget BEFORE performing it.
+        # Count each comparison against the cumulative limit BEFORE performing it.
         for node in nodes:
             if spacing_comparisons >= max_spacing_comparisons:
                 raise ELIAError(
                     "ELIA_PLANNING_LIMIT_EXCEEDED",
-                    f"Spacing comparison budget ({max_spacing_comparisons}) exhausted. "
+                    f"Spacing comparison limit ({max_spacing_comparisons}) exhausted. "
                     "Reduce the number of candidates or increase the spacing."
                 )
             spacing_comparisons += 1
@@ -126,7 +165,14 @@ def place_lighting(land: BaseGeometry, residual: BaseGeometry, driveway: LineStr
                     f"Final lighting node count exceeds the output limit of {max_final}."
                 )
             light_type = rules["render_types"].get(lighting.get("style", "minimal"), "bollard")
-            nodes.append({"json_id": f"LIGHT_{len(nodes) + 1:03d}", "position": [point.x, point.y],
+            node_idx = len(nodes) + 1
+            light_id = f"LIGHT_{node_idx:03d}"
+            while light_id in used_ids:
+                node_idx += 1
+                light_id = f"LIGHT_{node_idx:03d}"
+            used_ids.add(light_id)
+
+            nodes.append({"json_id": light_id, "position": [point.x, point.y],
                           "type": light_type, "zone": zone,
                           "height_m": rules["mounting_height_m"].get(zone, 1.0),
                           "orientation_degrees": None, "render": {"visible": True}})
@@ -141,7 +187,7 @@ def _garden_candidates(residual: BaseGeometry, spacing: float):
 
     estimated_cells = ((max_x - min_x) / step) * ((max_y - min_y) / step)
     if estimated_cells > elia_rules()["access"].get("max_grid_cells", 200000):
-        raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Search budget exhausted for garden lighting.")
+        raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Search limit exhausted for garden lighting.")
 
     y = min_y + step / 2
     while y <= max_y:
@@ -155,11 +201,7 @@ def _garden_candidates(residual: BaseGeometry, spacing: float):
 
 
 def _garage_zone_candidates(garage: Mapping[str, Any]):
-    """Yield Point candidates near the garage entry, clearly outside the garage polygon.
-
-    Contract: yields shapely Point objects only.  The caller is responsible for
-    attaching the "garage" zone label when building the (zone, point) candidate list.
-    """
+    """Yield Point candidates near the garage entry, clearly outside the garage polygon."""
     try:
         garage_poly = garage_polygon(garage)
         entry = Point(garage["entry_point"])
@@ -185,6 +227,7 @@ def _boundary_points(land: BaseGeometry, spacing: float, max_points: int = 2000)
     count = max(1, int(boundary.length // spacing))
     if count > max_points:
         raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED",
-                        f"Boundary lighting point count ({count}) exceeds budget ({max_points}).")
+                        f"Boundary lighting point count ({count}) exceeds limit ({max_points}).")
     for index in range(count):
         yield boundary.interpolate((index + 0.5) / count, normalized=True)
+

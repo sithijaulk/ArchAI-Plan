@@ -31,7 +31,7 @@ export const PlanPreview2D: React.FC<PlanPreview2DProps> = ({
   if (!data) {
     return (
       <div className="h-[450px] flex items-center justify-center text-muted-foreground text-xs">
-        No blueprint data generated yet. Click "Generate Blueprint" to begin.
+        No blueprint data generated yet. Click &quot;Generate Blueprint&quot; to begin.
       </div>
     );
   }

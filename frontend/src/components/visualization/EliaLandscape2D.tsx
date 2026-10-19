@@ -28,6 +28,9 @@ import {
 interface Props {
   viewModel?: EliaViewModel | null
   landscape?: ExteriorLandscape | null
+  selectedFeatureId?: string | null
+  onSelectFeature?: (id: string) => void
+  lockedFeatureIds?: string[]
 }
 
 function diamondPath(cx: number, cy: number, r: number): string {
@@ -49,6 +52,9 @@ function starPath(cx: number, cy: number, r: number, points = 5): string {
 export default function EliaLandscape2D({
   viewModel,
   landscape: directLandscape,
+  selectedFeatureId,
+  onSelectFeature,
+  lockedFeatureIds = [],
 }: Props) {
   const landscape = viewModel?.landscape ?? directLandscape ?? null
 
@@ -258,17 +264,27 @@ export default function EliaLandscape2D({
               const dims = el.dimensions ?? {}
               const w = dims.width_m ?? dims.width ?? 1
               const d = dims.depth_m ?? dims.depth ?? w
+              const isSelected = selectedFeatureId === el.json_id
+              const isLocked = lockedFeatureIds.includes(el.json_id)
               return (
-                <rect
+                <g
                   key={el.json_id}
-                  x={c[0] - w / 2}
-                  y={c[1] - d / 2}
-                  width={w}
-                  height={d}
-                  fill="#4b5563"
-                  stroke="#6b7280"
-                  strokeWidth="0.1"
-                />
+                  onClick={() => onSelectFeature?.(el.json_id)}
+                  style={{ cursor: onSelectFeature ? 'pointer' : 'default' }}
+                >
+                  <rect
+                    x={c[0] - w / 2}
+                    y={c[1] - d / 2}
+                    width={w}
+                    height={d}
+                    fill={isSelected ? '#3b82f6' : '#4b5563'}
+                    stroke={isSelected ? '#60a5fa' : isLocked ? '#f59e0b' : '#6b7280'}
+                    strokeWidth={isSelected ? 0.25 : isLocked ? 0.2 : 0.1}
+                  />
+                  {isLocked && (
+                    <circle cx={c[0]} cy={c[1]} r={0.2} fill="#f59e0b" stroke="#ffffff" strokeWidth="0.05" />
+                  )}
+                </g>
               )
             })}
 
@@ -277,18 +293,38 @@ export default function EliaLandscape2D({
               const c = featureCenter(node)
               if (!c) return null
               const r = featureCanopyRadius(node)
+              const isSelected = selectedFeatureId === node.json_id
+              const isLocked = lockedFeatureIds.includes(node.json_id)
               return (
-                <g key={node.json_id}>
+                <g
+                  key={node.json_id}
+                  onClick={() => onSelectFeature?.(node.json_id)}
+                  style={{ cursor: onSelectFeature ? 'pointer' : 'default' }}
+                >
                   <circle
                     cx={c[0]}
                     cy={c[1]}
                     r={r}
-                    fill="#16a34a"
-                    opacity={0.7}
-                    stroke="#22c55e"
-                    strokeWidth="0.1"
+                    fill={isSelected ? '#059669' : '#16a34a'}
+                    opacity={isSelected ? 0.9 : 0.7}
+                    stroke={isSelected ? '#38bdf8' : isLocked ? '#f59e0b' : '#22c55e'}
+                    strokeWidth={isSelected ? 0.3 : isLocked ? 0.2 : 0.1}
                   />
                   <circle cx={c[0]} cy={c[1]} r={r * 0.15} fill="#713f12" />
+                  {isLocked && (
+                    <circle cx={c[0]} cy={c[1]} r={0.25} fill="#f59e0b" stroke="#ffffff" strokeWidth="0.06" />
+                  )}
+                  {isSelected && (
+                    <circle
+                      cx={c[0]}
+                      cy={c[1]}
+                      r={r + 0.15}
+                      fill="none"
+                      stroke="#38bdf8"
+                      strokeWidth="0.08"
+                      strokeDasharray="0.3 0.2"
+                    />
+                  )}
                 </g>
               )
             })}
@@ -312,14 +348,24 @@ export default function EliaLandscape2D({
             {landscape?.outdoor_lighting?.nodes?.map((node) => {
               const c = featureCenter(node)
               if (!c) return null
+              const isSelected = selectedFeatureId === node.json_id
+              const isLocked = lockedFeatureIds.includes(node.json_id)
               return (
-                <path
+                <g
                   key={node.json_id}
-                  d={starPath(c[0], c[1], 0.35)}
-                  fill="#fbbf24"
-                  stroke="#d97706"
-                  strokeWidth="0.06"
-                />
+                  onClick={() => onSelectFeature?.(node.json_id)}
+                  style={{ cursor: onSelectFeature ? 'pointer' : 'default' }}
+                >
+                  <path
+                    d={starPath(c[0], c[1], 0.35)}
+                    fill={isSelected ? '#fef08a' : '#fbbf24'}
+                    stroke={isSelected ? '#38bdf8' : isLocked ? '#f59e0b' : '#d97706'}
+                    strokeWidth={isSelected ? 0.15 : 0.06}
+                  />
+                  {isLocked && (
+                    <circle cx={c[0]} cy={c[1]} r={0.15} fill="#f59e0b" stroke="#ffffff" strokeWidth="0.04" />
+                  )}
+                </g>
               )
             })}
 

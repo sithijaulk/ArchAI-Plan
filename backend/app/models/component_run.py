@@ -2,7 +2,10 @@ import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, Text, JSON, ForeignKey
 from sqlalchemy.orm import relationship
-from ..database import Base
+try:
+    from .database import Base
+except (ImportError, ValueError):
+    from app.database import Base
 
 
 class ComponentRun(Base):
