@@ -1,7 +1,7 @@
 """
 Survey extraction interface and providers.
 Stage 1: ManualSurveyExtractionProvider and FixtureSurveyExtractionProvider.
-Stage 2 (future): EasyOCRSurveyExtractionProvider.
+Stage 2: EasyOCRSurveyExtractionProvider.
 """
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional

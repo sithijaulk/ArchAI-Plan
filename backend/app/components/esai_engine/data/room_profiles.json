@@ -1,0 +1,78 @@
+{
+  "version": "1.0",
+  "profiles": [
+    {
+      "room_type": "master_bedroom",
+      "display_name": "Master Bedroom",
+      "recommended_assets": ["bed", "bedside_table", "wardrobe", "dressing_table"],
+      "optional_assets": ["armchair", "tv_console"],
+      "default_min_area_sqm": 12.0,
+      "functional_relationships": [
+        {"from_category": "bedside_table", "to_category": "bed", "affinity": "adjacent", "max_distance_m": 0.3},
+        {"from_category": "wardrobe", "to_category": "bed", "affinity": "clearance_separated", "min_distance_m": 0.9}
+      ]
+    },
+    {
+      "room_type": "bedroom",
+      "display_name": "Standard Bedroom",
+      "recommended_assets": ["bed", "bedside_table", "wardrobe", "desk", "office_chair"],
+      "optional_assets": ["bookshelf"],
+      "default_min_area_sqm": 9.0,
+      "functional_relationships": [
+        {"from_category": "bedside_table", "to_category": "bed", "affinity": "adjacent", "max_distance_m": 0.3},
+        {"from_category": "desk", "to_category": "office_chair", "affinity": "paired", "max_distance_m": 0.1}
+      ]
+    },
+    {
+      "room_type": "living_room",
+      "display_name": "Living Room",
+      "recommended_assets": ["sofa", "coffee_table", "tv_console"],
+      "optional_assets": ["armchair", "side_table", "bookshelf"],
+      "default_min_area_sqm": 16.0,
+      "functional_relationships": [
+        {"from_category": "coffee_table", "to_category": "sofa", "affinity": "front_facing", "distance_m": 0.45},
+        {"from_category": "tv_console", "to_category": "sofa", "affinity": "opposite_viewing", "min_distance_m": 2.0, "max_distance_m": 3.8}
+      ]
+    },
+    {
+      "room_type": "dining_room",
+      "display_name": "Dining Room",
+      "recommended_assets": ["dining_table", "dining_chair"],
+      "optional_assets": ["storage_cabinet"],
+      "default_min_area_sqm": 10.0,
+      "functional_relationships": [
+        {"from_category": "dining_chair", "to_category": "dining_table", "affinity": "tucked_under", "max_distance_m": 0.2}
+      ]
+    },
+    {
+      "room_type": "kitchen",
+      "display_name": "Kitchen",
+      "recommended_assets": ["kitchen_counter", "kitchen_appliance"],
+      "optional_assets": ["kitchen_island"],
+      "default_min_area_sqm": 7.0,
+      "functional_relationships": [
+        {"from_category": "kitchen_island", "to_category": "kitchen_counter", "affinity": "parallel_aisle", "min_distance_m": 1.2}
+      ]
+    },
+    {
+      "room_type": "bathroom",
+      "display_name": "Bathroom",
+      "recommended_assets": ["basin", "commode", "shower_enclosure"],
+      "optional_assets": ["bathtub"],
+      "default_min_area_sqm": 3.5,
+      "functional_relationships": [
+        {"from_category": "basin", "to_category": "commode", "affinity": "side_by_side", "min_distance_m": 0.3}
+      ]
+    },
+    {
+      "room_type": "study",
+      "display_name": "Study / Home Office",
+      "recommended_assets": ["desk", "office_chair", "bookshelf"],
+      "optional_assets": ["armchair"],
+      "default_min_area_sqm": 7.5,
+      "functional_relationships": [
+        {"from_category": "office_chair", "to_category": "desk", "affinity": "paired", "max_distance_m": 0.1}
+      ]
+    }
+  ]
+}

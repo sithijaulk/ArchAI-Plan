@@ -63,12 +63,10 @@ class GabGenService:
         closure_error = reconstructed.get("closure_error", 0.0)
 
         # Step 2: Convert declared area to square meters
-        unit = requirements.declared_land_unit
-        if unit == LandExtentUnit.PERCHES:
-            declared_sqm = requirements.declared_land_extent * PERCH_TO_SQM
-        elif unit == LandExtentUnit.SQUARE_FEET:
-            declared_sqm = requirements.declared_land_extent * SQFT_TO_SQM
-        else:
+        from .input.units import convert_area_to_sqm
+        try:
+            declared_sqm = convert_area_to_sqm(requirements.declared_land_extent, requirements.declared_land_unit)
+        except Exception:
             declared_sqm = requirements.declared_land_extent
 
         # Step 3: Area Cross-Check using configurable tolerance

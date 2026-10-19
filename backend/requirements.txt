@@ -13,6 +13,12 @@ email-validator
 pillow
 python-slugify
 shapely
+pytest
 numpy
 pvlib
 httpx
+# Phase 2: GA Optimizer and PDF generation
+pygad
+scipy
+reportlab
+fpdf2
