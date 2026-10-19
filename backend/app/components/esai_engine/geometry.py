@@ -108,3 +108,77 @@ def check_collision(poly_a: Polygon, poly_b: Polygon) -> bool:
     intersection = poly_a.intersection(poly_b)
     # Ignore boundary touches
     return intersection.area > 0.0001
+
+
+def compute_geometry_fingerprint(structural_input: Any) -> str:
+    """
+    Computes a deterministic SHA-256 fingerprint of the authoritative structural geometry.
+    Covers:
+    - unit
+    - floors (ordered by floor_id)
+    - rooms (ordered by room_id): coordinates, area, elevation, ceiling height
+    - walls (ordered by id): start, end, thickness
+    - openings (doors, windows ordered by id): start, end, width/length
+    Unrelated changes (client preferences, metadata, reports, exterior landscape)
+    do NOT alter this fingerprint.
+    """
+    import hashlib
+    import json
+
+    floors_data = []
+    for fl in sorted(structural_input.floors, key=lambda f: str(f.floor_id)):
+        rooms_data = []
+        for rm in sorted(fl.rooms, key=lambda r: str(r.room_id)):
+            poly_coords = [[round(pt.x, 4), round(pt.y, 4)] for pt in rm.polygon]
+            doors_data = [
+                {
+                    "id": d.id,
+                    "start": [round(d.start.x, 4), round(d.start.y, 4)],
+                    "end": [round(d.end.x, 4), round(d.end.y, 4)],
+                    "width": round(d.leaf_width, 4)
+                }
+                for d in sorted(rm.doors, key=lambda d: str(d.id))
+            ]
+            windows_data = [
+                {
+                    "id": w.id,
+                    "start": [round(w.start.x, 4), round(w.start.y, 4)],
+                    "end": [round(w.end.x, 4), round(w.end.y, 4)],
+                    "length": round(w.length, 4)
+                }
+                for w in sorted(rm.windows, key=lambda w: str(w.id))
+            ]
+            rooms_data.append({
+                "room_id": rm.room_id,
+                "room_type": rm.room_type.value if hasattr(rm.room_type, "value") else str(rm.room_type),
+                "area_sqm": round(rm.area_sqm, 3),
+                "polygon": poly_coords,
+                "ceiling_height": round(rm.ceiling_height, 2) if rm.ceiling_height else None,
+                "doors": doors_data,
+                "windows": windows_data
+            })
+
+        walls_data = [
+            {
+                "id": w.id,
+                "start": [round(w.start.x, 4), round(w.start.y, 4)],
+                "end": [round(w.end.x, 4), round(w.end.y, 4)],
+                "thickness": round(w.thickness, 4)
+            }
+            for w in sorted(getattr(fl, "walls", []), key=lambda w: str(w.id))
+        ]
+
+        floors_data.append({
+            "floor_id": fl.floor_id,
+            "elevation": round(fl.elevation, 3) if fl.elevation else 0.0,
+            "rooms": rooms_data,
+            "walls": walls_data
+        })
+
+    canonical_obj = {
+        "unit": structural_input.unit.value if hasattr(structural_input.unit, "value") else str(structural_input.unit),
+        "floors": floors_data
+    }
+    encoded = json.dumps(canonical_obj, sort_keys=True, separators=(',', ':')).encode('utf-8')
+    return hashlib.sha256(encoded).hexdigest()
+

@@ -35,7 +35,8 @@ class EsaiDatabaseRepository:
         floor_id: str,
         room_id: str,
         requirements_data: Dict[str, Any],
-        status: str = "draft"
+        status: str = "draft",
+        auto_commit: bool = True
     ) -> EsaiRoomRequirement:
         record = self.get_single_room_requirement(project_id, room_id)
         if record:
@@ -51,8 +52,11 @@ class EsaiDatabaseRepository:
                 status=status
             )
             self.db.add(record)
-        self.db.commit()
-        self.db.refresh(record)
+        if auto_commit:
+            self.db.commit()
+            self.db.refresh(record)
+        else:
+            self.db.flush()
         return record
 
     def delete_room_requirement(self, project_id: str, room_id: str) -> bool:
@@ -67,19 +71,32 @@ class EsaiDatabaseRepository:
     def get_design_preference(self, project_id: str) -> Optional[EsaiDesignPreference]:
         return self.db.query(EsaiDesignPreference).filter(EsaiDesignPreference.project_id == project_id).first()
 
-    def upsert_design_preference(self, project_id: str, preferences_data: Dict[str, Any]) -> EsaiDesignPreference:
+    def upsert_design_preference(
+        self,
+        project_id: str,
+        preferences_data: Dict[str, Any],
+        geometry_fingerprint: Optional[str] = None,
+        auto_commit: bool = True
+    ) -> EsaiDesignPreference:
         record = self.get_design_preference(project_id)
         if record:
             record.preferences_json = preferences_data
+            if geometry_fingerprint is not None:
+                record.geometry_fingerprint = geometry_fingerprint
         else:
             record = EsaiDesignPreference(
                 project_id=project_id,
-                preferences_json=preferences_data
+                preferences_json=preferences_data,
+                geometry_fingerprint=geometry_fingerprint
             )
             self.db.add(record)
-        self.db.commit()
-        self.db.refresh(record)
+        if auto_commit:
+            self.db.commit()
+            self.db.refresh(record)
+        else:
+            self.db.flush()
         return record
+
 
     # 3. Saved Configurations CRUD
     def list_saved_configs(self, project_id: str) -> List[EsaiSavedConfig]:

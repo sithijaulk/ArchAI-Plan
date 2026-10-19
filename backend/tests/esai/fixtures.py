@@ -209,3 +209,168 @@ INVALID_SELF_INTERSECTING_FIXTURE = {
         ]
     }
 }
+
+
+# 6. Real GAB-GEN Direct Output Fixture (Workflow A)
+
+# Features: units="meters", type fields like "family_living_area", "dining_area",
+# "attached_bathroom", "common_bathroom", "study_office", walls collection, no door coordinates
+GAB_GEN_DIRECT_FIXTURE = {
+    "project_id": "test_gab_direct_01",
+    "project_name": "GAB-Gen Real Villa",
+    "schema_version": "2.0.0",
+    "units": "meters",
+    "floor_plan": {
+        "floors": [
+            {
+                "floor_id": "F0",
+                "floor_index": 0,
+                "name": "Ground Floor",
+                "elevation": 0.0,
+                "floor_height": 3.0,
+                "available_area": 120.0,
+                "target_allocated_area": 115.0,
+                "rooms": [
+                    {
+                        "room_id": "RM_FAM_LIV",
+                        "name": "Family Living Room",
+                        "type": "family_living_area",
+                        "floor_id": "F0",
+                        "area": 25.0,
+                        "target_area": 25.0,
+                        "polygon": [{"x": 0.0, "y": 0.0}, {"x": 5.0, "y": 0.0}, {"x": 5.0, "y": 5.0}, {"x": 0.0, "y": 5.0}],
+                        "center": {"x": 2.5, "y": 2.5}
+                    },
+                    {
+                        "room_id": "RM_DINING",
+                        "name": "Dining Space",
+                        "type": "dining_area",
+                        "floor_id": "F0",
+                        "area": 16.0,
+                        "target_area": 16.0,
+                        "polygon": [{"x": 5.0, "y": 0.0}, {"x": 9.0, "y": 0.0}, {"x": 9.0, "y": 4.0}, {"x": 5.0, "y": 4.0}],
+                        "center": {"x": 7.0, "y": 2.0}
+                    },
+                    {
+                        "room_id": "RM_STUDY",
+                        "name": "Home Study",
+                        "type": "study_office",
+                        "floor_id": "F0",
+                        "area": 12.0,
+                        "target_area": 12.0,
+                        "polygon": [{"x": 0.0, "y": 5.0}, {"x": 4.0, "y": 5.0}, {"x": 4.0, "y": 8.0}, {"x": 0.0, "y": 8.0}],
+                        "center": {"x": 2.0, "y": 6.5}
+                    },
+                    {
+                        "room_id": "RM_ATT_BATH",
+                        "name": "Attached Bath",
+                        "type": "attached_bathroom",
+                        "floor_id": "F0",
+                        "area": 6.0,
+                        "target_area": 6.0,
+                        "polygon": [{"x": 5.0, "y": 4.0}, {"x": 8.0, "y": 4.0}, {"x": 8.0, "y": 6.0}, {"x": 5.0, "y": 6.0}],
+                        "center": {"x": 6.5, "y": 5.0}
+                    },
+                    {
+                        "room_id": "RM_COM_BATH",
+                        "name": "Common Bath",
+                        "type": "common_bathroom",
+                        "floor_id": "F0",
+                        "area": 5.0,
+                        "target_area": 5.0,
+                        "polygon": [{"x": 8.0, "y": 4.0}, {"x": 10.5, "y": 4.0}, {"x": 10.5, "y": 6.0}, {"x": 8.0, "y": 6.0}],
+                        "center": {"x": 9.25, "y": 5.0}
+                    }
+                ],
+                "walls": [
+                    {
+                        "wall_id": "W_EXT_01",
+                        "floor_id": "F0",
+                        "start": {"x": 0.0, "y": 0.0},
+                        "end": {"x": 10.5, "y": 0.0},
+                        "wall_type": "exterior",
+                        "thickness": 0.225,
+                        "related_room_ids": ["RM_FAM_LIV", "RM_DINING"]
+                    }
+                ]
+            }
+        ]
+    },
+    "processing": {
+        "gab_gen": {"status": "completed"},
+        "vsai_rectifier": {"status": "pending"},
+        "esai_engine": {"status": "pending"},
+        "elia_engine": {"status": "pending"}
+    }
+}
+
+# 7. VSAI Rectified Geometry Fixture (Workflow B)
+VSAI_RECTIFIED_FIXTURE = {
+    "project_id": "test_vsai_workflow_b",
+    "project_name": "VSAI Corrected Estate",
+    "unit": "meters",
+    "floor_plan": {
+        "floors": [
+            {
+                "floor_id": "F0",
+                "name": "Ground Floor",
+                "rooms": [
+                    {
+                        "room_id": "RM_GAB_ORIGINAL",
+                        "name": "Old Room",
+                        "type": "living_room",
+                        "polygon": [[0.0, 0.0], [4.0, 0.0], [4.0, 4.0], [0.0, 4.0]]
+                    }
+                ]
+            }
+        ]
+    },
+    "structural_rectification": {
+        "floor_plan": {
+            "floors": [
+                {
+                    "floor_id": "F0_RECTIFIED",
+                    "name": "Rectified Ground Floor",
+                    "elevation": 0.0,
+                    "rooms": [
+                        {
+                            "room_id": "RM_VSAI_CORRECTED",
+                            "name": "Vastu Corrected Master Bed",
+                            "room_type": "master_bedroom",
+                            "polygon": [[0.0, 0.0], [5.0, 0.0], [5.0, 4.5], [0.0, 4.5]],
+                            "doors": [{"id": "D_RECT", "start": [0.0, 0.5], "end": [0.0, 1.4], "leaf_width": 0.9}]
+                        }
+                    ]
+                }
+            ]
+        }
+    },
+    "processing": {
+        "gab_gen": {"status": "completed"},
+        "vsai_rectifier": {"status": "completed"},
+        "esai_engine": {"status": "pending"}
+    }
+}
+
+# 8. Unknown Room Type Fixture
+UNKNOWN_ROOM_TYPE_FIXTURE = {
+    "project_id": "test_unknown_room_type",
+    "project_name": "Experimental Facility",
+    "unit": "m",
+    "floor_plan": {
+        "floors": [
+            {
+                "floor_id": "f_sub",
+                "name": "Subterranean",
+                "rooms": [
+                    {
+                        "room_id": "RM_UNKNOWN_01",
+                        "name": "Cryogenic Chamber",
+                        "type": "cryogenic_vault",
+                        "polygon": [[0.0, 0.0], [5.0, 0.0], [5.0, 5.0], [0.0, 5.0]]
+                    }
+                ]
+            }
+        ]
+    }
+}

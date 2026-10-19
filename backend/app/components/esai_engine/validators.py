@@ -73,7 +73,15 @@ class EsaiInputValidator:
                         severity="error"
                     ))
 
-                if not room.doors:
+                if not room.doors_data_available:
+                    warnings.append(ValidationMessage(
+                        code="DOOR_DATA_UNAVAILABLE",
+                        path=f"floor_plan.floors[{floor.floor_id}].rooms[{room.room_id}].doors",
+                        room_id=room.room_id,
+                        message=f"Room '{room.room_id}' has no opening data in upstream geometry. Upstream field 'doors' is missing.",
+                        severity="warning"
+                    ))
+                elif not room.doors:
                     warnings.append(ValidationMessage(
                         code="ROOM_WITHOUT_DOORS",
                         path="floor_plan",
@@ -81,6 +89,33 @@ class EsaiInputValidator:
                         message=f"Room '{room.room_id}' does not have any doors defined.",
                         severity="warning"
                     ))
+
+                if not room.windows_data_available:
+                    warnings.append(ValidationMessage(
+                        code="WINDOW_DATA_UNAVAILABLE",
+                        path=f"floor_plan.floors[{floor.floor_id}].rooms[{room.room_id}].windows",
+                        room_id=room.room_id,
+                        message=f"Room '{room.room_id}' has no window data in upstream geometry. Upstream field 'windows' is missing.",
+                        severity="warning"
+                    ))
+                elif not room.windows:
+                    info.append(ValidationMessage(
+                        code="ROOM_WITHOUT_WINDOWS",
+                        path="floor_plan",
+                        room_id=room.room_id,
+                        message=f"Room '{room.room_id}' explicitly has no windows defined.",
+                        severity="info"
+                    ))
+
+                if room.is_unsupported_type:
+                    warnings.append(ValidationMessage(
+                        code="UNSUPPORTED_ROOM_TYPE",
+                        path=f"floor_plan.floors[{floor.floor_id}].rooms[{room.room_id}].type",
+                        room_id=room.room_id,
+                        message=f"Room '{room.room_id}' has unsupported room type '{room.source_room_type}'. Original type preserved; classified as UNKNOWN.",
+                        severity="warning"
+                    ))
+
 
         return ValidationResultDTO(
             valid=(len(errors) == 0),
@@ -92,21 +127,50 @@ class EsaiInputValidator:
     def validate_room_requirements(
         self,
         requirements: RoomRequirementsDTO,
-        room: Optional[RoomDTO] = None
+        room: Optional[RoomDTO] = None,
+        structural_input: Optional[StructuralInputDTO] = None
     ) -> ValidationResultDTO:
         errors: List[ValidationMessage] = []
         warnings: List[ValidationMessage] = []
         info: List[ValidationMessage] = []
 
-        # Check room match
-        if room and room.room_id != requirements.room_id:
+        # 1. Floor & Room identity validation against loaded Master JSON
+        if structural_input:
+            valid_floor_ids = {f.floor_id for f in structural_input.floors}
+            if requirements.floor_id not in valid_floor_ids:
+                errors.append(ValidationMessage(
+                    code="FLOOR_NOT_FOUND",
+                    path="requirements.floor_id",
+                    room_id=requirements.room_id,
+                    message=f"Floor '{requirements.floor_id}' does not exist in the loaded project geometry.",
+                    severity="error"
+                ))
+
+        if room is None:
             errors.append(ValidationMessage(
-                code="ROOM_ID_MISMATCH",
+                code="ROOM_NOT_FOUND",
                 path="requirements.room_id",
                 room_id=requirements.room_id,
-                message=f"Requirements room ID '{requirements.room_id}' does not match target room '{room.room_id}'.",
+                message=f"Room '{requirements.room_id}' does not exist in the project geometry.",
                 severity="error"
             ))
+        else:
+            if room.room_id != requirements.room_id:
+                errors.append(ValidationMessage(
+                    code="ROOM_ID_MISMATCH",
+                    path="requirements.room_id",
+                    room_id=requirements.room_id,
+                    message=f"Requirements room ID '{requirements.room_id}' does not match target room '{room.room_id}'.",
+                    severity="error"
+                ))
+            if room.floor_id != requirements.floor_id:
+                errors.append(ValidationMessage(
+                    code="ROOM_FLOOR_MISMATCH",
+                    path="requirements.floor_id",
+                    room_id=requirements.room_id,
+                    message=f"Room '{room.room_id}' belongs to floor '{room.floor_id}', but requirements specified floor '{requirements.floor_id}'.",
+                    severity="error"
+                ))
 
         seen_instance_ids = set()
         total_furniture_footprint_sqm = 0.0
