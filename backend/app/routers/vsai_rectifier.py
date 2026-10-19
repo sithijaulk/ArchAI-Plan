@@ -18,6 +18,7 @@ from ..models.component_run import ComponentRun, ProjectOutput
 from ..models.project import Project
 from ..schemas.vsai_rectifier import VsaiRunRequest
 from ..services.master_json import merge_master_json
+from ..services.vastu_engine import evaluate_vastu_shastra, load_vastu_rules
 from ..services.vsai_rectifier import VsaiInputError, prepare_master_json, run_vsai_rectifier
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,40 @@ SUPPORTED_IMAGE_TYPES = {
     ".jpg": ("JPEG", "image/jpeg"),
     ".jpeg": ("JPEG", "image/jpeg"),
 }
+
+
+def resolve_stored_master_json(
+    project_id: str,
+    project: Project | None = None,
+    db: Session | None = None,
+) -> dict[str, Any] | None:
+    """Resolves Master JSON from database or fallback shared/upload filesystem locations."""
+    if project is not None and isinstance(project.master_json, dict):
+        return project.master_json
+
+    if db is not None:
+        try:
+            p = db.query(Project).filter(Project.id == project_id).first()
+            if p is not None and isinstance(p.master_json, dict):
+                return p.master_json
+        except Exception as db_err:
+            logger.debug("Database lookup in resolve_stored_master_json skipped: %s", db_err)
+
+    shared_root = Path(__file__).resolve().parents[3] / "shared"
+    candidates = [
+        shared_root / "vsi-bd" / f"{project_id}.json",
+        shared_root / "vsai-bd" / f"{project_id}.json",
+        Path(settings.upload_dir).resolve() / "projects" / project_id / "master_input.json",
+    ]
+    for cp in candidates:
+        if cp.is_file():
+            try:
+                with open(cp, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception as file_err:
+                logger.debug("Could not read candidate file %s: %s", cp, file_err)
+
+    return None
 
 
 @router.post(
@@ -49,24 +84,7 @@ def run_vsai(
     except Exception as db_err:
         logger.warning("Database unavailable in run_vsai: %s", db_err)
 
-    stored_master_json = None
-    if project is not None:
-        stored_master_json = project.master_json
-    else:
-        shared_root = Path(__file__).resolve().parents[3] / "shared"
-        candidates = [
-            shared_root / "vsi-bd" / f"{project_id}.json",
-            shared_root / "vsai-bd" / f"{project_id}.json",
-            Path(settings.upload_dir).resolve() / "projects" / project_id / "master_input.json",
-        ]
-        for cp in candidates:
-            if cp.is_file():
-                try:
-                    with open(cp, "r", encoding="utf-8") as f:
-                        stored_master_json = json.load(f)
-                    break
-                except Exception:
-                    pass
+    stored_master_json = resolve_stored_master_json(project_id, project=project, db=db)
 
     if stored_master_json is None and (data is None or data.master_json is None):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
@@ -290,8 +308,8 @@ def get_vsai_history(project_id: str, db: Session = Depends(get_db)):
     "/vastu-rules",
     summary="Get extensible Vastu Shastra rules configuration",
 )
-def get_vastu_rules():
-    from ..services.vastu_engine import load_vastu_rules
+def get_vastu_rules() -> dict[str, Any]:
+    """Returns all active, extensible Vastu Shastra rule definitions."""
     return {"rules": load_vastu_rules()}
 
 
@@ -299,8 +317,8 @@ def get_vastu_rules():
     "/vastu-analysis",
     summary="Directly evaluate Vastu Shastra score and defects on supplied JSON",
 )
-def evaluate_vastu_direct(data: dict):
-    from ..services.vastu_engine import evaluate_vastu_shastra
+def evaluate_vastu_direct(data: dict[str, Any]) -> dict[str, Any]:
+    """Calculates spatial harmony score, defects, and recommendations on given Master JSON."""
     return evaluate_vastu_shastra(data)
 
 
@@ -308,34 +326,159 @@ def evaluate_vastu_direct(data: dict):
     "/{project_id}/vastu-analysis",
     summary="Get comprehensive Vastu compliance score, good aspects, and defects",
 )
-def get_project_vastu_analysis(project_id: str, db: Session = Depends(get_db)):
-    from ..services.vastu_engine import evaluate_vastu_shastra
-    master_json = None
-    try:
-        project = db.query(Project).filter(Project.id == project_id).first()
-        if project and isinstance(project.master_json, dict):
-            master_json = project.master_json
-    except Exception:
-        pass
-
-    if not master_json:
-        shared_root = Path(__file__).resolve().parents[3] / "shared"
-        candidates = [
-            shared_root / "vsi-bd" / f"{project_id}.json",
-            shared_root / "vsai-bd" / f"{project_id}.json",
-            Path(settings.upload_dir).resolve() / "projects" / project_id / "master_input.json",
-        ]
-        for c in candidates:
-            if c.exists():
-                try:
-                    with open(c, "r", encoding="utf-8") as f:
-                        master_json = json.load(f)
-                    break
-                except Exception:
-                    pass
-
+def get_project_vastu_analysis(project_id: str, db: Session = Depends(get_db)) -> dict[str, Any]:
+    """Retrieves project floor plan and evaluates Vastu Shastra spatial compliance."""
+    master_json = resolve_stored_master_json(project_id, db=db)
     if not master_json:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project Master JSON not found")
 
     return evaluate_vastu_shastra(master_json)
+
+
+@router.post(
+    "/vsai-rectifier/confirm-missing-info",
+    summary="Merge user-confirmed inputs into Master JSON and run Vastu analysis",
+)
+def confirm_missing_info_direct(
+    payload: dict[str, Any],
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """Applies user-confirmed inputs to a normalized copy of the Master JSON without destructive overwrite,
+    re-validates, and runs the four finalized Vastu rules once all required inputs are present."""
+    from ..services.missing_info_service import merge_confirmed_inputs
+    from ..services.vsai_validator import validate_master_json
+
+    master_json = payload.get("master_json")
+    answers = payload.get("confirmed_answers") or {}
+    project_id = payload.get("project_id")
+
+    if not isinstance(master_json, dict):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing or invalid 'master_json'.")
+
+    normalized_master_json = merge_confirmed_inputs(master_json, answers)
+    validation = validate_master_json(normalized_master_json)
+
+    remaining_report = validation.get("missing_info_report") or {}
+    is_complete = not remaining_report.get("has_blocking_missing_info", False)
+
+    vastu_analysis = None
+    if is_complete:
+        try:
+            vastu_analysis = evaluate_vastu_shastra(normalized_master_json)
+        except Exception as v_err:
+            logger.warning("Vastu analysis execution error after confirmation: %s", v_err)
+
+    if project_id:
+        try:
+            shared_root = Path(__file__).resolve().parents[3] / "shared"
+            for folder in ["vsi-bd", "vsai-bd"]:
+                target_file = shared_root / folder / f"{project_id}.json"
+                if target_file.parent.exists():
+                    with open(target_file, "w", encoding="utf-8") as f:
+                        json.dump(normalized_master_json, f, indent=2)
+
+            project = db.query(Project).filter(Project.id == project_id).first()
+            if project:
+                project.master_json = normalized_master_json
+                db.commit()
+        except Exception as update_err:
+            logger.warning("Could not persist updated master json for project %s: %s", project_id, update_err)
+
+    return {
+        "is_complete": is_complete,
+        "master_json": normalized_master_json,
+        "missing_info_report": remaining_report,
+        "validation": validation,
+        "vastu_analysis": vastu_analysis,
+    }
+
+
+@router.post(
+    "/{project_id}/vsai-rectifier/confirm-missing-info",
+    summary="Merge user-confirmed inputs for a specific project ID",
+)
+def confirm_missing_info_project(
+    project_id: str,
+    payload: dict[str, Any],
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    master_json = payload.get("master_json") or resolve_stored_master_json(project_id, db=db)
+    if not master_json:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project Master JSON not found")
+    
+    payload_with_id = dict(payload)
+    payload_with_id["master_json"] = master_json
+    payload_with_id["project_id"] = project_id
+    return confirm_missing_info_direct(payload_with_id, db=db)
+
+
+@router.post(
+    "/vsai-rectifier/rectify",
+    summary="Directly run Stage 2 spatial geometry rectification on supplied Master JSON",
+)
+def rectify_floor_plan_direct(
+    payload: dict[str, Any],
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    from ..services.spatial_rectifier_service import run_spatial_rectification
+
+    master_json = payload.get("master_json") if isinstance(payload.get("master_json"), dict) else payload
+    project_id = payload.get("project_id") or (master_json.get("project_id") if isinstance(master_json, dict) else None)
+
+    if (not isinstance(master_json, dict) or not (master_json.get("floor_plan") or master_json.get("rooms"))) and project_id:
+        stored = resolve_stored_master_json(project_id, db=db)
+        if stored:
+            master_json = stored
+
+    if isinstance(master_json, dict) and not master_json.get("floor_plan"):
+        if "rooms" in master_json:
+            master_json = {"floor_plan": master_json}
+        elif "baseline_floor_plan" in payload and isinstance(payload.get("baseline_floor_plan"), dict):
+            master_json = {"floor_plan": payload["baseline_floor_plan"]}
+        elif "baseline_floor_plan" in master_json and isinstance(master_json.get("baseline_floor_plan"), dict):
+            master_json = {"floor_plan": master_json["baseline_floor_plan"]}
+
+    if not isinstance(master_json, dict) or not master_json.get("floor_plan"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing or invalid Master JSON with floor_plan.")
+
+    rectification_output = run_spatial_rectification(master_json)
+
+    # Persist if project_id exists
+    if project_id and rectification_output.get("master_json"):
+        try:
+            shared_root = Path(__file__).resolve().parents[3] / "shared"
+            for folder in ["vsi-bd", "vsai-bd"]:
+                target_file = shared_root / folder / f"{project_id}.json"
+                if target_file.parent.exists():
+                    with open(target_file, "w", encoding="utf-8") as f:
+                        json.dump(rectification_output["master_json"], f, indent=2)
+
+            project = db.query(Project).filter(Project.id == project_id).first()
+            if project:
+                project.master_json = rectification_output["master_json"]
+                db.commit()
+        except Exception as persist_err:
+            logger.warning("Could not persist rectified Master JSON for project %s: %s", project_id, persist_err)
+
+    return rectification_output
+
+
+@router.post(
+    "/{project_id}/vsai-rectifier/rectify",
+    summary="Run Stage 2 spatial geometry rectification for a specific project",
+)
+def rectify_project_floor_plan(
+    project_id: str,
+    payload: dict[str, Any] | None = None,
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    stored_master_json = resolve_stored_master_json(project_id, db=db)
+    supplied = payload.get("master_json") if payload else None
+    master_json = supplied or stored_master_json
+
+    if not master_json:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project Master JSON not found.")
+
+    return rectify_floor_plan_direct({"master_json": master_json, "project_id": project_id}, db=db)
+
 

@@ -6,6 +6,7 @@ import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
 import * as THREE from 'three';
 import { Eye, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { WebGLErrorBoundary } from '@/components/visualization/WebGLErrorBoundary';
 import { GabGenMasterJson, Point2D, FloorPlan } from '../../types';
 
 interface PlanPreview3DProps {
@@ -195,28 +196,36 @@ export const PlanPreview3D: React.FC<PlanPreview3DProps> = ({
 
   return (
     <div className="w-full h-[480px] rounded-xl overflow-hidden border border-border relative bg-slate-950">
-      <Canvas shadows>
-        <PerspectiveCamera ref={cameraRef} makeDefault position={[18, 22, 25]} fov={45} />
-        <ambientLight intensity={0.75} />
-        <directionalLight position={[15, 30, 20]} intensity={1.3} castShadow />
-        <directionalLight position={[-15, -10, -10]} intensity={0.4} />
+      <WebGLErrorBoundary title="GAB-Gen 3D Blueprint Viewport Unavailable">
+        <Canvas
+          shadows
+          gl={{
+            powerPreference: 'default',
+            failIfMajorPerformanceCaveat: false,
+          }}
+        >
+          <PerspectiveCamera ref={cameraRef} makeDefault position={[18, 22, 25]} fov={45} />
+          <ambientLight intensity={0.75} />
+          <directionalLight position={[15, 30, 20]} intensity={1.3} castShadow />
+          <directionalLight position={[-15, -10, -10]} intensity={0.4} />
 
-        <BuildingScene
-          data={data}
-          selectedFloorIndex={selectedFloorIndex}
-          explodedMode={explodedMode}
-        />
+          <BuildingScene
+            data={data}
+            selectedFloorIndex={selectedFloorIndex}
+            explodedMode={explodedMode}
+          />
 
-        <OrbitControls
-          ref={controlsRef}
-          makeDefault
-          enableDamping
-          dampingFactor={0.08}
-          minDistance={5}
-          maxDistance={90}
-        />
-        <gridHelper args={[40, 40, '#475569', '#1e293b']} position={[0, -0.2, 0]} />
-      </Canvas>
+          <OrbitControls
+            ref={controlsRef}
+            makeDefault
+            enableDamping
+            dampingFactor={0.08}
+            minDistance={5}
+            maxDistance={90}
+          />
+          <gridHelper args={[40, 40, '#475569', '#1e293b']} position={[0, -0.2, 0]} />
+        </Canvas>
+      </WebGLErrorBoundary>
 
       {/* Camera Presets Toolbar */}
       <div className="absolute top-3 right-3 flex items-center gap-1 bg-background/80 backdrop-blur-md p-1 rounded-lg border border-border shadow-md text-xs">
