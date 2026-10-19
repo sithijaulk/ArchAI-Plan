@@ -6,10 +6,12 @@ import type {
   EliaContextFreshness,
   EliaUnresolvedMutation,
   LockedFeatureRequirement,
+  ProjectFeasibilityResponse,
 } from '../types/elia';
 import type { SriLankaLocation, LiveSolarConditions } from './api/elia';
 import {
   serializeRequirements,
+  deserializeRequirements,
   validateRequirementsForm,
   computeRequirementsFingerprint,
   EliaFormState,
@@ -428,38 +430,136 @@ export function classifyCorrelatedRunStatus(
   };
 }
 
+export function getConceptDefaults(concept: string): Partial<EliaFormState> {
+  const c = concept.toLowerCase().trim();
+  if (c === 'greeny' || c === 'green') {
+    return {
+      designStyle: 'greeny',
+      greeneryDensity: 'high',
+      gardenGroundFinish: 'grass',
+      lawnRequired: true,
+      treesRequired: true,
+      shadeTreePreference: true,
+      wallClimbingPlants: true,
+      verticalGreeneryMode: 'preferred',
+      lightingStyle: 'lantern',
+      drivewayStyle: 'curved',
+    };
+  }
+  if (c === 'minimalistic' || c === 'minimalist') {
+    return {
+      designStyle: 'minimalistic',
+      greeneryDensity: 'low',
+      openSpaceRatio: 0.4,
+      boundaryWallType: 'masonry',
+      lightingStyle: 'minimal',
+      verticalGreeneryMode: 'automatic',
+      drivewayStyle: 'straight',
+    };
+  }
+  return {
+    designStyle: 'modern',
+    greeneryDensity: 'medium',
+    gardenGroundFinish: 'interlock',
+    boundaryWallType: 'rendered_brick',
+    lightingStyle: 'minimal',
+    drivewayStyle: 'straight',
+  };
+}
+
 export function createDefaultFormState(): EliaFormState {
   return {
     generationMode: 'baseline',
-    designStyle: 'contemporary',
+    designStyle: 'modern',
     greeneryDensity: 'medium',
     openSpaceRatio: 0.3,
     shadeTreePreference: false,
 
+    // Group B: Parking & Garage
+    parkingRequired: true,
+    parkingType: 'no_preference',
     garageRequired: false,
     garageCapacity: 1,
     vehicleCount: 1,
+    vehicleType: 'car',
+    turningSpaceRequired: true,
+
+    // Group C: Driveway, Walkways, Gate
     drivewayRequired: true,
     drivewayStyle: 'auto',
-    turningSpaceRequired: true,
-    gateType: 'unspecified',
-    gateWidthM: 3.6,
-
-    gardenRequired: true,
-    lawnRequired: false,
-    gardenSeatingRequired: false,
-    gardenTableSetRequired: false,
+    drivewaySurface: 'interlock',
     pedestrianPathRequired: false,
     gardenPathRequired: false,
+    walkingPathSurface: 'paving_stones',
+    gateRequired: true,
+    gateType: 'unspecified',
+    gateWidthM: 3.6,
+    gateOpeningMechanism: 'unspecified',
+    gateStyle: 'unspecified',
+
+    // Group D: Ground Finishes
+    gardenGroundFinish: 'grass',
+
+    // Group E: Garden & Ground Planting
+    gardenRequired: true,
+    lawnRequired: false,
+    treesRequired: true,
+    compactTreesPreference: false,
+    shrubsRequired: false,
+    flowerBedsRequired: false,
+    groundPlantersRequired: false,
+    gardenSeatingRequired: false,
+    gardenTableSetRequired: false,
+
+    // Group F: Walls & Vertical Greenery
     boundaryWallRequired: false,
     boundaryWallType: 'masonry',
     boundaryWallHeightM: 1.8,
+    verticalGreeneryMode: 'automatic',
+    wallClimbingPlants: false,
+    wallMountedGreenery: false,
+    hangingTrailingGreenery: false,
+    acceptVerticalAlternatives: false,
 
+    // Group G: Balconies
+    balconyPlantingRequired: false,
+    balconyPottedPlants: false,
+    balconyHangingPlants: false,
+    balconySeatingRequired: false,
+    balconyPlantIds: [],
+    targetBalconyIds: [],
+
+    // Group H: Rooftop / Terrace
+    rooftopPlantingRequired: false,
+    rooftopPlantersRequired: false,
+    rooftopSeatingRequired: false,
+    rooftopTablesRequired: false,
+    targetTerraceIds: [],
+
+    // Group I: Outdoor Lighting
     lightingRequired: false,
     lightingStyle: 'minimal',
-    verticalGreeneryMode: 'automatic',
+    lightingSpacingM: 8.0,
+    gardenLighting: false,
+    pathwayLighting: false,
+    seatingLighting: false,
+    wallLighting: false,
 
-    // Environmental & Customer Preferences (Panel Feedback)
+    // Group J: Water Features & Utilities
+    wellRequired: false,
+    gardenTapsRequired: false,
+    gardenTapsCount: 1,
+    pondRequired: false,
+    poolRequired: false,
+    septicTankRequired: false,
+
+    // Group K: Solar
+    solarRequired: false,
+    preferredRoofSurface: 'auto',
+    placementPriority: 'balanced',
+    includeLiveSolar: false,
+
+    // Environmental & Botanical Preferences
     maintenancePreference: 'no_preference',
     waterAvailability: 'unknown',
     climateZone: 'unknown',
@@ -469,7 +569,6 @@ export function createDefaultFormState(): EliaFormState {
     lockedFeatures: [],
 
     selectedLocation: null,
-    includeLiveSolar: false,
   };
 }
 
@@ -492,9 +591,10 @@ export interface EliaWorkflowState {
   requirementsDirty: boolean;
   lastSubmittedFingerprint: string | null;
 
-  // Validation channel
+  // Validation & Feasibility channel
   isValidating: boolean;
   validationResult: ELIAValidationResponse | null;
+  feasibilityResult: ProjectFeasibilityResponse | null;
   validationError: string | null;
 
   // Candidate with atomic provenance
@@ -603,6 +703,7 @@ export class EliaWorkflowController {
         lastSubmittedFingerprint: null,
         isValidating: false,
         validationResult: null,
+        feasibilityResult: null,
         validationError: null,
         candidate: null,
         acceptedLandscape: null,
@@ -658,6 +759,7 @@ export class EliaWorkflowController {
 
       isValidating: false,
       validationResult: null,
+      feasibilityResult: null,
       validationError: null,
 
       candidate: null,
@@ -780,6 +882,7 @@ export class EliaWorkflowController {
 
         isValidating: false,
         validationResult: null,
+        feasibilityResult: null,
         validationError: null,
 
         candidate: null,
@@ -895,6 +998,12 @@ export class EliaWorkflowController {
       candidateValidationError: null,
       candidateValidationViolations: [],
     });
+  }
+
+  public reapplyConceptDefaults(conceptOverride?: string) {
+    const concept = conceptOverride || this.state.formState.designStyle || 'modern';
+    const defaults = getConceptDefaults(concept);
+    this.editRequirement(defaults);
   }
 
   public selectLocation(loc: SriLankaLocation | EliaSelectedLocation | null) {
@@ -1042,6 +1151,20 @@ export class EliaWorkflowController {
         ? this.state.activeView
         : (this.state.candidate ? 'candidate' : 'accepted');
 
+      // Check for saved exterior requirements to restore form state
+      const savedReq =
+        (response as any)?.saved_requirements ||
+        (doc as any)?.exterior_requirements ||
+        (doc as any)?.processing?.elia_engine?.requirements;
+
+      let restoredFormState = this.state.formState;
+      let restoredDirty = this.state.requirementsDirty;
+      if (!this.state.requirementsDirty && savedReq && typeof savedReq === 'object') {
+        const deserialized = deserializeRequirements(savedReq);
+        restoredFormState = { ...this.state.formState, ...deserialized };
+        restoredDirty = false;
+      }
+
       this.setState({
         authoritativeMaster: doc,
         sourceRevision: rev,
@@ -1051,6 +1174,8 @@ export class EliaWorkflowController {
         acceptedProvenance, // Legitimately updated or cleared to null
         activeView: nextActiveView,
         isLoadingContext: false,
+        formState: restoredFormState,
+        requirementsDirty: restoredDirty,
         ...(revisionChanged ? { validationResult: null, validationError: null } : {}),
       });
 
@@ -1166,7 +1291,11 @@ export class EliaWorkflowController {
         return { status: 'obsolete' };
       }
 
-      this.setState({ validationResult: response, isValidating: false });
+      this.setState({
+        validationResult: response,
+        feasibilityResult: response.feasibility ?? null,
+        isValidating: false,
+      });
       return { status: 'success', result: response };
     } catch (err: any) {
       // Discard obsolete validation error if inputs or revision changed

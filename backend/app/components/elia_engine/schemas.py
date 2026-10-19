@@ -57,18 +57,42 @@ class AccessRequirements(ELIAInputModel):
     gate_width_m: FiniteFloat | None = Field(default=None, gt=0)
     gate_count: int = Field(default=1, ge=1)
     entrance_priority: str | None = None
+    parking_required: bool = True
+    parking_type: str = "no_preference"
     garage_required: bool = False
     garage_capacity: int = Field(default=1, ge=1, le=3)
     preferred_garage_location: list[FiniteFloat] | None = None
     preferred_garage_location_m: list[FiniteFloat] | None = None
-    vehicle_count: int = Field(default=1, ge=1)
+    vehicle_count: int = Field(default=1, ge=0)
     vehicle_profiles: list[VehicleProfileInput] = Field(default_factory=list)
     driveway_required: bool = True
     preferred_driveway_width: FiniteFloat | None = Field(default=None, gt=0)
     preferred_driveway_width_m: FiniteFloat | None = Field(default=None, gt=0)
     driveway_style: str = "auto"
     driveway_surface: str | None = None
+    walking_path_surface: str | None = None
+    gate_required: bool = True
+    gate_opening_mechanism: str = "unspecified"
+    gate_style: str = "unspecified"
     turning_space_required: bool = True
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_strict_types(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            for field_name in ("vehicle_count", "garage_capacity", "gate_count", "road_access_edge"):
+                val = data.get(field_name)
+                if isinstance(val, bool):
+                    raise ValueError(f"{field_name} must be an integer, not a boolean")
+            # Contradictions
+            veh_count = data.get("vehicle_count")
+            garage_req = data.get("garage_required")
+            parking_req = data.get("parking_required")
+            if parking_req is False and garage_req is True:
+                raise ValueError("ELIA_CONTRADICTORY_REQUIREMENTS: Cannot request a garage when parking_required is explicitly false.")
+            if veh_count == 0 and garage_req is True:
+                raise ValueError("ELIA_CONTRADICTORY_REQUIREMENTS: Cannot request a garage when vehicle_count is 0.")
+        return data
 
     @model_validator(mode="after")
     def validate_preferred_coordinate_pairs(self):
@@ -83,11 +107,22 @@ class AccessRequirements(ELIAInputModel):
 class LandscapeRequirements(ELIAInputModel):
     garden_required: bool = False
     lawn_required: bool = False
+    garden_ground_finish: str | None = None
     garden_seating_required: bool = False
+    garden_seating_count: int | None = Field(default=None, ge=0)
     garden_table_set_required: bool = False
+    garden_table_set_count: int | None = Field(default=None, ge=0)
     preferred_garden_zone: str | None = None
     preferred_open_space_ratio: FiniteFloat | None = Field(default=None, ge=0, le=1)
     greenery_density: str = "medium"
+    trees_required: bool = True
+    tree_quantity: int | None = Field(default=None, ge=0)
+    compact_trees_preference: bool = False
+    shrubs_required: bool = False
+    shrubs_quantity: int | None = Field(default=None, ge=0)
+    flower_beds_required: bool = False
+    ground_planters_required: bool = False
+    ground_planters_count: int | None = Field(default=None, ge=0)
     preferred_vegetation_categories: list[str] = Field(default_factory=list)
     vegetation_to_avoid: list[str] = Field(default_factory=list)
     shade_tree_preference: bool = False
@@ -107,13 +142,23 @@ class LandscapeRequirements(ELIAInputModel):
 
     @model_validator(mode="before")
     @classmethod
-    def strip_obsolete_financials(cls, data: Any) -> Any:
+    def strip_obsolete_financials_and_validate_strict(cls, data: Any) -> Any:
         if isinstance(data, dict):
             data = data.copy()
             data.pop("budget_limit_lkr", None)
             data.pop("budget_preference", None)
             data.pop("budget_estimate", None)
             data.pop("budget_assessment", None)
+            for field_name in (
+                "tree_quantity",
+                "shrubs_quantity",
+                "ground_planters_count",
+                "garden_seating_count",
+                "garden_table_set_count",
+            ):
+                val = data.get(field_name)
+                if isinstance(val, bool):
+                    raise ValueError(f"{field_name} must be an integer, not a boolean")
         return data
 
 
@@ -121,6 +166,27 @@ class VerticalGreeneryRequirements(ELIAInputModel):
     mode: Literal["automatic", "preferred", "disabled"] = "automatic"
     enabled: bool = True
     preferred_types: list[str] = Field(default_factory=list)
+    wall_climbing_plants: bool = False
+    wall_mounted_greenery: bool = False
+    hanging_trailing_greenery: bool = False
+    accept_vertical_alternatives: bool = False
+
+
+class BalconyRequirements(ELIAInputModel):
+    planting_required: bool = False
+    potted_plants: bool = False
+    hanging_plants: bool = False
+    seating_required: bool = False
+    preferred_plant_ids: list[str] = Field(default_factory=list)
+    target_balcony_ids: list[str] = Field(default_factory=list)
+
+
+class TerraceRequirements(ELIAInputModel):
+    planting_required: bool = False
+    planters_required: bool = False
+    seating_required: bool = False
+    tables_required: bool = False
+    target_terrace_ids: list[str] = Field(default_factory=list)
 
 
 class LightingRequirements(ELIAInputModel):
@@ -129,6 +195,45 @@ class LightingRequirements(ELIAInputModel):
     zones: list[str] = Field(default_factory=list)
     preferred_spacing: FiniteFloat | None = Field(default=None, gt=0)
     preferred_spacing_m: FiniteFloat | None = Field(default=None, gt=0)
+    desired_fixture_count: int | None = Field(default=None, ge=0)
+    garden_lighting: bool = False
+    pathway_lighting: bool = False
+    seating_lighting: bool = False
+    wall_lighting: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_strict_lighting(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            val = data.get("desired_fixture_count")
+            if isinstance(val, bool):
+                raise ValueError("desired_fixture_count must be an integer, not a boolean")
+        return data
+
+
+class WaterFeatureRequirements(ELIAInputModel):
+    well_required: bool = False
+    garden_taps_required: bool = False
+    garden_taps_count: int | None = Field(default=None, ge=0)
+    pond_required: bool = False
+    swimming_pool_required: bool = False
+    septic_tank_required: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_strict_water(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            val = data.get("garden_taps_count")
+            if isinstance(val, bool):
+                raise ValueError("garden_taps_count must be an integer, not a boolean")
+        return data
+
+
+class SolarRequirements(ELIAInputModel):
+    panels_required: bool = False
+    preferred_roof_surface: str = "auto"
+    placement_priority: str = "balanced"
+    include_live_solar: bool = False
 
 
 class ELIARequirements(ELIAInputModel):
@@ -158,7 +263,11 @@ class ELIARequirements(ELIAInputModel):
     utility_relocation_allowed: bool = False
     landscape: LandscapeRequirements = Field(default_factory=LandscapeRequirements)
     vertical_greenery: VerticalGreeneryRequirements = Field(default_factory=VerticalGreeneryRequirements)
+    balconies: BalconyRequirements = Field(default_factory=BalconyRequirements)
+    terrace: TerraceRequirements = Field(default_factory=TerraceRequirements)
     lighting: LightingRequirements = Field(default_factory=LightingRequirements)
+    water_features: WaterFeatureRequirements = Field(default_factory=WaterFeatureRequirements)
+    solar: SolarRequirements = Field(default_factory=SolarRequirements)
     additional_requirements: dict[str, Any] | str = Field(default_factory=dict)
 
     @model_validator(mode="before")
@@ -172,6 +281,12 @@ class ELIARequirements(ELIAInputModel):
             data.pop("budget_preference", None)
             data.pop("budget_estimate", None)
             data.pop("budget_assessment", None)
+            # Sync include_live_solar between root and solar
+            if "solar" in data and isinstance(data["solar"], dict):
+                if "include_live_solar" in data["solar"] and "include_live_solar" not in data:
+                    data["include_live_solar"] = data["solar"]["include_live_solar"]
+                elif "include_live_solar" in data and "include_live_solar" not in data["solar"]:
+                    data["solar"]["include_live_solar"] = data["include_live_solar"]
         return data
 
     @model_validator(mode="after")
@@ -320,4 +435,46 @@ class CandidateSaveRequest(BaseModel):
     source_revision: int = Field(ge=1)
     requirements: ELIARequirements = Field(default_factory=ELIARequirements)
     run_id: str | None = None
+
+
+FeasibilityStatus = Literal["feasible", "infeasible", "review_required", "not_applicable", "unsupported", "search_inconclusive"]
+
+
+class FeatureFeasibilityAssessment(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    feature_id: str
+    requested_state: str
+    feasibility_status: FeasibilityStatus
+    reason_codes: list[str] = Field(default_factory=list)
+    explanation: str
+    affected_object_ids: list[str] = Field(default_factory=list)
+    applicable_rule_ids: list[str] = Field(default_factory=list)
+    missing_evidence: list[str] = Field(default_factory=list)
+    assessment_scope: str = ""
+    source_revision: int | None = None
+    suggested_alternatives: list[str] = Field(default_factory=list)
+
+
+class CombinedConflictResult(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    conflicting_features: list[str] = Field(default_factory=list)
+    conflict_type: str
+    explanation: str
+    affected_requests: dict[str, Any] = Field(default_factory=dict)
+    suggested_alternatives: list[str] = Field(default_factory=list)
+
+
+class ProjectFeasibilityResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    project_id: str = ""
+    source_revision: int | None = None
+    overall_status: Literal["feasible", "infeasible", "review_required", "conflicts_detected"]
+    feature_assessments: dict[str, FeatureFeasibilityAssessment] = Field(default_factory=dict)
+    combined_conflicts: list[CombinedConflictResult] = Field(default_factory=list)
+    spatial_metrics: dict[str, Any] = Field(default_factory=dict)
+    limitations: list[str] = Field(default_factory=list)
+
 

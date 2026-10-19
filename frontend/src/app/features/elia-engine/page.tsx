@@ -14,7 +14,15 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import type { FactorAssessmentRow, FactorsAssessment, RuleEvaluationResult, CategorySummary } from '@/types/elia'
+import type {
+  FactorAssessmentRow,
+  FactorsAssessment,
+  RuleEvaluationResult,
+  CategorySummary,
+  FeatureFeasibilityAssessment,
+  CombinedConflictResult,
+  ProjectFeasibilityResponse,
+} from '@/types/elia'
 import {
   LoaderCircle,
   MapPin,
@@ -75,6 +83,87 @@ function getPosCoords(pos: unknown): [number, number] | null {
   }
   return null
 }
+
+function FeasibilityBadge({ assessment }: { assessment?: FeatureFeasibilityAssessment }) {
+  if (!assessment) return null
+  const status = assessment.feasibility_status
+  if (status === 'feasible') {
+    return (
+      <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+        <Check className="w-2.5 h-2.5 mr-1" /> Feasible
+      </Badge>
+    )
+  }
+  if (status === 'infeasible') {
+    return (
+      <Badge variant="outline" className="text-[10px] bg-rose-500/10 text-rose-400 border-rose-500/30">
+        <XCircle className="w-2.5 h-2.5 mr-1" /> Infeasible
+      </Badge>
+    )
+  }
+  if (status === 'review_required') {
+    return (
+      <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-300 border-amber-500/30">
+        <AlertTriangle className="w-2.5 h-2.5 mr-1" /> Review Required
+      </Badge>
+    )
+  }
+  if (status === 'not_applicable') {
+    return (
+      <Badge variant="outline" className="text-[10px] bg-muted/30 text-muted-foreground border-border/40">
+        N/A
+      </Badge>
+    )
+  }
+  if (status === 'unsupported') {
+    return (
+      <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-300 border-blue-500/30">
+        Unsupported
+      </Badge>
+    )
+  }
+  return (
+    <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-300 border-amber-500/30">
+      Search Inconclusive
+    </Badge>
+  )
+}
+
+function FeasibilityNotice({ assessment }: { assessment?: FeatureFeasibilityAssessment }) {
+  if (!assessment || assessment.feasibility_status === 'feasible' || assessment.feasibility_status === 'not_applicable') {
+    return null
+  }
+  const isErr = assessment.feasibility_status === 'infeasible'
+  return (
+    <div
+      className={`mt-1.5 p-2 rounded text-[11px] leading-tight border ${
+        isErr
+          ? 'bg-rose-950/20 text-rose-300 border-rose-500/30'
+          : 'bg-amber-950/20 text-amber-300 border-amber-500/30'
+      }`}
+    >
+      <div className="font-medium flex items-center gap-1.5">
+        {isErr ? (
+          <XCircle className="w-3 h-3 text-rose-400 shrink-0" />
+        ) : (
+          <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0" />
+        )}
+        <span>{assessment.explanation}</span>
+      </div>
+      {assessment.missing_evidence && assessment.missing_evidence.length > 0 && (
+        <div className="mt-1 text-[10px] opacity-80">
+          Missing evidence: {assessment.missing_evidence.join(', ')}
+        </div>
+      )}
+      {assessment.suggested_alternatives && assessment.suggested_alternatives.length > 0 && (
+        <div className="mt-1 text-[10px] text-primary/90 font-medium">
+          Suggested alternatives: {assessment.suggested_alternatives.join('; ')}
+        </div>
+      )}
+    </div>
+  )
+}
+
 
 export default function EliaEnginePage() {
   const router = useRouter()
@@ -278,6 +367,10 @@ export default function EliaEnginePage() {
   }
 
   const form = state.formState
+  const feasibility: ProjectFeasibilityResponse | null =
+    state.feasibilityResult || state.validationResult?.feasibility || null
+  const featureAssessments = feasibility?.feature_assessments || {}
+  const combinedConflicts = feasibility?.combined_conflicts || []
 
   return (
     <FeatureWorkflowShell
@@ -509,16 +602,71 @@ export default function EliaEnginePage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-5">
+                {/* Stage 2 Feasibility & Combined Conflicts Alert Banner */}
+                {feasibility && (
+                  <div className="mb-4 space-y-2">
+                    {combinedConflicts.length > 0 && (
+                      <div className="p-3 rounded-lg border border-rose-500/40 bg-rose-950/20 text-rose-200 text-xs space-y-1.5">
+                        <div className="flex items-center gap-1.5 font-semibold text-rose-300">
+                          <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                          <span>Combined Preference Conflicts Detected ({combinedConflicts.length})</span>
+                        </div>
+                        {combinedConflicts.map((c, i) => (
+                          <div key={i} className="pl-3 space-y-0.5 border-l-2 border-rose-500/40 ml-1">
+                            <p className="font-medium text-foreground">{c.explanation}</p>
+                            {c.suggested_alternatives && c.suggested_alternatives.length > 0 && (
+                              <p className="text-[11px] text-muted-foreground">
+                                Suggested: {c.suggested_alternatives.join('; ')}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between p-2.5 rounded-lg border border-border/40 bg-muted/20 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground font-medium">Site Feasibility:</span>
+                        {feasibility.overall_status === 'feasible' && (
+                          <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+                            <Check className="w-2.5 h-2.5 mr-1" /> All Options Feasible
+                          </Badge>
+                        )}
+                        {feasibility.overall_status === 'conflicts_detected' && (
+                          <Badge variant="outline" className="text-[10px] bg-rose-500/10 text-rose-400 border-rose-500/30">
+                            <AlertTriangle className="w-2.5 h-2.5 mr-1" /> Conflicts Detected
+                          </Badge>
+                        )}
+                        {feasibility.overall_status === 'infeasible' && (
+                          <Badge variant="outline" className="text-[10px] bg-rose-500/10 text-rose-400 border-rose-500/30">
+                            <XCircle className="w-2.5 h-2.5 mr-1" /> Infeasible Choice(s)
+                          </Badge>
+                        )}
+                        {feasibility.overall_status === 'review_required' && (
+                          <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-300 border-amber-500/30">
+                            <AlertTriangle className="w-2.5 h-2.5 mr-1" /> Review Required
+                          </Badge>
+                        )}
+                      </div>
+                      {typeof feasibility.spatial_metrics?.unoccupied_exterior_m2 === 'number' && (
+                        <span className="text-[11px] font-mono text-muted-foreground">
+                          Open Ground: {Number(feasibility.spatial_metrics.unoccupied_exterior_m2).toFixed(1)} m²
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
                 <Tabs defaultValue="concept" className="w-full">
-                  <TabsList className="grid grid-cols-5 mb-4 text-xs">
-                    <TabsTrigger value="concept" className="text-xs py-1.5"><Sliders className="w-3.5 h-3.5 mr-1" /> Style</TabsTrigger>
-                    <TabsTrigger value="access" className="text-xs py-1.5"><Car className="w-3.5 h-3.5 mr-1" /> Access</TabsTrigger>
-                    <TabsTrigger value="garden" className="text-xs py-1.5"><Trees className="w-3.5 h-3.5 mr-1" /> Garden</TabsTrigger>
-                    <TabsTrigger value="solar" className="text-xs py-1.5"><Sun className="w-3.5 h-3.5 mr-1" /> Eco</TabsTrigger>
-                    <TabsTrigger value="lighting" className="text-xs py-1.5"><Lightbulb className="w-3.5 h-3.5 mr-1" /> Lighting</TabsTrigger>
+                  <TabsList className="grid grid-cols-6 mb-4 text-[11px]">
+                    <TabsTrigger value="concept" className="text-[11px] py-1.5"><Sliders className="w-3 h-3 mr-1" /> Style</TabsTrigger>
+                    <TabsTrigger value="access" className="text-[11px] py-1.5"><Car className="w-3 h-3 mr-1" /> Access</TabsTrigger>
+                    <TabsTrigger value="garden" className="text-[11px] py-1.5"><Trees className="w-3 h-3 mr-1" /> Garden</TabsTrigger>
+                    <TabsTrigger value="facades" className="text-[11px] py-1.5"><Layers className="w-3 h-3 mr-1" /> Facades</TabsTrigger>
+                    <TabsTrigger value="lighting" className="text-[11px] py-1.5"><Lightbulb className="w-3 h-3 mr-1" /> Utilities</TabsTrigger>
+                    <TabsTrigger value="solar" className="text-[11px] py-1.5"><Sun className="w-3 h-3 mr-1" /> Solar</TabsTrigger>
                   </TabsList>
 
-                  {/* TAB 1: DESIGN CONCEPT & STYLE */}
+                  {/* TAB 1: GROUP A - DESIGN CONCEPT & STYLE */}
                   <TabsContent value="concept" className="space-y-4">
                     <div className="space-y-2 p-3 rounded-lg border border-border/40 bg-muted/20">
                       <Label htmlFor="design-concept" className="text-xs font-semibold text-foreground">Design Concept</Label>
@@ -538,8 +686,19 @@ export default function EliaEnginePage() {
                         <option value="minimalistic">Minimalistic</option>
                       </select>
                       <p className="text-[11px] text-muted-foreground leading-tight pt-1">
-                        Influences planting density, open space weighting, and amenity arrangement through explicit planner heuristics.
+                        Influences planting density, open space weighting, and amenity arrangement through explicit planner heuristics. Changing the concept does not silently overwrite explicit choices below.
                       </p>
+                      <div className="pt-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => controller.reapplyConceptDefaults()}
+                        >
+                          <RotateCcw className="w-3 h-3 mr-1" /> Reapply Concept Defaults
+                        </Button>
+                      </div>
                     </div>
 
                     {/* Maintenance Preference */}
@@ -552,7 +711,7 @@ export default function EliaEnginePage() {
                         className="mt-1 w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
                       >
                         <option value="low">Low (Drought-tolerant, slow-growing)</option>
-                        <option value="medium">Medium (Regular pruning & care)</option>
+                        <option value="medium">Medium (Regular pruning &amp; care)</option>
                         <option value="high">High (Lush ornamental maintenance)</option>
                         <option value="no_preference">No preference</option>
                       </select>
@@ -581,55 +740,127 @@ export default function EliaEnginePage() {
                     </div>
                   </TabsContent>
 
-                  {/* TAB 2: ACCESS & PARKING */}
+                  {/* TAB 2: GROUPS B & C - ACCESS, PARKING, DRIVEWAY & GATE */}
                   <TabsContent value="access" className="space-y-4">
-                    {/* Garage */}
+                    {/* GROUP B: PARKING & GARAGE */}
                     <div className="space-y-3 p-3 rounded-lg border border-border/40 bg-muted/20">
                       <div className="flex items-center justify-between">
-                        <Label htmlFor="garage-req" className="font-medium cursor-pointer">Require Garage / Parking</Label>
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="parking-req" className="font-semibold text-xs cursor-pointer">Group B: Parking &amp; Vehicles</Label>
+                          <FeasibilityBadge assessment={featureAssessments.parking} />
+                        </div>
                         <input
-                          id="garage-req"
+                          id="parking-req"
                           type="checkbox"
-                          checked={form.garageRequired}
-                          onChange={(e) => controller.editRequirement({ garageRequired: e.target.checked })}
+                          checked={form.parkingRequired}
+                          onChange={(e) => controller.editRequirement({ parkingRequired: e.target.checked })}
                           className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
                         />
                       </div>
+                      <FeasibilityNotice assessment={featureAssessments.parking} />
 
-                      {form.garageRequired && (
-                        <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/30">
-                          <div>
-                            <Label htmlFor="garage-cap" className="text-xs text-muted-foreground">Garage Capacity</Label>
-                            <Input
-                              id="garage-cap"
-                              type="number"
-                              min={1}
-                              max={3}
-                              value={form.garageCapacity}
-                              onChange={(e) => controller.editRequirement({ garageCapacity: e.target.value })}
-                              className="mt-1 h-8 text-xs font-mono"
-                            />
+                      {form.parkingRequired && (
+                        <div className="space-y-3 pt-2 border-t border-border/30">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <Label htmlFor="vehicle-cnt" className="text-xs text-muted-foreground">Vehicle Count</Label>
+                              <Input
+                                id="vehicle-cnt"
+                                type="number"
+                                min={1}
+                                max={10}
+                                value={form.vehicleCount}
+                                onChange={(e) => controller.editRequirement({ vehicleCount: e.target.value })}
+                                className="mt-1 h-8 text-xs font-mono"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="vehicle-type" className="text-xs text-muted-foreground">Vehicle Type</Label>
+                              <select
+                                id="vehicle-type"
+                                value={form.vehicleType}
+                                onChange={(e) => controller.editRequirement({ vehicleType: e.target.value })}
+                                className="mt-1 w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                              >
+                                <option value="car">Car (Standard Sedan/Hatch)</option>
+                                <option value="suv">SUV / 4x4</option>
+                                <option value="van">Van / Light Commercial</option>
+                                <option value="motorcycle">Motorcycle / Scooter</option>
+                                <option value="bicycle">Bicycle</option>
+                                <option value="electric_vehicle">Electric Vehicle (EV)</option>
+                              </select>
+                            </div>
                           </div>
-                          <div>
-                            <Label htmlFor="vehicle-cnt" className="text-xs text-muted-foreground">Vehicle Count</Label>
-                            <Input
-                              id="vehicle-cnt"
-                              type="number"
-                              min={1}
-                              max={3}
-                              value={form.vehicleCount}
-                              onChange={(e) => controller.editRequirement({ vehicleCount: e.target.value })}
-                              className="mt-1 h-8 text-xs font-mono"
-                            />
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <Label htmlFor="parking-type" className="text-xs text-muted-foreground">Parking Type</Label>
+                              <select
+                                id="parking-type"
+                                value={form.parkingType}
+                                onChange={(e) => controller.editRequirement({ parkingType: e.target.value as any })}
+                                className="mt-1 w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                              >
+                                <option value="open">Open Surface Bay</option>
+                                <option value="covered">Covered Port</option>
+                                <option value="garage">Enclosed Garage</option>
+                                <option value="no_preference">No Preference</option>
+                              </select>
+                            </div>
+                            <div className="flex items-center pt-5">
+                              <label className="flex items-center gap-2 text-xs cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={form.turningSpaceRequired}
+                                  onChange={(e) => controller.editRequirement({ turningSpaceRequired: e.target.checked })}
+                                  className="w-3.5 h-3.5 rounded border-border text-primary"
+                                />
+                                <span>Vehicle Turning Space</span>
+                              </label>
+                            </div>
+                          </div>
+
+                          <div className="p-2.5 rounded border border-border/40 bg-background/50 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Label htmlFor="garage-req" className="text-xs font-medium cursor-pointer">Enclosed Garage Required</Label>
+                                <FeasibilityBadge assessment={featureAssessments.garage} />
+                              </div>
+                              <input
+                                id="garage-req"
+                                type="checkbox"
+                                checked={form.garageRequired}
+                                onChange={(e) => controller.editRequirement({ garageRequired: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                            </div>
+                            <FeasibilityNotice assessment={featureAssessments.garage} />
+                            {form.garageRequired && (
+                              <div>
+                                <Label htmlFor="garage-cap" className="text-[11px] text-muted-foreground">Garage Capacity (Vehicles)</Label>
+                                <Input
+                                  id="garage-cap"
+                                  type="number"
+                                  min={1}
+                                  max={10}
+                                  value={form.garageCapacity}
+                                  onChange={(e) => controller.editRequirement({ garageCapacity: e.target.value })}
+                                  className="mt-1 h-7 text-xs font-mono"
+                                />
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}
                     </div>
 
-                    {/* Driveway */}
+                    {/* GROUP C: DRIVEWAY, WALKWAYS & GATE */}
                     <div className="space-y-3 p-3 rounded-lg border border-border/40 bg-muted/20">
                       <div className="flex items-center justify-between">
-                        <Label htmlFor="driveway-req" className="font-medium cursor-pointer">Generate Driveway</Label>
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="driveway-req" className="font-semibold text-xs cursor-pointer">Group C: Driveway</Label>
+                          <FeasibilityBadge assessment={featureAssessments.driveway} />
+                        </div>
                         <input
                           id="driveway-req"
                           type="checkbox"
@@ -638,6 +869,7 @@ export default function EliaEnginePage() {
                           className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
                         />
                       </div>
+                      <FeasibilityNotice assessment={featureAssessments.driveway} />
 
                       {form.drivewayRequired && (
                         <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/30">
@@ -654,187 +886,406 @@ export default function EliaEnginePage() {
                               <option value="curved">Curved Path</option>
                             </select>
                           </div>
-                          <div className="flex items-center pt-5">
-                            <label className="flex items-center gap-2 text-xs cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={form.turningSpaceRequired}
-                                onChange={(e) => controller.editRequirement({ turningSpaceRequired: e.target.checked })}
-                                className="w-3.5 h-3.5 rounded border-border text-primary"
-                              />
-                              <span>Turning Space</span>
-                            </label>
+                          <div>
+                            <Label htmlFor="drive-surface" className="text-xs text-muted-foreground">Driveway Surface</Label>
+                            <select
+                              id="drive-surface"
+                              value={form.drivewaySurface}
+                              onChange={(e) => controller.editRequirement({ drivewaySurface: e.target.value })}
+                              className="mt-1 w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                            >
+                              <option value="concrete">Concrete Paving</option>
+                              <option value="asphalt">Asphalt Finish</option>
+                              <option value="pavers">Interlocking Pavers</option>
+                              <option value="gravel">Compacted Gravel</option>
+                            </select>
                           </div>
                         </div>
                       )}
-                    </div>
 
-                    {/* Gate */}
-                    <div className="grid grid-cols-2 gap-3 p-3 rounded-lg border border-border/40 bg-muted/20">
-                      <div>
-                        <Label htmlFor="gate-type" className="text-xs text-muted-foreground">Gate Style</Label>
-                        <select
-                          id="gate-type"
-                          value={form.gateType}
-                          onChange={(e) => controller.editRequirement({ gateType: e.target.value })}
-                          className="mt-1 w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
-                        >
-                          <option value="unspecified">Auto Placement</option>
-                          <option value="sliding">Sliding Gate</option>
-                          <option value="swing">Swing Gate</option>
-                          <option value="double_swing">Double Swing</option>
-                        </select>
+                      {/* Walkways */}
+                      <div className="pt-2 border-t border-border/30 space-y-2">
+                        <span className="text-xs font-medium text-foreground block">Pedestrian Pathways</span>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={form.pedestrianPathRequired}
+                              onChange={(e) => controller.editRequirement({ pedestrianPathRequired: e.target.checked })}
+                              className="w-3.5 h-3.5 rounded text-primary"
+                            />
+                            <span>Entrance Walkway</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={form.gardenPathRequired}
+                              onChange={(e) => controller.editRequirement({ gardenPathRequired: e.target.checked })}
+                              className="w-3.5 h-3.5 rounded text-primary"
+                            />
+                            <span>Garden Walking Paths</span>
+                          </label>
+                        </div>
+                        {(form.pedestrianPathRequired || form.gardenPathRequired) && (
+                          <div className="pt-1">
+                            <Label className="text-[11px] text-muted-foreground">Walking Path Surface</Label>
+                            <select
+                              value={form.walkingPathSurface}
+                              onChange={(e) => controller.editRequirement({ walkingPathSurface: e.target.value })}
+                              className="mt-1 w-full h-7 rounded border border-input bg-background px-2 text-xs"
+                            >
+                              <option value="pavers">Stone Pavers</option>
+                              <option value="gravel">Fine Gravel</option>
+                              <option value="stepping_stones">Stepping Stones</option>
+                              <option value="timber">Timber Decking / Planks</option>
+                            </select>
+                          </div>
+                        )}
                       </div>
-                      <div>
-                        <Label htmlFor="gate-width" className="text-xs text-muted-foreground">Gate Width (m)</Label>
-                        <Input
-                          id="gate-width"
-                          type="number"
-                          step={0.1}
-                          min={2.0}
-                          max={6.0}
-                          value={form.gateWidthM}
-                          onChange={(e) => controller.editRequirement({ gateWidthM: e.target.value })}
-                          className="mt-1 h-8 text-xs font-mono"
-                        />
+
+                      {/* Gate */}
+                      <div className="pt-2 border-t border-border/30 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="gate-req" className="text-xs font-medium cursor-pointer">Property Gate</Label>
+                            <FeasibilityBadge assessment={featureAssessments.gate} />
+                          </div>
+                          <input
+                            id="gate-req"
+                            type="checkbox"
+                            checked={form.gateRequired}
+                            onChange={(e) => controller.editRequirement({ gateRequired: e.target.checked })}
+                            className="w-3.5 h-3.5 rounded text-primary"
+                          />
+                        </div>
+                        <FeasibilityNotice assessment={featureAssessments.gate} />
+                        {form.gateRequired && (
+                          <div className="grid grid-cols-3 gap-2 pt-1 text-xs">
+                            <div>
+                              <Label className="text-[10px] text-muted-foreground">Mechanism</Label>
+                              <select
+                                value={form.gateOpeningMechanism}
+                                onChange={(e) => controller.editRequirement({ gateOpeningMechanism: e.target.value })}
+                                className="mt-1 w-full h-7 rounded border border-input bg-background px-1 text-[11px]"
+                              >
+                                <option value="sliding">Sliding</option>
+                                <option value="swing">Single Swing</option>
+                                <option value="double_swing">Double Swing</option>
+                                <option value="folding">Bi-Folding</option>
+                                <option value="cantilever">Cantilever</option>
+                              </select>
+                            </div>
+                            <div>
+                              <Label className="text-[10px] text-muted-foreground">Style</Label>
+                              <select
+                                value={form.gateStyle}
+                                onChange={(e) => controller.editRequirement({ gateStyle: e.target.value })}
+                                className="mt-1 w-full h-7 rounded border border-input bg-background px-1 text-[11px]"
+                              >
+                                <option value="modern_slat">Modern Slat</option>
+                                <option value="wrought_iron">Wrought Iron</option>
+                                <option value="solid_wood">Solid Wood</option>
+                                <option value="composite">Composite</option>
+                                <option value="minimal_steel">Minimal Steel</option>
+                              </select>
+                            </div>
+                            <div>
+                              <Label className="text-[10px] text-muted-foreground">Width (m)</Label>
+                              <Input
+                                type="number"
+                                step={0.1}
+                                min={2.0}
+                                max={6.0}
+                                value={form.gateWidthM}
+                                onChange={(e) => controller.editRequirement({ gateWidthM: e.target.value })}
+                                className="mt-1 h-7 text-xs font-mono"
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </TabsContent>
 
-                  {/* TAB 3: GARDEN & LANDSCAPE */}
+                  {/* TAB 3: GROUPS D & E - GROUND FINISHES & GARDEN PLANTING */}
                   <TabsContent value="garden" className="space-y-4">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label htmlFor="green-density" className="text-xs text-muted-foreground">Vegetation Density</Label>
-                        <select
-                          id="green-density"
-                          value={form.greeneryDensity}
-                          onChange={(e) => controller.editRequirement({ greeneryDensity: e.target.value as any })}
-                          className="mt-1 w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
-                        >
-                          <option value="low">Low (Spacious)</option>
-                          <option value="medium">Medium (Balanced)</option>
-                          <option value="high">High (Lush Garden)</option>
-                        </select>
-                      </div>
-                      <div>
-                        <Label htmlFor="open-ratio" className="text-xs text-muted-foreground">Open Space Ratio</Label>
-                        <Input
-                          id="open-ratio"
-                          type="number"
-                          step={0.05}
-                          min={0.1}
-                          max={0.9}
-                          value={form.openSpaceRatio}
-                          onChange={(e) => controller.editRequirement({ openSpaceRatio: e.target.value })}
-                          className="mt-1 h-8 text-xs font-mono"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2 p-3 rounded-lg border border-border/40 bg-muted/20 text-xs">
-                      <div className="font-medium text-muted-foreground mb-1">Garden Features</div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={form.gardenRequired}
-                            onChange={(e) => controller.editRequirement({ gardenRequired: e.target.checked })}
-                            className="w-3.5 h-3.5 rounded text-primary"
-                          />
-                          <span>Planting Beds</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={form.lawnRequired}
-                            onChange={(e) => controller.editRequirement({ lawnRequired: e.target.checked })}
-                            className="w-3.5 h-3.5 rounded text-primary"
-                          />
-                          <span>Turf / Lawn</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={form.shadeTreePreference}
-                            onChange={(e) => controller.editRequirement({ shadeTreePreference: e.target.checked })}
-                            className="w-3.5 h-3.5 rounded text-primary"
-                          />
-                          <span>Shade Canopy Trees</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={form.gardenSeatingRequired}
-                            onChange={(e) => controller.editRequirement({ gardenSeatingRequired: e.target.checked })}
-                            className="w-3.5 h-3.5 rounded text-primary"
-                          />
-                          <span>Outdoor Seating</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={form.gardenTableSetRequired}
-                            onChange={(e) => controller.editRequirement({ gardenTableSetRequired: e.target.checked })}
-                            className="w-3.5 h-3.5 rounded text-primary"
-                          />
-                          <span>Garden Dining Set</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={form.pedestrianPathRequired}
-                            onChange={(e) => controller.editRequirement({ pedestrianPathRequired: e.target.checked })}
-                            className="w-3.5 h-3.5 rounded text-primary"
-                          />
-                          <span>Pedestrian Paths</span>
-                        </label>
-                      </div>
-                    </div>
-
-                    {/* Plant Preferences Section */}
-                    <div className="space-y-3 p-3 rounded-lg border border-border/40 bg-muted/20 text-xs">
-                      <Label className="text-xs font-semibold flex items-center gap-1.5">
-                        <Tag className="w-3.5 h-3.5 text-primary" /> Preferred Plant Species
-                      </Label>
-                      <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1 border rounded bg-background">
-                        {catalogEntries.slice(0, 8).map((sp) => {
-                          const isPref = (form.preferredPlantIds || []).includes(sp.id)
-                          return (
-                            <button
-                              key={sp.id}
-                              type="button"
-                              onClick={() => {
-                                const current = form.preferredPlantIds || []
-                                const next = isPref
-                                  ? current.filter((id) => id !== sp.id)
-                                  : [...current, sp.id]
-                                controller.editRequirement({ preferredPlantIds: next })
-                              }}
-                              className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
-                                isPref ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted text-muted-foreground border-border'
-                              }`}
-                            >
-                              {sp.name}
-                            </button>
-                          )
-                        })}
-                      </div>
-                      <span className="text-[10px] text-muted-foreground block">
-                        Selected plants receive score bonuses during vegetation placement.
-                      </span>
-                    </div>
-
-                    {/* Boundary Wall */}
+                    {/* GROUP D: GROUND FINISHES */}
                     <div className="space-y-2 p-3 rounded-lg border border-border/40 bg-muted/20">
+                      <Label htmlFor="ground-finish" className="text-xs font-semibold text-foreground">Group D: Ground Finishes</Label>
+                      <select
+                        id="ground-finish"
+                        value={form.gardenGroundFinish}
+                        onChange={(e) => controller.editRequirement({ gardenGroundFinish: e.target.value as any })}
+                        className="mt-1 w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                      >
+                        <option value="grass">Natural Turf / Lawn Grass</option>
+                        <option value="interlock">Interlocking Pavers</option>
+                        <option value="paving_stones">Natural Paving Stones</option>
+                        <option value="mixed">Mixed (Lawn + Stone Paving Zones)</option>
+                      </select>
+                    </div>
+
+                    {/* GROUP E: GARDEN & PLANTING */}
+                    <div className="space-y-3 p-3 rounded-lg border border-border/40 bg-muted/20">
+                      <div className="font-semibold text-xs text-foreground">Group E: Garden &amp; Planting Requirements</div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label htmlFor="green-density" className="text-xs text-muted-foreground">Vegetation Density</Label>
+                          <select
+                            id="green-density"
+                            value={form.greeneryDensity}
+                            onChange={(e) => controller.editRequirement({ greeneryDensity: e.target.value as any })}
+                            className="mt-1 w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                          >
+                            <option value="low">Low (Spacious)</option>
+                            <option value="medium">Medium (Balanced)</option>
+                            <option value="high">High (Lush Garden)</option>
+                          </select>
+                        </div>
+                        <div>
+                          <Label htmlFor="open-ratio" className="text-xs text-muted-foreground">Open Space Ratio</Label>
+                          <Input
+                            id="open-ratio"
+                            type="number"
+                            step={0.05}
+                            min={0.1}
+                            max={0.9}
+                            value={form.openSpaceRatio}
+                            onChange={(e) => controller.editRequirement({ openSpaceRatio: e.target.value })}
+                            className="mt-1 h-8 text-xs font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 pt-2 border-t border-border/30 text-xs">
+                        <div className="grid grid-cols-2 gap-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={form.gardenRequired}
+                              onChange={(e) => controller.editRequirement({ gardenRequired: e.target.checked })}
+                              className="w-3.5 h-3.5 rounded text-primary"
+                            />
+                            <span>Planting Beds</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={form.lawnRequired}
+                              onChange={(e) => controller.editRequirement({ lawnRequired: e.target.checked })}
+                              className="w-3.5 h-3.5 rounded text-primary"
+                            />
+                            <span>Turf / Lawn</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={form.flowerBedsRequired}
+                              onChange={(e) => controller.editRequirement({ flowerBedsRequired: e.target.checked })}
+                              className="w-3.5 h-3.5 rounded text-primary"
+                            />
+                            <span>Flower Beds</span>
+                          </label>
+                        </div>
+
+                        {/* Trees section */}
+                        <div className="p-2 rounded border border-border/30 bg-background/40 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={form.treesRequired}
+                                onChange={(e) => controller.editRequirement({ treesRequired: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span className="font-medium">Trees</span>
+                            </label>
+                            {form.treesRequired && (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] text-muted-foreground">Qty:</span>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  max={50}
+                                  value={form.treeQuantity}
+                                  onChange={(e) => controller.editRequirement({ treeQuantity: e.target.value })}
+                                  className="h-6 w-14 text-xs font-mono px-1"
+                                />
+                              </div>
+                            )}
+                          </div>
+                          {form.treesRequired && (
+                            <div className="flex gap-4 pt-1 text-[11px]">
+                              <label className="flex items-center gap-1.5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={form.shadeTreePreference}
+                                  onChange={(e) => controller.editRequirement({ shadeTreePreference: e.target.checked })}
+                                  className="w-3 h-3 rounded text-primary"
+                                />
+                                <span>Shade Canopy</span>
+                              </label>
+                              <label className="flex items-center gap-1.5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={form.compactTreesPreference}
+                                  onChange={(e) => controller.editRequirement({ compactTreesPreference: e.target.checked })}
+                                  className="w-3 h-3 rounded text-primary"
+                                />
+                                <span>Compact Trees</span>
+                              </label>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Shrubs section */}
+                        <div className="p-2 rounded border border-border/30 bg-background/40 flex items-center justify-between">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={form.shrubsRequired}
+                              onChange={(e) => controller.editRequirement({ shrubsRequired: e.target.checked })}
+                              className="w-3.5 h-3.5 rounded text-primary"
+                            />
+                            <span className="font-medium">Shrubs &amp; Bushes</span>
+                          </label>
+                          {form.shrubsRequired && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-muted-foreground">Qty:</span>
+                              <Input
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={form.shrubsQuantity}
+                                onChange={(e) => controller.editRequirement({ shrubsQuantity: e.target.value })}
+                                className="h-6 w-14 text-xs font-mono px-1"
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Planters section */}
+                        <div className="p-2 rounded border border-border/30 bg-background/40 flex items-center justify-between">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={form.groundPlantersRequired}
+                              onChange={(e) => controller.editRequirement({ groundPlantersRequired: e.target.checked })}
+                              className="w-3.5 h-3.5 rounded text-primary"
+                            />
+                            <span className="font-medium">Ground Planters</span>
+                          </label>
+                          {form.groundPlantersRequired && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-muted-foreground">Count:</span>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={50}
+                                value={form.groundPlantersCount}
+                                onChange={(e) => controller.editRequirement({ groundPlantersCount: e.target.value })}
+                                className="h-6 w-14 text-xs font-mono px-1"
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Seating and Table sets */}
+                        <div className="grid grid-cols-2 gap-2 pt-1">
+                          <div className="p-2 rounded border border-border/30 bg-background/40 space-y-1">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={form.gardenSeatingRequired}
+                                onChange={(e) => controller.editRequirement({ gardenSeatingRequired: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span className="font-medium">Seating Benches</span>
+                            </label>
+                            {form.gardenSeatingRequired && (
+                              <Input
+                                type="number"
+                                min={1}
+                                max={20}
+                                value={form.gardenSeatingCount}
+                                onChange={(e) => controller.editRequirement({ gardenSeatingCount: e.target.value })}
+                                className="h-6 text-xs font-mono mt-1"
+                                placeholder="Count"
+                              />
+                            )}
+                          </div>
+                          <div className="p-2 rounded border border-border/30 bg-background/40 space-y-1">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={form.gardenTableSetRequired}
+                                onChange={(e) => controller.editRequirement({ gardenTableSetRequired: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span className="font-medium">Dining Table Set</span>
+                            </label>
+                            {form.gardenTableSetRequired && (
+                              <Input
+                                type="number"
+                                min={1}
+                                max={10}
+                                value={form.gardenTableSetCount}
+                                onChange={(e) => controller.editRequirement({ gardenTableSetCount: e.target.value })}
+                                className="h-6 text-xs font-mono mt-1"
+                                placeholder="Count"
+                              />
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Plant Species Selector */}
+                      <div className="space-y-2 pt-2 border-t border-border/30 text-xs">
+                        <Label className="text-xs font-semibold flex items-center gap-1.5">
+                          <Tag className="w-3.5 h-3.5 text-primary" /> Botanical Catalogue Selection
+                        </Label>
+                        <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1 border rounded bg-background">
+                          {catalogEntries.slice(0, 8).map((sp) => {
+                            const isPref = (form.preferredPlantIds || []).includes(sp.id)
+                            return (
+                              <button
+                                key={sp.id}
+                                type="button"
+                                onClick={() => {
+                                  const current = form.preferredPlantIds || []
+                                  const next = isPref
+                                    ? current.filter((id) => id !== sp.id)
+                                    : [...current, sp.id]
+                                  controller.editRequirement({ preferredPlantIds: next })
+                                }}
+                                className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
+                                  isPref ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted text-muted-foreground border-border'
+                                }`}
+                              >
+                                {sp.name}
+                              </button>
+                            )
+                          })}
+                        </div>
+                        <span className="text-[10px] text-muted-foreground block">
+                          Selected plants receive score bonuses during vegetation placement.
+                        </span>
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  {/* TAB 4: GROUPS F, G & H - WALLS, BALCONIES & ROOFTOPS */}
+                  <TabsContent value="facades" className="space-y-4">
+                    {/* GROUP F: BOUNDARY WALL & VERTICAL GREENERY */}
+                    <div className="space-y-3 p-3 rounded-lg border border-border/40 bg-muted/20 text-xs">
                       <div className="flex items-center justify-between">
-                        <Label htmlFor="wall-req" className="text-xs font-medium cursor-pointer">Boundary Enclosure</Label>
+                        <Label htmlFor="wall-req" className="font-semibold text-xs cursor-pointer">Group F: Boundary Enclosure</Label>
                         <input
                           id="wall-req"
                           type="checkbox"
                           checked={form.boundaryWallRequired}
                           onChange={(e) => controller.editRequirement({ boundaryWallRequired: e.target.checked })}
-                          className="w-3.5 h-3.5 rounded text-primary"
+                          className="w-4 h-4 rounded text-primary"
                         />
                       </div>
                       {form.boundaryWallRequired && (
@@ -849,6 +1300,7 @@ export default function EliaEnginePage() {
                               <option value="masonry">Masonry Wall</option>
                               <option value="fence">Perimeter Fence</option>
                               <option value="hedge">Living Green Hedge</option>
+                              <option value="parapet">Parapet Wall</option>
                             </select>
                           </div>
                           <div>
@@ -856,6 +1308,8 @@ export default function EliaEnginePage() {
                             <Input
                               type="number"
                               step={0.1}
+                              min={0.5}
+                              max={4.0}
                               value={form.boundaryWallHeightM}
                               onChange={(e) => controller.editRequirement({ boundaryWallHeightM: e.target.value })}
                               className="mt-1 h-7 text-xs font-mono"
@@ -863,11 +1317,435 @@ export default function EliaEnginePage() {
                           </div>
                         </div>
                       )}
+
+                      {/* Vertical Greenery */}
+                      <div className="pt-2 border-t border-border/30 space-y-2">
+                        <span className="text-xs font-medium text-foreground block">Vertical Greenery</span>
+                        <div>
+                          <Label className="text-[11px] text-muted-foreground">Greenery Mode</Label>
+                          <select
+                            value={form.verticalGreeneryMode}
+                            onChange={(e) => controller.editRequirement({ verticalGreeneryMode: e.target.value as any })}
+                            className="mt-1 w-full h-7 rounded border border-input bg-background px-2 text-xs"
+                          >
+                            <option value="automatic">Automatic Heuristic</option>
+                            <option value="preferred">Preferred Enclosure</option>
+                            <option value="disabled">Disabled</option>
+                          </select>
+                        </div>
+                        {form.verticalGreeneryMode !== 'disabled' && (
+                          <div className="space-y-1.5 pt-1">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={form.wallClimbingPlants}
+                                onChange={(e) => controller.editRequirement({ wallClimbingPlants: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span>Wall-Climbing Vines</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={form.wallMountedGreenery}
+                                onChange={(e) => controller.editRequirement({ wallMountedGreenery: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span>Wall-Mounted Planters</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={form.hangingTrailingGreenery}
+                                onChange={(e) => controller.editRequirement({ hangingTrailingGreenery: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span>Hanging / Trailing Greenery</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={form.acceptVerticalAlternatives}
+                                onChange={(e) => controller.editRequirement({ acceptVerticalAlternatives: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span className="text-[11px] text-muted-foreground">Accept vertical alternatives when ground space is constrained</span>
+                            </label>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* GROUP G: BALCONIES */}
+                    <div className="space-y-3 p-3 rounded-lg border border-border/40 bg-muted/20 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="balcony-req" className="font-semibold text-xs cursor-pointer">Group G: Balcony Greenery</Label>
+                          <FeasibilityBadge assessment={featureAssessments.balcony_features} />
+                        </div>
+                        <input
+                          id="balcony-req"
+                          type="checkbox"
+                          checked={form.balconyPlantingRequired}
+                          onChange={(e) => controller.editRequirement({ balconyPlantingRequired: e.target.checked })}
+                          className="w-4 h-4 rounded text-primary"
+                        />
+                      </div>
+                      <FeasibilityNotice assessment={featureAssessments.balcony_features} />
+                      <div className="p-2 rounded bg-muted/40 border border-border/30 text-[10px] text-blue-300 flex items-start gap-1.5">
+                        <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                        <span>Stage 1: Intent captured for feasibility check (Balcony spatial layout generation coming in Stage 2).</span>
+                      </div>
+                      {form.balconyPlantingRequired && (
+                        <div className="space-y-2 pt-2 border-t border-border/30">
+                          <div className="grid grid-cols-2 gap-2">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={form.balconyPottedPlants}
+                                onChange={(e) => controller.editRequirement({ balconyPottedPlants: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span>Potted Plants</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={form.balconyHangingPlants}
+                                onChange={(e) => controller.editRequirement({ balconyHangingPlants: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span>Hanging Plants</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={form.balconySeatingRequired}
+                                onChange={(e) => controller.editRequirement({ balconySeatingRequired: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span>Balcony Seating</span>
+                            </label>
+                          </div>
+                          <div>
+                            <Label className="text-[10px] text-muted-foreground">Target Balcony IDs (Optional)</Label>
+                            <Input
+                              value={(form.targetBalconyIds || []).join(', ')}
+                              onChange={(e) => controller.editRequirement({
+                                targetBalconyIds: e.target.value.split(',').map((s) => s.trim()).filter(Boolean)
+                              })}
+                              className="mt-1 h-7 text-xs font-mono"
+                              placeholder="e.g. balcony_1, balcony_2"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* GROUP H: ROOFTOP / TERRACE */}
+                    <div className="space-y-3 p-3 rounded-lg border border-border/40 bg-muted/20 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="terrace-req" className="font-semibold text-xs cursor-pointer">Group H: Rooftop / Terrace Greenery</Label>
+                          <FeasibilityBadge assessment={featureAssessments.rooftop_terrace} />
+                        </div>
+                        <input
+                          id="terrace-req"
+                          type="checkbox"
+                          checked={form.rooftopPlantingRequired}
+                          onChange={(e) => controller.editRequirement({ rooftopPlantingRequired: e.target.checked })}
+                          className="w-4 h-4 rounded text-primary"
+                        />
+                      </div>
+                      <FeasibilityNotice assessment={featureAssessments.rooftop_terrace} />
+                      <div className="p-2 rounded bg-muted/40 border border-border/30 text-[10px] text-blue-300 flex items-start gap-1.5">
+                        <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                        <span>Stage 1: Intent captured for feasibility check (Rooftop layout generation coming in Stage 2).</span>
+                      </div>
+                      {form.rooftopPlantingRequired && (
+                        <div className="space-y-2 pt-2 border-t border-border/30">
+                          <div className="grid grid-cols-2 gap-2">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={form.rooftopPlantersRequired}
+                                onChange={(e) => controller.editRequirement({ rooftopPlantersRequired: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span>Rooftop Planters</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={form.rooftopSeatingRequired}
+                                onChange={(e) => controller.editRequirement({ rooftopSeatingRequired: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span>Terrace Seating</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={form.rooftopTablesRequired}
+                                onChange={(e) => controller.editRequirement({ rooftopTablesRequired: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span>Dining Tables</span>
+                            </label>
+                          </div>
+                          <div>
+                            <Label className="text-[10px] text-muted-foreground">Target Terrace IDs (Optional)</Label>
+                            <Input
+                              value={(form.targetTerraceIds || []).join(', ')}
+                              onChange={(e) => controller.editRequirement({
+                                targetTerraceIds: e.target.value.split(',').map((s) => s.trim()).filter(Boolean)
+                              })}
+                              className="mt-1 h-7 text-xs font-mono"
+                              placeholder="e.g. terrace_main, roof_garden"
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </TabsContent>
 
-                  {/* TAB 4: SOLAR & ENVIRONMENTAL */}
+                  {/* TAB 5: GROUPS I & J - LIGHTING & WATER UTILITIES */}
+                  <TabsContent value="lighting" className="space-y-4">
+                    {/* GROUP I: OUTDOOR LIGHTING */}
+                    <div className="space-y-3 p-3 rounded-lg border border-border/40 bg-muted/20 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="light-req" className="font-semibold text-xs cursor-pointer">Group I: Outdoor Lighting Plan</Label>
+                          <FeasibilityBadge assessment={featureAssessments.outdoor_lighting} />
+                        </div>
+                        <input
+                          id="light-req"
+                          type="checkbox"
+                          checked={form.lightingRequired}
+                          onChange={(e) => controller.editRequirement({ lightingRequired: e.target.checked })}
+                          className="w-4 h-4 rounded text-primary"
+                        />
+                      </div>
+                      <FeasibilityNotice assessment={featureAssessments.outdoor_lighting} />
+                      {form.lightingRequired && (
+                        <div className="space-y-3 pt-2 border-t border-border/30">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <Label className="text-[11px] text-muted-foreground">Fixture Style</Label>
+                              <select
+                                value={form.lightingStyle}
+                                onChange={(e) => controller.editRequirement({ lightingStyle: e.target.value })}
+                                className="mt-1 w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                              >
+                                <option value="minimal">Minimal Bollards</option>
+                                <option value="modern_bollard">Modern Bollard</option>
+                                <option value="accent">Pathway &amp; Tree Accent</option>
+                                <option value="ambient">Ambient Perimeter</option>
+                                <option value="traditional">Traditional Lantern</option>
+                              </select>
+                            </div>
+                            <div>
+                              <Label className="text-[11px] text-muted-foreground">Desired Fixtures</Label>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={50}
+                                value={form.lightingFixtureCount}
+                                onChange={(e) => controller.editRequirement({ lightingFixtureCount: e.target.value })}
+                                className="mt-1 h-8 text-xs font-mono"
+                                placeholder="Auto"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <span className="text-[11px] text-muted-foreground block mb-1">Illumination Zones</span>
+                            <div className="grid grid-cols-2 gap-2">
+                              <label className="flex items-center gap-1.5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={form.gardenLighting}
+                                  onChange={(e) => controller.editRequirement({ gardenLighting: e.target.checked })}
+                                  className="w-3.5 h-3.5 rounded text-primary"
+                                />
+                                <span>Garden</span>
+                              </label>
+                              <label className="flex items-center gap-1.5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={form.pathwayLighting}
+                                  onChange={(e) => controller.editRequirement({ pathwayLighting: e.target.checked })}
+                                  className="w-3.5 h-3.5 rounded text-primary"
+                                />
+                                <span>Pathways</span>
+                              </label>
+                              <label className="flex items-center gap-1.5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={form.seatingLighting}
+                                  onChange={(e) => controller.editRequirement({ seatingLighting: e.target.checked })}
+                                  className="w-3.5 h-3.5 rounded text-primary"
+                                />
+                                <span>Seating</span>
+                              </label>
+                              <label className="flex items-center gap-1.5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={form.wallLighting}
+                                  onChange={(e) => controller.editRequirement({ wallLighting: e.target.checked })}
+                                  className="w-3.5 h-3.5 rounded text-primary"
+                                />
+                                <span>Boundary Wall</span>
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* GROUP J: WATER FEATURES & UTILITIES */}
+                    <div className="space-y-3 p-3 rounded-lg border border-border/40 bg-muted/20 text-xs">
+                      <div className="font-semibold text-xs text-foreground">Group J: Water Features &amp; Utilities</div>
+                      <div className="p-2 rounded bg-muted/40 border border-border/30 text-[10px] text-blue-300 flex items-start gap-1.5">
+                        <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                        <span>Stage 1: Intent captured for feasibility check (Water feature spatial layout generation coming in Stage 2).</span>
+                      </div>
+                      <div className="space-y-2 pt-1">
+                        <div className="grid grid-cols-2 gap-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={form.wellRequired}
+                              onChange={(e) => controller.editRequirement({ wellRequired: e.target.checked })}
+                              className="w-3.5 h-3.5 rounded text-primary"
+                            />
+                            <span>Domestic Water Well</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={form.pondRequired}
+                              onChange={(e) => controller.editRequirement({ pondRequired: e.target.checked })}
+                              className="w-3.5 h-3.5 rounded text-primary"
+                            />
+                            <span>Garden Pond</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={form.poolRequired}
+                              onChange={(e) => controller.editRequirement({ poolRequired: e.target.checked })}
+                              className="w-3.5 h-3.5 rounded text-primary"
+                            />
+                            <span>Swimming Pool</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={form.septicTankRequired}
+                              onChange={(e) => controller.editRequirement({ septicTankRequired: e.target.checked })}
+                              className="w-3.5 h-3.5 rounded text-primary"
+                            />
+                            <span>Septic Tank</span>
+                          </label>
+                        </div>
+
+                        {/* Garden taps */}
+                        <div className="p-2 rounded border border-border/30 bg-background/40 flex items-center justify-between">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={form.gardenTapsRequired}
+                              onChange={(e) => controller.editRequirement({ gardenTapsRequired: e.target.checked })}
+                              className="w-3.5 h-3.5 rounded text-primary"
+                            />
+                            <span className="font-medium">Garden Water Taps</span>
+                          </label>
+                          {form.gardenTapsRequired && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-muted-foreground">Count:</span>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={10}
+                                value={form.gardenTapsCount}
+                                onChange={(e) => controller.editRequirement({ gardenTapsCount: e.target.value })}
+                                className="h-6 w-14 text-xs font-mono px-1"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  {/* TAB 6: GROUP K - SOLAR & SUSTAINABILITY */}
                   <TabsContent value="solar" className="space-y-4">
+                    {/* GROUP K: SOLAR REQUIREMENTS */}
+                    <div className="space-y-3 p-3 rounded-lg border border-border/40 bg-muted/20 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="solar-req" className="font-semibold text-xs cursor-pointer">Group K: Solar Panels</Label>
+                          <FeasibilityBadge assessment={featureAssessments.solar_pv} />
+                        </div>
+                        <input
+                          id="solar-req"
+                          type="checkbox"
+                          checked={form.solarRequired}
+                          onChange={(e) => controller.editRequirement({ solarRequired: e.target.checked })}
+                          className="w-4 h-4 rounded text-primary"
+                        />
+                      </div>
+                      <FeasibilityNotice assessment={featureAssessments.solar_pv} />
+                      <div className="p-2 rounded bg-muted/40 border border-border/30 text-[10px] text-blue-300 flex items-start gap-1.5">
+                        <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                        <span>Stage 1: Intent captured for feasibility check (3D panel spatial layout generation coming in Stage 2).</span>
+                      </div>
+                      {form.solarRequired && (
+                        <div className="space-y-2 pt-2 border-t border-border/30">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <Label className="text-[11px] text-muted-foreground">Preferred Roof Surface</Label>
+                              <select
+                                value={form.preferredRoofSurface}
+                                onChange={(e) => controller.editRequirement({ preferredRoofSurface: e.target.value as any })}
+                                className="mt-1 w-full h-7 rounded border border-input bg-background px-2 text-xs"
+                              >
+                                <option value="auto">Auto Optimum Surface</option>
+                                <option value="flat_roof">Flat Rooftop</option>
+                                <option value="south_facing">South Facing Pitched Roof</option>
+                                <option value="north_facing">North Facing Roof</option>
+                                <option value="any">Any Available Surface</option>
+                              </select>
+                            </div>
+                            <div>
+                              <Label className="text-[11px] text-muted-foreground">Placement Priority</Label>
+                              <select
+                                value={form.placementPriority}
+                                onChange={(e) => controller.editRequirement({ placementPriority: e.target.value as any })}
+                                className="mt-1 w-full h-7 rounded border border-input bg-background px-2 text-xs"
+                              >
+                                <option value="balanced">Balanced</option>
+                                <option value="maximum_yield">Maximum Yield</option>
+                                <option value="concealed_from_street">Concealed from Street</option>
+                              </select>
+                            </div>
+                          </div>
+                          <div className="pt-1">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={form.includeLiveSolar}
+                                onChange={(e) => controller.editRequirement({ includeLiveSolar: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span>Include Live Solar Irradiance in Spatial Scoring</span>
+                            </label>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
                     {/* Climate Zone */}
                     <div className="space-y-2 p-3 rounded-lg border border-border/40 bg-muted/20">
                       <Label htmlFor="climate-zone" className="text-xs font-semibold">Sri Lankan Climate Zone</Label>
@@ -982,37 +1860,6 @@ export default function EliaEnginePage() {
                       </div>
                     )}
                   </TabsContent>
-
-                  {/* TAB 5: LIGHTING & AMENITIES */}
-                  <TabsContent value="lighting" className="space-y-4">
-                    {/* Lighting & Vertical Greenery Options */}
-                    <div className="space-y-3 p-3 rounded-lg border border-border/40 bg-muted/20 text-xs">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="light-req" className="font-medium cursor-pointer">Include Outdoor Lighting Plan</Label>
-                        <input
-                          id="light-req"
-                          type="checkbox"
-                          checked={form.lightingRequired}
-                          onChange={(e) => controller.editRequirement({ lightingRequired: e.target.checked })}
-                          className="w-4 h-4 rounded text-primary"
-                        />
-                      </div>
-                      {form.lightingRequired && (
-                        <div className="pt-2 border-t border-border/30">
-                          <Label className="text-[11px] text-muted-foreground">Lighting Fixture Style</Label>
-                          <select
-                            value={form.lightingStyle}
-                            onChange={(e) => controller.editRequirement({ lightingStyle: e.target.value })}
-                            className="mt-1 w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
-                          >
-                            <option value="minimal">Minimal Bollards</option>
-                            <option value="accent">Pathway &amp; Tree Accent</option>
-                            <option value="ambient">Ambient Perimeter</option>
-                          </select>
-                        </div>
-                      )}
-                    </div>
-                  </TabsContent>
                 </Tabs>
               </CardContent>
             </Card>
@@ -1058,6 +1905,25 @@ export default function EliaEnginePage() {
                 {form.generationMode === 'trained_model' && (
                   <div className="p-2.5 rounded border border-amber-500/30 bg-amber-950/20 text-amber-200 text-[11px] leading-tight">
                     Model adapter not yet registered on this backend. Requesting this mode triggers explicit 503 response without fallback.
+                  </div>
+                )}
+
+                {/* Preference Fulfillment & Unsupported Preferences Notice */}
+                {displayedExterior?.preference_fulfillment?.unsupported_preferences && displayedExterior.preference_fulfillment.unsupported_preferences.length > 0 && (
+                  <div className="p-3 rounded-lg border border-blue-500/30 bg-blue-950/20 text-blue-200 text-xs space-y-1">
+                    <div className="font-semibold flex items-center gap-1.5 text-blue-300">
+                      <Info className="w-3.5 h-3.5" /> Stage 1 Preference Scope
+                    </div>
+                    <p className="text-[11px] leading-relaxed">
+                      The following requested preferences are recorded and validated in the Master contract, but spatial layout generation is deferred to Stage 2:
+                    </p>
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      {displayedExterior.preference_fulfillment.unsupported_preferences.map((item: string) => (
+                        <Badge key={item} variant="outline" className="text-[10px] border-blue-400/40 text-blue-300">
+                          {item.replace(/_/g, ' ')}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
                 )}
 

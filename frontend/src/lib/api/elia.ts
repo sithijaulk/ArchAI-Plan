@@ -10,6 +10,7 @@ import type {
   CandidateValidationResponse,
   CandidateSaveRequest,
   CandidateSaveResponse,
+  ProjectFeasibilityResponse,
 } from '@/types/elia';
 
 export interface SriLankaLocation {
@@ -145,4 +146,16 @@ export const eliaApi = {
     });
     return response.data;
   },
+
+  assessFeasibility: async (
+    projectId: string,
+    payload: ELIARequestPayload,
+    options?: { signal?: AbortSignal }
+  ): Promise<ProjectFeasibilityResponse> => {
+    const response = await apiClient.post(`/projects/${projectId}/elia-engine/feasibility`, payload, {
+      signal: options?.signal,
+    });
+    return response.data;
+  },
 };
+

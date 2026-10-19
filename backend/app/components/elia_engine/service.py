@@ -508,6 +508,10 @@ def run_elia(master_json: Mapping[str, Any], raw_requirements: Mapping[str, Any]
                               validation, used_area)
     landscape_preferences = raw_requirements.get("landscape", {})
     access_preferences = raw_requirements.get("access", {})
+    water_preferences = raw_requirements.get("water_features", {})
+    solar_preferences = raw_requirements.get("solar", {})
+    balcony_preferences = raw_requirements.get("balconies", {})
+    terrace_preferences = raw_requirements.get("terrace", {})
     unsupported_preferences = [
         name for name, value in (
             ("preferred_garden_zone", landscape_preferences.get("preferred_garden_zone")),
@@ -519,6 +523,17 @@ def run_elia(master_json: Mapping[str, Any], raw_requirements: Mapping[str, Any]
             ("design_style_geometry", raw_requirements.get("design_style")),
             ("utility_relocation_allowed", raw_requirements.get("utility_relocation_allowed")),
             ("additional_requirements", raw_requirements.get("additional_requirements")),
+            ("swimming_pool", water_preferences.get("swimming_pool_required")),
+            ("pond", water_preferences.get("pond_required")),
+            ("well", water_preferences.get("well_required")),
+            ("garden_taps", water_preferences.get("garden_taps_required")),
+            ("solar_panels", solar_preferences.get("panels_required")),
+            ("rooftop_planting", terrace_preferences.get("planting_required")),
+            ("rooftop_seating", terrace_preferences.get("seating_required")),
+            ("rooftop_tables", terrace_preferences.get("tables_required")),
+            ("balcony_planting", balcony_preferences.get("planting_required")),
+            ("balcony_seating", balcony_preferences.get("seating_required")),
+            ("balcony_potted_plants", balcony_preferences.get("potted_plants")),
         ) if value is not None and value is not False and value != "" and value != {} and value != []
     ]
     requested_categories = landscape_preferences.get("preferred_vegetation_categories", [])

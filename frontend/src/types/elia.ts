@@ -176,24 +176,48 @@ export interface EliaAccessRequirements {
   gate_type?: string;
   gate_width_m?: number | null;
   gate_count?: number;
+  parking_required?: boolean;
+  parking_type?: 'garage' | 'covered' | 'open' | 'no_preference';
   garage_required?: boolean;
   garage_capacity?: number;
   vehicle_count?: number;
   driveway_required?: boolean;
   driveway_style?: string;
+  driveway_surface?: string;
+  walking_path_surface?: string;
+  gate_required?: boolean;
+  gate_opening_mechanism?: string;
+  gate_style?: string;
   turning_space_required?: boolean;
 }
 
 export interface EliaLandscapeRequirements {
   garden_required?: boolean;
   lawn_required?: boolean;
+  garden_ground_finish?: 'grass' | 'interlock' | 'paving_stones' | 'mixed';
   garden_seating_required?: boolean;
+  garden_seating_count?: number | null;
   garden_table_set_required?: boolean;
+  garden_table_set_count?: number | null;
   preferred_garden_zone?: string | null;
   preferred_open_space_ratio?: number | null;
   greenery_density?: 'low' | 'medium' | 'high';
+  trees_required?: boolean;
+  tree_quantity?: number | null;
+  compact_trees_preference?: boolean;
+  shrubs_required?: boolean;
+  shrubs_quantity?: number | null;
+  flower_beds_required?: boolean;
+  ground_planters_required?: boolean;
+  ground_planters_count?: number | null;
   shade_tree_preference?: boolean;
   low_maintenance_preference?: boolean | null;
+  maintenance_preference?: 'low' | 'medium' | 'high' | 'no_preference' | 'unknown';
+  water_availability?: 'limited' | 'regular' | 'irrigation_available' | 'unknown';
+  preferred_plant_ids?: string[];
+  plant_ids_to_avoid?: string[];
+  climate_zone?: string | null;
+  site_exposure?: string | null;
   pedestrian_path_required?: boolean;
   garden_path_required?: boolean;
   boundary_wall_required?: boolean;
@@ -204,6 +228,27 @@ export interface EliaLandscapeRequirements {
 export interface EliaVerticalGreeneryRequirements {
   mode?: 'automatic' | 'preferred' | 'disabled';
   enabled?: boolean;
+  wall_climbing_plants?: boolean;
+  wall_mounted_greenery?: boolean;
+  hanging_trailing_greenery?: boolean;
+  accept_vertical_alternatives?: boolean;
+}
+
+export interface EliaBalconyRequirements {
+  planting_required?: boolean;
+  potted_plants?: boolean;
+  hanging_plants?: boolean;
+  seating_required?: boolean;
+  preferred_plant_ids?: string[];
+  target_balcony_ids?: string[];
+}
+
+export interface EliaTerraceRequirements {
+  planting_required?: boolean;
+  planters_required?: boolean;
+  seating_required?: boolean;
+  tables_required?: boolean;
+  target_terrace_ids?: string[];
 }
 
 export interface EliaLightingRequirements {
@@ -211,6 +256,27 @@ export interface EliaLightingRequirements {
   style?: string;
   zones?: string[];
   preferred_spacing_m?: number | null;
+  desired_fixture_count?: number | null;
+  garden_lighting?: boolean;
+  pathway_lighting?: boolean;
+  seating_lighting?: boolean;
+  wall_lighting?: boolean;
+}
+
+export interface EliaWaterFeatureRequirements {
+  well_required?: boolean;
+  garden_taps_required?: boolean;
+  garden_taps_count?: number | null;
+  pond_required?: boolean;
+  swimming_pool_required?: boolean;
+  septic_tank_required?: boolean;
+}
+
+export interface EliaSolarRequirements {
+  panels_required?: boolean;
+  preferred_roof_surface?: 'flat_roof' | 'south_facing' | 'north_facing' | 'auto' | 'any';
+  placement_priority?: 'maximum_yield' | 'concealed_from_street' | 'balanced';
+  include_live_solar?: boolean;
 }
 
 export interface LockedExteriorFeature {
@@ -304,7 +370,11 @@ export interface ELIARequirements {
   access?: EliaAccessRequirements;
   landscape?: EliaLandscapeRequirements;
   vertical_greenery?: EliaVerticalGreeneryRequirements;
+  balconies?: EliaBalconyRequirements;
+  terrace?: EliaTerraceRequirements;
   lighting?: EliaLightingRequirements;
+  water_features?: EliaWaterFeatureRequirements;
+  solar?: EliaSolarRequirements;
   maintenance_preference?: 'low' | 'medium' | 'high' | 'no_preference';
   low_maintenance_preference?: boolean | null;
   water_availability?: 'limited' | 'regular' | 'irrigation_available' | 'unknown';
@@ -380,6 +450,46 @@ export interface ELIAPreviewResponse {
   persisted: boolean;
 }
 
+export type FeasibilityStatus =
+  | 'feasible'
+  | 'infeasible'
+  | 'review_required'
+  | 'not_applicable'
+  | 'unsupported'
+  | 'search_inconclusive';
+
+export interface FeatureFeasibilityAssessment {
+  feature_id: string;
+  requested_state: string;
+  feasibility_status: FeasibilityStatus;
+  reason_codes: string[];
+  explanation: string;
+  affected_object_ids?: string[];
+  applicable_rule_ids?: string[];
+  missing_evidence?: string[];
+  assessment_scope?: string;
+  source_revision?: number | null;
+  suggested_alternatives?: string[];
+}
+
+export interface CombinedConflictResult {
+  conflicting_features: string[];
+  conflict_type: string;
+  explanation: string;
+  affected_requests?: Record<string, unknown>;
+  suggested_alternatives?: string[];
+}
+
+export interface ProjectFeasibilityResponse {
+  project_id?: string;
+  source_revision?: number | null;
+  overall_status: 'feasible' | 'infeasible' | 'review_required' | 'conflicts_detected';
+  feature_assessments: Record<string, FeatureFeasibilityAssessment>;
+  combined_conflicts: CombinedConflictResult[];
+  spatial_metrics: Record<string, unknown>;
+  limitations: string[];
+}
+
 export interface ELIAValidationResponse {
   valid: boolean;
   project_id: string;
@@ -393,6 +503,7 @@ export interface ELIAValidationResponse {
     north_angle_degrees: number;
     convention: string;
   };
+  feasibility?: ProjectFeasibilityResponse;
 }
 
 export interface ELIAContextResponse {

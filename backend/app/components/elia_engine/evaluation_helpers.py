@@ -612,6 +612,136 @@ def are_polygons_equivalent(r_poly_raw: Any, c_poly_raw: Any) -> tuple[bool, str
     return False, "changed"
 
 
+def _validate_scale_component(item: Any) -> tuple[float | None, str | None]:
+    """Validate a single scale component. Must be a positive finite float (> 0)."""
+    if isinstance(item, bool):
+        return None, "boolean_not_allowed"
+    if isinstance(item, (int, float)):
+        if not math.isfinite(item):
+            return None, "non_finite"
+        if item <= 0.0:
+            return None, "must_be_positive"
+        return float(item), None
+    if isinstance(item, str):
+        try:
+            f = float(item)
+        except (ValueError, TypeError):
+            return None, "malformed_string"
+        if not math.isfinite(f):
+            return None, "non_finite"
+        if f <= 0.0:
+            return None, "must_be_positive"
+        return f, None
+    return None, f"unsupported_type_{type(item).__name__}"
+
+
+def _validate_single_scale_field(
+    val: Any,
+    field_name: str,
+    side: str,
+    pid: str,
+) -> tuple[tuple[float, ...] | None, str | None]:
+    """Validate an explicitly supplied scale or scale_xyz field."""
+    if isinstance(val, bool):
+        return None, f"{side}_{field_name}_malformed({pid}: boolean_not_allowed)"
+
+    # Scalar numeric
+    if isinstance(val, (int, float)):
+        f, err = _validate_scale_component(val)
+        if err:
+            return None, f"{side}_{field_name}_malformed({pid}: {err})"
+        return (f, f, f), None
+
+    # Vector numeric sequence (list or tuple)
+    if isinstance(val, (list, tuple)):
+        if len(val) == 0:
+            return None, f"{side}_{field_name}_malformed({pid}: empty_vector)"
+        if field_name == "scale_xyz":
+            if len(val) != 3:
+                return None, f"{side}_{field_name}_malformed({pid}: invalid_vector_length_{len(val)}_expected_3)"
+        else:
+            if len(val) not in (2, 3):
+                return None, f"{side}_{field_name}_malformed({pid}: invalid_vector_length_{len(val)})"
+
+        comps: list[float] = []
+        for idx, item in enumerate(val):
+            cf, err = _validate_scale_component(item)
+            if err:
+                return None, f"{side}_{field_name}_malformed({pid}: component_{idx}_{err})"
+            comps.append(cf)
+        return tuple(comps), None
+
+    # String representation
+    if isinstance(val, str):
+        f, err = _validate_scale_component(val)
+        if err:
+            return None, f"{side}_{field_name}_malformed({pid}: {err})"
+        return (f, f, f), None
+
+    # Mapping
+    if isinstance(val, Mapping):
+        return None, f"{side}_{field_name}_malformed({pid}: unsupported_mapping)"
+
+    return None, f"{side}_{field_name}_malformed({pid}: unsupported_type_{type(val).__name__})"
+
+
+def validate_planter_scale(
+    obj: Mapping[str, Any],
+    side: str,
+    pid: str,
+) -> tuple[tuple[float, ...] | None, list[str], bool, Any]:
+    """Validate all scale representations on a planter for the given side ('approved' or 'candidate').
+    
+    Supported representations:
+    - Uniform scalar scale: positive finite float/int (> 0).
+    - Vector scale: 2D or 3D sequence of positive finite floats/ints (> 0).
+    - scale_xyz: 3D sequence (or uniform scalar) of positive finite floats/ints (> 0).
+
+    Returns:
+        (norm_scale, errors, has_scale, raw_display_value)
+    """
+    raw_s = obj.get("scale")
+    raw_xyz = obj.get("scale_xyz")
+    has_s = "scale" in obj and raw_s is not None
+    has_xyz = "scale_xyz" in obj and raw_xyz is not None
+
+    if not has_s and not has_xyz:
+        return None, [], False, None
+
+    errors: list[str] = []
+    s_norm = None
+    xyz_norm = None
+
+    if has_s:
+        s_norm, s_err = _validate_single_scale_field(raw_s, "scale", side, pid)
+        if s_err:
+            errors.append(s_err)
+
+    if has_xyz:
+        xyz_norm, xyz_err = _validate_single_scale_field(raw_xyz, "scale_xyz", side, pid)
+        if xyz_err:
+            errors.append(xyz_err)
+
+    if has_s and has_xyz and not errors and s_norm is not None and xyz_norm is not None:
+        # Both parsed successfully, verify that they are equivalent / consistent
+        if len(s_norm) != len(xyz_norm) or any(abs(a - b) > 1e-3 for a, b in zip(s_norm, xyz_norm)):
+            errors.append(
+                f"{side}_scale_contradiction({pid}: scale={raw_s} vs scale_xyz={raw_xyz})"
+            )
+
+    norm_val = xyz_norm if (xyz_norm is not None and not errors) else s_norm
+    raw_disp = raw_xyz if (has_xyz and not has_s) else raw_s
+    return norm_val, errors, True, raw_disp
+
+
+def _format_scale_display(raw: Any, norm: tuple[float, ...]) -> str:
+    if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+        return f"{float(raw)}"
+    if len(norm) == 3 and norm[0] == norm[1] == norm[2] and isinstance(raw, (int, float)) and not isinstance(raw, bool):
+        return f"{norm[0]}"
+    return str(list(norm))
+
+
 def compare_locked_object_properties(
     ref_obj: Mapping[str, Any],
     cand_obj: Mapping[str, Any],
@@ -750,8 +880,13 @@ def compare_locked_object_properties(
     if r_sc is not None:
         if c_sc is None:
             violations.append(f"locked_scale_removed({rid})")
-        elif r_sc != c_sc:
-            violations.append(f"locked_scale_changed({rid}: {r_sc} -> {c_sc})")
+        else:
+            r_norm, r_err = _validate_single_scale_field(r_sc, "scale", "locked_reference", rid)
+            c_norm, c_err = _validate_single_scale_field(c_sc, "scale", "locked_candidate", rid)
+            if r_err or c_err:
+                violations.append(f"locked_scale_invalid({rid})")
+            elif r_norm is not None and c_norm is not None and (len(r_norm) != len(c_norm) or any(abs(cv - rv) > 1e-3 for rv, cv in zip(r_norm, c_norm))):
+                violations.append(f"locked_scale_changed({rid}: {r_sc} -> {c_sc})")
 
     # 8. Footprint / Polygon
     r_poly = ref_obj.get("polygon") or ref_obj.get("footprint")
@@ -984,8 +1119,32 @@ def compare_approved_planter_configuration(
                 diffs.append(f"candidate_elevation_contradiction({pid}: z={cz} vs elev={ce})")
 
         # 6. Orientation (rotation_degrees or rotation)
-        a_rot = a.get("rotation_degrees") if a.get("rotation_degrees") is not None else a.get("rotation")
-        c_rot = c.get("rotation_degrees") if c.get("rotation_degrees") is not None else c.get("rotation")
+        a_rot_deg = a.get("rotation_degrees")
+        a_rot_raw = a.get("rotation")
+        c_rot_deg = c.get("rotation_degrees")
+        c_rot_raw = c.get("rotation")
+
+        if a_rot_deg is not None and a_rot_raw is not None:
+            ar_d = to_finite_float(a_rot_deg)
+            ar_r = to_finite_float(a_rot_raw)
+            if ar_d is not None and ar_r is not None:
+                drot = abs(ar_r - ar_d) % 360.0
+                if drot > 180.0:
+                    drot = 360.0 - drot
+                if drot > 1e-3:
+                    diffs.append(f"approved_rotation_contradiction({pid}: rotation_degrees={ar_d}° vs rotation={ar_r}°)")
+        if c_rot_deg is not None and c_rot_raw is not None:
+            cr_d = to_finite_float(c_rot_deg)
+            cr_r = to_finite_float(c_rot_raw)
+            if cr_d is not None and cr_r is not None:
+                drot = abs(cr_r - cr_d) % 360.0
+                if drot > 180.0:
+                    drot = 360.0 - drot
+                if drot > 1e-3:
+                    diffs.append(f"candidate_rotation_contradiction({pid}: rotation_degrees={cr_d}° vs rotation={cr_r}°)")
+
+        a_rot = a_rot_deg if a_rot_deg is not None else a_rot_raw
+        c_rot = c_rot_deg if c_rot_deg is not None else c_rot_raw
         has_a_rot = a_rot is not None
         has_c_rot = c_rot is not None
         if has_a_rot != has_c_rot:
@@ -1008,36 +1167,30 @@ def compare_approved_planter_configuration(
                     diffs.append(f"planter_rotation_changed({pid}: {ar}° -> {cr}°)")
 
         # 7. Scale (scale or scale_xyz)
-        a_sc = a.get("scale") if a.get("scale") is not None else a.get("scale_xyz")
-        c_sc = c.get("scale") if c.get("scale") is not None else c.get("scale_xyz")
-        has_a_sc = a_sc is not None
-        has_c_sc = c_sc is not None
+        a_norm, a_errs, has_a_sc, a_disp = validate_planter_scale(a, "approved", pid)
+        c_norm, c_errs, has_c_sc, c_disp = validate_planter_scale(c, "candidate", pid)
+
+        diffs.extend(a_errs)
+        diffs.extend(c_errs)
+
         if has_a_sc != has_c_sc:
             if has_a_sc:
                 diffs.append(f"planter_scale_removed({pid})")
             else:
                 diffs.append(f"planter_scale_added({pid})")
         elif has_a_sc and has_c_sc:
-            if isinstance(a_sc, (list, tuple)) and isinstance(c_sc, (list, tuple)):
-                if len(a_sc) != len(c_sc):
-                    diffs.append(f"planter_scale_changed({pid}: {a_sc} -> {c_sc})")
-                else:
-                    for s1, s2 in zip(a_sc, c_sc):
-                        v1 = to_finite_float(s1)
-                        v2 = to_finite_float(s2)
-                        if v1 is None or v2 is None or abs(v2 - v1) > 1e-3:
-                            diffs.append(f"planter_scale_changed({pid}: {a_sc} -> {c_sc})")
-                            break
-            else:
-                v1 = to_finite_float(a_sc)
-                v2 = to_finite_float(c_sc)
-                if v1 is None or v2 is None:
-                    if a_sc != c_sc:
-                        diffs.append(f"planter_scale_changed({pid}: {a_sc} -> {c_sc})")
-                elif abs(v2 - v1) > 1e-3:
-                    diffs.append(f"planter_scale_changed({pid}: {v1} -> {v2})")
+            if not a_errs and not c_errs and a_norm is not None and c_norm is not None:
+                if len(a_norm) != len(c_norm) or any(abs(cv - av) > 1e-3 for av, cv in zip(a_norm, c_norm)):
+                    d_a = _format_scale_display(a_disp, a_norm)
+                    d_c = _format_scale_display(c_disp, c_norm)
+                    diffs.append(f"planter_scale_changed({pid}: {d_a} -> {d_c})")
 
         # 8. Dimensions
+        if "dimensions" in a and a["dimensions"] is not None and not isinstance(a["dimensions"], Mapping):
+            diffs.append(f"approved_dimensions_malformed({pid})")
+        if "dimensions" in c and c["dimensions"] is not None and not isinstance(c["dimensions"], Mapping):
+            diffs.append(f"candidate_dimensions_malformed({pid})")
+
         a_dims = a.get("dimensions") if isinstance(a.get("dimensions"), Mapping) else {}
         c_dims = c.get("dimensions") if isinstance(c.get("dimensions"), Mapping) else {}
         for dk in ("width_m", "depth_m", "height_m", "diameter_m", "length_m"):
@@ -1051,11 +1204,11 @@ def compare_approved_planter_configuration(
                 else:
                     av = to_finite_float(raw_a)
                     cv = to_finite_float(raw_c)
-                    if av is None:
+                    if av is None or av <= 0.0:
                         diffs.append(f"approved_dimension_malformed({pid}.{dk})")
-                    if cv is None:
+                    if cv is None or cv <= 0.0:
                         diffs.append(f"candidate_dimension_malformed({pid}.{dk})")
-                    if av is not None and cv is not None and abs(cv - av) > 1e-3:
+                    if av is not None and cv is not None and av > 0.0 and cv > 0.0 and abs(cv - av) > 1e-3:
                         diffs.append(f"planter_dimension_changed({pid}.{dk}: {av} -> {cv})")
 
         # 9. Load-related / container properties

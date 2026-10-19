@@ -24,6 +24,8 @@ from app.components.elia_engine.evaluation_helpers import (
     to_positive_finite_int,
     parse_polygon_representation,
     compare_locked_object_properties,
+    compare_approved_planter_configuration,
+    validate_planter_scale,
 )
 
 
@@ -3873,6 +3875,306 @@ def test_b09_approved_config_scale_change_requires_review(base_master_json):
     r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
     assert r_map["B09"]["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
     assert any("planter_scale_changed" in str(aff) for aff in r_map["B09"]["affected_object_ids"])
+
+
+def test_b09_approved_config_identical_invalid_scale_requires_review(base_master_json):
+    """B09: Identical invalid scale ('invalid') on approved and candidate must NEVER pass; requires review."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+    master = deepcopy(base_master_json)
+    master["revision"] = 2
+    approved_planter = {
+        "json_id": "p1",
+        "floor_id": "F1",
+        "supporting_surface_type": "balcony",
+        "support_json_id": "b1",
+        "position": [12.0, 10.0],
+        "scale": "invalid",
+    }
+    cand_planter = deepcopy(approved_planter)
+
+    # 1. Comparison helper directly
+    diffs = compare_approved_planter_configuration([approved_planter], [cand_planter])
+    assert any("approved_scale_malformed" in d for d in diffs)
+    assert any("candidate_scale_malformed" in d for d in diffs)
+    assert not any("planter_scale_changed" in d for d in diffs)
+
+    # 2. Actual B09 evaluation path
+    master["structural_evidence"] = {
+        "max_saturated_load_kn_m2": 4.0,
+        "approved_revision": 2,
+        "scope": ["b1"],
+        "approved_configuration": [approved_planter],
+    }
+    cand = {
+        "vegetation_nodes": [cand_planter],
+        "outdoor_elements": [],
+        "outdoor_lighting": {"nodes": []},
+        "access": {},
+    }
+    master_before = deepcopy(master)
+    cand_before = deepcopy(cand)
+
+    res = evaluate_rules(cand, context, master, reqs)
+    r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+    assert r_map["B09"]["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    affected_ids = [str(x) for x in r_map["B09"]["affected_object_ids"]]
+    assert any("approved_scale_malformed" in a for a in affected_ids)
+    assert any("candidate_scale_malformed" in a for a in affected_ids)
+    assert not any("planter_scale_changed" in a for a in affected_ids)
+
+    # Inputs must remain untouched
+    assert master == master_before
+    assert cand == cand_before
+
+
+def test_b09_approved_config_valid_scale_variations(base_master_json):
+    """B09: Valid scalar, vector, equivalent representations, and absent scale behavior."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+
+    def _eval(app_sc, cand_sc):
+        master = deepcopy(base_master_json)
+        master["revision"] = 2
+        ap = {
+            "json_id": "p1",
+            "floor_id": "F1",
+            "supporting_surface_type": "balcony",
+            "support_json_id": "b1",
+            "position": [12.0, 10.0],
+        }
+        cp = deepcopy(ap)
+        if app_sc is not Ellipsis:
+            if isinstance(app_sc, dict):
+                ap.update(app_sc)
+            else:
+                ap["scale"] = app_sc
+        if cand_sc is not Ellipsis:
+            if isinstance(cand_sc, dict):
+                cp.update(cand_sc)
+            else:
+                cp["scale"] = cand_sc
+
+        master["structural_evidence"] = {
+            "max_saturated_load_kn_m2": 4.0,
+            "approved_revision": 2,
+            "scope": ["b1"],
+            "approved_configuration": [ap],
+        }
+        cand = {
+            "vegetation_nodes": [cp],
+            "outdoor_elements": [],
+            "outdoor_lighting": {"nodes": []},
+            "access": {},
+        }
+        res = evaluate_rules(cand, context, master, reqs)
+        r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+        diffs = compare_approved_planter_configuration([ap], [cp])
+        return r_map["B09"], diffs
+
+    # Unchanged valid scalar -> PASS
+    b09, diffs = _eval(1.2, 1.2)
+    assert b09["outcome"] == RuleOutcome.PASS.value
+    assert diffs == []
+
+    # Changed valid scalar -> REVIEW_REQUIRED
+    b09, diffs = _eval(1.0, 1.5)
+    assert b09["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert any("planter_scale_changed" in d for d in diffs)
+
+    # Unchanged valid vector -> PASS
+    b09, diffs = _eval([1.0, 1.2, 1.0], [1.0, 1.2, 1.0])
+    assert b09["outcome"] == RuleOutcome.PASS.value
+    assert diffs == []
+
+    # One changed vector component -> REVIEW_REQUIRED
+    b09, diffs = _eval([1.0, 1.2, 1.0], [1.0, 1.5, 1.0])
+    assert b09["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert any("planter_scale_changed" in d for d in diffs)
+
+    # Equivalent supported representations (scalar vs uniform 3D vector) -> PASS
+    b09, diffs = _eval(1.5, [1.5, 1.5, 1.5])
+    assert b09["outcome"] == RuleOutcome.PASS.value
+    assert diffs == []
+
+    b09, diffs = _eval([2.0, 2.0, 2.0], 2.0)
+    assert b09["outcome"] == RuleOutcome.PASS.value
+    assert diffs == []
+
+    # scale_xyz alias equivalent to uniform scalar scale -> PASS
+    b09, diffs = _eval({"scale_xyz": [1.5, 1.5, 1.5]}, 1.5)
+    assert b09["outcome"] == RuleOutcome.PASS.value
+    assert diffs == []
+
+    # Both scale fields absent -> PASS
+    b09, diffs = _eval(..., ...)
+    assert b09["outcome"] == RuleOutcome.PASS.value
+    assert diffs == []
+
+
+def test_b09_approved_config_invalid_scale_variations(base_master_json):
+    """B09: Comprehensive invalid scale cases: booleans, non-finite, empty, bad length, mappings, negative."""
+    context = parse_exterior_context(base_master_json, default_units="m")
+    reqs = {"design_style": "modern"}
+
+    def _eval(app_sc, cand_sc):
+        master = deepcopy(base_master_json)
+        master["revision"] = 2
+        ap = {
+            "json_id": "p1",
+            "floor_id": "F1",
+            "supporting_surface_type": "balcony",
+            "support_json_id": "b1",
+            "position": [12.0, 10.0],
+        }
+        cp = deepcopy(ap)
+        if app_sc is not Ellipsis:
+            if isinstance(app_sc, dict) and ("scale" in app_sc or "scale_xyz" in app_sc):
+                ap.update(app_sc)
+            else:
+                ap["scale"] = app_sc
+        if cand_sc is not Ellipsis:
+            if isinstance(cand_sc, dict) and ("scale" in cand_sc or "scale_xyz" in cand_sc):
+                cp.update(cand_sc)
+            else:
+                cp["scale"] = cand_sc
+
+        master["structural_evidence"] = {
+            "max_saturated_load_kn_m2": 4.0,
+            "approved_revision": 2,
+            "scope": ["b1"],
+            "approved_configuration": [ap],
+        }
+        cand = {
+            "vegetation_nodes": [cp],
+            "outdoor_elements": [],
+            "outdoor_lighting": {"nodes": []},
+            "access": {},
+        }
+        master_before = deepcopy(master)
+        cand_before = deepcopy(cand)
+        res = evaluate_rules(cand, context, master, reqs)
+        assert master == master_before
+        assert cand == cand_before
+        r_map = {r["rule_id"]: r for r in res["rule_evaluations"]}
+        diffs = compare_approved_planter_configuration([ap], [cp])
+        return r_map["B09"], diffs
+
+    # Invalid approved with valid candidate
+    b09, diffs = _eval("invalid", 1.0)
+    assert b09["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert any("approved_scale_malformed" in d for d in diffs)
+
+    # Valid approved with invalid candidate
+    b09, diffs = _eval(1.0, "invalid")
+    assert b09["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert any("candidate_scale_malformed" in d for d in diffs)
+
+    # Booleans
+    b09, diffs = _eval(True, True)
+    assert b09["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert any("approved_scale_malformed" in d for d in diffs)
+    assert any("candidate_scale_malformed" in d for d in diffs)
+
+    b09, diffs = _eval(1.0, [1.0, True, 1.0])
+    assert b09["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert any("candidate_scale_malformed" in d for d in diffs)
+
+    # NaN and Infinities
+    b09, diffs = _eval(float("nan"), float("nan"))
+    assert b09["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert any("approved_scale_malformed" in d for d in diffs)
+    assert any("candidate_scale_malformed" in d for d in diffs)
+
+    b09, diffs = _eval(float("inf"), float("inf"))
+    assert b09["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert any("approved_scale_malformed" in d for d in diffs)
+    assert any("candidate_scale_malformed" in d for d in diffs)
+
+    b09, diffs = _eval([1.0, float("nan"), 1.0], 1.0)
+    assert b09["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert any("approved_scale_malformed" in d for d in diffs)
+
+    # Empty vector
+    b09, diffs = _eval([], [])
+    assert b09["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert any("approved_scale_malformed" in d for d in diffs)
+    assert any("candidate_scale_malformed" in d for d in diffs)
+
+    # Wrong vector length
+    b09, diffs = _eval([1.0], [1.0])
+    assert b09["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert any("approved_scale_malformed" in d for d in diffs)
+    assert any("candidate_scale_malformed" in d for d in diffs)
+
+    b09, diffs = _eval([1.0, 1.0, 1.0, 1.0], [1.0, 1.0, 1.0, 1.0])
+    assert b09["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert any("approved_scale_malformed" in d for d in diffs)
+    assert any("candidate_scale_malformed" in d for d in diffs)
+
+    b09, diffs = _eval({"scale_xyz": [1.0, 1.0]}, {"scale_xyz": [1.0, 1.0]})
+    assert b09["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert any("approved_scale_xyz_malformed" in d for d in diffs)
+    assert any("candidate_scale_xyz_malformed" in d for d in diffs)
+
+    # Invalid vector component
+    b09, diffs = _eval([1.0, "bad", 1.0], [1.0, "bad", 1.0])
+    assert b09["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert any("approved_scale_malformed" in d for d in diffs)
+    assert any("candidate_scale_malformed" in d for d in diffs)
+
+    # Unsupported mapping or nested sequence
+    b09, diffs = _eval({"ratio": "1:100"}, {"ratio": "1:100"})
+    assert b09["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert any("approved_scale_malformed" in d for d in diffs)
+    assert any("candidate_scale_malformed" in d for d in diffs)
+
+    b09, diffs = _eval([[1.0, 1.0]], [[1.0, 1.0]])
+    assert b09["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert any("approved_scale_malformed" in d for d in diffs)
+    assert any("candidate_scale_malformed" in d for d in diffs)
+
+    # Zero or negative scale
+    b09, diffs = _eval(0.0, 0.0)
+    assert b09["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert any("approved_scale_malformed" in d for d in diffs)
+    assert any("candidate_scale_malformed" in d for d in diffs)
+
+    b09, diffs = _eval(-1.0, -1.0)
+    assert b09["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert any("approved_scale_malformed" in d for d in diffs)
+    assert any("candidate_scale_malformed" in d for d in diffs)
+
+    b09, diffs = _eval([1.0, -0.5, 1.0], 1.0)
+    assert b09["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert any("approved_scale_malformed" in d for d in diffs)
+
+    # Explicit null
+    b09, diffs = _eval(None, None)
+    assert b09["outcome"] == RuleOutcome.PASS.value
+    assert diffs == []
+
+    b09, diffs = _eval(1.0, None)
+    assert b09["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert any("planter_scale_removed" in d for d in diffs)
+
+    b09, diffs = _eval(None, 1.0)
+    assert b09["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert any("planter_scale_added" in d for d in diffs)
+
+    # Contradictory scale aliases
+    b09, diffs = _eval({"scale": 1.0, "scale_xyz": [2.0, 2.0, 2.0]}, 1.0)
+    assert b09["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert any("approved_scale_contradiction" in d for d in diffs)
+
+    b09, diffs = _eval(1.0, {"scale": 1.0, "scale_xyz": [2.0, 2.0, 2.0]})
+    assert b09["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert any("candidate_scale_contradiction" in d for d in diffs)
+
+    # Previously present scale removed
+    b09, diffs = _eval(1.0, ...)
+    assert b09["outcome"] == RuleOutcome.REVIEW_REQUIRED.value
+    assert any("planter_scale_removed" in d for d in diffs)
 
 
 def test_b09_approved_config_duplicate_ids_flagged(base_master_json):
