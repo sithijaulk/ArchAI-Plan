@@ -5,10 +5,11 @@ client requirement persistence, saved configs CRUD, and deterministic validation
 Preserves controlled 501 Not Implemented on the /run optimization endpoint.
 """
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.dependencies import require_admin
 from app.models.project import Project
 from app.components.esai_engine.service import EsaiEngineService
 from app.components.esai_engine.contracts import (
@@ -29,10 +30,11 @@ from app.schemas.esai import (
     RequirementsSaveResponse,
 )
 
-# Project-scoped router
+# Project-scoped router requiring authentication & authorization
 project_router = APIRouter(
     prefix="/api/projects/{project_id}/esai-engine",
-    tags=["ESAI-Engine"]
+    tags=["ESAI-Engine"],
+    dependencies=[Depends(require_admin)]
 )
 
 # Global ESAI knowledge endpoints (catalog, standards, room-profiles)
@@ -117,10 +119,21 @@ def get_requirements(project_id: str, db: Session = Depends(get_db)):
 
 
 @project_router.put("/requirements", response_model=RequirementsSaveResponse)
-def save_room_requirements(project_id: str, payload: RoomRequirementsDTO, db: Session = Depends(get_db)):
+def save_room_requirements(
+    project_id: str,
+    payload: RoomRequirementsDTO,
+    status_param: str = Query(default="draft", alias="status"),
+    expected_revision: Optional[int] = Query(default=None),
+    db: Session = Depends(get_db)
+):
     project = _get_project_or_404(project_id, db)
     service = EsaiEngineService(db)
-    result = service.save_room_requirements(project, payload)
+    result = service.save_room_requirements(
+        project,
+        payload,
+        status=status_param,
+        expected_revision=expected_revision
+    )
     return RequirementsSaveResponse(
         id=result["id"],
         project_id=result["project_id"],
@@ -130,12 +143,42 @@ def save_room_requirements(project_id: str, payload: RoomRequirementsDTO, db: Se
     )
 
 
-# 4. Input Validation
+# 4. Geometry Staleness & Revision Tracking
+@project_router.get("/staleness")
+def check_geometry_staleness(project_id: str, db: Session = Depends(get_db)):
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    return service.check_geometry_staleness(project)
+
+
+# 5. Design Preferences (Preparation for Stage 2)
+@project_router.get("/preferences")
+def get_preferences(project_id: str, db: Session = Depends(get_db)):
+    _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    prefs = service.get_design_preferences(project_id)
+    return {"preferences": prefs}
+
+
+@project_router.put("/preferences")
+def save_preferences(
+    project_id: str,
+    payload: Dict[str, Any],
+    expected_revision: Optional[int] = Query(default=None),
+    db: Session = Depends(get_db)
+):
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    return service.save_design_preferences(project, payload, expected_revision=expected_revision)
+
+
+# 6. Input Validation
 @project_router.post("/validate-input", response_model=ValidationResultDTO)
 def validate_project_input(project_id: str, db: Session = Depends(get_db)):
     project = _get_project_or_404(project_id, db)
     service = EsaiEngineService(db)
     return service.validate_project_input(project)
+
 
 
 # 5. Saved Configurations CRUD
@@ -148,10 +191,10 @@ def list_configurations(project_id: str, db: Session = Depends(get_db)):
 
 @project_router.post("/configurations", response_model=SavedConfigResponse, status_code=status.HTTP_201_CREATED)
 def create_configuration(project_id: str, payload: SavedConfigCreateRequest, db: Session = Depends(get_db)):
-    _get_project_or_404(project_id, db)
+    project = _get_project_or_404(project_id, db)
     service = EsaiEngineService(db)
     created = service.create_saved_configuration(
-        project_id=project_id,
+        project=project,
         name=payload.configuration_name,
         room_ids=payload.room_ids,
         settings=payload.settings
@@ -166,10 +209,10 @@ def update_configuration(
     payload: SavedConfigUpdateRequest,
     db: Session = Depends(get_db)
 ):
-    _get_project_or_404(project_id, db)
+    project = _get_project_or_404(project_id, db)
     service = EsaiEngineService(db)
     updated = service.update_saved_configuration(
-        project_id=project_id,
+        project=project,
         config_id=config_id,
         name=payload.configuration_name,
         room_ids=payload.room_ids,

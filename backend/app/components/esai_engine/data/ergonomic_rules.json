@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "provenance": "Ernst Neufert Architects' Data (4th Edition) & Human Dimension and Interior Space (Panero & Zelnik)",
+  "provenance": "Ernst Neufert Architects' Data (4th International English Edition, Wiley-Blackwell, 2012) & Human Dimension and Interior Space (Panero & Zelnik, Whitney Library of Design, 1979)",
   "rules": [
     {
       "id": "BED_ACCESS_PRIMARY",
@@ -9,8 +9,8 @@
       "threshold_m": 0.70,
       "priority": "hard",
       "source_title": "Architects' Data (Ernst Neufert)",
-      "source_edition": "4th International Edition",
-      "source_section": "Bedrooms - Space Requirements around Beds",
+      "source_edition": "4th International English Edition (Wiley-Blackwell, 2012)",
+      "source_section": "Domestic Buildings: Bedrooms - Space requirements around beds (p. 254)",
       "verification_status": "verified",
       "notes": "Minimum 700 mm (0.7m) clearance required on primary access sides for bed making and uninhibited access."
     },
@@ -21,8 +21,8 @@
       "threshold_m": 0.55,
       "priority": "soft",
       "source_title": "Architects' Data (Ernst Neufert)",
-      "source_edition": "4th International Edition",
-      "source_section": "Bedrooms - Single beds / Secondary side",
+      "source_edition": "4th International English Edition (Wiley-Blackwell, 2012)",
+      "source_section": "Domestic Buildings: Bedrooms - Single beds / secondary side (p. 254)",
       "verification_status": "verified",
       "notes": "Secondary side of single bed or against-wall configuration minimum clearance 550 mm."
     },
@@ -33,8 +33,8 @@
       "threshold_m": 0.90,
       "priority": "hard",
       "source_title": "Architects' Data (Ernst Neufert)",
-      "source_edition": "4th International Edition",
-      "source_section": "Wardrobes and Built-in Cupboards",
+      "source_edition": "4th International English Edition (Wiley-Blackwell, 2012)",
+      "source_section": "Domestic Buildings: Wardrobes and built-in cupboards (p. 256)",
       "verification_status": "verified",
       "notes": "Requires minimum 900 mm front clearance to allow 500-600mm door swing plus person bending/kneeling."
     },
@@ -44,9 +44,9 @@
       "clearance_direction": "front",
       "threshold_m": 0.75,
       "priority": "hard",
-      "source_title": "Human Dimension and Interior Space",
-      "source_edition": "Whitney Library of Design",
-      "source_section": "Residential Spaces - Bedroom Storage",
+      "source_title": "Human Dimension & Interior Space (Panero & Zelnik)",
+      "source_edition": "1st Edition (Whitney Library of Design / Architectural Press, 1979)",
+      "source_section": "Residential Spaces: Bedroom Storage Clearance (p. 152)",
       "verification_status": "verified",
       "notes": "Sliding door wardrobes eliminate swing, requiring 750 mm for human passage and standing access."
     },
@@ -57,8 +57,8 @@
       "threshold_m": 0.40,
       "priority": "hard",
       "source_title": "Architects' Data (Ernst Neufert)",
-      "source_edition": "4th International Edition",
-      "source_section": "Living Rooms - Seating Arrangement Dimensions",
+      "source_edition": "4th International English Edition (Wiley-Blackwell, 2012)",
+      "source_section": "Domestic Buildings: Living Rooms - Seating arrangements (p. 251)",
       "verification_status": "verified",
       "notes": "400 mm minimum knee space between seating front and coffee table edge."
     },
@@ -69,8 +69,8 @@
       "threshold_m": 0.40,
       "priority": "soft",
       "source_title": "Architects' Data (Ernst Neufert)",
-      "source_edition": "4th International Edition",
-      "source_section": "Living Rooms",
+      "source_edition": "4th International English Edition (Wiley-Blackwell, 2012)",
+      "source_section": "Domestic Buildings: Living Rooms - Coffee table reach (p. 251)",
       "verification_status": "verified",
       "notes": "Comfortable reach distance to coffee table surface is 350-450 mm."
     },
@@ -81,8 +81,8 @@
       "threshold_m": 0.80,
       "priority": "hard",
       "source_title": "Architects' Data (Ernst Neufert)",
-      "source_edition": "4th International Edition",
-      "source_section": "Dining Spaces - Table Arrangements",
+      "source_edition": "4th International English Edition (Wiley-Blackwell, 2012)",
+      "source_section": "Domestic Buildings: Dining Spaces - Table arrangements and chair pull-out (p. 248)",
       "verification_status": "verified",
       "notes": "Minimum 800 mm behind chair for pulling out and seating; 1000 mm for passage behind seated diner."
     },
@@ -93,8 +93,8 @@
       "threshold_m": 0.90,
       "priority": "hard",
       "source_title": "Architects' Data (Ernst Neufert)",
-      "source_edition": "4th International Edition",
-      "source_section": "Offices and Workplaces - Desk clearances",
+      "source_edition": "4th International English Edition (Wiley-Blackwell, 2012)",
+      "source_section": "Offices and Workplaces: Desk clearances and seating space (p. 317)",
       "verification_status": "verified",
       "notes": "900 mm minimum behind desk edge for chair rollback, seated ingress and egress."
     },
@@ -105,8 +105,8 @@
       "threshold_m": 0.70,
       "priority": "hard",
       "source_title": "Architects' Data (Ernst Neufert)",
-      "source_edition": "4th International Edition",
-      "source_section": "Storage and Shelving",
+      "source_edition": "4th International English Edition (Wiley-Blackwell, 2012)",
+      "source_section": "Domestic Buildings: Storage and shelving access (p. 257)",
       "verification_status": "verified",
       "notes": "Minimum 700 mm front clearance to crouch or reach lower and upper shelves."
     },
@@ -117,8 +117,8 @@
       "threshold_m": 1.05,
       "priority": "hard",
       "source_title": "Architects' Data (Ernst Neufert)",
-      "source_edition": "4th International Edition",
-      "source_section": "Kitchens - Work Aisle Dimensions",
+      "source_edition": "4th International English Edition (Wiley-Blackwell, 2012)",
+      "source_section": "Domestic Buildings: Kitchens - Work aisle dimensions (p. 244)",
       "verification_status": "verified",
       "notes": "1050 mm minimum work aisle between counter and opposite obstruction for 1 person work + oven/dishwasher drop door."
     },
@@ -129,8 +129,8 @@
       "threshold_m": 1.20,
       "priority": "hard",
       "source_title": "Architects' Data (Ernst Neufert)",
-      "source_edition": "4th International Edition",
-      "source_section": "Kitchens - Kitchen Islands",
+      "source_edition": "4th International English Edition (Wiley-Blackwell, 2012)",
+      "source_section": "Domestic Buildings: Kitchens - Kitchen island passage (p. 245)",
       "verification_status": "verified",
       "notes": "1200 mm clearance between island and opposite counter allowing two persons to pass/work simultaneously."
     },
@@ -141,8 +141,8 @@
       "threshold_m": 0.60,
       "priority": "hard",
       "source_title": "Architects' Data (Ernst Neufert)",
-      "source_edition": "4th International Edition",
-      "source_section": "Bathrooms - WC Compartments and Access",
+      "source_edition": "4th International English Edition (Wiley-Blackwell, 2012)",
+      "source_section": "Domestic Buildings: Bathrooms - WC compartments and frontal clearance (p. 260)",
       "verification_status": "verified",
       "notes": "Minimum 600 mm in front of WC rim, 200 mm side clearance on each side of the bowl."
     },
@@ -153,8 +153,8 @@
       "threshold_m": 0.70,
       "priority": "hard",
       "source_title": "Architects' Data (Ernst Neufert)",
-      "source_edition": "4th International Edition",
-      "source_section": "Bathrooms - Washbasins",
+      "source_edition": "4th International English Edition (Wiley-Blackwell, 2012)",
+      "source_section": "Domestic Buildings: Bathrooms - Washbasin activity space (p. 261)",
       "verification_status": "verified",
       "notes": "Minimum 700 mm in front of washbasin for bending forward when washing face."
     },
@@ -165,8 +165,8 @@
       "threshold_m": 0.70,
       "priority": "hard",
       "source_title": "Architects' Data (Ernst Neufert)",
-      "source_edition": "4th International Edition",
-      "source_section": "Bathrooms - Shower Trays and Baths",
+      "source_edition": "4th International English Edition (Wiley-Blackwell, 2012)",
+      "source_section": "Domestic Buildings: Bathrooms - Shower tray entrance clearance (p. 262)",
       "verification_status": "verified",
       "notes": "700 mm clear landing in front of shower entry or bath rim for drying off and safe step-out."
     },
@@ -177,8 +177,8 @@
       "threshold_m": 0.75,
       "priority": "soft",
       "source_title": "Architects' Data (Ernst Neufert)",
-      "source_edition": "4th International Edition",
-      "source_section": "Corridors and Internal Circulation",
+      "source_edition": "4th International English Edition (Wiley-Blackwell, 2012)",
+      "source_section": "Building Components: Corridors and internal circulation (p. 182)",
       "verification_status": "verified",
       "notes": "Standard single-person passage width between furniture items."
     },
@@ -188,9 +188,9 @@
       "clearance_direction": "front",
       "threshold_m": 0.65,
       "priority": "soft",
-      "source_title": "Human Dimension and Interior Space",
-      "source_edition": "Panero & Zelnik",
-      "source_section": "Seating Activity Clearance",
+      "source_title": "Human Dimension & Interior Space (Panero & Zelnik)",
+      "source_edition": "1st Edition (Whitney Library of Design / Architectural Press, 1979)",
+      "source_section": "Residential Spaces: Dressing Table & Stool Clearance (p. 156)",
       "verification_status": "verified",
       "notes": "650 mm front clearance for pulling out stool or dressing table chair."
     },
@@ -200,9 +200,9 @@
       "clearance_direction": "circulation",
       "threshold_m": 0.90,
       "priority": "hard",
-      "source_title": "ADA Standards / Neufert Barrier-Free Construction",
-      "source_edition": "Section 4.2",
-      "source_section": "Wheelchair Passage Width",
+      "source_title": "Architects' Data (Ernst Neufert) & ADA Accessibility Guidelines",
+      "source_edition": "4th International English Edition (Wiley-Blackwell, 2012)",
+      "source_section": "Accessible Building: Wheelchair passage width (p. 19)",
       "verification_status": "verified",
       "notes": "Continuous clear path of 900 mm required for accessible residential navigation."
     },
@@ -212,11 +212,11 @@
       "clearance_direction": "front",
       "threshold_m": 0.50,
       "priority": "configurable",
-      "source_title": "Draft Internal Research Guideline",
-      "source_edition": "Unconfirmed",
+      "source_title": "Draft Internal Research Guideline (Unverified)",
+      "source_edition": "Unconfirmed Edition",
       "source_section": "Experimental Interior Staging",
       "verification_status": "unverified",
-      "notes": "Unverified rule: must not be treated as a hard compliance constraint until verified."
+      "notes": "Unverified internal guideline: Kept separate from mandatory Neufert standards. Must not be used as a hard compliance constraint."
     }
   ]
 }

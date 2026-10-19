@@ -11,6 +11,7 @@ from .contracts import (
     RoomDTO,
     DoorDTO,
     WindowDTO,
+    WallDTO,
     RoomRequirementsDTO,
     FurnitureRequirementItem,
     ProjectPreferencesDTO,
@@ -22,11 +23,15 @@ from .contracts import (
 )
 from .catalog import FurnitureCatalogRepository, CatalogAsset
 from .rules import ErgonomicStandardsRepository, ErgonomicRule
-from .parser import StructuralInputParser
+from .parser import StructuralInputParser, normalize_room_type
 from .normalizer import SpatialNormalizer
 from .validators import EsaiInputValidator
 from .repositories import EsaiDatabaseRepository
+from .geometry import compute_geometry_fingerprint
 from .placeholder import run
+
+def get_engine_version():
+    return "1.0.0"
 
 __all__ = [
     "EsaiEngineService",
@@ -35,6 +40,7 @@ __all__ = [
     "RoomDTO",
     "DoorDTO",
     "WindowDTO",
+    "WallDTO",
     "RoomRequirementsDTO",
     "FurnitureRequirementItem",
     "ProjectPreferencesDTO",
@@ -48,8 +54,12 @@ __all__ = [
     "ErgonomicStandardsRepository",
     "ErgonomicRule",
     "StructuralInputParser",
+    "normalize_room_type",
     "SpatialNormalizer",
     "EsaiInputValidator",
     "EsaiDatabaseRepository",
+    "compute_geometry_fingerprint",
     "run",
+    "get_engine_version",
 ]
+

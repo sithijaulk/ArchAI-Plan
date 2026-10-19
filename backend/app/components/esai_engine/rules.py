@@ -36,6 +36,14 @@ class ErgonomicRule(BaseModel):
             StandardVerificationStatus.RECOMMENDED,
         )
 
+    @property
+    def is_mandatory_compliance(self) -> bool:
+        """Only verified standards with hard priority are mandatory compliance rules."""
+        return (
+            self.verification_status == StandardVerificationStatus.VERIFIED
+            and self.priority == ConstraintPriority.HARD
+        )
+
 
 class ErgonomicStandardsRepository:
     """Singleton repository for Neufert and anthropometric ergonomic standards."""
@@ -79,11 +87,20 @@ class ErgonomicStandardsRepository:
             )
             self._rules[rule.id] = rule
 
-    def get_all(self, enforceable_only: bool = False) -> List[ErgonomicRule]:
+    def get_all(self, enforceable_only: bool = False, mandatory_only: bool = False) -> List[ErgonomicRule]:
         rules = list(self._rules.values())
+        if mandatory_only:
+            return [r for r in rules if r.is_mandatory_compliance]
         if enforceable_only:
             return [r for r in rules if r.is_enforceable]
         return rules
+
+    def get_unverified_rules(self) -> List[ErgonomicRule]:
+        """Returns separate unverified rules that must not be treated as mandatory standards."""
+        return [
+            r for r in self._rules.values()
+            if r.verification_status == StandardVerificationStatus.UNVERIFIED
+        ]
 
     def get_by_id(self, rule_id: str) -> ErgonomicRule:
         if rule_id not in self._rules:
