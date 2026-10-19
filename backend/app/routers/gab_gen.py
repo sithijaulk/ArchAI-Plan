@@ -462,6 +462,113 @@ def generate_blueprint(
         )
 
 
+@router.post("/extract-survey")
+def extract_survey_ocr(
+    project_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Triggers automated OpenCV + EasyOCR extraction from the uploaded survey/deed file.
+    Populates candidate boundary measurements with confidence scores and verification flags.
+    Never fabricates values; ambiguous results are marked for verification.
+    """
+    project = _get_project_or_404(project_id, db)
+    mj = project.master_json or {}
+    source_file = mj.get("input_metadata", {}).get("source_file")
+
+    if not source_file or not source_file.get("stored_filename"):
+        raise HTTPException(
+            status_code=400,
+            detail="No uploaded survey/deed plan found. Please upload a file first."
+        )
+
+    stored_path = os.path.join(settings.upload_dir, "surveys", project_id, source_file["stored_filename"])
+    if not os.path.exists(stored_path):
+        raise HTTPException(status_code=404, detail="Uploaded survey file not found on disk.")
+
+    with open(stored_path, "rb") as f:
+        file_bytes = f.read()
+
+    from ..components.gab_gen.easyocr_provider import EasyOCRSurveyExtractionProvider
+    provider = EasyOCRSurveyExtractionProvider()
+
+    ext = os.path.splitext(source_file.get("original_filename", ""))[1].lower() or ".png"
+    try:
+        extracted = provider.extract_survey({
+            "file_bytes": file_bytes,
+            "filename": source_file.get("original_filename"),
+            "ext": ext
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Survey OCR extraction failed: {str(e)}")
+
+    extracted_dict = extracted.model_dump()
+    project.master_json = merge_master_json(
+        project.master_json,
+        {"survey_extraction": extracted_dict}
+    )
+    db.commit()
+
+    return {
+        "message": "Survey extraction completed successfully",
+        "survey_extraction": extracted_dict
+    }
+
+
+@router.post("/edit-room")
+def edit_blueprint_room(
+    project_id: str,
+    payload: Dict[str, Any],
+    db: Session = Depends(get_db)
+):
+    """
+    Validates and applies a live room geometry modification.
+    Enforces buildable footprint boundaries and room overlap constraints.
+    """
+    project = _get_project_or_404(project_id, db)
+    mj = project.master_json or {}
+
+    room_id = payload.get("room_id")
+    target_floor_id = payload.get("target_floor_id")
+    new_polygon_raw = payload.get("polygon", [])
+
+    if not room_id or not target_floor_id or not new_polygon_raw:
+        raise HTTPException(status_code=400, detail="room_id, target_floor_id, and polygon are required.")
+
+    from ..components.gab_gen.schemas import Point2D, FloorPlanDefinition
+    from ..components.gab_gen.blueprint.editor import apply_room_edit
+    from shapely.geometry import Polygon
+
+    floors_raw = mj.get("floor_plan", {}).get("floors", [])
+    if not floors_raw:
+        raise HTTPException(status_code=400, detail="No generated floor plan to edit.")
+
+    floors = [FloorPlanDefinition(**f) for f in floors_raw]
+    buildable_pts = mj.get("buildable_footprint", {}).get("polygon", [])
+    buildable_poly = Polygon([(p["x"], p["y"]) for p in buildable_pts]) if len(buildable_pts) >= 3 else None
+
+    new_polygon = [Point2D(x=p["x"], y=p["y"]) for p in new_polygon_raw]
+
+    res = apply_room_edit(room_id, target_floor_id, new_polygon, floors, buildable_poly)
+    if not res["success"]:
+        return {
+            "valid": False,
+            "violations": res["violations"]
+        }
+
+    # Save edited floors into master_json
+    updated_floors_dict = [f.model_dump() for f in res["floors"]]
+    mj["floor_plan"]["floors"] = updated_floors_dict
+    project.master_json = mj
+    db.commit()
+
+    return {
+        "valid": True,
+        "message": "Room edited successfully",
+        "floor_plan": mj["floor_plan"]
+    }
+
+
 @router.get("/result")
 def get_gab_gen_result(project_id: str, db: Session = Depends(get_db)):
     """Returns the latest generated GAB-Gen results."""
@@ -484,3 +591,4 @@ def get_gab_master_json(project_id: str, db: Session = Depends(get_db)):
 def run_gab_gen_compat(project_id: str, db: Session = Depends(get_db)):
     """Compatibility endpoint for shared run trigger."""
     return generate_blueprint(project_id, dev_test_mode=True, db=db)
+

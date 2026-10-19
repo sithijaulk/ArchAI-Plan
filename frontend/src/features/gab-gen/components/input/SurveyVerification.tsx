@@ -80,25 +80,55 @@ export const SurveyVerification: React.FC<SurveyVerificationProps> = ({
     }
   };
 
+  const [isExtractingOcr, setIsExtractingOcr] = useState(false);
+
+  const handleExtractOcr = async () => {
+    setIsExtractingOcr(true);
+    setPreviewError(null);
+    try {
+      const res = await gabGenExtendedApi.extractSurvey(projectId);
+      if (res.survey_extraction) {
+        onChange(res.survey_extraction);
+      }
+    } catch (err: any) {
+      setPreviewError(err.response?.data?.detail || "Automated OCR extraction failed. Please enter or verify boundaries manually.");
+    } finally {
+      setIsExtractingOcr(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h4 className="text-sm font-bold text-foreground">Survey Boundary Data</h4>
           <p className="text-[11px] text-muted-foreground">
-            Stage-1 Normalized Survey Input in Canonical P0 Coordinates (Meters, North-Up).
+            Extracted from deed/survey plan with OpenCV & EasyOCR. Inspect and verify below.
           </p>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={loadDevFixture}
-          className="text-[11px] h-7 border-amber-500/40 text-amber-500 hover:bg-amber-500/10"
-        >
-          Dev: Load 10-Perch Fixture
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleExtractOcr}
+            disabled={isExtractingOcr}
+            className="text-[11px] h-7 border-primary/40 text-primary hover:bg-primary/10"
+          >
+            {isExtractingOcr ? "Extracting OCR..." : "Auto-Extract from Deed (EasyOCR)"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={loadDevFixture}
+            className="text-[11px] h-7 border-amber-500/40 text-amber-500 hover:bg-amber-500/10"
+          >
+            Dev: Fixture
+          </Button>
+        </div>
       </div>
+
 
       <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-card border border-border">
         <div>
