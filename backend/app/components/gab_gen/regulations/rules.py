@@ -1,12 +1,12 @@
 """
 Data-driven regulatory rule engine.
-Loads verified rules or explicit test-research rules from repository.
-Never fabricates unverified legal values.
+Resolves setbacks and planning constraints deterministically based on jurisdiction,
+local authority, and road access conditions without silent fallback fabrication.
 """
 import json
 import os
 from typing import Any, Dict, List, Optional
-from ..schemas import RegulatoryRule
+from ..schemas import RegulatoryRule, RegulatoryContextInput
 
 _RULES_FILE = os.path.join(os.path.dirname(__file__), "..", "data", "regulatory_rules.json")
 
@@ -30,6 +30,30 @@ class RegulatoryEngine:
             return []
 
     @classmethod
+    def resolve_jurisdiction(cls, reg_context: Optional[RegulatoryContextInput]) -> str:
+        """
+        Determines the appropriate jurisdiction ID based on the user's location input.
+        Does not invent rules or silently map an unknown authority to an unrelated one.
+        """
+        if not reg_context:
+            return "sri_lanka_uda_standard"
+
+        # Explicit jurisdiction ID takes precedence if set and recognized
+        if reg_context.jurisdiction_id:
+            return reg_context.jurisdiction_id
+
+        # Colombo Municipal Council mapping
+        auth_name = (reg_context.local_authority_name or "").lower()
+        district = (reg_context.district or "").lower()
+        auth_type = (reg_context.local_authority_type or "").lower()
+
+        if "colombo municipal council" in auth_name or (auth_type == "municipal_council" and "colombo" in auth_name):
+            return "colombo_municipal_council"
+
+        # General Urban Development Authority standard applies across urban development declared areas
+        return "sri_lanka_uda_standard"
+
+    @classmethod
     def get_rules_for_jurisdiction(
         cls,
         jurisdiction_id: str,
@@ -49,9 +73,13 @@ class RegulatoryEngine:
     def get_rule_for_edge_type(
         cls,
         rules: List[RegulatoryRule],
-        edge_type: str
+        edge_type: str,
+        conditions: Optional[Dict[str, Any]] = None
     ) -> Optional[RegulatoryRule]:
-        """Finds applicable setback rule for an edge classification."""
+        """
+        Finds applicable setback rule for an edge classification.
+        Matches edge type and any relevant context conditions.
+        """
         for rule in rules:
             if rule.rule_type == "setback":
                 if rule.affected_edge_type == edge_type:

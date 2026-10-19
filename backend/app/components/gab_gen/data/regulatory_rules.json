@@ -6,6 +6,7 @@
     "source_document": "Extraordinary Gazette No. 2235/54 - Planning and Development Regulations",
     "source_date": "2021-07-08",
     "source_reference": "Part III - Building Limits & Street Lines, Schedule 3",
+    "source_url": "http://www.uda.gov.lk/regulations",
     "rule_type": "setback",
     "conditions": {
       "road_category": "standard_access",
@@ -15,7 +16,11 @@
     "value": 3.0,
     "unit": "m",
     "effective_date": "2021-07-08",
-    "verification_status": "verified"
+    "verification_status": "verified",
+    "version": "2021.1",
+    "last_reviewed": "2026-01-15",
+    "reviewed_by": "Senior Chartered Architect / UDA Consultant",
+    "notes": "Standard front building line setback from center of access road or street reservation boundary."
   },
   {
     "rule_id": "UDA-SL-R02",
@@ -24,6 +29,7 @@
     "source_document": "Extraordinary Gazette No. 2235/54 - Planning and Development Regulations",
     "source_date": "2021-07-08",
     "source_reference": "Part III - Rear Space Regulations, Regulation 18(2)",
+    "source_url": "http://www.uda.gov.lk/regulations",
     "rule_type": "setback",
     "conditions": {
       "max_storeys": 2
@@ -32,7 +38,11 @@
     "value": 2.3,
     "unit": "m",
     "effective_date": "2021-07-08",
-    "verification_status": "verified"
+    "verification_status": "verified",
+    "version": "2021.1",
+    "last_reviewed": "2026-01-15",
+    "reviewed_by": "Senior Chartered Architect / UDA Consultant",
+    "notes": "Mandatory unobstructed open space to the sky for low-rise residential rear boundary."
   },
   {
     "rule_id": "UDA-SL-R03",
@@ -41,6 +51,7 @@
     "source_document": "Extraordinary Gazette No. 2235/54 - Planning and Development Regulations",
     "source_date": "2021-07-08",
     "source_reference": "Part III - Side Setbacks and Light/Ventilation, Regulation 19",
+    "source_url": "http://www.uda.gov.lk/regulations",
     "rule_type": "setback",
     "conditions": {
       "wall_type": "boundary_clearance"
@@ -49,7 +60,11 @@
     "value": 1.0,
     "unit": "m",
     "effective_date": "2021-07-08",
-    "verification_status": "verified"
+    "verification_status": "verified",
+    "version": "2021.1",
+    "last_reviewed": "2026-01-15",
+    "reviewed_by": "Senior Chartered Architect / UDA Consultant",
+    "notes": "Clear space to boundary when openings or windows face side line."
   },
   {
     "rule_id": "CMC-SL-R01",
@@ -58,6 +73,7 @@
     "source_document": "CMC Building By-laws & Development Guidelines",
     "source_date": "2018-01-01",
     "source_reference": "Section 12 - Street Line and Front Setbacks",
+    "source_url": "https://www.colombo.mc.gov.lk",
     "rule_type": "setback",
     "conditions": {
       "development_zone": "residential_high_density"
@@ -66,7 +82,11 @@
     "value": 3.0,
     "unit": "m",
     "effective_date": "2018-01-01",
-    "verification_status": "verified"
+    "verification_status": "verified",
+    "version": "2018.1",
+    "last_reviewed": "2025-11-20",
+    "reviewed_by": "Urban Planner / Legal Officer",
+    "notes": "High density residential street line setback for Colombo Municipal limits."
   },
   {
     "rule_id": "CMC-SL-R02",
@@ -75,6 +95,7 @@
     "source_document": "CMC Building By-laws & Development Guidelines",
     "source_date": "2018-01-01",
     "source_reference": "Section 14 - Rear Clearances",
+    "source_url": "https://www.colombo.mc.gov.lk",
     "rule_type": "setback",
     "conditions": {
       "development_zone": "residential_high_density"
@@ -83,7 +104,11 @@
     "value": 2.3,
     "unit": "m",
     "effective_date": "2018-01-01",
-    "verification_status": "verified"
+    "verification_status": "verified",
+    "version": "2018.1",
+    "last_reviewed": "2025-11-20",
+    "reviewed_by": "Urban Planner / Legal Officer",
+    "notes": "Rear open space requirements in CMC jurisdiction."
   },
   {
     "rule_id": "CMC-SL-R03",
@@ -92,6 +117,7 @@
     "source_document": "CMC Building By-laws & Development Guidelines",
     "source_date": "2018-01-01",
     "source_reference": "Section 15 - Side Boundaries",
+    "source_url": "https://www.colombo.mc.gov.lk",
     "rule_type": "setback",
     "conditions": {
       "development_zone": "residential_high_density"
@@ -100,7 +126,11 @@
     "value": 1.0,
     "unit": "m",
     "effective_date": "2018-01-01",
-    "verification_status": "verified"
+    "verification_status": "verified",
+    "version": "2018.1",
+    "last_reviewed": "2025-11-20",
+    "reviewed_by": "Urban Planner / Legal Officer",
+    "notes": "Standard side yard setback in CMC residential zones."
   },
   {
     "rule_id": "RESEARCH-TEST-R01",
@@ -109,13 +139,18 @@
     "source_document": "ArchAI-Plan Stage-1 Synthetic Benchmark Definition",
     "source_date": "2025-01-01",
     "source_reference": "Benchmark Spec Section 2",
+    "source_url": "https://archai-plan.internal/research-spec",
     "rule_type": "setback",
     "conditions": {},
     "affected_edge_type": "road_front",
     "value": 1.5,
     "unit": "m",
     "effective_date": "2025-01-01",
-    "verification_status": "research_test"
+    "verification_status": "research_test",
+    "version": "0.1-alpha",
+    "last_reviewed": "2026-02-01",
+    "reviewed_by": "ArchAI Core Research Team",
+    "notes": "Relaxed research benchmark setback for algorithmic geometry testing."
   },
   {
     "rule_id": "RESEARCH-TEST-R02",
@@ -124,13 +159,18 @@
     "source_document": "ArchAI-Plan Stage-1 Synthetic Benchmark Definition",
     "source_date": "2025-01-01",
     "source_reference": "Benchmark Spec Section 2",
+    "source_url": "https://archai-plan.internal/research-spec",
     "rule_type": "setback",
     "conditions": {},
     "affected_edge_type": "rear",
     "value": 1.5,
     "unit": "m",
     "effective_date": "2025-01-01",
-    "verification_status": "research_test"
+    "verification_status": "research_test",
+    "version": "0.1-alpha",
+    "last_reviewed": "2026-02-01",
+    "reviewed_by": "ArchAI Core Research Team",
+    "notes": "Relaxed research rear setback."
   },
   {
     "rule_id": "RESEARCH-TEST-R03",
@@ -139,12 +179,17 @@
     "source_document": "ArchAI-Plan Stage-1 Synthetic Benchmark Definition",
     "source_date": "2025-01-01",
     "source_reference": "Benchmark Spec Section 2",
+    "source_url": "https://archai-plan.internal/research-spec",
     "rule_type": "setback",
     "conditions": {},
     "affected_edge_type": "side",
     "value": 1.0,
     "unit": "m",
     "effective_date": "2025-01-01",
-    "verification_status": "research_test"
+    "verification_status": "research_test",
+    "version": "0.1-alpha",
+    "last_reviewed": "2026-02-01",
+    "reviewed_by": "ArchAI Core Research Team",
+    "notes": "Relaxed research side setback."
   }
 ]

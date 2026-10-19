@@ -51,13 +51,21 @@ export interface ClientRequirements {
   project_name?: string;
   description?: string;
   declared_land_extent: number;
-  declared_land_unit: 'perches' | 'sqft' | 'sqm';
+  declared_land_unit: 'perches' | 'acres' | 'sqft' | 'sqm';
   drawing_scale?: string;
   road_frontage_edge_id?: string;
   source_notes?: string;
   regulatory_context?: RegulatoryContext;
   building_type: 'residential_house' | 'residential_building';
   storey_count: number;
+  bedroom_count?: number;
+  master_bedroom_count?: number;
+  bathroom_count?: number;
+  kitchen_required?: boolean;
+  living_room_required?: boolean;
+  dining_room_required?: boolean;
+  parking_type?: string;
+
   preferred_total_building_area?: number;
   preferred_ground_coverage?: number;
   rooms: RoomRequirement[];
