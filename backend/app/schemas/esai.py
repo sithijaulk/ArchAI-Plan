@@ -11,6 +11,9 @@ from app.components.esai_engine.contracts import (
     ProjectPreferencesDTO,
     LengthUnit,
     ResolvedRoomDesignInputDTO,
+    GeneratedRoomDesignDTO,
+    GeneratedBuildingDesignDTO,
+    PlacedFixturePointDTO,
 )
 from app.components.esai_engine.catalog import CatalogAsset, FinishAsset
 from app.components.esai_engine.rules import ErgonomicRule
@@ -185,5 +188,32 @@ class CatalogValidationResponse(BaseModel):
 
 class ResolvedDesignInputResponse(BaseModel):
     resolved: ResolvedRoomDesignInputDTO
+
+
+class RunOptimizationRequest(BaseModel):
+    scope: str = Field(default="building", description="Scope of layout generation: 'room', 'floor', or 'building'")
+    room_id: Optional[str] = Field(default=None, description="Target room ID if scope is 'room'")
+    floor_id: Optional[str] = Field(default=None, description="Target floor ID if scope is 'floor'")
+    seed: Optional[int] = Field(default=42, description="Random seed for reproducible evolutionary runs")
+    population_size: Optional[int] = Field(default=25, ge=10, le=100)
+    generations: Optional[int] = Field(default=20, ge=5, le=100)
+    alternatives_count: Optional[int] = Field(default=2, ge=1, le=5)
+    expected_revision: Optional[int] = None
+
+
+class RunOptimizationResponse(BaseModel):
+    result: GeneratedBuildingDesignDTO
+
+
+class BaselineBenchmarkRequest(BaseModel):
+    room_id: str
+    floor_id: Optional[str] = None
+    eval_budget: int = Field(default=250, ge=50, le=2000)
+    seed: int = Field(default=42)
+
+
+class BaselineBenchmarkResponse(BaseModel):
+    report: Dict[str, Any]
+
 
 

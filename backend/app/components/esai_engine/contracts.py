@@ -926,3 +926,67 @@ class ResolvedRoomDesignInputDTO(BaseModel):
     feasibility_status: str = "feasible"  # feasible, conditional_warning, infeasible
     provenance_metadata: Dict[str, Any] = Field(default_factory=dict)
 
+
+# ─── Phase 4: Generated Layout & Planning Results ─────────────────────────────
+
+class PlacedFixturePointDTO(BaseModel):
+    """
+    Proposed or grounded electrical, plumbing, or lighting fixture location.
+    Explicitly flags professional verification requirements.
+    """
+    point_id: str
+    point_type: str
+    description: str
+    associated_instance_id: Optional[str] = None
+    position: Coordinate2D
+    installation_height_m: Optional[float] = None
+    wall_id: Optional[str] = None
+    status: str = "proposed_new"
+    requires_professional_verification: bool = True
+    spec: Dict[str, Any] = Field(default_factory=dict)
+
+
+class GeneratedRoomDesignDTO(BaseModel):
+    """
+    Comprehensive, GA-generated room layout result suitable for Phase 5 persistence and Phase 6 3D view.
+    """
+    room_id: str
+    room_name: str
+    room_type: str
+    floor_id: str
+    status: str  # "success" | "partial" | "infeasible" | "no_valid_candidate_found" | "blocked_missing_geometry" | "unsupported_room_type"
+    polygon: List[Coordinate2D]
+    area_sqm: float
+    ceiling_height_m: float
+    placed_assets: List[Dict[str, Any]] = Field(default_factory=list)
+    service_points: List[PlacedFixturePointDTO] = Field(default_factory=list)
+    lighting_fixtures: List[PlacedFixturePointDTO] = Field(default_factory=list)
+    finishes: Dict[str, Any] = Field(default_factory=dict)
+    fitness_score: float = 0.0
+    fitness_breakdown: Optional[Dict[str, Any]] = None
+    alternatives: List[Dict[str, Any]] = Field(default_factory=list)
+    hard_constraints_passed: bool = True
+    ergonomic_evaluations: List[Dict[str, Any]] = Field(default_factory=list)
+    diagnostics: List[str] = Field(default_factory=list)
+    optimization_metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class GeneratedBuildingDesignDTO(BaseModel):
+    """
+    Top-level project generation outcome covering every discovered room across all floors.
+    """
+    project_id: str
+    project_name: str
+    status: str  # "success" | "partial" | "failed"
+    geometry_revision: int
+    preference_revision: Optional[int] = None
+    scope: str  # "room" | "floor" | "building"
+    target_floor_id: Optional[str] = None
+    target_room_id: Optional[str] = None
+    total_rooms_discovered: int
+    successful_rooms_count: int
+    failed_rooms_count: int
+    rooms: Dict[str, GeneratedRoomDesignDTO] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+

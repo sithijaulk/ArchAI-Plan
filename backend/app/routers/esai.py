@@ -35,6 +35,10 @@ from app.schemas.esai import (
     CatalogValidationRequest,
     CatalogValidationResponse,
     ResolvedDesignInputResponse,
+    RunOptimizationRequest,
+    RunOptimizationResponse,
+    BaselineBenchmarkRequest,
+    BaselineBenchmarkResponse,
 )
 
 # Project-scoped router requiring authentication & authorization
@@ -61,14 +65,53 @@ def _get_project_or_404(project_id: str, db: Session) -> Project:
     return project
 
 
-# 1. Controlled 501 Run Endpoint (Preserved for Stage 2)
-@project_router.post("/run")
-def run_esai_engine(project_id: str, db: Session = Depends(get_db)):
-    _get_project_or_404(project_id, db)
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="ESAI-Engine Genetic Algorithm optimizer is scheduled for Stage 2. Stage 1 provides complete backend data contracts, geometry validation, requirements persistence, and catalog services."
+# 1. Real Evolutionary Layout Optimization Run Endpoint
+@project_router.post("/run", response_model=RunOptimizationResponse)
+def run_esai_engine(
+    project_id: str,
+    payload: Optional[RunOptimizationRequest] = None,
+    db: Session = Depends(get_db)
+):
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+
+    req = payload or RunOptimizationRequest()
+    from app.components.esai_engine.optimizer.genetic_optimizer import OptimizationConfig
+    cfg = OptimizationConfig(
+        population_size=req.population_size or 25,
+        num_generations=req.generations or 20,
+        alternatives_count=req.alternatives_count or 2,
+        seed=req.seed,
     )
+
+    result = service.run_generation(
+        project=project,
+        scope=req.scope or "building",
+        target_floor_id=req.floor_id,
+        target_room_id=req.room_id,
+        config=cfg,
+        expected_revision=req.expected_revision,
+    )
+    return RunOptimizationResponse(result=result)
+
+
+@project_router.post("/benchmark", response_model=BaselineBenchmarkResponse)
+def benchmark_layout_generation(
+    project_id: str,
+    payload: BaselineBenchmarkRequest,
+    db: Session = Depends(get_db)
+):
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    report = service.run_baseline_comparison(
+        project=project,
+        room_id=payload.room_id,
+        floor_id=payload.floor_id,
+        eval_budget=payload.eval_budget,
+        seed=payload.seed,
+    )
+    report_dict = report.model_dump() if hasattr(report, "model_dump") else report.dict()
+    return BaselineBenchmarkResponse(report=report_dict)
 
 
 # 2. Context & Discovery Endpoints

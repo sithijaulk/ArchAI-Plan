@@ -25,7 +25,13 @@ from .contracts import (
     ProjectPreferencesDTO,
     ValidationMessage,
     ResolvedRoomDesignInputDTO,
+    GeneratedRoomDesignDTO,
+    GeneratedBuildingDesignDTO,
 )
+from .optimizer.genetic_optimizer import OptimizationConfig, PyGADLayoutOptimizer
+from .optimizer.baselines import BaselineEvaluator, BaselineComparisonReport
+from .generation.building_generator import BuildingGenerator
+from .generation.room_generator import RoomGenerator
 from .parser import StructuralInputParser
 from .normalizer import SpatialNormalizer
 from .validators import EsaiInputValidator
@@ -48,6 +54,8 @@ class EsaiEngineService:
         )
         self.db_repo = EsaiDatabaseRepository(db)
         self.validator = EsaiInputValidator(self.catalog_repo, self.standards_repo)
+        self.building_generator = BuildingGenerator()
+        self.baseline_evaluator = BaselineEvaluator()
 
     # 1. Project Structural Context
     def get_structural_context(self, project: Project) -> StructuralInputDTO:
@@ -173,6 +181,46 @@ class EsaiEngineService:
             geometry_fingerprint=geo_fingerprint,
             geometry_revision=revision,
             elevation_m=room.elevation or 0.0,
+        )
+
+    def run_generation(
+        self,
+        project: Project,
+        scope: str = "building",
+        target_floor_id: Optional[str] = None,
+        target_room_id: Optional[str] = None,
+        config: Optional[OptimizationConfig] = None,
+        expected_revision: Optional[int] = None,
+    ) -> GeneratedBuildingDesignDTO:
+        """
+        Executes real evolutionary layout optimization across the requested scope.
+        """
+        self._check_revision(project, expected_revision)
+        return self.building_generator.generate(
+            service=self,
+            project=project,
+            scope=scope,
+            target_floor_id=target_floor_id,
+            target_room_id=target_room_id,
+            config=config,
+        )
+
+    def run_baseline_comparison(
+        self,
+        project: Project,
+        room_id: str,
+        floor_id: Optional[str] = None,
+        eval_budget: int = 250,
+        seed: int = 42,
+    ) -> BaselineComparisonReport:
+        """
+        Runs scientific benchmarking comparing GA against Random-Search and Greedy baselines.
+        """
+        design_input = self.resolve_room_design_input(project, room_id, floor_id)
+        return self.baseline_evaluator.benchmark_room(
+            design_input=design_input,
+            eval_budget=eval_budget,
+            seed=seed,
         )
 
     # 3. Validation Operations

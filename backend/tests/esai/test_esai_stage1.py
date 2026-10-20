@@ -684,13 +684,20 @@ def test_global_knowledge_endpoints_are_public(unauthenticated_client):
 
 
 # ============================================================================
-# 8. Controlled 501 Run Endpoint (Single Registration)
+# 8. Real Evolutionary Optimization Run Endpoint
 # ============================================================================
-def test_api_run_returns_controlled_501(admin_client, db_session):
-    project = Project(id="proj_run_01", project_name="Run 501 Test", master_json=BEDROOM_PROJECT_FIXTURE)
+def test_api_run_executes_real_evolutionary_optimization(admin_client, db_session):
+    project = Project(id="proj_run_01", project_name="Run GA Test", master_json=BEDROOM_PROJECT_FIXTURE)
     db_session.add(project)
     db_session.commit()
 
-    response = admin_client.post("/api/projects/proj_run_01/esai-engine/run")
-    assert response.status_code == 501
-    assert "stage 2" in response.json()["detail"].lower()
+    response = admin_client.post(
+        "/api/projects/proj_run_01/esai-engine/run",
+        json={"scope": "room", "room_id": "RM_BED_01", "population_size": 15, "generations": 5, "seed": 42}
+    )
+    assert response.status_code == 200
+    data = response.json()["result"]
+    assert data["project_id"] == "proj_run_01"
+    assert data["total_rooms_discovered"] == 1
+    assert "RM_BED_01" in data["rooms"]
+    assert data["rooms"]["RM_BED_01"]["status"] in ("success", "partial")
