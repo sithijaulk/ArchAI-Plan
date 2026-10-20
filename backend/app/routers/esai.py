@@ -28,6 +28,13 @@ from app.schemas.esai import (
     SavedConfigUpdateRequest,
     SavedConfigResponse,
     RequirementsSaveResponse,
+    CatalogCategoriesResponse,
+    FinishesListResponse,
+    StylesCatalogResponse,
+    FunctionalRelationsResponse,
+    CatalogValidationRequest,
+    CatalogValidationResponse,
+    ResolvedDesignInputResponse,
 )
 
 # Project-scoped router requiring authentication & authorization
@@ -233,15 +240,79 @@ def delete_configuration(project_id: str, config_id: str, db: Session = Depends(
 
 
 # 6. Global Knowledge Endpoints
+@global_router.get("/catalog/categories", response_model=CatalogCategoriesResponse)
+def get_catalog_categories(db: Session = Depends(get_db)):
+    service = EsaiEngineService(db)
+    return CatalogCategoriesResponse(categories=service.get_catalog_categories())
+
+
 @global_router.get("/catalog", response_model=CatalogListResponse)
+@global_router.get("/catalog/items", response_model=CatalogListResponse)
 def list_catalog(
     category: Optional[str] = None,
     room_type: Optional[str] = None,
-    db: Session = Depends(get_db)
+    subtype: Optional[str] = None,
+    style: Optional[str] = None,
+    db: Session = Depends(get_db),
 ):
     service = EsaiEngineService(db)
-    items = service.get_catalog_items(category=category, room_type=room_type)
+    items = service.get_catalog_items(
+        category=category,
+        room_type=room_type,
+        subtype=subtype,
+        style=style,
+    )
     return CatalogListResponse(total=len(items), items=items)
+
+
+@global_router.get("/catalog/finishes", response_model=FinishesListResponse)
+def list_finishes(
+    category: Optional[str] = None,
+    style: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    service = EsaiEngineService(db)
+    finishes = service.get_finishes(category=category, style=style)
+    return FinishesListResponse(total=len(finishes), finishes=finishes)
+
+
+@global_router.post("/catalog/validate-selections", response_model=CatalogValidationResponse)
+def validate_catalog_selections(
+    payload: CatalogValidationRequest,
+    db: Session = Depends(get_db),
+):
+    service = EsaiEngineService(db)
+    errors: List[str] = []
+    warnings: List[str] = []
+    validated: List[Dict[str, Any]] = []
+
+    for item in payload.items:
+        item_id = item.get("id") or item.get("asset_id")
+        if not item_id:
+            errors.append("Catalog item payload must specify an 'id' or 'asset_id'.")
+            continue
+        try:
+            asset = service.get_catalog_item(item_id)
+            if payload.room_type and payload.room_type not in asset.supported_room_types:
+                warnings.append(
+                    f"Item '{asset.name}' ({asset.id}) is not marked for room type '{payload.room_type}'."
+                )
+            validated.append({
+                "id": asset.id,
+                "name": asset.name,
+                "category": asset.category.value,
+                "dimensions": asset.dimensions.dict(),
+                "status": "valid",
+            })
+        except Exception:
+            errors.append(f"Catalog asset '{item_id}' not found.")
+
+    return CatalogValidationResponse(
+        valid=len(errors) == 0,
+        errors=errors,
+        warnings=warnings,
+        validated_items=validated,
+    )
 
 
 @global_router.get("/catalog/{catalog_id}")
@@ -254,16 +325,47 @@ def get_catalog_item(catalog_id: str, db: Session = Depends(get_db)):
 
 
 @global_router.get("/standards", response_model=StandardsListResponse)
-def list_standards(enforceable_only: bool = False, db: Session = Depends(get_db)):
+@global_router.get("/knowledge/rules", response_model=StandardsListResponse)
+def list_standards(
+    enforceable_only: bool = False,
+    mandatory_only: bool = False,
+    category: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
     service = EsaiEngineService(db)
-    rules = service.get_standards(enforceable_only=enforceable_only)
+    rules = service.get_standards(
+        enforceable_only=enforceable_only,
+        mandatory_only=mandatory_only,
+        category=category,
+    )
     return StandardsListResponse(total=len(rules), rules=rules)
 
 
 @global_router.get("/room-profiles")
+@global_router.get("/knowledge/room-profiles")
 def get_room_profiles(db: Session = Depends(get_db)):
     service = EsaiEngineService(db)
     return {"profiles": service.get_room_profiles()}
+
+
+@global_router.get("/knowledge/styles", response_model=StylesCatalogResponse)
+def get_styles_catalog(db: Session = Depends(get_db)):
+    service = EsaiEngineService(db)
+    return StylesCatalogResponse(styles=service.get_styles())
+
+
+@global_router.get("/knowledge/functional-relations", response_model=FunctionalRelationsResponse)
+def get_functional_relations(
+    primary_category: Optional[str] = None,
+    related_category: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    service = EsaiEngineService(db)
+    rels = service.get_functional_relationships(
+        primary_category=primary_category,
+        related_category=related_category,
+    )
+    return FunctionalRelationsResponse(total=len(rels), relations=rels)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -496,3 +598,32 @@ def get_interior_context(project_id: str, db: Session = Depends(get_db)):
         "configured_rooms": sum(1 for p in saved_prefs.values() if not p["is_orphaned"]),
         "geometry_staleness": staleness,
     }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# PHASE 3: Deterministic Preference-to-Catalog GA Design Package Resolution
+# ──────────────────────────────────────────────────────────────────────────────
+
+@project_router.post(
+    "/preferences/rooms/{room_id}/resolve-design-input",
+    response_model=ResolvedDesignInputResponse,
+)
+@project_router.post(
+    "/rooms/{room_id}/resolve-design-input",
+    response_model=ResolvedDesignInputResponse,
+)
+def resolve_room_design_input(
+    project_id: str,
+    room_id: str,
+    floor_id: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    """
+    Deterministically resolves effective preferences, geometry, and catalog into
+    the GA-ready design input contract without placing coordinates or mutating Master JSON.
+    """
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    resolved = service.resolve_room_design_input(project, room_id=room_id, floor_id=floor_id)
+    return ResolvedDesignInputResponse(resolved=resolved)
+

@@ -250,4 +250,76 @@ export const esaiApi = {
     const r = await apiClient.post(`${base(projectId)}/validate-input`);
     return r.data;
   },
+
+  // ── Phase 3: Catalog & Knowledge Base ─────────────────────────────────────
+
+  getCatalogCategories: async (): Promise<string[]> => {
+    const r = await apiClient.get('/esai/catalog/categories');
+    return r.data.categories;
+  },
+
+  getCatalogItems: async (params?: {
+    category?: string;
+    room_type?: string;
+    subtype?: string;
+    style?: string;
+  }): Promise<any[]> => {
+    const r = await apiClient.get('/esai/catalog/items', { params });
+    return r.data.items;
+  },
+
+  getFinishes: async (params?: { category?: string; style?: string }): Promise<any[]> => {
+    const r = await apiClient.get('/esai/catalog/finishes', { params });
+    return r.data.finishes;
+  },
+
+  getStyles: async (): Promise<Record<string, any>> => {
+    const r = await apiClient.get('/esai/knowledge/styles');
+    return r.data.styles;
+  },
+
+  getErgonomicRules: async (params?: {
+    category?: string;
+    enforceable_only?: boolean;
+    mandatory_only?: boolean;
+  }): Promise<any[]> => {
+    const r = await apiClient.get('/esai/knowledge/rules', { params });
+    return r.data.rules;
+  },
+
+  getRoomProfiles: async (): Promise<any[]> => {
+    const r = await apiClient.get('/esai/knowledge/room-profiles');
+    return r.data.profiles;
+  },
+
+  getFunctionalRelations: async (params?: {
+    primary_category?: string;
+    related_category?: string;
+  }): Promise<any[]> => {
+    const r = await apiClient.get('/esai/knowledge/functional-relations', { params });
+    return r.data.relations;
+  },
+
+  validateCatalogSelections: async (payload: {
+    items: Array<Record<string, any>>;
+    room_type?: string;
+  }): Promise<any> => {
+    const r = await apiClient.post('/esai/catalog/validate-selections', payload);
+    return r.data;
+  },
+
+  resolveRoomDesignInput: async (
+    projectId: string,
+    roomId: string,
+    floorId?: string
+  ): Promise<any> => {
+    const params = floorId ? { floor_id: floorId } : {};
+    const r = await apiClient.post(
+      `${base(projectId)}/preferences/rooms/${roomId}/resolve-design-input`,
+      {},
+      { params }
+    );
+    return r.data.resolved;
+  },
 };
+

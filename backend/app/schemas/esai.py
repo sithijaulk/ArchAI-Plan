@@ -9,9 +9,10 @@ from app.components.esai_engine.contracts import (
     FloorDTO,
     RoomDTO,
     ProjectPreferencesDTO,
-    LengthUnit
+    LengthUnit,
+    ResolvedRoomDesignInputDTO,
 )
-from app.components.esai_engine.catalog import CatalogAsset
+from app.components.esai_engine.catalog import CatalogAsset, FinishAsset
 from app.components.esai_engine.rules import ErgonomicRule
 
 
@@ -148,4 +149,41 @@ class InteriorContextResponse(BaseModel):
     total_rooms: int
     configured_rooms: int
     geometry_staleness: Dict[str, Any]
+
+
+# ─── Phase 3 Schemas ─────────────────────────────────────────────────────────
+
+class CatalogCategoriesResponse(BaseModel):
+    categories: List[str]
+
+
+class FinishesListResponse(BaseModel):
+    total: int
+    finishes: List[FinishAsset]
+
+
+class StylesCatalogResponse(BaseModel):
+    styles: Dict[str, Any]
+
+
+class FunctionalRelationsResponse(BaseModel):
+    total: int
+    relations: List[Dict[str, Any]]
+
+
+class CatalogValidationRequest(BaseModel):
+    items: List[Dict[str, Any]]
+    room_type: Optional[str] = None
+
+
+class CatalogValidationResponse(BaseModel):
+    valid: bool
+    errors: List[str] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
+    validated_items: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class ResolvedDesignInputResponse(BaseModel):
+    resolved: ResolvedRoomDesignInputDTO
+
 

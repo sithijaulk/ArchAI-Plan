@@ -125,8 +125,74 @@ class AssetCategory(str, Enum):
     AC_UNIT = "ac_unit"
     WATER_HEATER = "water_heater"
     EXHAUST_FAN = "exhaust_fan"
+    # Kitchen specialized
+    SINK = "sink"
+    FAUCET = "faucet"
+    REFRIGERATOR = "refrigerator"
+    COOKTOP = "cooktop"
+    OVEN = "oven"
+    MICROWAVE = "microwave"
+    DISHWASHER = "dishwasher"
+    RANGE_HOOD = "range_hood"
+    # Utility / Laundry
+    WASHING_MACHINE = "washing_machine"
+    DRYER = "dryer"
+    UTILITY_SINK = "utility_sink"
+    # Foyer / Decor
+    SHOE_CABINET = "shoe_cabinet"
+    CURTAIN = "curtain"
+    BLIND = "blind"
+    RUG = "rug"
+    DECORATIVE_OBJECT = "decorative_object"
+    # Finishes & Services
+    FINISH = "finish"
+    SERVICE_POINT = "service_point"
     # Other
     OTHER = "other"
+
+
+class PlacementMode(str, Enum):
+    FLOOR_STANDING = "floor_standing"
+    WALL_MOUNTED = "wall_mounted"
+    CEILING_MOUNTED = "ceiling_mounted"
+    COUNTERTOP = "countertop"
+    SURFACE_FINISH = "surface_finish"
+    SERVICE_POINT = "service_point"
+
+
+class ServiceType(str, Enum):
+    POWER_GENERAL = "power_general"
+    POWER_APPLIANCE = "power_appliance"
+    USB_CHARGING = "usb_charging"
+    TV_POWER = "tv_power"
+    TV_DATA = "tv_data"
+    NETWORK_DATA = "network_data"
+    LIGHT_SWITCH = "light_switch"
+    DIMMER_SWITCH = "dimmer_switch"
+    FAN_POINT = "fan_point"
+    AC_POWER = "ac_power"
+    WATER_COLD = "water_cold"
+    WATER_HOT = "water_hot"
+    DRAINAGE = "drainage"
+    EXHAUST_DUCT = "exhaust_duct"
+    WATER_HEATER_POWER = "water_heater_power"
+
+
+class ServiceStatus(str, Enum):
+    PROPOSED_NEW = "proposed_new"
+    EXISTING_VERIFIED = "existing_verified"
+    UNKNOWN = "unknown"
+    PROFESSIONAL_VERIFICATION_REQUIRED = "professional_verification_required"
+
+
+class FinishCategory(str, Enum):
+    WALL_FINISH = "wall_finish"
+    FLOOR_FINISH = "floor_finish"
+    CEILING_FINISH = "ceiling_finish"
+    CABINET_FINISH = "cabinet_finish"
+    COUNTERTOP_FINISH = "countertop_finish"
+    WINDOW_TREATMENT = "window_treatment"
+
 
 
 class AssetMobility(str, Enum):
@@ -155,6 +221,7 @@ class StandardVerificationStatus(str, Enum):
     VERIFIED = "verified"
     UNVERIFIED = "unverified"
     RECOMMENDED = "recommended"
+    PROVISIONAL = "provisional"
 
 
 class Coordinate2D(BaseModel):
@@ -720,3 +787,142 @@ class BuildingPreferencesDTO(BaseModel):
     room_overrides: Dict[str, Any] = Field(default_factory=dict)
 
     notes: Optional[str] = None
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# PHASE 3: GA-READY KNOWLEDGE & RESOLVED DESIGN INPUT CONTRACTS
+# ──────────────────────────────────────────────────────────────────────────────
+
+class ResolvedAssetInstanceDTO(BaseModel):
+    """
+    Concrete instance of a furniture item, fixture, or cabinetry ready for GA placement.
+    Handles multiple instances of the same catalog asset (e.g., 2 single beds -> 2 distinct instances).
+    """
+    instance_id: str
+    asset_id: str
+    asset_name: str
+    category: str
+    subtype: str
+    dimensions: Dimensions3D
+    physical_footprint_type: str = "rectangle"
+    placement_mode: PlacementMode = PlacementMode.FLOOR_STANDING
+    priority: str = "mandatory"  # mandatory, optional, user_locked
+    supported_rotations: List[int] = Field(default_factory=lambda: [0, 90, 180, 270])
+    wall_affinity: Optional[str] = None  # back_against_wall, headboard_to_wall, center, window_adjacent
+    preferred_wall: Optional[str] = None
+    locked_coordinates: Optional[Coordinate2D] = None
+    locked_rotation: Optional[float] = None
+    style_tag: Optional[str] = None
+    material_variant: Optional[str] = None
+    clearance_rule_id: Optional[str] = None
+    associated_service_ids: List[str] = Field(default_factory=list)
+    rendering_model_id: str
+    source_attribution: str = "preference_derived"  # preference_derived, catalog_default, user_locked
+
+
+class ResolvedServiceRequirementDTO(BaseModel):
+    """
+    Represents an electrical, plumbing, or mechanical service dependency associated with an asset.
+    Distinguishes proposed new connections from existing verified infrastructure.
+    """
+    service_id: str
+    service_type: ServiceType
+    associated_instance_id: Optional[str] = None
+    status: ServiceStatus = ServiceStatus.PROPOSED_NEW
+    description: str
+    requires_professional_verification: bool = True
+    connection_spec: Optional[Dict[str, Any]] = None
+
+
+class ResolvedErgonomicConstraintDTO(BaseModel):
+    """
+    Ergonomic boundary rule evaluated by the GA collision and fitness evaluators.
+    """
+    rule_id: str
+    applicable_categories: List[str]
+    clearance_direction: ClearanceDirection
+    threshold_m: float
+    priority: ConstraintPriority
+    verification_status: StandardVerificationStatus
+    source_title: str
+    source_edition: Optional[str] = None
+    source_section: Optional[str] = None
+    is_mandatory: bool = True
+    description: str
+
+
+class ResolvedFunctionalRelationshipDTO(BaseModel):
+    """
+    Relative spatial relationship between two asset categories (e.g. bed <-> bedside table, sofa <-> tv).
+    """
+    relation_id: str
+    from_category: str
+    to_category: str
+    relation_type: str  # flanking, facing, viewing, paired, surrounding, parallel_aisle
+    min_distance_m: Optional[float] = None
+    max_distance_m: Optional[float] = None
+    optimal_distance_m: Optional[float] = None
+    is_hard_constraint: bool = False
+    notes: Optional[str] = None
+
+
+class AestheticEvaluationDTO(BaseModel):
+    """
+    Deterministic, explainable aesthetic evaluation score for visual composition.
+    """
+    overall_compatibility_score: float = Field(..., ge=0.0, le=1.0)
+    dominant_style: str
+    palette: List[str]
+    material_harmony_score: float = Field(..., ge=0.0, le=1.0)
+    style_cohesion_score: float = Field(..., ge=0.0, le=1.0)
+    evaluations: List[str] = Field(default_factory=list)
+
+
+class ResolvedRoomDesignInputDTO(BaseModel):
+    """
+    Complete, validated, typed knowledge package consumed directly by the Phase 4 Genetic Algorithm.
+    Contains no fabricated coordinates, respects exclusions and user locks, and maps services.
+    """
+    project_id: str
+    floor_id: str
+    room_id: str
+    room_name: str
+    room_type: str
+    polygon: List[Coordinate2D]
+    area_sqm: float
+    ceiling_height_m: float
+    elevation_m: float = 0.0
+    geometry_fingerprint: str
+    geometry_revision: int
+
+    doors: List[DoorDTO]
+    windows: List[WindowDTO]
+    fixed_obstructions: List[FixedObstructionDTO]
+
+    # Concrete asset instances to be positioned by GA
+    asset_instances: List[ResolvedAssetInstanceDTO]
+
+    # Service dependencies (power, plumbing, gas, data)
+    service_requirements: List[ResolvedServiceRequirementDTO]
+
+    # Ergonomic constraints (hard & soft)
+    ergonomic_constraints: List[ResolvedErgonomicConstraintDTO]
+
+    # Spatial relationships
+    functional_relationships: List[ResolvedFunctionalRelationshipDTO]
+
+    # Exclusions
+    excluded_categories: List[str] = Field(default_factory=list)
+
+    # Surface finishes
+    finishes: Dict[str, Any] = Field(default_factory=dict)
+
+    # Explainable aesthetic profile
+    aesthetic_profile: AestheticEvaluationDTO
+
+    # Diagnostics & Feasibility
+    diagnostics: List[str] = Field(default_factory=list)
+    missing_assets: List[str] = Field(default_factory=list)
+    feasibility_status: str = "feasible"  # feasible, conditional_warning, infeasible
+    provenance_metadata: Dict[str, Any] = Field(default_factory=dict)
+

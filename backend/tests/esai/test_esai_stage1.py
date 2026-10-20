@@ -152,14 +152,18 @@ def test_ergonomic_standards_provenance_and_verification():
     rules = standards.get_all()
     assert len(rules) >= 10
 
-    # Verified Neufert standard: exact edition, section, and page
+    # Phase 3 audit: Neufert attribution is preserved, but the page reference could not be
+    # confirmed against licensed material, so it lives in historical_source_claim and the
+    # rule is provisional (advisory), never mandatory compliance.
     bed_rule = standards.get_by_id("BED_ACCESS_PRIMARY")
     assert "Ernst Neufert" in bed_rule.source_title
     assert "4th International English Edition" in bed_rule.source_edition
-    assert "p. 254" in bed_rule.source_section
+    assert "p. 254" not in (bed_rule.source_section or "")
+    assert "UNCONFIRMED" in (bed_rule.historical_source_claim or "")
     assert bed_rule.threshold_m == 0.70
+    assert bed_rule.verification_status == StandardVerificationStatus.PROVISIONAL
     assert bed_rule.is_enforceable is True
-    assert bed_rule.is_mandatory_compliance is True
+    assert bed_rule.is_mandatory_compliance is False
 
     # Separate unverified rule: must NOT be mandatory compliance
     unverified_rule = standards.get_by_id("CUSTOM_EXPERIMENTAL_CLEARANCE")

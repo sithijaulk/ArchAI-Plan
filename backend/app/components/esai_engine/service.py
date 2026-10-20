@@ -12,8 +12,10 @@ from fastapi import HTTPException, status as http_status
 from sqlalchemy.orm import Session
 
 from app.models.project import Project
-from .catalog import FurnitureCatalogRepository, CatalogAsset
+from .catalog import FurnitureCatalogRepository, CatalogAsset, FinishAsset
 from .rules import ErgonomicStandardsRepository, ErgonomicRule
+from .room_knowledge import RoomKnowledgeRepository
+from .resolver import PreferenceToCatalogResolver
 from .contracts import (
     StructuralInputDTO,
     RoomDTO,
@@ -22,6 +24,7 @@ from .contracts import (
     ValidationResultDTO,
     ProjectPreferencesDTO,
     ValidationMessage,
+    ResolvedRoomDesignInputDTO,
 )
 from .parser import StructuralInputParser
 from .normalizer import SpatialNormalizer
@@ -33,12 +36,16 @@ from .exceptions import EsaiException, StructuralInputValidationError
 
 
 class EsaiEngineService:
-    """Core domain service for ESAI Stage 1 backend operations."""
+    """Core domain service for ESAI operations."""
 
     def __init__(self, db: Session):
         self.db = db
         self.catalog_repo = FurnitureCatalogRepository.get_instance()
         self.standards_repo = ErgonomicStandardsRepository.get_instance()
+        self.room_knowledge_repo = RoomKnowledgeRepository.get_instance()
+        self.resolver = PreferenceToCatalogResolver(
+            self.catalog_repo, self.standards_repo, self.room_knowledge_repo
+        )
         self.db_repo = EsaiDatabaseRepository(db)
         self.validator = EsaiInputValidator(self.catalog_repo, self.standards_repo)
 
@@ -63,7 +70,20 @@ class EsaiEngineService:
         return SpatialNormalizer.find_room_by_id(structural_input, room_id)
 
     # 2. Catalogs & Standards
-    def get_catalog_items(self, category: Optional[str] = None, room_type: Optional[str] = None) -> List[CatalogAsset]:
+    def get_catalog_categories(self) -> List[str]:
+        return self.catalog_repo.get_all_categories()
+
+    def get_catalog_items(
+        self,
+        category: Optional[str] = None,
+        room_type: Optional[str] = None,
+        subtype: Optional[str] = None,
+        style: Optional[str] = None,
+    ) -> List[CatalogAsset]:
+        if subtype:
+            return self.catalog_repo.get_by_subtype(subtype)
+        if style:
+            return self.catalog_repo.get_by_style(style)
         if room_type:
             return self.catalog_repo.get_by_room_type(room_type)
         if category:
@@ -78,16 +98,82 @@ class EsaiEngineService:
     def get_catalog_item(self, catalog_id: str) -> CatalogAsset:
         return self.catalog_repo.get_by_id(catalog_id)
 
-    def get_standards(self, enforceable_only: bool = False) -> List[ErgonomicRule]:
-        return self.standards_repo.get_all(enforceable_only=enforceable_only)
+    def get_finishes(
+        self,
+        category: Optional[str] = None,
+        style: Optional[str] = None,
+    ) -> List[FinishAsset]:
+        return self.catalog_repo.get_all_finishes(category=category, style=style)
+
+    def get_styles(self) -> Dict[str, Any]:
+        return {k: v.dict() for k, v in self.room_knowledge_repo.list_styles().items()}
+
+    def get_standards(
+        self,
+        enforceable_only: bool = False,
+        mandatory_only: bool = False,
+        category: Optional[str] = None,
+    ) -> List[ErgonomicRule]:
+        if category:
+            rules = self.standards_repo.get_rules_for_category(category)
+            if mandatory_only:
+                return [r for r in rules if r.is_mandatory_compliance]
+            if enforceable_only:
+                return [r for r in rules if r.is_enforceable]
+            return rules
+        return self.standards_repo.get_all(enforceable_only=enforceable_only, mandatory_only=mandatory_only)
 
     def get_room_profiles(self) -> List[Dict[str, Any]]:
-        import json
-        import os
-        path = os.path.join(os.path.dirname(__file__), "data", "room_profiles.json")
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return data.get("profiles", [])
+        return [p.dict() for p in self.room_knowledge_repo.list_profiles()]
+
+    def get_functional_relationships(
+        self,
+        primary_category: Optional[str] = None,
+        related_category: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        rels = self.room_knowledge_repo.get_functional_relations(
+            primary_category=primary_category, related_category=related_category
+        )
+        return [r.dict() for r in rels]
+
+    def resolve_room_design_input(
+        self,
+        project: Project,
+        room_id: str,
+        floor_id: Optional[str] = None,
+    ) -> ResolvedRoomDesignInputDTO:
+        """
+        Resolves effective room preferences against the catalog, ergonomic rules, and geometry.
+        Generates the GA-ready design input contract without placing coordinates.
+        """
+        room = self.get_room_by_id(project, room_id)
+        if not room:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Room '{room_id}' not found in project geometry."
+            )
+        target_floor_id = floor_id or room.floor_id
+        effective_prefs = self.get_effective_preferences(project, room_id, target_floor_id)
+        geo_fingerprint = self._get_geo_fingerprint(project)
+        revision = getattr(project, "revision", 1) or 1
+
+        return self.resolver.resolve(
+            project_id=project.id,
+            floor_id=target_floor_id,
+            room_id=room.room_id,
+            room_name=room.name,
+            room_type_str=room.room_type.value if hasattr(room.room_type, "value") else str(room.room_type),
+            polygon=room.polygon,
+            area_sqm=room.area_sqm,
+            ceiling_height_m=room.ceiling_height or 2.8,
+            doors=room.doors,
+            windows=room.windows,
+            fixed_obstructions=room.fixed_obstructions,
+            effective_preferences=effective_prefs,
+            geometry_fingerprint=geo_fingerprint,
+            geometry_revision=revision,
+            elevation_m=room.elevation or 0.0,
+        )
 
     # 3. Validation Operations
     def validate_project_input(self, project: Project) -> ValidationResultDTO:
