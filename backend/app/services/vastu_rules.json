@@ -1,105 +1,385 @@
 {
+  "specification_name": "ArchAI Plan — VSAI Rectifier Finalized Vastu Rules",
   "version": "1.0",
-  "name": "ArchAI Standard Vastu Shastra & Engineering Rules",
-  "description": "Configurable, extensible Vastu Shastra and spatial engineering rules for residential floor plans.",
+  "status": "finalized_for_stage_1_analysis",
+  "scope": {
+    "stage_1": "Master JSON upload, validation, Vastu rule analysis, findings, defects, recommendations",
+    "automatic_rectification": "deferred",
+    "floor_plan_redrawing": "deferred"
+  },
+  "direction_grid": {
+    "type": "3x3",
+    "requires_known_orientation": true,
+    "center_formula": {
+      "x": "W / 2",
+      "y": "H / 2"
+    },
+    "cells": {
+      "top_left": "NORTH_WEST",
+      "top_center": "NORTH",
+      "top_right": "NORTH_EAST",
+      "middle_left": "WEST",
+      "center": "CENTER_BRAHMASTHAN",
+      "middle_right": "EAST",
+      "bottom_left": "SOUTH_WEST",
+      "bottom_center": "SOUTH",
+      "bottom_right": "SOUTH_EAST"
+    }
+  },
   "rules": [
     {
-      "rule_id": "vastu.room.pooja_ishanya",
-      "category": "room_placement",
-      "name": "Pooja Room in Ishanya (North-East)",
-      "target_room_types": ["pooja", "pooja_room", "prayer", "shrine", "altar"],
-      "preferred_sectors": ["NORTH_EAST", "EAST", "NORTH"],
-      "tolerated_sectors": ["NORTH_WEST"],
-      "forbidden_sectors": ["SOUTH_WEST", "SOUTH", "SOUTH_EAST"],
-      "weight": 15,
-      "severity": "CRITICAL",
-      "good_description": "Pooja room is auspiciously situated in the North-East (Ishanya) zone, maximizing divine and spiritual cosmic energies.",
-      "defect_description": "Pooja room is located in the %CURRENT_SECTOR% sector. Vastu Shastra strongly recommends Ishanya (North-East) for prayer spaces.",
-      "remedy": "Shift the sacred altar to the North-East zone of the house, or align deities facing East/North inside the room."
-    },
-    {
-      "rule_id": "vastu.room.kitchen_agneya",
-      "category": "room_placement",
-      "name": "Kitchen in Agneya (South-East Fire Quadrant)",
-      "target_room_types": ["kitchen", "cooking", "pantry"],
-      "preferred_sectors": ["SOUTH_EAST"],
-      "tolerated_sectors": ["NORTH_WEST"],
-      "forbidden_sectors": ["NORTH_EAST", "SOUTH_WEST", "CENTER"],
-      "weight": 15,
-      "severity": "CRITICAL",
-      "good_description": "Kitchen is ideally positioned in the South-East (Agneya) quadrant, aligned with the primordial Fire element (Agni Devata).",
-      "defect_description": "Kitchen is located in the %CURRENT_SECTOR% sector. Placing a kitchen in North-East (Water) or South-West (Earth) creates elemental conflict.",
-      "remedy": "Relocate cooking stove/kitchen towards South-East or North-West. Avoid placing water taps directly adjacent to cooking stoves."
-    },
-    {
-      "rule_id": "vastu.room.master_bedroom_nairutya",
-      "category": "room_placement",
-      "name": "Master Bedroom in Nairutya (South-West)",
-      "target_room_types": ["master_bedroom", "master_bed", "primary_bedroom"],
-      "preferred_sectors": ["SOUTH_WEST"],
-      "tolerated_sectors": ["SOUTH", "WEST"],
-      "forbidden_sectors": ["NORTH_EAST", "CENTER", "NORTH"],
-      "weight": 15,
-      "severity": "HIGH",
-      "good_description": "Master Bedroom is grounded in the South-West (Nairutya / Earth) zone, promoting stability, authority, and peaceful rest.",
-      "defect_description": "Master Bedroom is placed in the %CURRENT_SECTOR% sector. Locating it in North-East or Center causes restlessness and loss of domestic stability.",
-      "remedy": "Designate the South-West room as the primary bedroom. Ensure sleeping head orientation points towards South or East."
-    },
-    {
-      "rule_id": "vastu.room.toilet_avoid_ishanya",
-      "category": "room_placement",
-      "name": "Bathroom / Toilet Away from North-East & Center",
-      "target_room_types": ["bathroom", "bath", "toilet", "wc", "washroom", "powder_room"],
-      "preferred_sectors": ["NORTH_WEST", "WEST", "SOUTH"],
-      "tolerated_sectors": ["SOUTH_EAST", "EAST"],
-      "forbidden_sectors": ["NORTH_EAST", "CENTER"],
-      "weight": 20,
-      "severity": "CRITICAL",
-      "good_description": "Toilets and bathrooms are appropriately routed away from the sacred North-East and Brahmasthan centers.",
-      "defect_description": "Bathroom/Toilet is located in the %CURRENT_SECTOR% sector. A toilet in North-East (Ishanya) or Center (Brahmasthan) is a severe Vastu Dosha.",
-      "remedy": "Relocate plumbing fixtures to North-West or West zone. Never share a common wall between a toilet and a Pooja room."
-    },
-    {
-      "rule_id": "vastu.brahmasthan.openness",
+      "rule_id": "vsai.brahmasthan.exact_center",
+      "name": "Brahmasthan Exact Center-Point Check",
       "category": "brahmasthan",
-      "name": "Brahmasthan (Central 9th) Free & Unobstructed",
-      "target_room_types": ["*"],
-      "preferred_sectors": ["CENTER"],
-      "tolerated_sectors": [],
-      "forbidden_sectors": [],
-      "weight": 20,
-      "severity": "CRITICAL",
-      "good_description": "The central Brahmasthan core is open, well-balanced, and unobstructed by heavy structural loads or enclosed utility rooms.",
-      "defect_description": "Brahmasthan (central 1/9th of the building) is obstructed by %OBSTRUCTION_ELEMENTS%. Brahmasthan must remain open and light.",
-      "remedy": "Keep the central zone open as a living courtyard, hallway, or open atrium. Avoid heavy internal load-bearing columns inside Brahmasthan."
+      "center_formula": {
+        "x": "W / 2",
+        "y": "H / 2"
+      },
+      "condition": "No represented spatial object may occupy or intersect the exact plan center point.",
+      "objects_to_check": [
+        "rooms",
+        "walls",
+        "doors",
+        "columns",
+        "pillars",
+        "staircases",
+        "other represented spatial objects"
+      ],
+      "pass_condition": "No represented object occupies/intersects the exact center point.",
+      "fail_condition": "One or more represented objects occupy/intersect the exact center point.",
+      "checks_entire_center_cell": false,
+      "notes": [
+        "Any numerical tolerance must be explicitly configured and tested."
+      ]
     },
     {
-      "rule_id": "vastu.room.living_room_placement",
+      "rule_id": "vsai.dwara_sthana.combination",
+      "name": "Dwara Sthana Door-Combination Analysis",
+      "category": "door_combination",
+      "dhruva_condition": "No doors anywhere in the house",
+      "combinations": [
+        {
+          "house_type": "Dhruva",
+          "directions": [],
+          "classification": "VERY_GOOD",
+          "traditional_result": "Wealth, grain and prosperity"
+        },
+        {
+          "house_type": "Dhanya",
+          "directions": [
+            "EAST"
+          ],
+          "classification": "GOOD",
+          "traditional_result": "Good harvest and grain resources"
+        },
+        {
+          "house_type": "Jaya",
+          "directions": [
+            "SOUTH"
+          ],
+          "classification": "GOOD",
+          "traditional_result": "Victory in activities"
+        },
+        {
+          "house_type": "Nanda",
+          "directions": [
+            "EAST",
+            "SOUTH"
+          ],
+          "classification": "BAD",
+          "traditional_result": "Harm/misfortune to women (traditional claim)"
+        },
+        {
+          "house_type": "Khara",
+          "directions": [
+            "WEST"
+          ],
+          "classification": "BAD",
+          "traditional_result": "Loss of property and wealth (traditional claim)"
+        },
+        {
+          "house_type": "Kanta",
+          "directions": [
+            "EAST",
+            "WEST"
+          ],
+          "classification": "GOOD",
+          "traditional_result": "Happiness and progress for children/grandchildren"
+        },
+        {
+          "house_type": "Manorama",
+          "directions": [
+            "SOUTH",
+            "WEST"
+          ],
+          "classification": "GOOD",
+          "traditional_result": "Beauty, peace and happiness in the home"
+        },
+        {
+          "house_type": "Sumukha",
+          "directions": [
+            "WEST",
+            "SOUTH",
+            "EAST"
+          ],
+          "classification": "GOOD",
+          "traditional_result": "Resources and comfort"
+        },
+        {
+          "house_type": "Durmukha",
+          "directions": [
+            "NORTH"
+          ],
+          "classification": "BAD",
+          "traditional_result": "Misfortune (traditional claim)"
+        },
+        {
+          "house_type": "Ugra",
+          "directions": [
+            "NORTH",
+            "EAST"
+          ],
+          "classification": "BAD",
+          "traditional_result": "Distress for the family (traditional claim)"
+        },
+        {
+          "house_type": "Ripuda",
+          "directions": [
+            "SOUTH",
+            "NORTH"
+          ],
+          "classification": "BAD",
+          "traditional_result": "Fear and adversity from enemies (traditional claim)"
+        },
+        {
+          "house_type": "Vittada",
+          "directions": [
+            "EAST",
+            "SOUTH",
+            "NORTH"
+          ],
+          "classification": "GOOD",
+          "traditional_result": "Wealth and money"
+        },
+        {
+          "house_type": "Kshaya/Nasha",
+          "directions": [
+            "WEST",
+            "NORTH"
+          ],
+          "classification": "BAD",
+          "traditional_result": "Destruction and decline (traditional claim)"
+        },
+        {
+          "house_type": "Akranda",
+          "directions": [
+            "EAST",
+            "WEST",
+            "NORTH"
+          ],
+          "classification": "BAD",
+          "traditional_result": "Sorrow and tears (traditional claim)"
+        },
+        {
+          "house_type": "Vipula",
+          "directions": [
+            "WEST",
+            "SOUTH",
+            "NORTH"
+          ],
+          "classification": "GOOD",
+          "traditional_result": "Abundant resources and reputation"
+        },
+        {
+          "house_type": "Vijaya",
+          "directions": [
+            "EAST",
+            "SOUTH",
+            "WEST",
+            "NORTH"
+          ],
+          "classification": "VERY_GOOD",
+          "traditional_result": "Great wealth and happiness"
+        }
+      ],
+      "automatic_door_movement": false,
+      "notes": [
+        "Traditional outcomes are retained as source claims, not scientifically established predictions."
+      ]
+    },
+    {
+      "rule_id": "vsai.main_entrance.direction",
+      "name": "Main Entrance Direction Analysis",
+      "category": "main_entrance",
+      "positive_zones": [
+        {
+          "zone": "NORTH",
+          "classification": "POSITIVE_SUITABLE"
+        },
+        {
+          "zone": "NORTH_EAST",
+          "classification": "POSITIVE_SUITABLE"
+        },
+        {
+          "zone": "EAST",
+          "classification": "POSITIVE_SUITABLE"
+        },
+        {
+          "zone": "SOUTH_OF_SOUTH_EAST",
+          "classification": "POSITIVE_SUITABLE",
+          "boundary_status": "NEEDS_SOURCE_BOUNDARY"
+        },
+        {
+          "zone": "WEST_OF_NORTH_WEST",
+          "classification": "POSITIVE_SUITABLE",
+          "boundary_status": "NEEDS_SOURCE_BOUNDARY"
+        }
+      ],
+      "requires_main_entrance_identification": true,
+      "notes": [
+        "Do not guess boundaries for South of Southeast or West of Northwest."
+      ]
+    },
+    {
+      "rule_id": "vsai.room.direction",
+      "name": "Room Direction Analysis",
       "category": "room_placement",
-      "name": "Living Room in North, East, or North-East",
-      "target_room_types": ["living", "living_room", "hall", "drawing_room", "sitting"],
-      "preferred_sectors": ["NORTH", "EAST", "NORTH_EAST", "NORTH_WEST"],
-      "tolerated_sectors": ["WEST", "SOUTH_EAST"],
-      "forbidden_sectors": ["SOUTH_WEST"],
-      "weight": 10,
-      "severity": "MEDIUM",
-      "good_description": "Living room is harmoniously oriented towards social North/East quadrants, welcoming guests with natural light and positive vibration.",
-      "defect_description": "Living Room is placed in %CURRENT_SECTOR%. While permissible, South/South-West quadrants are heavier and less social.",
-      "remedy": "Arrange seating such that the family head faces North or East during conversations."
-    },
-    {
-      "rule_id": "engineering.structural.column_span",
-      "category": "structural",
-      "name": "Structural Column Grid & Span Safety",
-      "target_room_types": ["*"],
-      "preferred_sectors": [],
-      "tolerated_sectors": [],
-      "forbidden_sectors": [],
-      "weight": 5,
-      "severity": "HIGH",
-      "good_description": "Structural column distribution provides adequate support for building spans without exceeding safe unsupported distances.",
-      "defect_description": "Only %COLUMN_COUNT% columns found for a %AREA_SQFT% sqft floor plate. Span distances exceed typical unsupported residential limits.",
-      "remedy": "Introduce intermediate columns along primary partition wall junctions to support the roof/slab span."
+      "room_guidance": [
+        {
+          "room": "living_room",
+          "preferred_directions": [
+            "NORTH_WEST",
+            "NORTH",
+            "NORTH_EAST",
+            "EAST"
+          ],
+          "notes": "As stated"
+        },
+        {
+          "room": "kitchen",
+          "preferred_directions": [
+            "SOUTH_EAST"
+          ],
+          "notes": "Primary option"
+        },
+        {
+          "room": "kitchen",
+          "preferred_directions": [
+            "NORTH_WEST"
+          ],
+          "notes": "Alternative listed"
+        },
+        {
+          "room": "master_bedroom",
+          "preferred_directions": [
+            "SOUTH_WEST"
+          ],
+          "notes": "Head of family bedroom"
+        },
+        {
+          "room": "childrens_bedroom",
+          "preferred_directions": [
+            "SOUTH",
+            "WEST"
+          ],
+          "notes": "As stated"
+        },
+        {
+          "room": "childrens_bedroom",
+          "preferred_directions": [
+            "SOUTH_EAST",
+            "NORTH_WEST"
+          ],
+          "notes": "Alternatives listed"
+        },
+        {
+          "room": "parents_grandparents_bedroom",
+          "preferred_directions": [
+            "NORTH",
+            "EAST"
+          ],
+          "notes": "As stated"
+        },
+        {
+          "room": "guest_bedroom",
+          "preferred_directions": [
+            "NORTH_WEST"
+          ],
+          "notes": "As stated"
+        },
+        {
+          "room": "pooja_room",
+          "preferred_directions": [
+            "NORTH_EAST"
+          ],
+          "notes": "Primary option"
+        },
+        {
+          "room": "pooja_room",
+          "preferred_directions": [
+            "NORTH",
+            "EAST"
+          ],
+          "notes": "Alternatives listed"
+        },
+        {
+          "room": "bath_area",
+          "preferred_directions": [
+            "NORTH",
+            "EAST"
+          ],
+          "notes": "Distinct from toilet/washroom"
+        },
+        {
+          "room": "toilet_washroom",
+          "preferred_directions": [
+            "WEST",
+            "NORTH_WEST"
+          ],
+          "avoid_as_stated": [
+            "NORTH_EAST",
+            "BRAHMASTHAN"
+          ]
+        },
+        {
+          "room": "store_room",
+          "preferred_directions": [
+            "SOUTH",
+            "WEST"
+          ],
+          "notes": "Source wording 'station room' needs confirmation if relevant"
+        },
+        {
+          "room": "staircase",
+          "preferred_directions": [
+            "SOUTH",
+            "WEST"
+          ],
+          "notes": "Source also says keep out of Brahmasthan"
+        }
+      ],
+      "notes": [
+        "Do not convert alternatives into forbidden directions unless explicitly stated."
+      ]
     }
+  ],
+  "stage_1_pipeline": [
+    "Receive Component 1 Master JSON",
+    "Validate dimensions, coordinate origin, orientation, rooms, walls, doors, and available spatial elements",
+    "Create 3x3 direction grid",
+    "Run Brahmasthan exact-center check",
+    "Run Dwara Sthana door-combination classification",
+    "Run main entrance direction analysis",
+    "Run room direction analysis",
+    "Return per-rule findings, defects, and recommendations",
+    "Defer automatic rectification and redrawing"
+  ],
+  "open_implementation_items": [
+    "Exact boundaries for South of Southeast and West of Northwest entrance zones",
+    "How the main entrance is identified in Master JSON",
+    "Numerical tolerance for exact-center geometry checks",
+    "Overall score formula and weights across the four rules",
+    "Rectification geometry and structural constraints are deferred",
+    "Align object names and input schema with actual Master JSON"
   ]
 }
