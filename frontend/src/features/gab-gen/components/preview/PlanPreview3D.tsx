@@ -152,6 +152,76 @@ const BuildingScene: React.FC<{
           </group>
         );
       })}
+
+      {/* 3. Roof Structure Extrusion / Pitch Modeling */}
+      {data.roof_geometry && activeFloors.length > 0 && (() => {
+        const topFloor = floors[floors.length - 1];
+        if (!topFloor) return null;
+        const roofZ = explodedMode ? (floors.length - 1) * 5.0 + 2.8 : topFloor.elevation + 2.8;
+        const eavePts = data.roof_geometry.eave_polygon || [];
+        if (eavePts.length < 3) return null;
+
+        const roofShape = new THREE.Shape();
+        roofShape.moveTo(eavePts[0].x - centerX, eavePts[0].y - centerY);
+        for (let i = 1; i < eavePts.length; i++) {
+          roofShape.lineTo(eavePts[i].x - centerX, eavePts[i].y - centerY);
+        }
+        roofShape.closePath();
+
+        const roofType = data.roof_geometry.roof_type;
+        const roofHeight = Math.max(0.4, data.roof_geometry.max_height_m || 1.2);
+        const roofColor = roofType === 'accessible_rooftop'
+          ? '#64748b'
+          : roofType === 'flat_slab'
+          ? '#475569'
+          : '#ea580c'; // Clay / tile terracotta orange
+
+        return (
+          <group position={[0, 0, roofZ]}>
+            {/* Base Roof Ceiling/Slab */}
+            <mesh position={[0, 0, 0]}>
+              <extrudeGeometry args={[roofShape, { depth: 0.15, bevelEnabled: false }]} />
+              <meshStandardMaterial color="#334155" roughness={0.7} />
+            </mesh>
+
+            {/* Sloped Roof Mesh or Parapet */}
+            {roofType === 'accessible_rooftop' ? (
+              // Parapet Safety Wall Around Perimeter
+              <mesh position={[0, 0, 0.15]}>
+                <extrudeGeometry args={[roofShape, { depth: 0.9, bevelEnabled: false }]} />
+                <meshStandardMaterial color="#94a3b8" transparent opacity={0.4} wireframe />
+              </mesh>
+            ) : roofType === 'flat_slab' ? (
+              // Parapet Curb
+              <mesh position={[0, 0, 0.15]}>
+                <extrudeGeometry args={[roofShape, { depth: 0.3, bevelEnabled: false }]} />
+                <meshStandardMaterial color="#475569" roughness={0.8} />
+              </mesh>
+            ) : (
+              // Pitched/Gable/Hip/Mono Roof Cap
+              <mesh position={[0, 0, 0.15]}>
+                <extrudeGeometry
+                  args={[
+                    roofShape,
+                    {
+                      depth: roofHeight,
+                      bevelEnabled: true,
+                      bevelThickness: 0.2,
+                      bevelSize: 0.3,
+                      bevelSegments: 2,
+                    },
+                  ]}
+                />
+                <meshStandardMaterial
+                  color={roofColor}
+                  roughness={0.5}
+                  metalness={0.1}
+                />
+              </mesh>
+            )}
+          </group>
+        );
+      })()}
     </group>
   );
 };

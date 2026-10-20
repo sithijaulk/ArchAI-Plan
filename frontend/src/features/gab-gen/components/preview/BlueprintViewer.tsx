@@ -73,6 +73,94 @@ export const BlueprintViewer: React.FC<BlueprintViewerProps> = ({
     }
   };
 
+  const handleResizeRoom = async (scaleFactor: number) => {
+    if (!selectedRoom || !projectId || !data) return;
+    setIsSavingEdit(true);
+    setEditMessage(null);
+
+    const cx = selectedRoom.center.x;
+    const cy = selectedRoom.center.y;
+    const newPolygon = selectedRoom.polygon.map(p => ({
+      x: Math.round((cx + (p.x - cx) * scaleFactor) * 100) / 100,
+      y: Math.round((cy + (p.y - cy) * scaleFactor) * 100) / 100
+    }));
+
+    try {
+      const res = await gabGenExtendedApi.editRoom(projectId, {
+        room_id: selectedRoom.room_id,
+        target_floor_id: selectedRoom.floor_id,
+        polygon: newPolygon
+      });
+
+      if (!res.valid) {
+        setEditMessage(`Resize violation: ${res.violations?.join('; ') || 'Cannot resize room.'}`);
+      } else {
+        setEditMessage(`Room resized to ${(selectedRoom.area * scaleFactor * scaleFactor).toFixed(1)} m²!`);
+        if (onUpdate && res.floor_plan) {
+          onUpdate({ ...data, floor_plan: res.floor_plan });
+        }
+      }
+    } catch (err: any) {
+      setEditMessage(err.response?.data?.detail || "Failed to resize room.");
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const handleRemoveRoom = async () => {
+    if (!selectedRoom || !projectId || !data) return;
+    if (selectedRoom.is_structural_stair) {
+      setEditMessage("Cannot delete structural staircase core.");
+      return;
+    }
+    setIsSavingEdit(true);
+    setEditMessage(null);
+
+    try {
+      const res = await gabGenExtendedApi.removeRoom(projectId, selectedRoom.room_id);
+      if (!res.valid) {
+        setEditMessage(`Removal error: ${res.violations?.join('; ') || 'Failed to remove room.'}`);
+      } else {
+        setEditMessage(`Room '${selectedRoom.name}' removed successfully.`);
+        setSelectedRoomId(null);
+        if (onUpdate && res.floor_plan) {
+          onUpdate({ ...data, floor_plan: res.floor_plan });
+        }
+      }
+    } catch (err: any) {
+      setEditMessage(err.response?.data?.detail || "Failed to remove room.");
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const handleReassignFloor = async (targetFloorId: string) => {
+    if (!selectedRoom || !projectId || !data || selectedRoom.floor_id === targetFloorId) return;
+    setIsSavingEdit(true);
+    setEditMessage(null);
+
+    try {
+      const res = await gabGenExtendedApi.editRoom(projectId, {
+        room_id: selectedRoom.room_id,
+        target_floor_id: targetFloorId,
+        polygon: selectedRoom.polygon
+      });
+
+      if (!res.valid) {
+        setEditMessage(`Floor transfer violation: ${res.violations?.join('; ') || 'Could not move room to floor.'}`);
+      } else {
+        setEditMessage(`Room transferred to floor ${targetFloorId}!`);
+        if (onUpdate && res.floor_plan) {
+          onUpdate({ ...data, floor_plan: res.floor_plan });
+        }
+      }
+    } catch (err: any) {
+      setEditMessage(err.response?.data?.detail || "Failed to transfer room floor.");
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
 
   return (
     <div className="space-y-4">
@@ -203,12 +291,47 @@ export const BlueprintViewer: React.FC<BlueprintViewerProps> = ({
               <span className="text-muted-foreground font-mono">({selectedRoom.area.toFixed(1)} m²)</span>
             </div>
 
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-[11px] text-muted-foreground mr-1">Move:</span>
-              <Button size="sm" variant="outline" className="h-6 w-6 p-0 text-xs" onClick={() => handleNudgeRoom(-0.5, 0)} disabled={isSavingEdit}>←</Button>
-              <Button size="sm" variant="outline" className="h-6 w-6 p-0 text-xs" onClick={() => handleNudgeRoom(0.5, 0)} disabled={isSavingEdit}>→</Button>
-              <Button size="sm" variant="outline" className="h-6 w-6 p-0 text-xs" onClick={() => handleNudgeRoom(0, 0.5)} disabled={isSavingEdit}>↑</Button>
-              <Button size="sm" variant="outline" className="h-6 w-6 p-0 text-xs" onClick={() => handleNudgeRoom(0, -0.5)} disabled={isSavingEdit}>↓</Button>
+              <Button size="sm" variant="outline" className="h-6 w-6 p-0 text-xs" onClick={() => handleNudgeRoom(-0.5, 0)} disabled={isSavingEdit} title="Nudge West">←</Button>
+              <Button size="sm" variant="outline" className="h-6 w-6 p-0 text-xs" onClick={() => handleNudgeRoom(0.5, 0)} disabled={isSavingEdit} title="Nudge East">→</Button>
+              <Button size="sm" variant="outline" className="h-6 w-6 p-0 text-xs" onClick={() => handleNudgeRoom(0, 0.5)} disabled={isSavingEdit} title="Nudge North">↑</Button>
+              <Button size="sm" variant="outline" className="h-6 w-6 p-0 text-xs" onClick={() => handleNudgeRoom(0, -0.5)} disabled={isSavingEdit} title="Nudge South">↓</Button>
+
+              <span className="text-[11px] text-muted-foreground mx-1">| Scale:</span>
+              <Button size="sm" variant="outline" className="h-6 px-1.5 text-[11px]" onClick={() => handleResizeRoom(1.05)} disabled={isSavingEdit} title="Enlarge +5%">+5%</Button>
+              <Button size="sm" variant="outline" className="h-6 px-1.5 text-[11px]" onClick={() => handleResizeRoom(0.95)} disabled={isSavingEdit} title="Shrink -5%">-5%</Button>
+
+              {floors.length > 1 && (
+                <>
+                  <span className="text-[11px] text-muted-foreground mx-1">| Floor:</span>
+                  {floors.map((fl) => (
+                    <Button
+                      key={fl.floor_id}
+                      size="sm"
+                      variant={selectedRoom.floor_id === fl.floor_id ? 'secondary' : 'outline'}
+                      className="h-6 px-1.5 text-[10px]"
+                      onClick={() => handleReassignFloor(fl.floor_id)}
+                      disabled={isSavingEdit || selectedRoom.floor_id === fl.floor_id}
+                    >
+                      {fl.floor_id}
+                    </Button>
+                  ))}
+                </>
+              )}
+
+              {!selectedRoom.is_structural_stair && (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="h-6 px-2 text-[10px] ml-1"
+                  onClick={handleRemoveRoom}
+                  disabled={isSavingEdit}
+                >
+                  Delete Room
+                </Button>
+              )}
+
               <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px] text-muted-foreground" onClick={() => setSelectedRoomId(null)}>Deselect</Button>
             </div>
           </div>

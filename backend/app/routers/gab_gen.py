@@ -559,6 +559,16 @@ def edit_blueprint_room(
     # Save edited floors into master_json
     updated_floors_dict = [f.model_dump() for f in res["floors"]]
     mj["floor_plan"]["floors"] = updated_floors_dict
+    
+    # Track edit history
+    history = mj.get("edit_history", [])
+    history.append({
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "action": "edit_room",
+        "room_id": room_id,
+        "target_floor_id": target_floor_id
+    })
+    mj["edit_history"] = history
     project.master_json = mj
     db.commit()
 
@@ -567,6 +577,86 @@ def edit_blueprint_room(
         "message": "Room edited successfully",
         "floor_plan": mj["floor_plan"]
     }
+
+
+@router.post("/remove-room")
+def remove_blueprint_room(
+    project_id: str,
+    payload: Dict[str, Any],
+    db: Session = Depends(get_db)
+):
+    """Removes a non-structural room from the generated floor plan."""
+    project = _get_project_or_404(project_id, db)
+    mj = project.master_json or {}
+    room_id = payload.get("room_id")
+    if not room_id:
+        raise HTTPException(status_code=400, detail="room_id is required.")
+
+    from ..components.gab_gen.schemas import FloorPlanDefinition
+    from ..components.gab_gen.blueprint.editor import remove_room_from_blueprint
+    from shapely.geometry import Polygon
+
+    floors_raw = mj.get("floor_plan", {}).get("floors", [])
+    floors = [FloorPlanDefinition(**f) for f in floors_raw]
+    buildable_pts = mj.get("buildable_footprint", {}).get("polygon", [])
+    buildable_poly = Polygon([(p["x"], p["y"]) for p in buildable_pts]) if len(buildable_pts) >= 3 else None
+
+    res = remove_room_from_blueprint(room_id, floors, buildable_poly)
+    if not res["success"]:
+        return {"valid": False, "violations": res["violations"]}
+
+    mj["floor_plan"]["floors"] = [f.model_dump() for f in res["floors"]]
+    history = mj.get("edit_history", [])
+    history.append({
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "action": "remove_room",
+        "room_id": room_id
+    })
+    mj["edit_history"] = history
+    project.master_json = mj
+    db.commit()
+
+    return {"valid": True, "message": "Room removed successfully", "floor_plan": mj["floor_plan"]}
+
+
+@router.post("/add-room")
+def add_blueprint_room(
+    project_id: str,
+    payload: Dict[str, Any],
+    db: Session = Depends(get_db)
+):
+    """Adds a room polygon to a designated floor."""
+    project = _get_project_or_404(project_id, db)
+    mj = project.master_json or {}
+    target_floor_id = payload.get("target_floor_id", "F0")
+    room_data = payload.get("room_data", {})
+
+    from ..components.gab_gen.schemas import FloorPlanDefinition
+    from ..components.gab_gen.blueprint.editor import add_room_to_blueprint
+    from shapely.geometry import Polygon
+
+    floors_raw = mj.get("floor_plan", {}).get("floors", [])
+    floors = [FloorPlanDefinition(**f) for f in floors_raw]
+    buildable_pts = mj.get("buildable_footprint", {}).get("polygon", [])
+    buildable_poly = Polygon([(p["x"], p["y"]) for p in buildable_pts]) if len(buildable_pts) >= 3 else None
+
+    res = add_room_to_blueprint(target_floor_id, room_data, floors, buildable_poly)
+    if not res["success"]:
+        return {"valid": False, "violations": res["violations"]}
+
+    mj["floor_plan"]["floors"] = [f.model_dump() for f in res["floors"]]
+    history = mj.get("edit_history", [])
+    history.append({
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "action": "add_room",
+        "room_id": res.get("created_room_id"),
+        "target_floor_id": target_floor_id
+    })
+    mj["edit_history"] = history
+    project.master_json = mj
+    db.commit()
+
+    return {"valid": True, "message": "Room added successfully", "floor_plan": mj["floor_plan"]}
 
 
 @router.get("/result")

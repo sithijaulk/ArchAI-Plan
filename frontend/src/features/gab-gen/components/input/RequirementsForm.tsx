@@ -392,7 +392,199 @@ export const RequirementsForm: React.FC<RequirementsFormProps> = ({
         </div>
       </div>
 
-      {/* 4. Dynamic Room Programme */}
+      {/* 4. Roof Configuration & Material Preferences */}
+      <div className="p-4 rounded-xl bg-card border border-border space-y-3">
+        <div className="flex items-center justify-between pb-2 border-b border-border/50">
+          <div className="flex items-center gap-2">
+            <Home className="w-4 h-4 text-primary" />
+            <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
+              Roof Style & Architectural Preferences
+            </h4>
+          </div>
+          <span className="text-[11px] text-muted-foreground font-mono">
+            {requirements.roof_preference?.roof_type || 'flat_slab'}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+          <div>
+            <Label className="text-[11px] font-medium mb-1 block">Roof Profile</Label>
+            <select
+              value={requirements.roof_preference?.roof_type || 'flat_slab'}
+              onChange={(e) => {
+                const rType = e.target.value as any;
+                const currentPref = requirements.roof_preference || {
+                  roof_type: 'flat_slab',
+                  pitch_angle_deg: 15,
+                  overhang_m: 0.6,
+                  rooftop_access: false,
+                  drainage_preference: 'concealed_gutters'
+                };
+                updateField('roof_preference', {
+                  ...currentPref,
+                  roof_type: rType,
+                  pitch_angle_deg: rType === 'flat_slab' || rType === 'accessible_rooftop' ? 0 : 18.0
+                });
+              }}
+              className="w-full px-2.5 py-2 text-xs bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value="flat_slab">Flat Concrete Slab (Minimalist / Modern)</option>
+              <option value="accessible_rooftop">Accessible Rooftop Terrace (With Parapet)</option>
+              <option value="gable">Gable Roof (Dual Pitch / High Ceiling)</option>
+              <option value="hip">Hip Roof (Quad Slope / Wind-Resistant)</option>
+              <option value="mono_pitch">Mono-Pitch / Shed Roof (Contemporary)</option>
+            </select>
+          </div>
+
+          <div>
+            <Label className="text-[11px] font-medium mb-1 block">Roofing Material</Label>
+            <select
+              value={requirements.roof_preference?.material || 'concrete_tile'}
+              onChange={(e) => {
+                const currentPref = requirements.roof_preference || {
+                  roof_type: 'flat_slab',
+                  pitch_angle_deg: 0,
+                  overhang_m: 0.6,
+                  rooftop_access: false,
+                  drainage_preference: 'concealed_gutters'
+                };
+                updateField('roof_preference', { ...currentPref, material: e.target.value });
+              }}
+              className="w-full px-2.5 py-2 text-xs bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value="concrete_tile">Concrete Roof Tiles</option>
+              <option value="clay_tile">Sinhala / Clay Tiles (Traditional)</option>
+              <option value="metal_deck">Zinc-Alum / Standing Seam Metal Deck</option>
+              <option value="concrete_slab">Waterproof Reinforced Concrete Slab</option>
+              <option value="asphalt_shingle">Asphalt Shingles</option>
+            </select>
+          </div>
+
+          <div>
+            <Label className="text-[11px] font-medium mb-1 block">Stormwater Drainage</Label>
+            <select
+              value={requirements.roof_preference?.drainage_preference || 'concealed_gutters'}
+              onChange={(e) => {
+                const currentPref = requirements.roof_preference || {
+                  roof_type: 'flat_slab',
+                  pitch_angle_deg: 0,
+                  overhang_m: 0.6,
+                  rooftop_access: false,
+                  drainage_preference: 'concealed_gutters'
+                };
+                updateField('roof_preference', { ...currentPref, drainage_preference: e.target.value });
+              }}
+              className="w-full px-2.5 py-2 text-xs bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value="concealed_gutters">Concealed Box Gutters</option>
+              <option value="external_downpipes">External UPVC Downpipes</option>
+              <option value="slope_to_rear">Slope towards Rear Garden</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Conditional Roof Parameters */}
+        {requirements.roof_preference?.roof_type !== 'flat_slab' && requirements.roof_preference?.roof_type !== 'accessible_rooftop' && (
+          <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/40 text-xs">
+            <div>
+              <Label className="text-[11px] text-muted-foreground block mb-1">
+                Pitch Angle: <strong className="text-foreground">{requirements.roof_preference?.pitch_angle_deg ?? 18}°</strong>
+              </Label>
+              <input
+                type="range"
+                min="10"
+                max="40"
+                step="1"
+                value={requirements.roof_preference?.pitch_angle_deg ?? 18}
+                onChange={(e) => {
+                  const currentPref = requirements.roof_preference || {
+                    roof_type: 'gable',
+                    pitch_angle_deg: 18,
+                    overhang_m: 0.6,
+                    rooftop_access: false,
+                    drainage_preference: 'concealed_gutters'
+                  };
+                  updateField('roof_preference', { ...currentPref, pitch_angle_deg: parseFloat(e.target.value) });
+                }}
+                className="w-full accent-primary cursor-pointer"
+              />
+            </div>
+
+            <div>
+              <Label className="text-[11px] text-muted-foreground block mb-1">
+                Eaves Overhang: <strong className="text-foreground">{requirements.roof_preference?.overhang_m ?? 0.6} m</strong>
+              </Label>
+              <input
+                type="range"
+                min="0.2"
+                max="1.2"
+                step="0.1"
+                value={requirements.roof_preference?.overhang_m ?? 0.6}
+                onChange={(e) => {
+                  const currentPref = requirements.roof_preference || {
+                    roof_type: 'gable',
+                    pitch_angle_deg: 18,
+                    overhang_m: 0.6,
+                    rooftop_access: false,
+                    drainage_preference: 'concealed_gutters'
+                  };
+                  updateField('roof_preference', { ...currentPref, overhang_m: parseFloat(e.target.value) });
+                }}
+                className="w-full accent-primary cursor-pointer"
+              />
+            </div>
+          </div>
+        )}
+
+        {requirements.roof_preference?.roof_type === 'accessible_rooftop' && (
+          <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/40 text-xs">
+            <div>
+              <Label className="text-[11px] text-muted-foreground block mb-1">Parapet Safety Wall Height (m)</Label>
+              <Input
+                type="number"
+                min="0.9"
+                max="1.5"
+                step="0.05"
+                value={requirements.roof_preference?.parapet_height_m ?? 1.0}
+                onChange={(e) => {
+                  const currentPref = requirements.roof_preference || {
+                    roof_type: 'accessible_rooftop',
+                    pitch_angle_deg: 0,
+                    overhang_m: 0.0,
+                    rooftop_access: true,
+                    drainage_preference: 'concealed_gutters'
+                  };
+                  updateField('roof_preference', { ...currentPref, parapet_height_m: parseFloat(e.target.value) || 1.0 });
+                }}
+                className="text-xs h-8"
+              />
+            </div>
+
+            <div className="flex items-center pt-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={requirements.roof_preference?.rooftop_access ?? true}
+                  onChange={(e) => {
+                    const currentPref = requirements.roof_preference || {
+                      roof_type: 'accessible_rooftop',
+                      pitch_angle_deg: 0,
+                      overhang_m: 0.0,
+                      rooftop_access: true,
+                      drainage_preference: 'concealed_gutters'
+                    };
+                    updateField('roof_preference', { ...currentPref, rooftop_access: e.target.checked });
+                  }}
+                  className="rounded border-border text-primary focus:ring-primary"
+                />
+                <span className="text-[11px] font-medium">Staircase Access to Terrace</span>
+              </label>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 5. Dynamic Room Programme */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div>

@@ -172,6 +172,44 @@ class ClientRequirementsInput(BaseModel):
     parking_capacity: Optional[int] = Field(default=0, ge=0)
     staircase_preference: Optional[str] = Field(default="internal_linear", description="internal_linear, dogleg, etc.")
     additional_notes: Optional[str] = None
+    roof_preference: Optional["RoofPreference"] = Field(default_factory=lambda: RoofPreference())
+
+
+class RoofType(str, Enum):
+    FLAT_SLAB = "flat_slab"
+    ACCESSIBLE_ROOFTOP = "accessible_rooftop"
+    GABLE = "gable"
+    HIP = "hip"
+    MONO_PITCH = "mono_pitch"
+
+
+class RoofPreference(BaseModel):
+    roof_type: RoofType = Field(default=RoofType.FLAT_SLAB)
+    material: Optional[str] = Field(default="concrete_tile", description="concrete_tile | clay_tile | metal_deck | asphalt_shingle | concrete_slab")
+    pitch_angle_deg: float = Field(default=15.0, ge=0.0, le=45.0, description="Pitch angle in degrees (0 for flat)")
+    overhang_m: float = Field(default=0.6, ge=0.0, le=1.5, description="Eaves/overhang projection beyond exterior walls in meters")
+    parapet_height_m: Optional[float] = Field(default=1.0, ge=0.0, le=1.8, description="Parapet height in meters for flat/accessible roofs")
+    rooftop_access: bool = Field(default=False, description="True if stair core extends to roof terrace")
+    drainage_preference: str = Field(default="concealed_gutters", description="concealed_gutters | external_downpipes | slope_to_rear")
+    notes: Optional[str] = None
+
+
+class RoofPlane(BaseModel):
+    plane_id: str
+    polygon: List["Point2D"]
+    pitch_deg: float
+    slope_azimuth: float
+    height_offset_m: float = 0.0
+
+
+class GeneratedRoofGeometry(BaseModel):
+    roof_type: str
+    ridge_points: List["Point2D"] = Field(default_factory=list)
+    eave_polygon: List["Point2D"] = Field(default_factory=list)
+    planes: List[RoofPlane] = Field(default_factory=list)
+    max_height_m: float = 1.5
+    drainage: str = "concealed_gutters"
+    provenance: str = "calculated_geometry"
 
 
 # -------------------------------------------------------------
@@ -227,6 +265,8 @@ class RoomPolygon(BaseModel):
     target_area: float
     polygon: List[Point2D]
     center: Point2D
+    width_m: Optional[float] = None
+    length_m: Optional[float] = None
     is_structural_stair: bool = False
     required: Optional[bool] = None
     req_id: Optional[str] = None

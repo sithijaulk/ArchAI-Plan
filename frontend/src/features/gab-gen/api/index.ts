@@ -73,6 +73,19 @@ export const gabGenExtendedApi = {
     return res.data;
   },
 
+  removeRoom: async (projectId: string, roomId: string) => {
+    const res = await apiClient.post(`/projects/${projectId}/gab-gen/remove-room`, { room_id: roomId });
+    return res.data;
+  },
+
+  addRoom: async (projectId: string, targetFloorId: string, roomData: any) => {
+    const res = await apiClient.post(`/projects/${projectId}/gab-gen/add-room`, {
+      target_floor_id: targetFloorId,
+      room_data: roomData,
+    });
+    return res.data;
+  },
+
   getMasterJson: async (projectId: string): Promise<GabGenMasterJson> => {
     const res = await apiClient.get(`/projects/${projectId}/gab-gen/master-json`);
     return res.data;

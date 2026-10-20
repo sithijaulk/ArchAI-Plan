@@ -235,7 +235,7 @@ export const PlanPreview2D: React.FC<PlanPreview2DProps> = ({
 
                   <text
                     x={rm.center.x}
-                    y={-rm.center.y - 0.2}
+                    y={-rm.center.y - 0.25}
                     fontSize="0.48"
                     fill="#f8fafc"
                     textAnchor="middle"
@@ -246,7 +246,7 @@ export const PlanPreview2D: React.FC<PlanPreview2DProps> = ({
                   </text>
                   <text
                     x={rm.center.x}
-                    y={-rm.center.y + 0.4}
+                    y={-rm.center.y + 0.3}
                     fontSize="0.34"
                     fill="#94a3b8"
                     textAnchor="middle"
@@ -254,6 +254,25 @@ export const PlanPreview2D: React.FC<PlanPreview2DProps> = ({
                   >
                     {rm.area.toFixed(1)} m²
                   </text>
+                  {/* Actual usable dimensions (Width x Length) */}
+                  {(() => {
+                    const xs = rm.polygon.map(p => p.x);
+                    const ys = rm.polygon.map(p => p.y);
+                    const w = rm.width_m ?? (Math.max(...xs) - Math.min(...xs));
+                    const l = rm.length_m ?? (Math.max(...ys) - Math.min(...ys));
+                    return (
+                      <text
+                        x={rm.center.x}
+                        y={-rm.center.y + 0.75}
+                        fontSize="0.26"
+                        fill="#38bdf8"
+                        textAnchor="middle"
+                        className="pointer-events-none select-none font-mono"
+                      >
+                        {w.toFixed(1)}m × {l.toFixed(1)}m
+                      </text>
+                    );
+                  })()}
                 </g>
               );
             })}

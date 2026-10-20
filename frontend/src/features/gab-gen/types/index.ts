@@ -82,6 +82,38 @@ export interface ClientRequirements {
   parking_capacity?: number;
   staircase_preference?: string;
   additional_notes?: string;
+  roof_preference?: RoofPreference;
+}
+
+export type RoofType = 'flat_slab' | 'accessible_rooftop' | 'gable' | 'hip' | 'mono_pitch';
+
+export interface RoofPreference {
+  roof_type: RoofType;
+  material?: string;
+  pitch_angle_deg: number;
+  overhang_m: number;
+  parapet_height_m?: number;
+  rooftop_access: boolean;
+  drainage_preference: string;
+  notes?: string;
+}
+
+export interface RoofPlane {
+  plane_id: string;
+  polygon: Point2D[];
+  pitch_deg: number;
+  slope_azimuth: number;
+  height_offset_m: number;
+}
+
+export interface GeneratedRoofGeometry {
+  roof_type: string;
+  ridge_points: Point2D[];
+  eave_polygon: Point2D[];
+  planes: RoofPlane[];
+  max_height_m: number;
+  drainage: string;
+  provenance: string;
 }
 
 export interface Point2D {
@@ -108,6 +140,8 @@ export interface RoomPolygon {
   target_area: number;
   polygon: Point2D[];
   center: Point2D;
+  width_m?: number;
+  length_m?: number;
   is_structural_stair?: boolean;
 }
 
@@ -199,6 +233,19 @@ export interface GabGenMasterJson {
   floor_plan: {
     floors: FloorPlan[];
   };
+  roof_geometry?: GeneratedRoofGeometry;
+  building_footprint?: {
+    candidate_id: string;
+    shape_type: string;
+    polygon: Point2D[];
+    area: number;
+  };
+  edit_history?: {
+    timestamp: string;
+    action: string;
+    room_id?: string;
+    target_floor_id?: string;
+  }[];
   gab_gen_validation: GabGenValidation;
   processing: {
     gab_gen: {

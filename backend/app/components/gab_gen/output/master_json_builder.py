@@ -119,7 +119,33 @@ def build_gab_master_json(
         "floors": [fl.model_dump() for fl in floors]
     }
 
+    # Roof Geometry (Vectorized Canonical P0 coordinates)
+    from ..blueprint.roof_generator import generate_roof_geometry
+    shapely_buildable = buildable_data.get("shapely_polygon")
+    if shapely_buildable is None and buildable_data.get("polygon"):
+        from shapely.geometry import Polygon
+        pts = [(p["x"], p["y"]) for p in buildable_data.get("polygon", [])]
+        if len(pts) >= 3:
+            shapely_buildable = Polygon(pts)
+
+    roof_geom = generate_roof_geometry(
+        building_footprint_poly=shapely_buildable,
+        roof_pref=requirements.roof_preference
+    )
+    mj["roof_geometry"] = roof_geom.model_dump()
+
+    # Building Footprint Candidate (Candidate 1: Optimal Setback Envelope)
+    mj["building_footprint"] = {
+        "candidate_id": "FP_PRIMARY",
+        "shape_type": "conformal_offset",
+        "polygon": buildable_data.get("polygon", []),
+        "area": buildable_data.get("area", 0.0)
+    }
+
     mj["gab_gen_validation"] = validation.model_dump()
+
+    # Preserve or initialize edit history
+    mj["edit_history"] = mj.get("edit_history", [])
 
     # Update processing state under GAB key without modifying other components
     processing = mj.get("processing", {})
