@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from ..services.master_json import merge_master_json
+from ..services.master_json import merge_master_json, MasterJsonAdapter
 from ..utils.vsai_geometry import (
     GeometryValidationError,
     find_room_overlaps,
@@ -122,12 +122,20 @@ def run_vsai_rectifier(
         for overlap in overlaps
     ]
     timestamp = datetime.now(timezone.utc).isoformat()
+    vastu_analysis = None
+    try:
+        from .vastu_engine import evaluate_vastu_shastra
+        vastu_analysis = evaluate_vastu_shastra(source)
+    except Exception as v_err:
+        pass
+
     rectification = {
         "status": "completed",
         "original_geometry": deepcopy(source["floor_plan"]),
         "corrected_geometry": corrected_geometry,
         "vastu_compliance_score": rule_evaluation["vastu_compliance_score"],
         "score_status": rule_evaluation["score_status"],
+        "vastu_analysis": vastu_analysis,
         "rule_results": rule_evaluation["rule_results"],
         "violations": rule_evaluation["violations"] + geometry_violations,
         "corrections": corrections,
@@ -140,7 +148,7 @@ def run_vsai_rectifier(
             "room_overlaps": overlaps,
         },
         "warnings": [
-            "No Vastu or structural rules are configured from validated project definitions.",
+            "Automatic floor plan rectification and pretrained model integration are deferred for Stage 2.",
             "Image segmentation and image-to-vector extraction require Stage 2 AI processing.",
         ] + correction_warnings,
         "processed_at": timestamp,
@@ -234,8 +242,8 @@ def _apply_rectifications(
     try:
         validate_floor_plan({
             **floor_plan,
-            "rooms": corrected["rooms"],
-            "structural_elements": corrected["structural_elements"],
+            "rooms": corrected.get("rooms", []),
+            "structural_elements": corrected.get("structural_elements", []),
         })
     except GeometryValidationError as error:
         raise VsaiInputError(f"Corrected geometry failed validation: {error}") from error
