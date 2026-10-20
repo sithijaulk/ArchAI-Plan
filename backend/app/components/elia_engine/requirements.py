@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from .adapter import normalize_master_json, resolve_upstream_road
 from .exceptions import ELIAError
 from .parser import UNIT_TO_METERS
-from .rule_repository import elia_rules, lighting_rules, vehicle_profiles
+from .rule_repository import elia_rules, lighting_rules, vehicle_profiles, vegetation_catalog
 
 
 # ---------------------------------------------------------------------------
@@ -86,6 +86,52 @@ def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str,
 
     access = dict(requirements.get("access") or {})
     access.setdefault("driveway_required", True)
+
+    parking_required = access.get("parking_required", True)
+    if parking_required is False:
+        if access.get("garage_required") is True:
+            raise ELIAError("ELIA_CONTRADICTORY_REQUIREMENTS", "Cannot request a garage when parking_required is explicitly false.")
+        access["garage_required"] = False
+        access["vehicle_count"] = 0
+        access["vehicle_profiles"] = []
+        access.pop("vehicle_type", None)
+        access.pop("parking_type", None)
+        access.pop("garage_capacity", None)
+        access.pop("turning_space_required", None)
+    else:
+        veh_count = access.get("vehicle_count", 1)
+        if veh_count == 0 and access.get("garage_required") is True:
+            raise ELIAError("ELIA_CONTRADICTORY_REQUIREMENTS", "Cannot request a garage when vehicle_count is 0.")
+
+    if access.get("driveway_required") is False:
+        access.pop("driveway_style", None)
+        access.pop("driveway_surface", None)
+
+    gate_required = access.get("gate_required", True)
+    access["gate_required"] = bool(gate_required)
+    if gate_required is False:
+        access.pop("gate_type", None)
+        access.pop("gate_width_m", None)
+        access.pop("gate_opening_mechanism", None)
+        access.pop("gate_style", None)
+
+    for surf_key, allowed_surfaces in (
+        ("driveway_surface", {"interlock", "paving_stones", "concrete", "gravel", "grass", "asphalt", "mixed"}),
+        ("walking_path_surface", {"paving_stones", "interlock", "gravel", "stepping_stones", "grass", "mixed"}),
+    ):
+        surf_val = access.get(surf_key)
+        if surf_val is not None:
+            surf_val = str(surf_val).strip().lower()
+            if surf_val not in allowed_surfaces:
+                raise ELIAError("ELIA_INVALID_SURFACE_MATERIAL", f"Unsupported {surf_key}: {surf_val!r}.")
+            access[surf_key] = surf_val
+
+    gate_mech = access.get("gate_opening_mechanism")
+    if gate_mech is not None:
+        gate_mech = str(gate_mech).strip().lower()
+        if gate_mech not in {"swing_inward", "swing_outward", "sliding", "bi_fold", "manual", "automated", "unspecified"}:
+            raise ELIAError("ELIA_INVALID_GATE_MECHANISM", f"Unsupported gate_opening_mechanism: {gate_mech!r}.")
+        access["gate_opening_mechanism"] = gate_mech
 
     upstream_side, upstream_edge = resolve_upstream_road(master)
     
@@ -188,12 +234,138 @@ def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str,
     access["vehicle_profiles"] = profiles
 
     landscape = dict(requirements.get("landscape") or {})
+    # Strip obsolete financial fields at read boundary
+    for bf in ("budget_limit_lkr", "budget_preference", "budget_estimate", "budget_assessment"):
+        landscape.pop(bf, None)
+        normalized.pop(bf, None)
+
+    explicit_density = (
+        ("greenery_density" in (requirements.get("landscape") or {}))
+        or ("greenery_level" in requirements)
+        or ("greenery_density" in requirements)
+    )
     greenery_density = landscape.get("greenery_density", requirements.get("greenery_level", "medium"))
     if greenery_density not in elia_rules()["vegetation"]["density_targets"]:
         raise ELIAError("ELIA_INVALID_GREENERY_DENSITY", "Greenery density must be low, medium, or high.")
+    landscape["greenery_density"] = greenery_density
+    landscape["explicit_greenery_density"] = explicit_density
+    normalized["explicit_greenery_density"] = explicit_density
     landscape_priority = requirements.get("landscape_priority", "balanced")
     if landscape_priority not in {"balanced", "maximum_open_space", "maximum_greenery"}:
         raise ELIAError("ELIA_INVALID_LANDSCAPE_PRIORITY", "Landscape priority must be balanced, maximum_open_space, or maximum_greenery.")
+
+    # 1. Design Concept / Style
+    raw_style = requirements.get("design_style") or requirements.get("design_concept") or "contemporary"
+    canonical_style = str(raw_style).strip().lower()
+    if canonical_style in ("minimalist", "minimalistic"):
+        canonical_style = "minimalistic"
+    elif canonical_style in ("contemporary", "modern"):
+        canonical_style = "modern"
+    elif canonical_style in ("green", "greeny", "lush"):
+        canonical_style = "greeny"
+    normalized["design_style"] = canonical_style
+
+    # Ground Finish
+    garden_finish = landscape.get("garden_ground_finish")
+    if garden_finish is not None:
+        garden_finish = str(garden_finish).strip().lower()
+        if garden_finish not in {"grass", "interlock", "paving_stones", "mixed"}:
+            raise ELIAError("ELIA_INVALID_GROUND_FINISH", f"Unsupported garden_ground_finish: {garden_finish!r}.")
+        landscape["garden_ground_finish"] = garden_finish
+        if garden_finish == "grass":
+            landscape["lawn_required"] = True
+
+    # Inactive dependent omission for landscape
+    if landscape.get("trees_required") is False:
+        landscape.pop("tree_quantity", None)
+        landscape.pop("compact_trees_preference", None)
+        landscape.pop("shade_tree_preference", None)
+    if landscape.get("shrubs_required") is False:
+        landscape.pop("shrubs_quantity", None)
+    if landscape.get("ground_planters_required") is False:
+        landscape.pop("ground_planters_count", None)
+    if landscape.get("garden_seating_required") is False:
+        landscape.pop("garden_seating_count", None)
+    if landscape.get("garden_table_set_required") is False:
+        landscape.pop("garden_table_set_count", None)
+    if landscape.get("boundary_wall_required") is False:
+        landscape.pop("boundary_wall_type", None)
+        landscape.pop("boundary_wall_height", None)
+        landscape.pop("boundary_wall_height_m", None)
+
+    # 2. Maintenance preference
+    maint_pref = requirements.get("maintenance_preference") or landscape.get("maintenance_preference")
+    low_maint = requirements.get("low_maintenance_preference") if requirements.get("low_maintenance_preference") is not None else landscape.get("low_maintenance_preference")
+    if not maint_pref and low_maint is True:
+        maint_pref = "low"
+    elif not maint_pref and low_maint is False:
+        maint_pref = "no_preference"
+    if maint_pref is not None:
+        maint_pref = str(maint_pref).strip().lower()
+        if maint_pref not in {"low", "medium", "high", "no_preference", "unknown"}:
+            raise ELIAError("ELIA_INVALID_MAINTENANCE_PREFERENCE", "Maintenance preference must be low, medium, high, or no_preference.")
+    landscape["maintenance_preference"] = maint_pref
+    if maint_pref is not None:
+        landscape["low_maintenance_preference"] = (maint_pref == "low")
+    normalized["maintenance_preference"] = maint_pref
+
+    # 3. Water availability
+    water_avail = requirements.get("water_availability") or landscape.get("water_availability")
+    if water_avail is not None:
+        water_avail = str(water_avail).strip().lower()
+        if water_avail not in {"limited", "regular", "irrigation_available", "unknown"}:
+            raise ELIAError("ELIA_INVALID_WATER_AVAILABILITY", "Water availability must be limited, regular, irrigation_available, or unknown.")
+    landscape["water_availability"] = water_avail
+    normalized["water_availability"] = water_avail
+
+    # 5. Climate & Environmental Context
+    climate_zone = requirements.get("climate_zone") or landscape.get("climate_zone")
+    if climate_zone is not None:
+        climate_zone = str(climate_zone).strip().lower()
+    normalized["climate_zone"] = climate_zone
+    landscape["climate_zone"] = climate_zone
+
+    site_exposure = requirements.get("site_exposure") or landscape.get("site_exposure")
+    if site_exposure is not None:
+        site_exposure = str(site_exposure).strip().lower()
+    normalized["site_exposure"] = site_exposure
+    landscape["site_exposure"] = site_exposure
+
+    # 6. Specific plant preferences & avoidances validated against catalogue
+    pref_plants = list(landscape.get("preferred_plant_ids") or requirements.get("preferred_plant_ids") or [])
+    avoid_plants = list(landscape.get("plant_ids_to_avoid") or requirements.get("plant_ids_to_avoid") or [])
+    
+    cat_entries = vegetation_catalog().get("entries", [])
+    valid_veg_ids = {entry["vegetation_id"] for entry in cat_entries if "vegetation_id" in entry}
+    for p in pref_plants:
+        if valid_veg_ids and str(p) not in valid_veg_ids:
+            raise ELIAError("ELIA_INVALID_PLANT_ID", f"Plant ID {p!r} is not in the botanical catalogue.")
+    for p in avoid_plants:
+        if valid_veg_ids and str(p) not in valid_veg_ids:
+            raise ELIAError("ELIA_INVALID_PLANT_ID", f"Plant ID {p!r} is not in the botanical catalogue.")
+
+    landscape["preferred_plant_ids"] = [str(p) for p in pref_plants]
+    landscape["plant_ids_to_avoid"] = [str(p) for p in avoid_plants]
+    normalized["preferred_plant_ids"] = landscape["preferred_plant_ids"]
+    normalized["plant_ids_to_avoid"] = landscape["plant_ids_to_avoid"]
+
+    # 7. Locked features
+    raw_locked = requirements.get("locked_features") or []
+    locked_features = []
+    if isinstance(raw_locked, (list, tuple)):
+        for item in raw_locked:
+            if isinstance(item, Mapping):
+                item_dict = dict(item)
+                if "json_id" in item_dict and "position" in item_dict:
+                    pos = item_dict["position"]
+                    if isinstance(pos, (list, tuple)) and len(pos) == 2:
+                        try:
+                            item_dict["position"] = [float(pos[0]), float(pos[1])]
+                            item_dict["locked"] = True
+                            locked_features.append(item_dict)
+                        except (TypeError, ValueError):
+                            pass
+    normalized["locked_features"] = locked_features
 
     wall_height_m = landscape.get("boundary_wall_height_m")
     if wall_height_m is not None:
@@ -202,27 +374,127 @@ def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str,
         landscape["boundary_wall_height_m"] = float(landscape["boundary_wall_height"]) * (1.0 if already_normalized else scale)
     landscape.pop("boundary_wall_height", None)
 
+    # Lighting normalization
     lighting = dict(requirements.get("lighting") or {})
-    spacing_m = lighting.get("preferred_spacing_m")
-    if spacing_m is not None:
-        lighting["preferred_spacing_m"] = float(spacing_m)
-    elif lighting.get("preferred_spacing") is not None:
-        lighting["preferred_spacing_m"] = float(lighting["preferred_spacing"]) * (1.0 if already_normalized else scale)
-    lighting.pop("preferred_spacing", None)
+    if not lighting.get("required"):
+        # When lighting is disabled, dependent zones/spacing are inactive
+        lighting["zones"] = []
+        lighting.pop("style", None)
+        lighting.pop("desired_fixture_count", None)
+        lighting.pop("preferred_spacing_m", None)
+        lighting.pop("garden_lighting", None)
+        lighting.pop("pathway_lighting", None)
+        lighting.pop("seating_lighting", None)
+        lighting.pop("wall_lighting", None)
+    else:
+        # Zone mapping from specific toggles
+        zones = list(lighting.get("zones") or [])
+        if lighting.get("garden_lighting") and "garden" not in zones:
+            zones.append("garden")
+        if lighting.get("seating_lighting") and "seating" not in zones:
+            zones.append("seating")
+        if lighting.get("wall_lighting") and "boundary_wall" not in zones:
+            zones.append("boundary_wall")
+        lighting["zones"] = zones
 
-    lighting_config = lighting_rules()
-    if lighting.get("style", "minimal") not in lighting_config["render_types"]:
-        raise ELIAError("ELIA_INVALID_LIGHTING_STYLE", "Lighting style must be one of the configured ELIA styles.")
-    zones = lighting.get("zones")
-    if zones is not None and "pathway" in zones:
-        raise ELIAError("ELIA_UNSUPPORTED_LIGHTING_ZONE", "The pathway zone is currently unsupported for exterior lighting.")
-    if zones is not None and any(zone not in lighting_config["mounting_height_m"] for zone in zones):
-        raise ELIAError("ELIA_INVALID_LIGHTING_ZONE", "Lighting zones must be configured ELIA placement zones.")
-    if lighting.get("required") and zones is not None and not zones:
-        raise ELIAError("ELIA_INVALID_LIGHTING_ZONE", "At least one lighting zone is required when lighting is requested.")
-    if (lighting.get("preferred_spacing_m") is not None and
-            lighting["preferred_spacing_m"] < float(lighting_config["minimum_spacing_m"])):
-        raise ELIAError("ELIA_INVALID_LIGHTING_SPACING", "Preferred light spacing must meet the configured minimum.")
+        spacing_m = lighting.get("preferred_spacing_m")
+        if spacing_m is not None:
+            lighting["preferred_spacing_m"] = float(spacing_m)
+        elif lighting.get("preferred_spacing") is not None:
+            lighting["preferred_spacing_m"] = float(lighting["preferred_spacing"]) * (1.0 if already_normalized else scale)
+        elif lighting.get("desired_fixture_count") is not None:
+            # Derived spacing guideline if spacing omitted
+            lighting["preferred_spacing_m"] = float(elia_rules()["lighting"]["default_spacing_m"] if "default_spacing_m" in elia_rules().get("lighting", {}) else 8.0)
+        lighting.pop("preferred_spacing", None)
+
+        lighting_config = lighting_rules()
+        if lighting.get("style", "minimal") not in lighting_config["render_types"]:
+            raise ELIAError("ELIA_INVALID_LIGHTING_STYLE", "Lighting style must be one of the configured ELIA styles.")
+        zones = lighting.get("zones")
+        if zones is not None and "pathway" in zones:
+            raise ELIAError("ELIA_UNSUPPORTED_LIGHTING_ZONE", "The pathway zone is currently unsupported for exterior lighting.")
+        if zones is not None and any(zone not in lighting_config["mounting_height_m"] for zone in zones):
+            raise ELIAError("ELIA_INVALID_LIGHTING_ZONE", "Lighting zones must be configured ELIA placement zones.")
+        if lighting.get("required") and zones is not None and not zones:
+            raise ELIAError("ELIA_INVALID_LIGHTING_ZONE", "At least one lighting zone is required when lighting is requested.")
+        if (lighting.get("preferred_spacing_m") is not None and
+                lighting["preferred_spacing_m"] < float(lighting_config["minimum_spacing_m"])):
+            raise ELIAError("ELIA_INVALID_LIGHTING_SPACING", "Preferred light spacing must meet the configured minimum.")
+
+    # Vertical Greenery
+    vertical_req = dict(requirements.get("vertical_greenery") or {})
+    vertical_req.setdefault("mode", "automatic")
+    vertical_req.setdefault("enabled", True)
+    vertical_req.setdefault("wall_climbing_plants", False)
+    vertical_req.setdefault("wall_mounted_greenery", False)
+    vertical_req.setdefault("hanging_trailing_greenery", False)
+    vertical_req.setdefault("accept_vertical_alternatives", False)
+    normalized["vertical_greenery"] = vertical_req
+
+    # Balconies
+    balconies_req = dict(requirements.get("balconies") or {})
+    balconies_req.setdefault("planting_required", False)
+    balconies_req.setdefault("potted_plants", False)
+    balconies_req.setdefault("hanging_plants", False)
+    balconies_req.setdefault("seating_required", False)
+    master_balconies = master.get("balconies") or []
+    valid_balcony_ids = {b.get("json_id") for b in master_balconies if isinstance(b, Mapping) and b.get("json_id")}
+    for b_id in balconies_req.get("target_balcony_ids", []):
+        if valid_balcony_ids and b_id not in valid_balcony_ids:
+            raise ELIAError("ELIA_INVALID_BALCONY_ID", f"Target balcony ID {b_id!r} not found in upstream Master JSON.")
+    normalized["balconies"] = balconies_req
+
+    # Terrace
+    terrace_req = dict(requirements.get("terrace") or {})
+    terrace_req.setdefault("planting_required", False)
+    terrace_req.setdefault("planters_required", False)
+    terrace_req.setdefault("seating_required", False)
+    terrace_req.setdefault("tables_required", False)
+    master_terraces = master.get("terraces") or master.get("flat_roofs") or []
+    valid_terrace_ids = {t.get("json_id") for t in master_terraces if isinstance(t, Mapping) and t.get("json_id")}
+    for t_id in terrace_req.get("target_terrace_ids", []):
+        if valid_terrace_ids and t_id not in valid_terrace_ids:
+            raise ELIAError("ELIA_INVALID_TERRACE_ID", f"Target terrace ID {t_id!r} not found in upstream Master JSON.")
+    normalized["terrace"] = terrace_req
+
+    # Water Features & Utilities (requested)
+    water_req = dict(requirements.get("water_features") or {})
+    water_req.setdefault("well_required", False)
+    water_req.setdefault("garden_taps_required", False)
+    water_req.setdefault("garden_taps_count", 1 if water_req.get("garden_taps_required") else 0)
+    water_req.setdefault("pond_required", False)
+    water_req.setdefault("swimming_pool_required", False)
+    water_req.setdefault("septic_tank_required", False)
+    normalized["water_features"] = water_req
+
+    # Solar
+    solar_req = dict(requirements.get("solar") or {})
+    solar_req.setdefault("panels_required", False)
+    solar_req.setdefault("preferred_roof_surface", "auto")
+    solar_req.setdefault("placement_priority", "balanced")
+    live_solar_val = solar_req.get("include_live_solar", requirements.get("include_live_solar", False))
+    solar_req["include_live_solar"] = bool(live_solar_val)
+    normalized["solar"] = solar_req
+    normalized["include_live_solar"] = bool(live_solar_val)
+
+    # Track Unsupported Generation Preferences
+    unsupported_features: list[str] = []
+    if water_req.get("swimming_pool_required"):
+        unsupported_features.append("swimming_pool")
+    if water_req.get("pond_required"):
+        unsupported_features.append("pond")
+    if water_req.get("well_required"):
+        unsupported_features.append("new_well")
+    if water_req.get("garden_taps_required"):
+        unsupported_features.append("garden_taps")
+    if solar_req.get("panels_required"):
+        unsupported_features.append("solar_panels")
+    if (terrace_req.get("planting_required") or terrace_req.get("seating_required") or
+            terrace_req.get("tables_required") or terrace_req.get("planters_required")):
+        unsupported_features.append("rooftop_terrace")
+    if balconies_req.get("seating_required") or balconies_req.get("potted_plants"):
+        unsupported_features.append("balcony_features")
+    normalized["unsupported_generation_features"] = unsupported_features
 
     requested_date = requirements.get("solar_analysis_date")
     if requested_date is not None:
@@ -352,7 +624,13 @@ def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str,
         "access": access,
         "landscape": landscape,
         "lighting": lighting,
+        "vertical_greenery": vertical_req,
+        "balconies": balconies_req,
+        "terrace": terrace_req,
+        "water_features": water_req,
+        "solar": solar_req,
         "utilities": utilities,
+        "unsupported_generation_features": unsupported_features,
     })
     normalized.pop("units", None)
     # Build a _TaggedDict so callers can detect this is normalized output.

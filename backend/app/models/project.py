@@ -1,8 +1,11 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, Text, JSON, ForeignKey, Integer
+from sqlalchemy import Column, String, DateTime, Text, JSON, Integer
 from sqlalchemy.orm import relationship
-from ..database import Base
+try:
+    from .database import Base
+except (ImportError, ValueError):
+    from app.database import Base
 
 
 class Project(Base):

@@ -97,6 +97,11 @@ export interface ExteriorLandscape {
   metrics: Record<string, unknown>;
   preference_fulfillment?: PreferenceFulfillment;
   generation_mode?: string;
+  factors_assessment?: FactorsAssessment;
+  concept_rules_applied?: string[];
+  rule_evaluations?: RuleEvaluationResult[];
+  rule_summary?: Record<string, CategorySummary>;
+  approval_status?: string;
   /** Raw land polygon coordinates passed back by some baseline implementations */
   land?: GeoJsonGeometry;
   house_exterior?: GeoJsonGeometry;
@@ -171,24 +176,48 @@ export interface EliaAccessRequirements {
   gate_type?: string;
   gate_width_m?: number | null;
   gate_count?: number;
+  parking_required?: boolean;
+  parking_type?: 'garage' | 'covered' | 'open' | 'no_preference';
   garage_required?: boolean;
   garage_capacity?: number;
   vehicle_count?: number;
   driveway_required?: boolean;
   driveway_style?: string;
+  driveway_surface?: string;
+  walking_path_surface?: string;
+  gate_required?: boolean;
+  gate_opening_mechanism?: string;
+  gate_style?: string;
   turning_space_required?: boolean;
 }
 
 export interface EliaLandscapeRequirements {
   garden_required?: boolean;
   lawn_required?: boolean;
+  garden_ground_finish?: 'grass' | 'interlock' | 'paving_stones' | 'mixed';
   garden_seating_required?: boolean;
+  garden_seating_count?: number | null;
   garden_table_set_required?: boolean;
+  garden_table_set_count?: number | null;
   preferred_garden_zone?: string | null;
   preferred_open_space_ratio?: number | null;
   greenery_density?: 'low' | 'medium' | 'high';
+  trees_required?: boolean;
+  tree_quantity?: number | null;
+  compact_trees_preference?: boolean;
+  shrubs_required?: boolean;
+  shrubs_quantity?: number | null;
+  flower_beds_required?: boolean;
+  ground_planters_required?: boolean;
+  ground_planters_count?: number | null;
   shade_tree_preference?: boolean;
   low_maintenance_preference?: boolean | null;
+  maintenance_preference?: 'low' | 'medium' | 'high' | 'no_preference' | 'unknown';
+  water_availability?: 'limited' | 'regular' | 'irrigation_available' | 'unknown';
+  preferred_plant_ids?: string[];
+  plant_ids_to_avoid?: string[];
+  climate_zone?: string | null;
+  site_exposure?: string | null;
   pedestrian_path_required?: boolean;
   garden_path_required?: boolean;
   boundary_wall_required?: boolean;
@@ -199,6 +228,27 @@ export interface EliaLandscapeRequirements {
 export interface EliaVerticalGreeneryRequirements {
   mode?: 'automatic' | 'preferred' | 'disabled';
   enabled?: boolean;
+  wall_climbing_plants?: boolean;
+  wall_mounted_greenery?: boolean;
+  hanging_trailing_greenery?: boolean;
+  accept_vertical_alternatives?: boolean;
+}
+
+export interface EliaBalconyRequirements {
+  planting_required?: boolean;
+  potted_plants?: boolean;
+  hanging_plants?: boolean;
+  seating_required?: boolean;
+  preferred_plant_ids?: string[];
+  target_balcony_ids?: string[];
+}
+
+export interface EliaTerraceRequirements {
+  planting_required?: boolean;
+  planters_required?: boolean;
+  seating_required?: boolean;
+  tables_required?: boolean;
+  target_terrace_ids?: string[];
 }
 
 export interface EliaLightingRequirements {
@@ -206,6 +256,104 @@ export interface EliaLightingRequirements {
   style?: string;
   zones?: string[];
   preferred_spacing_m?: number | null;
+  desired_fixture_count?: number | null;
+  garden_lighting?: boolean;
+  pathway_lighting?: boolean;
+  seating_lighting?: boolean;
+  wall_lighting?: boolean;
+}
+
+export interface EliaWaterFeatureRequirements {
+  well_required?: boolean;
+  garden_taps_required?: boolean;
+  garden_taps_count?: number | null;
+  pond_required?: boolean;
+  swimming_pool_required?: boolean;
+  septic_tank_required?: boolean;
+}
+
+export interface EliaSolarRequirements {
+  panels_required?: boolean;
+  preferred_roof_surface?: 'flat_roof' | 'south_facing' | 'north_facing' | 'auto' | 'any';
+  placement_priority?: 'maximum_yield' | 'concealed_from_street' | 'balanced';
+  include_live_solar?: boolean;
+}
+
+export interface LockedExteriorFeature {
+  json_id: string;
+  category?: string | null;
+  plant_id?: string | null;
+  position: [number, number];
+  canopy_radius_m?: number | null;
+  height_m?: number | null;
+  locked: boolean;
+}
+
+export type LockedFeatureRequirement = LockedExteriorFeature;
+
+export interface FactorAssessmentRow {
+  factor: string;
+  factor_label: string;
+  input_value: string;
+  data_source: string;
+  status: 'satisfied' | 'unmet' | 'unknown' | 'not_applicable';
+  reason_and_limitations: string;
+}
+
+export type RuleOutcome = 'pass' | 'fail' | 'unknown' | 'not_applicable' | 'review_required';
+export type RuleClass = 'L' | 'E' | 'P' | 'D';
+export type RuleCategory = 'geometric_validity' | 'environmental_suitability' | 'legal_assessment' | 'elevated_installation' | 'user_preference';
+
+export interface RuleEvaluationResult {
+  rule_id: string;
+  version: string;
+  rule_class: RuleClass;
+  category: string;
+  title: string;
+  applicability: 'applicable' | 'not_applicable' | 'unknown';
+  outcome: RuleOutcome;
+  affected_object_ids?: string[];
+  measured_value?: unknown;
+  measured_units?: string;
+  evidence?: string;
+  missing_inputs?: string[];
+  explanation?: string;
+  practical_remedy?: string;
+  evaluation_time?: string;
+  upstream_revision?: number;
+}
+
+export interface CategorySummary {
+  total: number;
+  pass: number;
+  fail: number;
+  unknown: number;
+  review_required: number;
+  not_applicable: number;
+}
+
+export interface FactorsAssessment {
+  overall_status?: 'satisfactory' | 'compromised' | 'unverified';
+  assessment_version?: string;
+  summary?: {
+    total_factors: number;
+    satisfied: number;
+    unmet: number;
+    unknown: number;
+    not_applicable: number;
+  };
+  factors?: FactorAssessmentRow[];
+  object_level_explanations?: Array<{
+    json_id: string;
+    display_name?: string;
+    category?: string;
+    suitability_explanation?: string;
+    locked?: boolean;
+  }>;
+  summary_notes?: string[];
+  rule_evaluations?: RuleEvaluationResult[];
+  category_summaries?: Record<string, CategorySummary>;
+  approval_status?: string;
 }
 
 export interface ELIARequirements {
@@ -222,8 +370,56 @@ export interface ELIARequirements {
   access?: EliaAccessRequirements;
   landscape?: EliaLandscapeRequirements;
   vertical_greenery?: EliaVerticalGreeneryRequirements;
+  balconies?: EliaBalconyRequirements;
+  terrace?: EliaTerraceRequirements;
   lighting?: EliaLightingRequirements;
+  water_features?: EliaWaterFeatureRequirements;
+  solar?: EliaSolarRequirements;
+  maintenance_preference?: 'low' | 'medium' | 'high' | 'no_preference';
+  low_maintenance_preference?: boolean | null;
+  water_availability?: 'limited' | 'regular' | 'irrigation_available' | 'unknown';
+  climate_zone?: 'wet_zone' | 'intermediate_zone' | 'dry_zone' | 'arid_zone' | 'unknown';
+  site_exposure?: 'sheltered' | 'moderate' | 'exposed' | 'coastal_wind' | 'unknown';
+  preferred_plant_ids?: string[];
+  plant_ids_to_avoid?: string[];
+  locked_features?: LockedExteriorFeature[];
   additional_requirements?: Record<string, unknown> | string;
+}
+
+export interface CandidateValidationRequest {
+  exterior_landscape: ExteriorLandscape;
+  requirements?: ELIARequirements;
+}
+
+export interface CandidateValidationResponse {
+  valid: boolean;
+  violations: string[];
+  checks_passed: number;
+  checks_total: number;
+  constraint_satisfaction_rate?: number;
+  factors_assessment?: FactorsAssessment;
+  rule_evaluations?: RuleEvaluationResult[];
+  rule_summary?: Record<string, CategorySummary>;
+  approval_status?: string;
+  hard_blocks?: RuleEvaluationResult[];
+  conditional_reviews?: RuleEvaluationResult[];
+  validation_summary?: ExteriorValidation;
+  canonical_candidate?: ExteriorLandscape;
+}
+
+export interface CandidateSaveRequest {
+  exterior_landscape: ExteriorLandscape;
+  source_revision: number;
+  requirements?: ELIARequirements;
+}
+
+export interface CandidateSaveResponse {
+  project_id: string;
+  run_id: string;
+  status: 'completed' | 'infeasible';
+  outcome: 'valid' | 'infeasible';
+  revision: number;
+  exterior_landscape: ExteriorLandscape;
 }
 
 export interface ELIARequestPayload {
@@ -254,6 +450,46 @@ export interface ELIAPreviewResponse {
   persisted: boolean;
 }
 
+export type FeasibilityStatus =
+  | 'feasible'
+  | 'infeasible'
+  | 'review_required'
+  | 'not_applicable'
+  | 'unsupported'
+  | 'search_inconclusive';
+
+export interface FeatureFeasibilityAssessment {
+  feature_id: string;
+  requested_state: string;
+  feasibility_status: FeasibilityStatus;
+  reason_codes: string[];
+  explanation: string;
+  affected_object_ids?: string[];
+  applicable_rule_ids?: string[];
+  missing_evidence?: string[];
+  assessment_scope?: string;
+  source_revision?: number | null;
+  suggested_alternatives?: string[];
+}
+
+export interface CombinedConflictResult {
+  conflicting_features: string[];
+  conflict_type: string;
+  explanation: string;
+  affected_requests?: Record<string, unknown>;
+  suggested_alternatives?: string[];
+}
+
+export interface ProjectFeasibilityResponse {
+  project_id?: string;
+  source_revision?: number | null;
+  overall_status: 'feasible' | 'infeasible' | 'review_required' | 'conflicts_detected';
+  feature_assessments: Record<string, FeatureFeasibilityAssessment>;
+  combined_conflicts: CombinedConflictResult[];
+  spatial_metrics: Record<string, unknown>;
+  limitations: string[];
+}
+
 export interface ELIAValidationResponse {
   valid: boolean;
   project_id: string;
@@ -267,6 +503,7 @@ export interface ELIAValidationResponse {
     north_angle_degrees: number;
     convention: string;
   };
+  feasibility?: ProjectFeasibilityResponse;
 }
 
 export interface ELIAContextResponse {

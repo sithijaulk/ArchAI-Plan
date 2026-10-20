@@ -7,16 +7,19 @@ from typing import Any, Mapping
 
 def build_updated_master(master: Mapping[str, Any], exterior: Mapping[str, Any], run_id: str,
                          outcome: str, version: str = "1.0", generation_mode: str = "baseline",
-                         source_revision: int | None = None, model_version: str | None = None) -> dict[str, Any]:
+                         source_revision: int | None = None, model_version: str | None = None,
+                         requirements: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """Copy the existing document and replace only ELIA-owned fields."""
     updated = deepcopy(dict(master))
     if outcome == "valid":
         updated["exterior_landscape"] = deepcopy(dict(exterior))
+    if requirements is not None:
+        updated["exterior_requirements"] = deepcopy(dict(requirements))
     processing = updated.setdefault("processing", {})
     if not isinstance(processing, dict):
         processing = {}
         updated["processing"] = processing
-    processing["elia_engine"] = {
+    processing_metadata: dict[str, Any] = {
         "status": "completed" if outcome == "valid" else "infeasible",
         "run_id": run_id, "version": version, "schema_version": exterior.get("schema_version", version),
         "generation_mode": generation_mode, "model_version": model_version,
@@ -24,6 +27,9 @@ def build_updated_master(master: Mapping[str, Any], exterior: Mapping[str, Any],
         "started_at": exterior.get("started_at"),
         "completed_at": datetime.now(timezone.utc).isoformat(), "outcome": outcome,
     }
+    if requirements is not None:
+        processing_metadata["requirements"] = deepcopy(dict(requirements))
+    processing["elia_engine"] = processing_metadata
     return updated
 
 
