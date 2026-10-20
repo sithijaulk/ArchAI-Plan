@@ -314,6 +314,31 @@ def validate_gab_geometry(
     elif compliance_verdict == ComplianceStatus.CONFLICT_REQUIRES_REVIEW:
         reg_status = "conflict"
 
+    # Run Independent Architectural Validation Report (Phase 6)
+    from .independent_validator import IndependentArchitecturalValidator
+    val_report = IndependentArchitecturalValidator.validate_candidate(
+        floors=floors,
+        buildable_poly=buildable_poly,
+        land_poly=land_poly,
+        rules=rules,
+        reg_resolution=regulatory_resolution,
+        site_restrictions=site_restrictions
+    )
+
+    # Invalidate if hard geometric errors occur or if explicit circulation errors occur when doors were provided
+    has_explicit_doors = any(len(fl.doors) > 0 for fl in floors)
+    if not val_report.geometric_validity or not val_report.staircase_validity:
+        valid = False
+        geometry_status = "invalid"
+        if status == "completed":
+            status = "infeasible"
+    elif has_explicit_doors and not val_report.circulation_validity:
+        valid = False
+        geometry_status = "invalid"
+        if status == "completed":
+            status = "infeasible"
+
+
     return ValidationResult(
         valid=valid,
         status=status,
@@ -332,5 +357,7 @@ def validate_gab_geometry(
         conflicting_requirements=conflicting_requirements,
         site_restriction_summary=site_restriction_summary,
         regulatory_resolution=regulatory_resolution,
-        design_checks=design_checks
+        design_checks=design_checks,
+        validation_report=val_report
     )
+

@@ -137,21 +137,24 @@ def generate_blueprint_floors(
         walls = derive_wall_segments(floor_id, buildable_poly, generated_rooms)
         all_walls.extend(walls)
 
-        floor_definitions.append(
-            FloorPlanDefinition(
-                floor_id=floor_id,
-                floor_index=floor_idx,
-                name=floor_name,
-                elevation=elevation,
-                floor_height=3.0,
-                available_area=fl["available_area"],
-                target_allocated_area=round(sum(r.area for r in generated_rooms), 2),
-                rooms=generated_rooms,
-                walls=all_walls
-            )
+        fl_def = FloorPlanDefinition(
+            floor_id=floor_id,
+            floor_index=floor_idx,
+            name=floor_name,
+            elevation=elevation,
+            floor_height=3.0,
+            available_area=fl["available_area"],
+            target_allocated_area=round(sum(r.area for r in generated_rooms), 2),
+            rooms=generated_rooms,
+            walls=all_walls
         )
+        floor_definitions.append(fl_def)
+
+    from .openings_synthesizer import enrich_floor_definitions_with_openings
+    enrich_floor_definitions_with_openings(floor_definitions, buildable_poly)
 
     return floor_definitions
+
 
 
 def partition_polygon_proportional(poly: Polygon, target_areas: List[float]) -> List[Polygon]:

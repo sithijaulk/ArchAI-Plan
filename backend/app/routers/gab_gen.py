@@ -667,9 +667,173 @@ def add_blueprint_room(
     })
     mj["edit_history"] = history
     project.master_json = mj
+@router.post("/edit-door")
+def edit_blueprint_door(
+    project_id: str,
+    payload: Dict[str, Any],
+    db: Session = Depends(get_db)
+):
+    """Edits an explicit door position and width with circulation revalidation."""
+    project = _get_project_or_404(project_id, db)
+    mj = project.master_json or {}
+    door_id = payload.get("door_id")
+    target_floor_id = payload.get("target_floor_id")
+    pos_data = payload.get("position", {})
+    width_m = payload.get("width_m", 0.90)
+
+    if not door_id or not target_floor_id or not pos_data:
+        raise HTTPException(status_code=400, detail="door_id, target_floor_id, and position are required.")
+
+    from ..components.gab_gen.schemas import FloorPlanDefinition, Point2D
+    from ..components.gab_gen.blueprint.editor import edit_door_in_blueprint
+
+    floors_raw = mj.get("floor_plan", {}).get("floors", [])
+    floors = [FloorPlanDefinition(**f) for f in floors_raw]
+    new_pos = Point2D(x=pos_data["x"], y=pos_data["y"])
+
+    res = edit_door_in_blueprint(door_id, target_floor_id, new_pos, width_m, floors)
+    if not res["success"]:
+        return {"valid": False, "violations": res["violations"]}
+
+    mj["floor_plan"]["floors"] = [f.model_dump() for f in res["floors"]]
+    history = mj.get("edit_history", [])
+    history.append({
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "action": "edit_door",
+        "door_id": door_id,
+        "target_floor_id": target_floor_id
+    })
+    mj["edit_history"] = history
+    project.master_json = mj
     db.commit()
 
-    return {"valid": True, "message": "Room added successfully", "floor_plan": mj["floor_plan"]}
+    return {"valid": True, "message": "Door edited successfully", "floor_plan": mj["floor_plan"]}
+
+
+@router.post("/edit-window")
+def edit_blueprint_window(
+    project_id: str,
+    payload: Dict[str, Any],
+    db: Session = Depends(get_db)
+):
+    """Edits an explicit exterior window position and dimensions."""
+    project = _get_project_or_404(project_id, db)
+    mj = project.master_json or {}
+    window_id = payload.get("window_id")
+    target_floor_id = payload.get("target_floor_id")
+    pos_data = payload.get("position", {})
+    width_m = payload.get("width_m", 1.20)
+    height_m = payload.get("height_m", 1.20)
+
+    if not window_id or not target_floor_id or not pos_data:
+        raise HTTPException(status_code=400, detail="window_id, target_floor_id, and position are required.")
+
+    from ..components.gab_gen.schemas import FloorPlanDefinition, Point2D
+    from ..components.gab_gen.blueprint.editor import edit_window_in_blueprint
+
+    floors_raw = mj.get("floor_plan", {}).get("floors", [])
+    floors = [FloorPlanDefinition(**f) for f in floors_raw]
+    new_pos = Point2D(x=pos_data["x"], y=pos_data["y"])
+
+    res = edit_window_in_blueprint(window_id, target_floor_id, new_pos, width_m, height_m, floors)
+    if not res["success"]:
+        return {"valid": False, "violations": res["violations"]}
+
+    mj["floor_plan"]["floors"] = [f.model_dump() for f in res["floors"]]
+    history = mj.get("edit_history", [])
+    history.append({
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "action": "edit_window",
+        "window_id": window_id,
+        "target_floor_id": target_floor_id
+    })
+    mj["edit_history"] = history
+    project.master_json = mj
+    db.commit()
+
+    return {"valid": True, "message": "Window edited successfully", "floor_plan": mj["floor_plan"]}
+
+
+@router.post("/change-roof")
+def change_blueprint_roof_endpoint(
+    project_id: str,
+    payload: Dict[str, Any],
+    db: Session = Depends(get_db)
+):
+    """Changes the roof type and regenerates validated 3D roof geometry."""
+    project = _get_project_or_404(project_id, db)
+    mj = project.master_json or {}
+    new_roof_type = payload.get("roof_type")
+    pitch_deg = payload.get("pitch_angle_deg")
+
+    if not new_roof_type:
+        raise HTTPException(status_code=400, detail="roof_type is required.")
+
+    from ..components.gab_gen.blueprint.editor import change_blueprint_roof
+    from shapely.geometry import Polygon
+
+    b_pts = mj.get("building_footprint", {}).get("polygon", []) or mj.get("buildable_footprint", {}).get("polygon", [])
+    if len(b_pts) < 3:
+        raise HTTPException(status_code=400, detail="Building footprint polygon is missing or invalid.")
+
+    b_poly = Polygon([(p["x"], p["y"]) for p in b_pts])
+    res = change_blueprint_roof(b_poly, new_roof_type, pitch_deg)
+    if not res["success"]:
+        return {"valid": False, "violations": res["violations"]}
+
+    roof_dict = res["roof_geometry"].model_dump()
+    mj["roof_geometry"] = roof_dict
+    history = mj.get("edit_history", [])
+    history.append({
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "action": "change_roof",
+        "roof_type": new_roof_type
+    })
+    mj["edit_history"] = history
+    project.master_json = mj
+    db.commit()
+
+    return {
+        "valid": True,
+        "message": f"Roof changed to '{new_roof_type}' successfully",
+        "roof_geometry": roof_dict
+    }
+
+
+@router.post("/undo-edit")
+def undo_last_blueprint_edit(
+    project_id: str,
+    db: Session = Depends(get_db)
+):
+    """Undoes the last accepted edit transaction using edit history tracking."""
+    project = _get_project_or_404(project_id, db)
+    mj = project.master_json or {}
+    history = mj.get("edit_history", [])
+    if not history:
+        return {"valid": False, "message": "No edits to undo."}
+
+    last_action = history.pop()
+    # If the candidate was original, we can reset from candidate pool if candidate_generation exists
+    cand_section = mj.get("candidate_generation", {})
+    selected_id = cand_section.get("selected_candidate_id") or mj.get("building_footprint", {}).get("candidate_id")
+    candidates = cand_section.get("candidates", [])
+    cand = next((c for c in candidates if c.get("candidate_id") == selected_id), None)
+    if cand:
+        mj["floor_plan"] = {"floors": cand.get("floors", [])}
+        if cand.get("roof_geometry"):
+            mj["roof_geometry"] = cand.get("roof_geometry")
+
+    mj["edit_history"] = history
+    project.master_json = mj
+    db.commit()
+
+    return {
+        "valid": True,
+        "message": f"Undid action '{last_action.get('action')}'",
+        "floor_plan": mj["floor_plan"],
+        "roof_geometry": mj.get("roof_geometry")
+    }
+
 
 
 @router.get("/result")

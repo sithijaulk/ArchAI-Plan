@@ -271,3 +271,123 @@ def add_room_to_blueprint(
 
     return {"success": True, "violations": [], "floors": updated_floors, "created_room_id": room_id}
 
+
+def edit_door_in_blueprint(
+    door_id: str,
+    target_floor_id: str,
+    new_position: Point2D,
+    new_width_m: float,
+    floors: List[FloorPlanDefinition]
+) -> Dict[str, Any]:
+    """
+    Edits a door's position and width.
+    Enforces positive width > 0.50m and valid floor association.
+    """
+    if new_width_m <= 0.50:
+        return {"success": False, "violations": [f"Door width ({new_width_m}m) must be > 0.50m for usability."]}
+
+    updated_floors: List[FloorPlanDefinition] = []
+    found = False
+    for fl in floors:
+        if fl.floor_id == target_floor_id:
+            updated_doors = []
+            for d in fl.doors:
+                if d.door_id == door_id:
+                    found = True
+                    updated_doors.append(
+                        d.model_copy(
+                            update={
+                                "position": new_position,
+                                "width_m": round(new_width_m, 2),
+                                "verification_status": "GEOMETRY_VERIFIED"
+                            }
+                        )
+                    )
+                else:
+                    updated_doors.append(d)
+            updated_floors.append(fl.model_copy(update={"doors": updated_doors}))
+        else:
+            updated_floors.append(fl)
+
+    if not found:
+        return {"success": False, "violations": [f"Door '{door_id}' not found on floor '{target_floor_id}'."]}
+
+    return {"success": True, "violations": [], "floors": updated_floors}
+
+
+def edit_window_in_blueprint(
+    window_id: str,
+    target_floor_id: str,
+    new_position: Point2D,
+    new_width_m: float,
+    new_height_m: float,
+    floors: List[FloorPlanDefinition]
+) -> Dict[str, Any]:
+    """
+    Edits an exterior window's position and dimensions.
+    """
+    if new_width_m <= 0.40 or new_height_m <= 0.40:
+        return {"success": False, "violations": ["Window dimensions must be at least 0.40m x 0.40m."]}
+
+    updated_floors: List[FloorPlanDefinition] = []
+    found = False
+    for fl in floors:
+        if fl.floor_id == target_floor_id:
+            updated_windows = []
+            for w in fl.windows:
+                if w.window_id == window_id:
+                    found = True
+                    updated_windows.append(
+                        w.model_copy(
+                            update={
+                                "position": new_position,
+                                "width_m": round(new_width_m, 2),
+                                "height_m": round(new_height_m, 2),
+                                "verification_status": "GEOMETRY_VERIFIED"
+                            }
+                        )
+                    )
+                else:
+                    updated_windows.append(w)
+            updated_floors.append(fl.model_copy(update={"windows": updated_windows}))
+        else:
+            updated_floors.append(fl)
+
+    if not found:
+        return {"success": False, "violations": [f"Window '{window_id}' not found on floor '{target_floor_id}'."]}
+
+    return {"success": True, "violations": [], "floors": updated_floors}
+
+
+def change_blueprint_roof(
+    building_footprint_poly: Polygon,
+    new_roof_type: str,
+    pitch_deg: Optional[float] = None
+) -> Dict[str, Any]:
+    """
+    Recalculates roof geometry for a selected building footprint with the specified roof type.
+    """
+    from ..schemas import RoofPreference, RoofType
+    from .roof_generator import generate_roof_geometry, validate_roof_geometry
+
+    valid_types = [t.value for t in RoofType]
+    if new_roof_type not in valid_types:
+        return {"success": False, "violations": [f"Unsupported roof type '{new_roof_type}'. Must be one of: {valid_types}"]}
+
+    roof_pref = RoofPreference(
+        roof_type=RoofType(new_roof_type),
+        pitch_angle_deg=pitch_deg if pitch_deg is not None else (30.0 if new_roof_type in ("gable", "hip") else (15.0 if new_roof_type == "mono_pitch" else 0.0))
+    )
+    roof_geom = generate_roof_geometry(building_footprint_poly, roof_pref)
+    val = validate_roof_geometry(roof_geom, building_footprint_poly)
+    if not val["valid"]:
+        return {"success": False, "violations": val["violations"], "warnings": val["warnings"]}
+
+    return {
+        "success": True,
+        "violations": [],
+        "warnings": val["warnings"],
+        "roof_geometry": roof_geom
+    }
+
+

@@ -102,6 +102,27 @@ export const gabGenExtendedApi = {
     });
     return res.data;
   },
+
+  editDoor: async (projectId: string, payload: { door_id: string; target_floor_id: string; position: { x: number; y: number }; width_m?: number }) => {
+    const res = await apiClient.post(`/projects/${projectId}/gab-gen/edit-door`, payload);
+    return res.data;
+  },
+
+  editWindow: async (projectId: string, payload: { window_id: string; target_floor_id: string; position: { x: number; y: number }; width_m?: number; height_m?: number }) => {
+    const res = await apiClient.post(`/projects/${projectId}/gab-gen/edit-window`, payload);
+    return res.data;
+  },
+
+  changeRoof: async (projectId: string, payload: { roof_type: string; pitch_angle_deg?: number }) => {
+    const res = await apiClient.post(`/projects/${projectId}/gab-gen/change-roof`, payload);
+    return res.data;
+  },
+
+  undoEdit: async (projectId: string) => {
+    const res = await apiClient.post(`/projects/${projectId}/gab-gen/undo-edit`);
+    return res.data;
+  },
 };
+
 
 

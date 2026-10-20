@@ -293,6 +293,50 @@ export const PlanPreview2D: React.FC<PlanPreview2DProps> = ({
               />
             ))}
 
+          {/* 5. Explicit Doors & Openings */}
+          {activeFloor &&
+            activeFloor.doors &&
+            activeFloor.doors.map((d) => (
+              <g key={d.door_id}>
+                <circle
+                  cx={d.position.x}
+                  cy={-d.position.y}
+                  r="0.28"
+                  fill={d.is_external_entrance ? '#22c55e' : '#f59e0b'}
+                  stroke="#ffffff"
+                  strokeWidth="0.06"
+                />
+                <text
+                  x={d.position.x}
+                  y={-d.position.y - 0.35}
+                  fontSize="0.22"
+                  fill={d.is_external_entrance ? '#4ade80' : '#fbbf24'}
+                  textAnchor="middle"
+                  className="pointer-events-none select-none font-bold"
+                >
+                  {d.is_external_entrance ? 'ENTRANCE' : 'DOOR'}
+                </text>
+              </g>
+            ))}
+
+          {/* 6. Explicit Windows */}
+          {activeFloor &&
+            activeFloor.windows &&
+            activeFloor.windows.map((w) => (
+              <g key={w.window_id}>
+                <rect
+                  x={w.position.x - 0.25}
+                  y={-w.position.y - 0.08}
+                  width="0.5"
+                  height="0.16"
+                  fill="#38bdf8"
+                  stroke="#0284c7"
+                  strokeWidth="0.04"
+                />
+              </g>
+            ))}
+
+
           {/* 5. Edge Dimensions */}
           {showDimensions &&
             landPoly.length > 2 &&

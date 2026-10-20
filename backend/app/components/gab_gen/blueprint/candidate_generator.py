@@ -325,18 +325,22 @@ def generate_candidate_floors(
         walls = derive_wall_segments(floor_id, footprint_poly, generated_rooms)
         all_walls.extend(walls)
 
-        floor_definitions.append(
-            FloorPlanDefinition(
-                floor_id=floor_id,
-                floor_index=floor_idx,
-                name=floor_name,
-                elevation=elevation,
-                floor_height=3.0,
-                available_area=round(footprint_poly.area, 2),
-                target_allocated_area=round(sum(r.area for r in generated_rooms), 2),
-                rooms=generated_rooms,
-                walls=all_walls
-            )
+        fl_def = FloorPlanDefinition(
+            floor_id=floor_id,
+            floor_index=floor_idx,
+            name=floor_name,
+            elevation=elevation,
+            floor_height=3.0,
+            available_area=round(footprint_poly.area, 2),
+            target_allocated_area=round(sum(r.area for r in generated_rooms), 2),
+            rooms=generated_rooms,
+            walls=all_walls
         )
+        floor_definitions.append(fl_def)
+
+    # Synthesize explicit doors and windows for each floor
+    from .openings_synthesizer import enrich_floor_definitions_with_openings
+    enrich_floor_definitions_with_openings(floor_definitions, footprint_poly)
 
     return floor_definitions
+

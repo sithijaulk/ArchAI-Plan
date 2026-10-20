@@ -149,9 +149,41 @@ const BuildingScene: React.FC<{
                 </mesh>
               );
             })}
+
+            {/* 4. Physical 3D Doors & Entrances */}
+            {fl.doors && fl.doors.map((d) => (
+              <mesh
+                key={d.door_id}
+                position={[d.position.x - centerX, d.position.y - centerY, 1.1]}
+              >
+                <boxGeometry args={[d.width_m, 0.35, 2.1]} />
+                <meshStandardMaterial
+                  color={d.is_external_entrance ? '#22c55e' : '#f59e0b'}
+                  roughness={0.4}
+                />
+              </mesh>
+            ))}
+
+            {/* 5. Physical 3D Windows */}
+            {fl.windows && fl.windows.map((w) => (
+              <mesh
+                key={w.window_id}
+                position={[w.position.x - centerX, w.position.y - centerY, 1.5]}
+              >
+                <boxGeometry args={[w.width_m, 0.32, w.height_m || 1.2]} />
+                <meshStandardMaterial
+                  color="#38bdf8"
+                  transparent
+                  opacity={0.65}
+                  roughness={0.1}
+                  metalness={0.8}
+                />
+              </mesh>
+            ))}
           </group>
         );
       })}
+
 
       {/* 3. Roof Structure Extrusion / Pitch Modeling */}
       {data.roof_geometry && activeFloors.length > 0 && (() => {

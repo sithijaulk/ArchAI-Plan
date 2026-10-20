@@ -440,6 +440,100 @@ class Opening(BaseModel):
     room_ids: List[str] = Field(default_factory=list)
 
 
+class DoorDefinition(BaseModel):
+    door_id: str
+    floor_id: str
+    connected_space_ids: List[str] = Field(default_factory=list)
+    wall_id: Optional[str] = None
+    position: Point2D
+    width_m: float = 0.90
+    swing_direction: Optional[str] = None
+    verification_status: str = "GEOMETRY_VERIFIED"
+    is_external_entrance: bool = False
+
+
+class WindowDefinition(BaseModel):
+    window_id: str
+    floor_id: str
+    room_id: str
+    wall_id: Optional[str] = None
+    position: Point2D
+    width_m: float = 1.20
+    height_m: Optional[float] = 1.20
+    orientation: Optional[str] = None
+    is_exterior: bool = True
+    verification_status: str = "GEOMETRY_VERIFIED"
+
+
+class CheckStatus(str, Enum):
+    PASS = "PASS"
+    FAIL = "FAIL"
+    WARNING = "WARNING"
+    NOT_EVALUABLE = "NOT_EVALUABLE"
+    NOT_APPLICABLE = "NOT_APPLICABLE"
+
+
+class CheckSeverity(str, Enum):
+    ERROR = "ERROR"
+    WARNING = "WARNING"
+    INFO = "INFO"
+
+
+class CheckDimension(str, Enum):
+    GEOMETRIC_VALIDITY = "GEOMETRIC_VALIDITY"
+    FUNCTIONAL_ACCESSIBILITY = "FUNCTIONAL_ACCESSIBILITY"
+    USER_REQUIREMENTS = "USER_REQUIREMENTS"
+    REGULATORY_COMPLIANCE = "REGULATORY_COMPLIANCE"
+    DESIGN_QUALITY = "DESIGN_QUALITY"
+
+
+class ArchitecturalCheckResult(BaseModel):
+    check_id: str
+    dimension: CheckDimension
+    status: CheckStatus
+    severity: CheckSeverity = CheckSeverity.ERROR
+    affected_room_ids: List[str] = Field(default_factory=list)
+    affected_floor_ids: List[str] = Field(default_factory=list)
+    measured_value: Optional[float] = None
+    required_value: Optional[float] = None
+    unit: Optional[str] = None
+    source_rule_id: Optional[str] = None
+    message: str
+    geometry_reference: Optional[Dict[str, Any]] = None
+
+
+class IndependentValidationReport(BaseModel):
+    validation_schema_version: str = "1.0.0"
+    validator_version: str = "1.0.0"
+    candidate_id: Optional[str] = None
+    overall_status: str = "VALID_WITH_VERIFIED_CONSTRAINTS"  # VALID_WITH_VERIFIED_CONSTRAINTS | VALID_WITH_REGULATORY_UNCERTAINTY | INVALID | REQUIRES_REVIEW
+    checks: List[ArchitecturalCheckResult] = Field(default_factory=list)
+    geometric_validity: bool = True
+    circulation_validity: bool = True
+    door_validity: bool = True
+    staircase_validity: bool = True
+    window_validity: bool = True
+    parking_validity: bool = True
+    requirements_validity: bool = True
+    regulatory_validity: bool = True
+    summary: Dict[str, int] = Field(default_factory=dict)
+    isolated_room_ids: List[str] = Field(default_factory=list)
+    overlapping_pairs: List[Dict[str, Any]] = Field(default_factory=list)
+    unreachable_rooms: List[str] = Field(default_factory=list)
+
+    @property
+    def is_valid(self) -> bool:
+        return (
+            self.geometric_validity
+            and self.circulation_validity
+            and self.door_validity
+            and self.staircase_validity
+            and self.requirements_validity
+            and self.overall_status != "INVALID"
+        )
+
+
+
 class FloorPlanDefinition(BaseModel):
     floor_id: str
     floor_index: int
@@ -452,6 +546,8 @@ class FloorPlanDefinition(BaseModel):
     walls: List[WallSegment] = Field(default_factory=list)
     circulation: List[RoomPolygon] = Field(default_factory=list, description="Corridors / landings (not habitable rooms)")
     openings: List[Opening] = Field(default_factory=list)
+    doors: List[DoorDefinition] = Field(default_factory=list)
+    windows: List[WindowDefinition] = Field(default_factory=list)
     unplaced_rooms: List[Dict[str, Any]] = Field(default_factory=list)
 
 
@@ -485,6 +581,11 @@ class ValidationResult(BaseModel):
         default_factory=list,
         description="Deterministic post-generation preference evaluation results"
     )
+    validation_report: Optional[IndependentValidationReport] = Field(
+        default=None,
+        description="Exhaustive independent architectural feasibility and validation report"
+    )
+
 
 
 class CandidateFeasibilityStatus(str, Enum):

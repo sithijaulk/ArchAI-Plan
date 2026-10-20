@@ -136,34 +136,58 @@ def generate_roof_geometry(
                 e_coords = [Point2D(x=round(c[0], 3), y=round(c[1], 3)) for c in list(e_geom.exterior.coords)[:-1]]
                 planes.append(RoofPlane(plane_id="GABLE_EAST", polygon=e_coords, pitch_deg=roof_pref.pitch_angle_deg, slope_azimuth=90.0, height_offset_m=max_h))
 
-    else:
+    elif r_type == "hip":
         # Hip roof: slopes down on all 4 sides towards eaves
         slice_along_x = width >= height
         if slice_along_x:
             mid_y = (min_y + max_y) / 2.0
-            hip_inset = min(width * 0.2, height * 0.4)
+            hip_inset = min(width * 0.25, height * 0.4)
             half_span = height / 2.0
             max_h = round(half_span * math.tan(pitch_rad), 3)
             r1 = Point2D(x=round(min_x + hip_inset, 3), y=round(mid_y, 3))
             r2 = Point2D(x=round(max_x - hip_inset, 3), y=round(mid_y, 3))
             ridge_points = [r1, r2]
+
+            # 4 distinct sloped planes: West Hip (triangle), East Hip (triangle), South Pitch (trapezoid), North Pitch (trapezoid)
+            # Plane 1: West Hip Triangle
+            p_west = [Point2D(x=round(min_x, 3), y=round(min_y, 3)), Point2D(x=round(min_x, 3), y=round(max_y, 3)), r1]
+            planes.append(RoofPlane(plane_id="HIP_WEST", polygon=p_west, pitch_deg=roof_pref.pitch_angle_deg, slope_azimuth=270.0, height_offset_m=max_h))
+
+            # Plane 2: East Hip Triangle
+            p_east = [Point2D(x=round(max_x, 3), y=round(max_y, 3)), Point2D(x=round(max_x, 3), y=round(min_y, 3)), r2]
+            planes.append(RoofPlane(plane_id="HIP_EAST", polygon=p_east, pitch_deg=roof_pref.pitch_angle_deg, slope_azimuth=90.0, height_offset_m=max_h))
+
+            # Plane 3: South Trapezoid
+            p_south = [Point2D(x=round(min_x, 3), y=round(min_y, 3)), r1, r2, Point2D(x=round(max_x, 3), y=round(min_y, 3))]
+            planes.append(RoofPlane(plane_id="HIP_SOUTH", polygon=p_south, pitch_deg=roof_pref.pitch_angle_deg, slope_azimuth=180.0, height_offset_m=max_h))
+
+            # Plane 4: North Trapezoid
+            p_north = [r1, Point2D(x=round(min_x, 3), y=round(max_y, 3)), Point2D(x=round(max_x, 3), y=round(max_y, 3)), r2]
+            planes.append(RoofPlane(plane_id="HIP_NORTH", polygon=p_north, pitch_deg=roof_pref.pitch_angle_deg, slope_azimuth=0.0, height_offset_m=max_h))
         else:
             mid_x = (min_x + max_x) / 2.0
-            hip_inset = min(height * 0.2, width * 0.4)
+            hip_inset = min(height * 0.25, width * 0.4)
             half_span = width / 2.0
             max_h = round(half_span * math.tan(pitch_rad), 3)
             r1 = Point2D(x=round(mid_x, 3), y=round(min_y + hip_inset, 3))
             r2 = Point2D(x=round(mid_x, 3), y=round(max_y - hip_inset, 3))
             ridge_points = [r1, r2]
 
-        plane = RoofPlane(
-            plane_id="HIP_COMPLEX",
-            polygon=eave_coords,
-            pitch_deg=roof_pref.pitch_angle_deg,
-            slope_azimuth=0.0,
-            height_offset_m=max_h
-        )
-        planes.append(plane)
+            # Plane 1: South Hip Triangle
+            p_south = [Point2D(x=round(min_x, 3), y=round(min_y, 3)), Point2D(x=round(max_x, 3), y=round(min_y, 3)), r1]
+            planes.append(RoofPlane(plane_id="HIP_SOUTH", polygon=p_south, pitch_deg=roof_pref.pitch_angle_deg, slope_azimuth=180.0, height_offset_m=max_h))
+
+            # Plane 2: North Hip Triangle
+            p_north = [Point2D(x=round(max_x, 3), y=round(max_y, 3)), Point2D(x=round(min_x, 3), y=round(max_y, 3)), r2]
+            planes.append(RoofPlane(plane_id="HIP_NORTH", polygon=p_north, pitch_deg=roof_pref.pitch_angle_deg, slope_azimuth=0.0, height_offset_m=max_h))
+
+            # Plane 3: West Trapezoid
+            p_west = [Point2D(x=round(min_x, 3), y=round(min_y, 3)), r1, r2, Point2D(x=round(min_x, 3), y=round(max_y, 3))]
+            planes.append(RoofPlane(plane_id="HIP_WEST", polygon=p_west, pitch_deg=roof_pref.pitch_angle_deg, slope_azimuth=270.0, height_offset_m=max_h))
+
+            # Plane 4: East Trapezoid
+            p_east = [r1, Point2D(x=round(max_x, 3), y=round(min_y, 3)), Point2D(x=round(max_x, 3), y=round(max_y, 3)), r2]
+            planes.append(RoofPlane(plane_id="HIP_EAST", polygon=p_east, pitch_deg=roof_pref.pitch_angle_deg, slope_azimuth=90.0, height_offset_m=max_h))
 
     return GeneratedRoofGeometry(
         roof_type=r_type,
@@ -174,3 +198,52 @@ def generate_roof_geometry(
         drainage=roof_pref.drainage_preference,
         provenance="calculated_geometry"
     )
+
+
+def validate_roof_geometry(
+    roof_geom: GeneratedRoofGeometry,
+    building_footprint_poly: Polygon
+) -> Dict[str, Any]:
+    """
+    Validates physical roof geometric feasibility:
+    1. Eave boundary containment (eaves must cover or enclose building footprint)
+    2. Finite coordinates and positive height
+    3. Non-empty planes
+    4. Safe slope bounds for roof type
+    """
+    violations: List[str] = []
+    warnings: List[str] = []
+
+    if not roof_geom.eave_polygon or len(roof_geom.eave_polygon) < 3:
+        violations.append("Roof eave boundary is degenerate or missing vertices.")
+        return {"valid": False, "violations": violations, "warnings": warnings}
+
+    pts = [(p.x, p.y) for p in roof_geom.eave_polygon]
+    eave_poly = Polygon(pts)
+    if not eave_poly.is_valid:
+        violations.append("Roof eave polygon has self-intersecting or invalid topology.")
+
+    if building_footprint_poly and building_footprint_poly.is_valid:
+        # Building footprint must be inside eave boundary with small tolerance
+        if not eave_poly.buffer(0.05).contains(building_footprint_poly):
+            warnings.append("Roof eave does not fully cover the entire building footprint.")
+
+    if roof_geom.max_height_m <= 0.0:
+        violations.append(f"Roof maximum height ({roof_geom.max_height_m}m) must be positive.")
+
+    if not roof_geom.planes:
+        violations.append("Roof defines no sloped or slab planes.")
+
+    r_type = roof_geom.roof_type
+    if r_type in ("gable", "hip") and roof_geom.max_height_m < 0.5:
+        warnings.append(f"Pitched {r_type} roof has very shallow height ({roof_geom.max_height_m:.2f}m).")
+
+    return {
+        "valid": len(violations) == 0,
+        "violations": violations,
+        "warnings": warnings,
+        "roof_type": r_type,
+        "plane_count": len(roof_geom.planes),
+        "max_height_m": roof_geom.max_height_m
+    }
+

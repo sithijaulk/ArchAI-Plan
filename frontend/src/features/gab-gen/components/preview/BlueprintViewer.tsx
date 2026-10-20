@@ -4,8 +4,9 @@ import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DownloadImageButton, DownloadPdfButton, DownloadJsonButton } from '@/components/output/DownloadButtons';
 import { Button } from '@/components/ui/button';
-import { Layers, AlertTriangle, CheckCircle2, FileCode } from 'lucide-react';
+import { Layers, AlertTriangle, CheckCircle2, FileCode, RotateCcw } from 'lucide-react';
 import { PlanPreview2D } from './PlanPreview2D';
+
 import { PlanPreview3D } from './PlanPreview3D';
 import { CandidateComparison } from './CandidateComparison';
 import { GabGenMasterJson } from '../../types';
@@ -181,8 +182,61 @@ export const BlueprintViewer: React.FC<BlueprintViewerProps> = ({
     }
   };
 
+  const handleUndo = async () => {
+    if (!projectId || !data) return;
+    setIsSavingEdit(true);
+    setEditMessage(null);
+    try {
+      const res = await gabGenExtendedApi.undoEdit(projectId);
+      if (!res.valid) {
+        setEditMessage(res.message || "No edits to undo.");
+      } else {
+        setEditMessage(res.message);
+        if (onUpdate && res.floor_plan) {
+          onUpdate({
+            ...data,
+            floor_plan: res.floor_plan,
+            roof_geometry: res.roof_geometry || data.roof_geometry
+          });
+        }
+      }
+    } catch (err: any) {
+      setEditMessage(err.response?.data?.detail || "Failed to undo edit.");
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const handleChangeRoofType = async (newType: string) => {
+    if (!projectId || !data) return;
+    setIsSavingEdit(true);
+    setEditMessage(null);
+    try {
+      const res = await gabGenExtendedApi.changeRoof(projectId, {
+        roof_type: newType
+      });
+      if (!res.valid) {
+        setEditMessage(`Roof error: ${res.violations?.join('; ') || 'Cannot change roof'}`);
+      } else {
+        setEditMessage(res.message);
+        if (onUpdate && res.roof_geometry) {
+          onUpdate({
+            ...data,
+            roof_geometry: res.roof_geometry
+          });
+        }
+      }
+    } catch (err: any) {
+      setEditMessage(err.response?.data?.detail || "Failed to change roof.");
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
   const candidatePool = data?.candidate_generation?.candidates || [];
   const selectedCandidateId = data?.candidate_generation?.selected_candidate_id || data?.building_footprint?.candidate_id || null;
+  const currentRoofType = data?.roof_geometry?.roof_type || 'flat_slab';
+
 
   return (
     <div className="space-y-4">
@@ -225,39 +279,64 @@ export const BlueprintViewer: React.FC<BlueprintViewerProps> = ({
 
       {/* Status & Validation Banner */}
       {validation && (
-        <div
-          className={`p-3 rounded-xl border flex items-center justify-between text-xs ${
-            validation.status === 'completed'
-              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-              : validation.status === 'needs_verification'
-              ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
-              : 'bg-destructive/10 border-destructive/30 text-destructive'
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            {validation.status === 'completed' ? (
-              <CheckCircle2 className="w-4 h-4" />
-            ) : (
-              <AlertTriangle className="w-4 h-4" />
-            )}
-            <span>
-              Status:{' '}
-              <strong className="uppercase">{validation.status.replace(/_/g, ' ')}</strong>
-              {validation.warnings?.length > 0 && ` — ${validation.warnings[0]}`}
-              {validation.violations?.length > 0 && ` — ${validation.violations[0]}`}
-            </span>
+        <div className="space-y-2">
+          <div
+            className={`p-3 rounded-xl border flex items-center justify-between text-xs ${
+              validation.status === 'completed'
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                : validation.status === 'needs_verification'
+                ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                : 'bg-destructive/10 border-destructive/30 text-destructive'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {validation.status === 'completed' ? (
+                <CheckCircle2 className="w-4 h-4" />
+              ) : (
+                <AlertTriangle className="w-4 h-4" />
+              )}
+              <span>
+                Status:{' '}
+                <strong className="uppercase">{validation.status.replace(/_/g, ' ')}</strong>
+                {validation.warnings?.length > 0 && ` — ${validation.warnings[0]}`}
+                {validation.violations?.length > 0 && ` — ${validation.violations[0]}`}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-4 text-[11px] opacity-90">
+              <span>
+                Reconstructed: <strong>{data?.land_info?.reconstructed_area?.toFixed(1)} m²</strong>
+              </span>
+              <span>
+                Buildable: <strong>{data?.buildable_footprint?.area?.toFixed(1)} m²</strong>
+              </span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-4 text-[11px] opacity-90">
-            <span>
-              Reconstructed: <strong>{data?.land_info?.reconstructed_area?.toFixed(1)} m²</strong>
-            </span>
-            <span>
-              Buildable: <strong>{data?.buildable_footprint?.area?.toFixed(1)} m²</strong>
-            </span>
-          </div>
+          {/* Phase 6: Independent Architectural Feasibility Diagnostics */}
+          {validation.validation_report && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+              <div className={`p-2 rounded-lg border ${validation.validation_report.geometric_validity ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400' : 'bg-destructive/10 border-destructive/30 text-destructive'}`}>
+                <span className="font-semibold block">Geometry</span>
+                <span>{validation.validation_report.geometric_validity ? 'Valid & Contained' : 'Conflict / Overlap'}</span>
+              </div>
+              <div className={`p-2 rounded-lg border ${validation.validation_report.circulation_validity ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400' : 'bg-destructive/10 border-destructive/30 text-destructive'}`}>
+                <span className="font-semibold block">Circulation</span>
+                <span>{validation.validation_report.circulation_validity ? 'Fully Connected' : 'Isolated Space'}</span>
+              </div>
+              <div className={`p-2 rounded-lg border ${validation.validation_report.staircase_validity ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400' : 'bg-destructive/10 border-destructive/30 text-destructive'}`}>
+                <span className="font-semibold block">Vertical Core</span>
+                <span>{validation.validation_report.staircase_validity ? 'Aligned & Continuous' : 'Misaligned Stair'}</span>
+              </div>
+              <div className={`p-2 rounded-lg border ${validation.validation_report.regulatory_validity ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-400'}`}>
+                <span className="font-semibold block">Regulation</span>
+                <span>{validation.validation_report.overall_status === 'VALID_WITH_REGULATORY_UNCERTAINTY' ? 'Provisional' : 'Verified'}</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
+
 
 
       {/* Floor Selector Bar (for Multi-Storey) */}
@@ -303,17 +382,49 @@ export const BlueprintViewer: React.FC<BlueprintViewerProps> = ({
             </TabsTrigger>
           </TabsList>
 
-          {activeTab === '3d' && floors.length > 1 && (
+          <div className="flex items-center gap-2">
+            {/* Phase 7: Interactive Roof Type Switcher */}
+            <div className="flex items-center gap-1 bg-card p-1 rounded-lg border border-border text-[11px]">
+              <span className="text-muted-foreground px-1 font-medium">Roof:</span>
+              {(['flat_slab', 'accessible_rooftop', 'gable', 'hip', 'mono_pitch'] as const).map((rt) => (
+                <Button
+                  key={rt}
+                  size="sm"
+                  variant={currentRoofType === rt ? 'default' : 'ghost'}
+                  className="h-6 px-1.5 text-[10px]"
+                  onClick={() => handleChangeRoofType(rt)}
+                  disabled={isSavingEdit}
+                >
+                  {rt === 'flat_slab' ? 'Flat' : rt === 'accessible_rooftop' ? 'Terrace' : rt === 'gable' ? 'Gable' : rt === 'hip' ? 'Hip' : 'Mono'}
+                </Button>
+              ))}
+            </div>
+
+            {/* Phase 7: Undo Action Button */}
             <Button
               size="sm"
-              variant={exploded3D ? 'secondary' : 'outline'}
-              className="h-7 text-xs"
-              onClick={() => setExploded3D(!exploded3D)}
+              variant="outline"
+              className="h-7 text-xs flex items-center gap-1"
+              onClick={handleUndo}
+              disabled={isSavingEdit}
+              title="Undo last edit transaction"
             >
-              {exploded3D ? 'Compact View' : 'Exploded Levels'}
+              <RotateCcw className="w-3 h-3" /> Undo
             </Button>
-          )}
+
+            {activeTab === '3d' && floors.length > 1 && (
+              <Button
+                size="sm"
+                variant={exploded3D ? 'secondary' : 'outline'}
+                className="h-7 text-xs"
+                onClick={() => setExploded3D(!exploded3D)}
+              >
+                {exploded3D ? 'Compact View' : 'Exploded Levels'}
+              </Button>
+            )}
+          </div>
         </div>
+
 
         {/* Room Editor Bar if a room is selected */}
         {selectedRoom && (

@@ -253,6 +253,63 @@ export interface RoomPolygon {
   is_structural_stair?: boolean;
 }
 
+export interface DoorDefinition {
+  door_id: string;
+  floor_id: string;
+  connected_space_ids: string[];
+  wall_id?: string | null;
+  position: Point2D;
+  width_m: number;
+  swing_direction?: string | null;
+  is_external_entrance: boolean;
+  verification_status: string;
+}
+
+export interface WindowDefinition {
+  window_id: string;
+  floor_id: string;
+  room_id: string;
+  wall_id?: string | null;
+  position: Point2D;
+  width_m: number;
+  height_m: number;
+  orientation?: string | null;
+  is_exterior: boolean;
+  verification_status: string;
+}
+
+export interface ArchitecturalCheckResult {
+  check_id: string;
+  dimension: 'GEOMETRIC_VALIDITY' | 'FUNCTIONAL_ACCESSIBILITY' | 'USER_REQUIREMENTS' | 'REGULATORY_COMPLIANCE' | 'DESIGN_QUALITY';
+  status: 'PASS' | 'FAIL' | 'WARNING' | 'NOT_EVALUABLE' | 'NOT_APPLICABLE';
+  severity: 'ERROR' | 'WARNING' | 'INFO';
+  affected_room_ids: string[];
+  affected_floor_ids: string[];
+  measured_value?: number | null;
+  required_value?: number | null;
+  unit?: string | null;
+  source_rule_id?: string | null;
+  message: string;
+}
+
+export interface IndependentValidationReport {
+  validator_version: string;
+  overall_status: 'VALID_WITH_VERIFIED_CONSTRAINTS' | 'VALID_WITH_REGULATORY_UNCERTAINTY' | 'INVALID' | 'REQUIRES_REVIEW';
+  is_valid: boolean;
+  geometric_validity: boolean;
+  circulation_validity: boolean;
+  door_validity: boolean;
+  window_validity: boolean;
+  staircase_validity: boolean;
+  parking_validity: boolean;
+  user_requirements_validity: boolean;
+  regulatory_validity: boolean;
+  hard_failure_count: number;
+  warning_count: number;
+  not_evaluable_count: number;
+  checks: ArchitecturalCheckResult[];
+}
+
 export interface FloorPlan {
   floor_id: string;
   floor_index: number;
@@ -263,6 +320,8 @@ export interface FloorPlan {
   target_allocated_area: number;
   rooms: RoomPolygon[];
   walls: WallSegment[];
+  doors?: DoorDefinition[];
+  windows?: WindowDefinition[];
 }
 
 export interface GabGenValidation {
@@ -281,6 +340,10 @@ export interface GabGenValidation {
   conflicting_requirements?: string[];
   regulatory_resolution?: RegulatoryResolution;
   preference_evaluations?: PreferenceEvaluationResult[];
+  validation_report?: IndependentValidationReport;
+  isolated_room_ids?: string[];
+  overlapping_pairs?: string[][];
+  unreachable_rooms?: string[];
 }
 
 export interface HeuristicScoreBreakdown {
