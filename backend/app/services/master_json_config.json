@@ -1,0 +1,263 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "name": "ArchAI-Plan Master JSON Field & Synonym Configuration",
+  "version": "1.0.0",
+  "description": "Defines field lookup paths, room type aliases, and unit normalization settings for adapting upstream GAB-Gen outputs to VSAI-Rectifier.",
+
+  "field_mappings": {
+    "project_id": [
+      "project_id",
+      "id",
+      "projectId",
+      "metadata.project_id"
+    ],
+    "project_name": [
+      "project_name",
+      "name",
+      "projectName",
+      "floor_plan.name",
+      "metadata.project_name"
+    ],
+    "orientation": [
+      "land_info.orientation",
+      "orientation",
+      "spatial_metadata.north_direction",
+      "spatial_metadata.orientation",
+      "site.orientation",
+      "site.facing",
+      "metadata.north"
+    ],
+    "units": [
+      "floor_plan.units",
+      "units",
+      "dimensions.units",
+      "metadata.units"
+    ],
+    "rooms": [
+      "floor_plan.rooms",
+      "rooms",
+      "spaces",
+      "layout.rooms",
+      "floor_plan.spaces",
+      "zones"
+    ],
+    "doors": [
+      "floor_plan.doors",
+      "doors",
+      "openings.doors",
+      "entrances",
+      "openings"
+    ],
+    "windows": [
+      "floor_plan.windows",
+      "windows",
+      "openings.windows"
+    ],
+    "walls": [
+      "floor_plan.walls",
+      "walls",
+      "structural.walls"
+    ],
+    "structural_elements": [
+      "floor_plan.structural_elements",
+      "structural_elements",
+      "columns",
+      "pillars",
+      "structural.columns"
+    ],
+    "boundary": [
+      "floor_plan.boundary.coordinates",
+      "floor_plan.boundary",
+      "land_info.boundary_points",
+      "boundary",
+      "site_boundary"
+    ],
+    "area_sqft": [
+      "land_info.area_sqft",
+      "area_sqft",
+      "plot.area_sqft",
+      "site.area_sqft"
+    ]
+  },
+
+  "room_type_aliases": {
+    "living_room": [
+      "living",
+      "living_room",
+      "living room",
+      "sejour",
+      "séjour",
+      "repas",
+      "salon",
+      "lounge",
+      "sitting",
+      "family_room",
+      "family"
+    ],
+    "kitchen": [
+      "kitchen",
+      "cuisine",
+      "cooking",
+      "kitchenette",
+      "cook"
+    ],
+    "master_bedroom": [
+      "master_bedroom",
+      "master bedroom",
+      "master_bed",
+      "master",
+      "chambre_principale",
+      "main_bedroom",
+      "suite"
+    ],
+    "bedroom": [
+      "bedroom",
+      "chambre",
+      "bed",
+      "guest_room",
+      "guest_bed",
+      "children_room",
+      "kids_room"
+    ],
+    "pooja_room": [
+      "pooja",
+      "pooja_room",
+      "pooja room",
+      "puja",
+      "puja_room",
+      "mandir",
+      "prayer",
+      "prayer_room",
+      "temple",
+      "meditation",
+      "sacred"
+    ],
+    "toilet": [
+      "toilet",
+      "wc",
+      "washroom",
+      "bathroom",
+      "bath",
+      "powder_room",
+      "restroom",
+      "salle_de_bain",
+      "eau"
+    ],
+    "store_room": [
+      "store",
+      "store_room",
+      "storage",
+      "cellier",
+      "pantry",
+      "utility",
+      "larder"
+    ],
+    "garage": [
+      "garage",
+      "atelier",
+      "carport",
+      "parking",
+      "workshop"
+    ],
+    "hallway": [
+      "hall",
+      "hallway",
+      "corridor",
+      "passage",
+      "lobby",
+      "entry",
+      "entrance_hall"
+    ],
+    "dining": [
+      "dining",
+      "dining_room",
+      "dining room",
+      "salle_a_manger"
+    ],
+    "staircase": [
+      "staircase",
+      "stairs",
+      "stair",
+      "escalier"
+    ],
+    "courtyard": [
+      "courtyard",
+      "atrium",
+      "open_to_sky",
+      "verandah",
+      "terrace",
+      "terrasse"
+    ]
+  },
+
+  "direction_aliases": {
+    "NORTH": [
+      "North",
+      "N",
+      "top",
+      "up",
+      "NORTH",
+      "uttara"
+    ],
+    "SOUTH": [
+      "South",
+      "S",
+      "bottom",
+      "down",
+      "SOUTH",
+      "dakshina"
+    ],
+    "EAST": [
+      "East",
+      "E",
+      "right",
+      "EAST",
+      "purva"
+    ],
+    "WEST": [
+      "West",
+      "W",
+      "left",
+      "WEST",
+      "paschima",
+      "pashchima"
+    ],
+    "NORTH_EAST": [
+      "North-East",
+      "NE",
+      "top-right",
+      "ishanya"
+    ],
+    "SOUTH_EAST": [
+      "South-East",
+      "SE",
+      "bottom-right",
+      "agneya"
+    ],
+    "SOUTH_WEST": [
+      "South-West",
+      "SW",
+      "bottom-left",
+      "nairutya"
+    ],
+    "NORTH_WEST": [
+      "North-West",
+      "NW",
+      "top-left",
+      "vayavya"
+    ]
+  },
+
+  "coordinate_system_defaults": {
+    "origin": "top_left",
+    "x_axis": "right",
+    "y_axis": "down"
+  },
+
+  "unit_settings": {
+    "default_unit": "mm",
+    "auto_convert_m_to_mm": true,
+    "meter_to_mm_factor": 1000.0,
+    "sqm_to_sqft_factor": 10.7639
+  }
+}
