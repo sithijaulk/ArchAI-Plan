@@ -32,6 +32,8 @@ interface FloorPlan2DViewerProps {
   highlightColor?: string;
   dimOthers?: boolean;
   showVastuGridDefault?: boolean;
+  hideLegend?: boolean;
+  compactTopBar?: boolean;
 }
 
 const ROOM_COLORS: Record<string, { fill: string; stroke: string; text: string }> = {
@@ -52,6 +54,28 @@ function getRoomColor(type?: string, name?: string) {
     if (key.includes(k)) return ROOM_COLORS[k]
   }
   return ROOM_COLORS.default
+}
+
+function getPolygonBBox(points: [number, number][]) {
+  if (!points || points.length === 0) {
+    return { minX: 0, minY: 0, maxX: 0, maxY: 0, width: 0, height: 0, cx: 0, cy: 0 }
+  }
+  const xs = points.map(p => p[0])
+  const ys = points.map(p => p[1])
+  const minX = Math.min(...xs)
+  const maxX = Math.max(...xs)
+  const minY = Math.min(...ys)
+  const maxY = Math.max(...ys)
+  return {
+    minX,
+    minY,
+    maxX,
+    maxY,
+    width: Math.max(maxX - minX, 0.001),
+    height: Math.max(maxY - minY, 0.001),
+    cx: (minX + maxX) / 2,
+    cy: (minY + maxY) / 2,
+  }
 }
 
 function getPolygonCenter(points: [number, number][]): [number, number] {
@@ -79,6 +103,8 @@ export function FloorPlan2DViewer({
   highlightColor = '#ef4444',
   dimOthers = false,
   showVastuGridDefault = false,
+  hideLegend = false,
+  compactTopBar = false,
 }: FloorPlan2DViewerProps) {
   const [hoveredRoom, setHoveredRoom] = useState<Room | null>(null)
   const [showVastuGrid, setShowVastuGrid] = useState<boolean>(showVastuGridDefault)
@@ -101,7 +127,11 @@ export function FloorPlan2DViewer({
     if (boundary.length > 0) allPoints.push(...boundary)
 
     if (allPoints.length === 0) {
-      return { minX: 0, minY: 0, maxX: 100, maxY: 100, width: 100, height: 100 }
+      return { 
+        minX: 0, minY: 0, maxX: 100, maxY: 100, width: 100, height: 100,
+        rawMinX: 0, rawMaxX: 100, rawMinY: 0, rawMaxY: 100, rawWidth: 100, rawHeight: 100,
+        baseDim: 100
+      }
     }
 
     const xs = allPoints.map(p => p[0])
@@ -111,27 +141,37 @@ export function FloorPlan2DViewer({
     const minY = Math.min(...ys)
     const maxY = Math.max(...ys)
 
-    const paddingX = Math.max((maxX - minX) * 0.1, 4)
-    const paddingY = Math.max((maxY - minY) * 0.1, 4)
+    const rawW = Math.max(maxX - minX, 1)
+    const rawH = Math.max(maxY - minY, 1)
+    const baseDim = Math.max(rawW, rawH)
+
+    const paddingX = rawW * 0.08
+    const paddingY = rawH * 0.08
 
     return {
       minX: minX - paddingX,
       minY: minY - paddingY,
       maxX: maxX + paddingX,
       maxY: maxY + paddingY,
-      width: Math.max((maxX - minX) + paddingX * 2, 20),
-      height: Math.max((maxY - minY) + paddingY * 2, 20),
+      width: rawW + paddingX * 2,
+      height: rawH + paddingY * 2,
       rawMinX: minX,
       rawMaxX: maxX,
       rawMinY: minY,
       rawMaxY: maxY,
-      rawWidth: maxX - minX,
-      rawHeight: maxY - minY,
+      rawWidth: rawW,
+      rawHeight: rawH,
+      baseDim,
     }
   }, [rooms, columns, boundary])
 
+  // Only invert Y if the coordinate system explicitly declares y_axis as "up" or origin as "bottom_left"
+  const isYAxisUp = (floorPlan as any)?.coordinate_system?.y_axis === 'up' || (floorPlan as any)?.coordinate_system?.origin === 'bottom_left'
   const toSvgY = (y: number) => {
-    return bounds.minY + bounds.height - (y - bounds.minY)
+    if (isYAxisUp) {
+      return bounds.minY + bounds.height - (y - bounds.minY)
+    }
+    return y
   }
 
   const formatPoints = (points: [number, number][]) => {
@@ -157,33 +197,43 @@ export function FloorPlan2DViewer({
   return (
     <div className="flex flex-col w-full h-full bg-slate-950/70 border border-border/60 rounded-2xl overflow-hidden backdrop-blur">
       {/* Top Status Bar */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-card/60 border-b border-border/40 text-xs">
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="gap-1.5 py-0.5 font-medium border-primary/30 text-primary">
-            <Layers className="w-3.5 h-3.5" /> 2D Vector Blueprint
-          </Badge>
-          <span className="text-muted-foreground">{rooms.length} Rooms</span>
-          {columns.length > 0 && <span className="text-muted-foreground">• {columns.length} Columns</span>}
+      <div className="flex items-center justify-between px-3.5 py-2 bg-card/60 border-b border-border/40 text-xs">
+        <div className="flex items-center gap-2 min-w-0">
+          {!compactTopBar ? (
+            <Badge variant="outline" className="gap-1.5 py-0.5 font-medium border-primary/30 text-primary shrink-0">
+              <Layers className="w-3.5 h-3.5" /> 2D Vector Blueprint
+            </Badge>
+          ) : (
+            <div className="flex items-center gap-1.5 text-primary font-semibold text-xs shrink-0">
+              <Layers className="w-3.5 h-3.5" />
+              <span>Blueprint</span>
+            </div>
+          )}
+          <span className="text-muted-foreground text-[11px] whitespace-nowrap">
+            {rooms.length} Rooms
+            {columns.length > 0 && ` • ${columns.length} Cols`}
+          </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={() => setShowVastuGrid(!showVastuGrid)}
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors border ${
+            className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium transition-colors border shrink-0 ${
               showVastuGrid
                 ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 ring-1 ring-amber-500/30'
                 : 'bg-muted/30 text-muted-foreground border-border/50 hover:text-foreground'
             }`}
           >
             <Grid3X3 className="w-3.5 h-3.5" />
-            <span>9x9 Vastu Grid</span>
+            <span className="whitespace-nowrap">9×9 Grid</span>
           </button>
 
-          <div className="flex items-center gap-1 text-muted-foreground">
-            <Compass className="w-3.5 h-3.5 text-primary" />
-            <span>Orientation:</span>
-            <span className="font-semibold text-foreground">{landInfo?.orientation || 'North'}</span>
+          <div className="flex items-center gap-1 text-muted-foreground text-[11px] shrink-0 whitespace-nowrap">
+            <Compass className="w-3.5 h-3.5 text-primary shrink-0" />
+            <span className="font-semibold text-foreground whitespace-nowrap">
+              {landInfo?.orientation || 'North'}
+            </span>
           </div>
         </div>
       </div>
@@ -235,23 +285,23 @@ export function FloorPlan2DViewer({
               {/* Brahmasthan central core fill */}
               <rect
                 x={vastuGridSectors.x2}
-                y={toSvgY(vastuGridSectors.y3)}
+                y={vastuGridSectors.y2}
                 width={vastuGridSectors.x3 - vastuGridSectors.x2}
-                height={toSvgY(vastuGridSectors.y2) - toSvgY(vastuGridSectors.y3)}
+                height={vastuGridSectors.y3 - vastuGridSectors.y2}
                 fill="rgba(234, 179, 8, 0.12)"
                 stroke="rgba(234, 179, 8, 0.6)"
-                strokeWidth="1.2"
-                strokeDasharray="3,2"
+                strokeWidth={bounds.baseDim * 0.005}
+                strokeDasharray={`${bounds.baseDim * 0.015},${bounds.baseDim * 0.01}`}
               />
               <text
                 x={(vastuGridSectors.x2 + vastuGridSectors.x3) / 2}
-                y={(toSvgY(vastuGridSectors.y2) + toSvgY(vastuGridSectors.y3)) / 2}
+                y={(vastuGridSectors.y2 + vastuGridSectors.y3) / 2}
                 textAnchor="middle"
                 dominantBaseline="middle"
                 fill="#fbbf24"
-                fontSize={Math.max(bounds.width * 0.024, 2.0)}
+                fontSize={bounds.baseDim * 0.024}
                 fontWeight="700"
-                className="font-mono tracking-widest drop-shadow opacity-80"
+                className="font-mono tracking-widest drop-shadow opacity-85"
               >
                 BRAHMASTHAN
               </text>
@@ -259,41 +309,41 @@ export function FloorPlan2DViewer({
               {/* Grid vertical lines */}
               <line
                 x1={vastuGridSectors.x2}
-                y1={toSvgY(vastuGridSectors.y1)}
+                y1={vastuGridSectors.y1}
                 x2={vastuGridSectors.x2}
-                y2={toSvgY(vastuGridSectors.y4)}
+                y2={vastuGridSectors.y4}
                 stroke="rgba(234, 179, 8, 0.4)"
-                strokeWidth="0.8"
-                strokeDasharray="2,2"
+                strokeWidth={bounds.baseDim * 0.003}
+                strokeDasharray={`${bounds.baseDim * 0.01},${bounds.baseDim * 0.01}`}
               />
               <line
                 x1={vastuGridSectors.x3}
-                y1={toSvgY(vastuGridSectors.y1)}
+                y1={vastuGridSectors.y1}
                 x2={vastuGridSectors.x3}
-                y2={toSvgY(vastuGridSectors.y4)}
+                y2={vastuGridSectors.y4}
                 stroke="rgba(234, 179, 8, 0.4)"
-                strokeWidth="0.8"
-                strokeDasharray="2,2"
+                strokeWidth={bounds.baseDim * 0.003}
+                strokeDasharray={`${bounds.baseDim * 0.01},${bounds.baseDim * 0.01}`}
               />
 
               {/* Grid horizontal lines */}
               <line
                 x1={vastuGridSectors.x1}
-                y1={toSvgY(vastuGridSectors.y2)}
+                y1={vastuGridSectors.y2}
                 x2={vastuGridSectors.x4}
-                y2={toSvgY(vastuGridSectors.y2)}
+                y2={vastuGridSectors.y2}
                 stroke="rgba(234, 179, 8, 0.4)"
-                strokeWidth="0.8"
-                strokeDasharray="2,2"
+                strokeWidth={bounds.baseDim * 0.003}
+                strokeDasharray={`${bounds.baseDim * 0.01},${bounds.baseDim * 0.01}`}
               />
               <line
                 x1={vastuGridSectors.x1}
-                y1={toSvgY(vastuGridSectors.y3)}
+                y1={vastuGridSectors.y3}
                 x2={vastuGridSectors.x4}
-                y2={toSvgY(vastuGridSectors.y3)}
+                y2={vastuGridSectors.y3}
                 stroke="rgba(234, 179, 8, 0.4)"
-                strokeWidth="0.8"
-                strokeDasharray="2,2"
+                strokeWidth={bounds.baseDim * 0.003}
+                strokeDasharray={`${bounds.baseDim * 0.01},${bounds.baseDim * 0.01}`}
               />
             </g>
           )}
@@ -304,8 +354,8 @@ export function FloorPlan2DViewer({
               points={formatPoints(boundary)}
               fill="rgba(99, 102, 241, 0.04)"
               stroke="rgba(99, 102, 241, 0.5)"
-              strokeWidth="0.8"
-              strokeDasharray="2,2"
+              strokeWidth={bounds.baseDim * 0.004}
+              strokeDasharray={`${bounds.baseDim * 0.01},${bounds.baseDim * 0.01}`}
             />
           )}
 
@@ -325,8 +375,48 @@ export function FloorPlan2DViewer({
               )
             )
             const color = getRoomColor(room.type, room.name)
-            const [cx, cy] = getPolygonCenter(room.polygon)
+            const bbox = getPolygonBBox(room.polygon)
             const area = calculateArea(room.polygon)
+
+            // Calculate room-fitted font size so labels never overflow small rooms
+            const rW = Math.max(bbox.width, bounds.baseDim * 0.05)
+            const rH = Math.max(bbox.height, bounds.baseDim * 0.05)
+            const charCount = Math.max((room.name || room.type || '').length, 4)
+
+            const maxFontByW = (rW * 0.88) / (charCount * 0.55)
+            const maxFontByH = rH * 0.24
+            const idealFont = Math.min(bounds.baseDim * 0.026, maxFontByW, maxFontByH)
+            const fontSize = Math.max(idealFont, bounds.baseDim * 0.009)
+
+            const strokeWidth = isTargetHighlight 
+              ? bounds.baseDim * 0.012 
+              : (isHovered ? bounds.baseDim * 0.007 : bounds.baseDim * 0.004)
+
+            const cx = bbox.cx
+            const cy = toSvgY(bbox.cy)
+            const nameY = area > 0 ? cy - fontSize * 0.55 : cy
+            const areaY = cy + fontSize * 0.75
+            const areaFontSize = fontSize * 0.8
+
+            // Determine display units
+            const units = (floorPlan as any)?.units?.toLowerCase() || ''
+            let areaDisplay = ''
+            if (units === 'm' || units === 'meters' || units === 'meter') {
+              areaDisplay = `${area.toFixed(1)} m²`
+            } else if (units === 'mm' || units === 'millimeters') {
+              const m2 = area / 1_000_000
+              areaDisplay = m2 >= 0.1 ? `${m2.toFixed(1)} m²` : `${Math.round(area)} mm²`
+            } else if (units === 'ft' || units === 'feet') {
+              areaDisplay = `${Math.round(area)} sqft`
+            } else {
+              if (area > 5000) {
+                areaDisplay = `${(area / 1_000_000).toFixed(1)} m²`
+              } else if (area < 500) {
+                areaDisplay = `${area.toFixed(1)} m²`
+              } else {
+                areaDisplay = `${Math.round(area)} sqft`
+              }
+            }
 
             // Dim others when inspecting a specific room
             const opacity = dimOthers && highlightRoomId && !isTargetHighlight ? 0.22 : 1.0
@@ -348,7 +438,7 @@ export function FloorPlan2DViewer({
                       : (isHovered ? color.fill.replace('0.25', '0.45').replace('0.22', '0.42') : color.fill)
                   }
                   stroke={isTargetHighlight ? highlightColor : color.stroke}
-                  strokeWidth={isTargetHighlight ? '2.8' : (isHovered ? '1.8' : '1.0')}
+                  strokeWidth={strokeWidth}
                   filter={isTargetHighlight ? 'url(#room-highlight-glow)' : undefined}
                   className="transition-all"
                 />
@@ -356,13 +446,13 @@ export function FloorPlan2DViewer({
                 {/* Room Name Label */}
                 <text
                   x={cx}
-                  y={toSvgY(cy) - 1.2}
+                  y={nameY}
                   textAnchor="middle"
                   dominantBaseline="middle"
                   fill={isTargetHighlight ? highlightColor : color.text}
-                  fontSize={Math.max(bounds.width * 0.032, 2.2)}
+                  fontSize={fontSize}
                   fontWeight={isTargetHighlight ? '800' : '600'}
-                  className="pointer-events-none drop-shadow"
+                  className="pointer-events-none drop-shadow select-none"
                 >
                   {room.name || room.type || `Room ${idx + 1}`}
                 </text>
@@ -371,15 +461,15 @@ export function FloorPlan2DViewer({
                 {area > 0 && (
                   <text
                     x={cx}
-                    y={toSvgY(cy) + 1.6}
+                    y={areaY}
                     textAnchor="middle"
                     dominantBaseline="middle"
-                    fill="rgba(255, 255, 255, 0.7)"
-                    fontSize={Math.max(bounds.width * 0.022, 1.6)}
+                    fill="rgba(255, 255, 255, 0.75)"
+                    fontSize={areaFontSize}
                     fontFamily="monospace"
-                    className="pointer-events-none"
+                    className="pointer-events-none select-none"
                   >
-                    {Math.round(area)} sqft
+                    {areaDisplay}
                   </text>
                 )}
               </g>
@@ -393,27 +483,27 @@ export function FloorPlan2DViewer({
               points={formatPoints(col.polygon)}
               fill="#f43f5e"
               stroke="#fb7185"
-              strokeWidth="0.8"
+              strokeWidth={bounds.baseDim * 0.004}
               filter="url(#column-glow)"
             />
           ))}
 
           {/* Interactive Tooltip in Canvas */}
           {hoveredRoom && (
-            <g transform={`translate(${bounds.minX + 2}, ${bounds.minY + bounds.height - 8})`}>
+            <g transform={`translate(${bounds.minX + bounds.baseDim * 0.03}, ${bounds.minY + bounds.height - bounds.baseDim * 0.08})`}>
               <rect
-                width={bounds.width * 0.4}
-                height="6"
-                rx="1"
-                fill="rgba(15, 23, 42, 0.9)"
+                width={Math.min(bounds.width * 0.5, bounds.baseDim * 0.45)}
+                height={bounds.baseDim * 0.055}
+                rx={bounds.baseDim * 0.008}
+                fill="rgba(15, 23, 42, 0.92)"
                 stroke="rgba(56, 189, 248, 0.5)"
-                strokeWidth="0.5"
+                strokeWidth={bounds.baseDim * 0.003}
               />
               <text
-                x="2"
-                y="3.8"
+                x={bounds.baseDim * 0.015}
+                y={bounds.baseDim * 0.035}
                 fill="#38bdf8"
-                fontSize={Math.max(bounds.width * 0.024, 1.8)}
+                fontSize={bounds.baseDim * 0.02}
                 fontFamily="monospace"
                 fontWeight="bold"
               >
@@ -436,36 +526,38 @@ export function FloorPlan2DViewer({
       </div>
 
       {/* Legend & Room Pills */}
-      <div className="p-3.5 bg-card/60 border-t border-border/40 flex flex-wrap items-center gap-2">
-        <span className="text-[11px] font-semibold text-muted-foreground mr-1">Rooms:</span>
-        {rooms.map((room, idx) => {
-          const color = getRoomColor(room.type, room.name)
-          const isTargetHighlight = highlightRoomId && (room.id === highlightRoomId || room.name?.toLowerCase().includes(highlightRoomId.toLowerCase()))
-          return (
-            <div
-              key={room.id || idx}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors cursor-pointer ${
-                isTargetHighlight
-                  ? 'ring-2 ring-red-500 border-red-500 bg-red-500/20'
-                  : (hoveredRoom?.id === room.id ? 'border-primary ring-2 ring-primary/20' : 'border-border/50')
-              }`}
-              style={{ backgroundColor: isTargetHighlight ? undefined : color.fill }}
-              onMouseEnter={() => setHoveredRoom(room)}
-              onMouseLeave={() => setHoveredRoom(null)}
-            >
-              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: isTargetHighlight ? highlightColor : color.stroke }} />
-              <span style={{ color: isTargetHighlight ? '#fff' : color.text }}>{room.name || room.type}</span>
-            </div>
-          )
-        })}
+      {!hideLegend && (
+        <div className="p-3 bg-card/60 border-t border-border/40 flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px] font-semibold text-muted-foreground mr-1">Rooms:</span>
+          {rooms.map((room, idx) => {
+            const color = getRoomColor(room.type, room.name)
+            const isTargetHighlight = highlightRoomId && (room.id === highlightRoomId || room.name?.toLowerCase().includes(highlightRoomId.toLowerCase()))
+            return (
+              <div
+                key={room.id || idx}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium border transition-colors cursor-pointer ${
+                  isTargetHighlight
+                    ? 'ring-2 ring-red-500 border-red-500 bg-red-500/20'
+                    : (hoveredRoom?.id === room.id ? 'border-primary ring-2 ring-primary/20' : 'border-border/50')
+                }`}
+                style={{ backgroundColor: isTargetHighlight ? undefined : color.fill }}
+                onMouseEnter={() => setHoveredRoom(room)}
+                onMouseLeave={() => setHoveredRoom(null)}
+              >
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: isTargetHighlight ? highlightColor : color.stroke }} />
+                <span style={{ color: isTargetHighlight ? '#fff' : color.text }}>{room.name || room.type}</span>
+              </div>
+            )
+          })}
 
-        {columns.length > 0 && (
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border border-red-500/30 bg-red-500/10 text-red-400 ml-auto">
-            <span className="w-2 h-2 rounded-full bg-red-500" />
-            <span>Structural Columns ({columns.length})</span>
-          </div>
-        )}
-      </div>
+          {columns.length > 0 && (
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium border border-red-500/30 bg-red-500/10 text-red-400 ml-auto">
+              <span className="w-2 h-2 rounded-full bg-red-500" />
+              <span>Columns ({columns.length})</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

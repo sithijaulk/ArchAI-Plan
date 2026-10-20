@@ -37,6 +37,7 @@ interface OutputPreviewProps {
   masterJson?: any;
   hide3D?: boolean;
   hideJson?: boolean;
+  highlightRoomId?: string | null;
 }
 
 export function OutputPreview({ 
@@ -45,7 +46,8 @@ export function OutputPreview({
   data, 
   masterJson,
   hide3D = component.includes('vsai'),
-  hideJson = component.includes('vsai')
+  hideJson = component.includes('vsai'),
+  highlightRoomId
 }: OutputPreviewProps) {
   const storeMasterJson = useProjectStore((s) => s.masterJson)
   
@@ -87,6 +89,7 @@ export function OutputPreview({
               floorPlan={floorPlan} 
               landInfo={landInfo} 
               rectificationResult={data} 
+              highlightRoomId={highlightRoomId}
             />
           ) : (
             <div className="bg-card/50 border border-border p-4 rounded-xl min-h-[400px] flex items-center justify-center text-muted-foreground text-center">
@@ -121,6 +124,7 @@ export function OutputPreview({
                 floorPlan={floorPlan} 
                 landInfo={landInfo} 
                 rectificationResult={data} 
+                highlightRoomId={highlightRoomId}
               />
             ) : (
               <div className="bg-card/50 border border-border p-4 rounded-xl min-h-[400px] flex items-center justify-center text-muted-foreground text-center">

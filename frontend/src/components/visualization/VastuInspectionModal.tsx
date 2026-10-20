@@ -109,8 +109,8 @@ export function VastuInspectionModal({
           </Button>
         </div>
 
-        {/* Content Body: Split View */}
-        <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Content Body: Split View with invisible scrollbar */}
+        <div className="flex-1 overflow-y-auto p-5 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           
           {/* Left Canvas: Blueprint with glowing highlighted room */}
           <div className="lg:col-span-7 flex flex-col space-y-2">
@@ -123,7 +123,7 @@ export function VastuInspectionModal({
               </span>
             </div>
 
-            <div className="flex-1 min-h-[350px] w-full border border-border/50 rounded-xl overflow-hidden shadow-inner bg-slate-950/60">
+            <div className="flex-1 min-h-[340px] w-full border border-border/50 rounded-xl overflow-hidden shadow-inner bg-slate-950/60">
               <FloorPlan2DViewer
                 floorPlan={floorPlan}
                 landInfo={landInfo}
@@ -131,10 +131,12 @@ export function VastuInspectionModal({
                 highlightColor={highlightColor}
                 dimOthers={true}
                 showVastuGridDefault={true}
+                hideLegend={true}
+                compactTopBar={true}
               />
             </div>
             <div className="text-[11px] text-muted-foreground text-center">
-              The targeted room is isolated and glowing. 9x9 Vastu Padavinyasa grid & Brahmasthan overlay enabled.
+              The targeted room is isolated and glowing. 9×9 Vastu Padavinyasa grid overlay enabled.
             </div>
           </div>
 
