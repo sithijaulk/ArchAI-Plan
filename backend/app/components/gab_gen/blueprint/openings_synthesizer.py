@@ -64,13 +64,17 @@ def synthesize_doors_and_windows_for_floor(
             ext_boundary = exterior_poly.exterior
             shared_ext = r_poly.boundary.intersection(ext_boundary)
             if not shared_ext.is_empty:
-                if isinstance(shared_ext, LineString):
+                if isinstance(shared_ext, LineString) and shared_ext.length > 0:
                     mid_pt = shared_ext.interpolate(0.5, normalized=True)
                 elif hasattr(shared_ext, "geoms"):
-                    longest_geom = max(shared_ext.geoms, key=lambda g: getattr(g, 'length', 0.0), default=None)
-                    mid_pt = longest_geom.interpolate(0.5, normalized=True) if longest_geom else r_poly.centroid
+                    line_geoms = [g for g in shared_ext.geoms if hasattr(g, 'length') and g.length > 0]
+                    if line_geoms:
+                        longest_geom = max(line_geoms, key=lambda g: g.length)
+                        mid_pt = longest_geom.interpolate(0.5, normalized=True)
+                    else:
+                        mid_pt = shared_ext.centroid if not shared_ext.centroid.is_empty else r_poly.centroid
                 else:
-                    mid_pt = shared_ext.centroid
+                    mid_pt = shared_ext.centroid if not shared_ext.centroid.is_empty else r_poly.centroid
 
                 
                 doors.append(
@@ -140,13 +144,17 @@ def synthesize_doors_and_windows_for_floor(
 
             shared_ext = r_poly.boundary.intersection(ext_boundary)
             if not shared_ext.is_empty and getattr(shared_ext, 'length', 0.0) >= 1.0:
-                if isinstance(shared_ext, LineString):
+                if isinstance(shared_ext, LineString) and shared_ext.length > 0:
                     mid_pt = shared_ext.interpolate(0.5, normalized=True)
                 elif hasattr(shared_ext, "geoms"):
-                    longest = max(shared_ext.geoms, key=lambda g: getattr(g, 'length', 0.0), default=None)
-                    mid_pt = longest.interpolate(0.5, normalized=True) if longest else shared_ext.centroid
+                    line_geoms = [g for g in shared_ext.geoms if hasattr(g, 'length') and g.length > 0]
+                    if line_geoms:
+                        longest = max(line_geoms, key=lambda g: g.length)
+                        mid_pt = longest.interpolate(0.5, normalized=True)
+                    else:
+                        mid_pt = shared_ext.centroid if not shared_ext.centroid.is_empty else r_poly.centroid
                 else:
-                    mid_pt = shared_ext.centroid
+                    mid_pt = shared_ext.centroid if not shared_ext.centroid.is_empty else r_poly.centroid
 
 
                 # Compute approximate orientation vector from room center to window

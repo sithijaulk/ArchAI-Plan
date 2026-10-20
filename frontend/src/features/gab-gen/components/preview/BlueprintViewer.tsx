@@ -250,6 +250,15 @@ export const BlueprintViewer: React.FC<BlueprintViewerProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {isSavingEdit ? (
+            <span className="text-xs text-amber-500 font-medium animate-pulse flex items-center gap-1">
+              Saving...
+            </span>
+          ) : (
+            <span className="text-xs text-emerald-500 font-medium flex items-center gap-1">
+              <CheckCircle2 className="w-3.5 h-3.5" /> Saved (rev {data?.project_revision || 1})
+            </span>
+          )}
           <DownloadImageButton
             filename={`${projectName || 'gab'}-blueprint-2d.png`}
             targetId="gab-2d-canvas"

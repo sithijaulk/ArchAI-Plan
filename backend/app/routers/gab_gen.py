@@ -9,13 +9,14 @@ Enforces real user workflow preconditions:
 - Non-destructively merges Master JSON
 - Secure file upload with magic byte / format validation (Pillow verify & PDF signature)
 """
+import copy
 import io
 import json
 import os
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, Response, status
 from sqlalchemy.orm import Session
 from PIL import Image
 
@@ -64,6 +65,46 @@ def _get_project_or_404(project_id: str, db: Session) -> Project:
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     return project
+
+
+def _safe_survey_path(project_id: str, stored_filename: str) -> str:
+    """
+    Safely resolves the stored survey file path, rejecting path traversal attempts.
+    """
+    if not stored_filename or ".." in stored_filename or "/" in stored_filename or "\\" in stored_filename:
+        raise HTTPException(status_code=400, detail="Invalid filename or path traversal detected.")
+    
+    base_dir = os.path.abspath(os.path.join(settings.upload_dir, "surveys", project_id))
+    full_path = os.path.abspath(os.path.join(base_dir, stored_filename))
+    if not full_path.startswith(base_dir):
+        raise HTTPException(status_code=400, detail="Invalid file path outside survey directory.")
+    return full_path
+
+
+def _check_and_bump_revision(project: Project, db: Session, expected_revision: Optional[int] = None) -> int:
+    """
+    Enforces optimistic concurrency control.
+    If expected_revision is provided, verifies that project.revision matches.
+    If mismatched, raises HTTP 409 Conflict.
+    Increments project.revision atomically and synchronizes project_revision in master_json.
+    """
+    current_rev = int(project.revision or 1)
+    if expected_revision is not None and expected_revision != current_rev:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "PROJECT_STALE_REVISION",
+                "message": f"Stale revision conflict. Expected {expected_revision}, but project is currently at revision {current_rev}.",
+                "expected_revision": expected_revision,
+                "current_revision": current_rev
+            }
+        )
+    next_rev = current_rev + 1
+    project.revision = next_rev
+    if isinstance(project.master_json, dict):
+        project.master_json["project_revision"] = next_rev
+    return next_rev
 
 
 def _validate_file_content(contents: bytes, ext: str):
@@ -204,7 +245,7 @@ def remove_survey_file(
     source_file = mj.get("input_metadata", {}).get("source_file")
 
     if source_file and source_file.get("stored_filename"):
-        stored_path = os.path.join(settings.upload_dir, "surveys", project_id, source_file["stored_filename"])
+        stored_path = _safe_survey_path(project_id, source_file["stored_filename"])
         if os.path.exists(stored_path):
             try:
                 os.remove(stored_path)
@@ -446,6 +487,12 @@ def generate_blueprint(
             allow_research_test=dev_test_mode
         )
 
+        # Bump project revision for newly generated blueprint
+        next_rev = int(project.revision or 1) + 1
+        project.revision = next_rev
+        if isinstance(output.master_json, dict):
+            output.master_json["project_revision"] = next_rev
+
         # Update Project Master JSON non-destructively
         project.master_json = output.master_json
         project.current_component = "gab_gen"
@@ -494,7 +541,7 @@ def extract_survey_ocr(
             detail="No uploaded survey/deed plan found. Please upload a file first."
         )
 
-    stored_path = os.path.join(settings.upload_dir, "surveys", project_id, source_file["stored_filename"])
+    stored_path = _safe_survey_path(project_id, source_file["stored_filename"])
     if not os.path.exists(stored_path):
         raise HTTPException(status_code=404, detail="Uploaded survey file not found on disk.")
 
@@ -532,13 +579,16 @@ def extract_survey_ocr(
 def edit_blueprint_room(
     project_id: str,
     payload: Dict[str, Any],
+    expected_revision: Optional[int] = Query(default=None, ge=1),
     db: Session = Depends(get_db)
 ):
     """
     Validates and applies a live room geometry modification.
     Enforces buildable footprint boundaries and room overlap constraints.
+    Supports optimistic concurrency check using expected_revision.
     """
     project = _get_project_or_404(project_id, db)
+    _check_and_bump_revision(project, db, expected_revision or payload.get("expected_revision"))
     mj = project.master_json or {}
 
     room_id = payload.get("room_id")
@@ -588,7 +638,8 @@ def edit_blueprint_room(
     return {
         "valid": True,
         "message": "Room edited successfully",
-        "floor_plan": mj["floor_plan"]
+        "floor_plan": mj["floor_plan"],
+        "revision": project.revision
     }
 
 
@@ -596,10 +647,12 @@ def edit_blueprint_room(
 def remove_blueprint_room(
     project_id: str,
     payload: Dict[str, Any],
+    expected_revision: Optional[int] = Query(default=None, ge=1),
     db: Session = Depends(get_db)
 ):
     """Removes a non-structural room from the generated floor plan."""
     project = _get_project_or_404(project_id, db)
+    _check_and_bump_revision(project, db, expected_revision or payload.get("expected_revision"))
     mj = project.master_json or {}
     room_id = payload.get("room_id")
     if not room_id:
@@ -636,10 +689,12 @@ def remove_blueprint_room(
 def add_blueprint_room(
     project_id: str,
     payload: Dict[str, Any],
+    expected_revision: Optional[int] = Query(default=None, ge=1),
     db: Session = Depends(get_db)
 ):
     """Adds a room polygon to a designated floor."""
     project = _get_project_or_404(project_id, db)
+    _check_and_bump_revision(project, db, expected_revision or payload.get("expected_revision"))
     mj = project.master_json or {}
     target_floor_id = payload.get("target_floor_id", "F0")
     room_data = payload.get("room_data", {})
@@ -667,14 +722,21 @@ def add_blueprint_room(
     })
     mj["edit_history"] = history
     project.master_json = mj
+    db.commit()
+
+    return {"valid": True, "message": "Room added successfully", "floor_plan": mj["floor_plan"], "created_room_id": res.get("created_room_id"), "revision": project.revision}
+
+
 @router.post("/edit-door")
 def edit_blueprint_door(
     project_id: str,
     payload: Dict[str, Any],
+    expected_revision: Optional[int] = Query(default=None, ge=1),
     db: Session = Depends(get_db)
 ):
     """Edits an explicit door position and width with circulation revalidation."""
     project = _get_project_or_404(project_id, db)
+    _check_and_bump_revision(project, db, expected_revision or payload.get("expected_revision"))
     mj = project.master_json or {}
     door_id = payload.get("door_id")
     target_floor_id = payload.get("target_floor_id")
@@ -707,17 +769,19 @@ def edit_blueprint_door(
     project.master_json = mj
     db.commit()
 
-    return {"valid": True, "message": "Door edited successfully", "floor_plan": mj["floor_plan"]}
+    return {"valid": True, "message": "Door edited successfully", "floor_plan": mj["floor_plan"], "revision": project.revision}
 
 
 @router.post("/edit-window")
 def edit_blueprint_window(
     project_id: str,
     payload: Dict[str, Any],
+    expected_revision: Optional[int] = Query(default=None, ge=1),
     db: Session = Depends(get_db)
 ):
     """Edits an explicit exterior window position and dimensions."""
     project = _get_project_or_404(project_id, db)
+    _check_and_bump_revision(project, db, expected_revision or payload.get("expected_revision"))
     mj = project.master_json or {}
     window_id = payload.get("window_id")
     target_floor_id = payload.get("target_floor_id")
@@ -751,17 +815,19 @@ def edit_blueprint_window(
     project.master_json = mj
     db.commit()
 
-    return {"valid": True, "message": "Window edited successfully", "floor_plan": mj["floor_plan"]}
+    return {"valid": True, "message": "Window edited successfully", "floor_plan": mj["floor_plan"], "revision": project.revision}
 
 
 @router.post("/change-roof")
 def change_blueprint_roof_endpoint(
     project_id: str,
     payload: Dict[str, Any],
+    expected_revision: Optional[int] = Query(default=None, ge=1),
     db: Session = Depends(get_db)
 ):
     """Changes the roof type and regenerates validated 3D roof geometry."""
     project = _get_project_or_404(project_id, db)
+    _check_and_bump_revision(project, db, expected_revision or payload.get("expected_revision"))
     mj = project.master_json or {}
     new_roof_type = payload.get("roof_type")
     pitch_deg = payload.get("pitch_angle_deg")
@@ -796,17 +862,21 @@ def change_blueprint_roof_endpoint(
     return {
         "valid": True,
         "message": f"Roof changed to '{new_roof_type}' successfully",
-        "roof_geometry": roof_dict
+        "roof_geometry": roof_dict,
+        "revision": project.revision
     }
 
 
 @router.post("/undo-edit")
 def undo_last_blueprint_edit(
     project_id: str,
+    payload: Optional[Dict[str, Any]] = None,
+    expected_revision: Optional[int] = Query(default=None, ge=1),
     db: Session = Depends(get_db)
 ):
     """Undoes the last accepted edit transaction using edit history tracking."""
     project = _get_project_or_404(project_id, db)
+    _check_and_bump_revision(project, db, expected_revision or (payload.get("expected_revision") if payload else None))
     mj = project.master_json or {}
     history = mj.get("edit_history", [])
     if not history:
@@ -831,27 +901,35 @@ def undo_last_blueprint_edit(
         "valid": True,
         "message": f"Undid action '{last_action.get('action')}'",
         "floor_plan": mj["floor_plan"],
-        "roof_geometry": mj.get("roof_geometry")
+        "roof_geometry": mj.get("roof_geometry"),
+        "revision": project.revision
     }
 
 
 
 @router.get("/result")
-def get_gab_gen_result(project_id: str, db: Session = Depends(get_db)):
-    """Returns the latest generated GAB-Gen results."""
+def get_gab_gen_result(project_id: str, response: Response, db: Session = Depends(get_db)):
+    """Returns the latest generated GAB-Gen results with revision headers."""
     project = _get_project_or_404(project_id, db)
     mj = project.master_json or {}
     floor_plan = mj.get("floor_plan", {})
     if not floor_plan.get("floors"):
         raise HTTPException(status_code=404, detail="No GAB-Gen blueprint has been generated yet for this project.")
+    response.headers["ETag"] = f'"{project.revision}"'
+    response.headers["X-Project-Revision"] = str(project.revision)
     return mj
 
 
 @router.get("/master-json")
-def get_gab_master_json(project_id: str, db: Session = Depends(get_db)):
-    """Returns the full Master JSON."""
+def get_gab_master_json(project_id: str, response: Response, db: Session = Depends(get_db)):
+    """Returns the full Master JSON with schema migration and revision headers."""
     project = _get_project_or_404(project_id, db)
-    return project.master_json
+    mj = project.master_json or {}
+    from ..components.gab_gen.output.master_json_builder import migrate_master_json_schema
+    migrated = migrate_master_json_schema(mj)
+    response.headers["ETag"] = f'"{project.revision}"'
+    response.headers["X-Project-Revision"] = str(project.revision)
+    return migrated
 
 
 @router.get("/candidates")
@@ -869,13 +947,16 @@ def get_generated_candidates(project_id: str, db: Session = Depends(get_db)):
 def select_candidate(
     project_id: str,
     payload: Dict[str, Any],
+    expected_revision: Optional[int] = Query(default=None, ge=1),
     db: Session = Depends(get_db)
 ):
     """
     Selects a candidate by ID, activating its floors, footprint, roof, and validation in Master JSON.
     Preserves all unselected candidates in the candidate pool.
+    Supports optimistic concurrency check using expected_revision.
     """
     project = _get_project_or_404(project_id, db)
+    _check_and_bump_revision(project, db, expected_revision or payload.get("expected_revision"))
     mj = project.master_json or {}
     candidate_id = payload.get("candidate_id")
     if not candidate_id:
@@ -917,7 +998,9 @@ def select_candidate(
     })
     mj["edit_history"] = history
 
-    project.master_json = mj
+    from sqlalchemy.orm.attributes import flag_modified
+    project.master_json = copy.deepcopy(mj)
+    flag_modified(project, "master_json")
     db.commit()
     db.refresh(project)
 
@@ -925,7 +1008,8 @@ def select_candidate(
         "message": f"Candidate '{candidate_id}' selected successfully.",
         "selected_candidate_id": candidate_id,
         "floor_plan": mj["floor_plan"],
-        "master_json": mj
+        "master_json": mj,
+        "revision": project.revision
     }
 
 

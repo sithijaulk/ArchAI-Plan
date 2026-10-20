@@ -29,6 +29,78 @@ from ..schemas import (
 
 SCHEMA_VERSION = "2.1.0"
 GAB_GEN_VERSION = "1.5.0"
+SUPPORTED_SCHEMA_VERSIONS = {"1.0.0", "1.1.0", "2.0.0", "2.1.0"}
+
+
+def migrate_master_json_schema(master_json: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Validates and deterministically migrates Master JSON to current SCHEMA_VERSION (2.1.0).
+    Non-destructive: preserves all existing namespaces (e.g. elia, esai, vsai) byte-equivalently.
+    Raises ValueError if master_json has an incompatible future version.
+    """
+    if not isinstance(master_json, dict):
+        raise ValueError("Master JSON must be a dictionary.")
+
+    mj = copy.deepcopy(master_json)
+    raw_version = mj.get("schema_version", "1.0.0")
+
+    # Semantic major version check
+    try:
+        major = int(str(raw_version).split(".")[0])
+    except Exception:
+        major = 1
+
+    current_major = int(SCHEMA_VERSION.split(".")[0])
+    if major > current_major:
+        raise ValueError(f"Unsupported future Master JSON schema version '{raw_version}'. Current major version is {current_major}.")
+
+    # Migration 1: Default top-level properties
+    if "units" not in mj:
+        mj["units"] = "meters"
+    if "edit_history" not in mj:
+        mj["edit_history"] = []
+
+    # Migration 2: Candidate Generation section
+    if "candidate_generation" not in mj and "floor_plan" in mj and mj["floor_plan"].get("floors"):
+        # Backfill candidate_generation from existing single layout
+        cand_id = "FP_CANDIDATE_001"
+        mj["candidate_generation"] = {
+            "generation_run_id": f"RUN_LEGACY_{mj.get('project_id', '000')[:8]}",
+            "generator_version": GAB_GEN_VERSION,
+            "feature_schema_version": "1.0.0",
+            "ranking_method": "legacy_preserved",
+            "requested_candidate_count": 1,
+            "feasible_candidate_count": 1,
+            "rejected_candidate_count": 0,
+            "selected_candidate_id": cand_id,
+            "candidates": [
+                {
+                    "candidate_id": cand_id,
+                    "rank": 1,
+                    "composite_score": 100.0,
+                    "feasibility_status": "feasible",
+                    "footprint_variant": "legacy",
+                    "building_footprint_polygon": mj.get("building_footprint", {}).get("polygon", []),
+                    "building_footprint_area_sqm": mj.get("building_footprint", {}).get("area", 0.0),
+                    "floors": mj.get("floor_plan", {}).get("floors", []),
+                    "roof_geometry": mj.get("roof_geometry")
+                }
+            ]
+        }
+
+    # Migration 3: Survey provenance & scale origin defaults
+    survey = mj.get("survey_extraction")
+    if isinstance(survey, dict):
+        if "georeference_status" not in survey:
+            survey["georeference_status"] = "unreferenced_local"
+        if "selected_page_number" not in survey:
+            survey["selected_page_number"] = 1
+        if "total_pages" not in survey:
+            survey["total_pages"] = 1
+
+    # Upgrade to current schema version
+    mj["schema_version"] = SCHEMA_VERSION
+    return mj
 
 
 def build_gab_master_json(
@@ -152,10 +224,15 @@ def build_gab_master_json(
 
     # Roof Geometry (Vectorized Canonical P0 coordinates)
     from ..blueprint.roof_generator import generate_roof_geometry
+    from shapely.geometry import Polygon
     shapely_buildable = buildable_data.get("shapely_polygon")
     if shapely_buildable is None and buildable_data.get("polygon"):
-        from shapely.geometry import Polygon
-        pts = [(p["x"], p["y"]) for p in buildable_data.get("polygon", [])]
+        pts = []
+        for p in buildable_data.get("polygon", []):
+            if isinstance(p, dict):
+                pts.append((p.get("x", 0.0), p.get("y", 0.0)))
+            elif isinstance(p, (list, tuple)) and len(p) >= 2:
+                pts.append((p[0], p[1]))
         if len(pts) >= 3:
             shapely_buildable = Polygon(pts)
 

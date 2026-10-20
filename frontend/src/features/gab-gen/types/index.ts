@@ -420,6 +420,7 @@ export interface GabGenMasterJson {
   project_id: string;
   project_name: string;
   schema_version?: string;
+  project_revision?: number;
   units: string;
   input_metadata: {
     source_file?: {

@@ -1,0 +1,107 @@
+"""
+Phase 9: Representative Cadastral Survey Benchmark Scenarios.
+Realistic Sri Lankan land parcel topologies, coordinates, boundary lengths,
+and ground-truth metadata for empirical evaluation of GAB-Gen stages.
+"""
+from typing import Any, Dict, List
+from ..schemas import DistanceUnit, EdgeType
+
+
+SURVEY_BENCHMARK_SCENARIOS: List[Dict[str, Any]] = [
+    {
+        "site_id": "WP-COL-REG-01",
+        "name": "Maharagama Suburban Rectangular 10-Perch",
+        "category": "regular_suburban",
+        "description": "Standard rectangular parcel with 30ft access road frontage.",
+        "district": "Colombo",
+        "local_authority": "Maharagama Urban Council",
+        "extent_perches": 10.0,
+        "true_area_sqm": 252.93,
+        "front_road_width_m": 6.0,
+        "true_north_angle": 15.0,
+        "edges": [
+            {"edge_id": "E1", "distance_m": 12.5, "bearing_deg": 90.0, "edge_type": EdgeType.ROAD_FRONT},
+            {"edge_id": "E2", "distance_m": 20.23, "bearing_deg": 180.0, "edge_type": EdgeType.SIDE_RIGHT},
+            {"edge_id": "E3", "distance_m": 12.5, "bearing_deg": 270.0, "edge_type": EdgeType.REAR},
+            {"edge_id": "E4", "distance_m": 20.23, "bearing_deg": 0.0, "edge_type": EdgeType.SIDE_LEFT},
+        ],
+        "expected_setbacks": {"front_m": 3.0, "rear_m": 2.3, "side_m": 1.0},
+    },
+    {
+        "site_id": "WP-GAM-NAR-02",
+        "name": "Kelaniya Narrow Urban Frontage 8-Perch",
+        "category": "narrow_urban",
+        "description": "High-density elongated urban lot with constrained 9.5m frontage.",
+        "district": "Gampaha",
+        "local_authority": "Kelaniya Pradeshiya Sabha",
+        "extent_perches": 8.0,
+        "true_area_sqm": 202.34,
+        "front_road_width_m": 4.5,
+        "true_north_angle": 45.0,
+        "edges": [
+            {"edge_id": "E1", "distance_m": 9.5, "bearing_deg": 45.0, "edge_type": EdgeType.ROAD_FRONT},
+            {"edge_id": "E2", "distance_m": 21.3, "bearing_deg": 135.0, "edge_type": EdgeType.SIDE_RIGHT},
+            {"edge_id": "E3", "distance_m": 9.5, "bearing_deg": 225.0, "edge_type": EdgeType.REAR},
+            {"edge_id": "E4", "distance_m": 21.3, "bearing_deg": 315.0, "edge_type": EdgeType.SIDE_LEFT},
+        ],
+        "expected_setbacks": {"front_m": 3.0, "rear_m": 2.3, "side_m": 1.0},
+    },
+    {
+        "site_id": "WP-KAL-IRR-03",
+        "name": "Panadura Irregular Splayed 12-Perch",
+        "category": "irregular",
+        "description": "Non-orthogonal 5-sided parcel with angled rear boundary.",
+        "district": "Kalutara",
+        "local_authority": "Panadura Urban Council",
+        "extent_perches": 12.0,
+        "true_area_sqm": 303.51,
+        "front_road_width_m": 6.0,
+        "true_north_angle": 0.0,
+        "edges": [
+            {"edge_id": "E1", "distance_m": 14.0, "bearing_deg": 90.0, "edge_type": EdgeType.ROAD_FRONT},
+            {"edge_id": "E2", "distance_m": 18.0, "bearing_deg": 170.0, "edge_type": EdgeType.SIDE_RIGHT},
+            {"edge_id": "E3", "distance_m": 10.0, "bearing_deg": 240.0, "edge_type": EdgeType.REAR},
+            {"edge_id": "E4", "distance_m": 8.0, "bearing_deg": 290.0, "edge_type": EdgeType.REAR},
+            {"edge_id": "E5", "distance_m": 20.0, "bearing_deg": 355.0, "edge_type": EdgeType.SIDE_LEFT},
+        ],
+        "expected_setbacks": {"front_m": 3.0, "rear_m": 2.3, "side_m": 1.0},
+    },
+    {
+        "site_id": "WP-COL-COR-04",
+        "name": "Dehiwala Corner Dual Frontage 15-Perch",
+        "category": "corner_lot",
+        "description": "Corner parcel bounded by two public roadways (front and right).",
+        "district": "Colombo",
+        "local_authority": "Dehiwala-Mount Lavinia Municipal Council",
+        "extent_perches": 15.0,
+        "true_area_sqm": 379.39,
+        "front_road_width_m": 9.0,
+        "true_north_angle": 0.0,
+        "edges": [
+            {"edge_id": "E1", "distance_m": 18.0, "bearing_deg": 90.0, "edge_type": EdgeType.ROAD_FRONT},
+            {"edge_id": "E2", "distance_m": 21.08, "bearing_deg": 180.0, "edge_type": EdgeType.ROAD_FRONT},
+            {"edge_id": "E3", "distance_m": 18.0, "bearing_deg": 270.0, "edge_type": EdgeType.REAR},
+            {"edge_id": "E4", "distance_m": 21.08, "bearing_deg": 0.0, "edge_type": EdgeType.SIDE_LEFT},
+        ],
+        "expected_setbacks": {"front_m": 3.0, "rear_m": 2.3, "side_m": 1.0},
+    },
+    {
+        "site_id": "WP-GAM-LRG-05",
+        "name": "Gampaha Large Estate 20-Perch",
+        "category": "large_estate",
+        "description": "Spacious residential lot allowing substantial footprint and private garden.",
+        "district": "Gampaha",
+        "local_authority": "Gampaha Municipal Council",
+        "extent_perches": 20.0,
+        "true_area_sqm": 505.86,
+        "front_road_width_m": 9.0,
+        "true_north_angle": 10.0,
+        "edges": [
+            {"edge_id": "E1", "distance_m": 22.0, "bearing_deg": 90.0, "edge_type": EdgeType.ROAD_FRONT},
+            {"edge_id": "E2", "distance_m": 23.0, "bearing_deg": 180.0, "edge_type": EdgeType.SIDE_RIGHT},
+            {"edge_id": "E3", "distance_m": 22.0, "bearing_deg": 270.0, "edge_type": EdgeType.REAR},
+            {"edge_id": "E4", "distance_m": 23.0, "bearing_deg": 0.0, "edge_type": EdgeType.SIDE_LEFT},
+        ],
+        "expected_setbacks": {"front_m": 3.0, "rear_m": 2.3, "side_m": 1.0},
+    },
+]
