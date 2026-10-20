@@ -221,13 +221,19 @@ class RegulatoryRule(BaseModel):
     authority: str
     jurisdiction_id: str
     source_document: str
-    source_date: str
+    source_date: Optional[str] = None
     source_reference: Optional[str] = None
     source_url: Optional[str] = None
-    rule_type: str  # setback, ground_coverage, max_height, rear_space
+    legal_instrument_type: Optional[str] = None
+    act_or_regulation_reference: Optional[str] = None
+    clause_reference: Optional[str] = None
+    table_reference: Optional[str] = None
+    page_reference: Optional[str] = None
+    official_source_url: Optional[str] = None
+    rule_type: str  # setback, ground_coverage, max_height, rear_space, room_dimension, etc.
     conditions: Dict[str, Any] = Field(default_factory=dict)
     affected_edge_type: str  # road_front, rear, side, all
-    value: float  # In meters (setback) or ratio (coverage)
+    value: float  # In meters, ratio, sqm
     unit: str = "m"
     effective_date: str
     verification_status: str  # verified, needs_verification, research_test

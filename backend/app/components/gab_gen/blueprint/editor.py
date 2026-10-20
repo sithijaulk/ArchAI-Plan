@@ -67,6 +67,21 @@ def validate_room_edit(
 
     area = round(float(room_poly.area), 2) if room_poly.is_valid else 0.0
 
+    # Statutory minimum room size check (UDA Gazette 2235/54 Sched. 7)
+    target_room = None
+    if target_floor:
+        target_room = next((r for r in target_floor.rooms if r.room_id == room_id), None)
+    if target_room:
+        rt = target_room.type.lower()
+        if "master_bedroom" in rt and area < 9.3:
+            violations.append(f"Master bedroom area ({area:.2f} m²) violates statutory minimum (9.5 m²) under Gazette 2235/54 Schedule 7.")
+        elif "bedroom" in rt and area < 8.3:
+            violations.append(f"Bedroom area ({area:.2f} m²) violates statutory minimum (8.5 m²) under Gazette 2235/54 Schedule 7.")
+        elif "kitchen" in rt and area < 5.3:
+            violations.append(f"Kitchen area ({area:.2f} m²) violates statutory minimum (5.5 m²) under Gazette 2235/54 Schedule 7.")
+        elif ("bathroom" in rt or "toilet" in rt) and area < 1.6:
+            violations.append(f"Bathroom area ({area:.2f} m²) violates statutory minimum (1.7 m²) under Gazette 2235/54 Schedule 7.")
+
     return {
         "valid": len(violations) == 0,
         "violations": violations,

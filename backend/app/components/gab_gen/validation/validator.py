@@ -145,7 +145,7 @@ def validate_gab_geometry(
                 if intersection.area > 0.1:
                     violations.append(f"Rooms '{name_a}' and '{name_b}' on {fl.name} illegally overlap by {intersection.area:.2f} m².")
 
-    # 8. Multi-storey Staircase Alignment Check
+    # 8. Multi-storey Staircase Alignment & Dimension Check
     if expected_storey_count > 1:
         if len(stair_polys) < expected_storey_count:
             violations.append(f"Expected {expected_storey_count} staircase cores, found {len(stair_polys)}.")
@@ -157,6 +157,68 @@ def validate_gab_geometry(
                 min_area = min(base_stair.area, s_poly.area)
                 if min_area > 0 and (intersect_area / min_area) < 0.9:
                     violations.append(f"Staircase core on {f_name} does not vertically align with {base_floor}.")
+
+    # 9. Deterministic Room Dimensions and Ventilation Regulatory Check (UDA Gazette 2235/54 Sched. 7)
+    design_checks = {
+        "room_compliance": [],
+        "coverage_compliance": {},
+        "staircase_compliance": {},
+        "height_compliance": {}
+    }
+
+    if rules:
+        dim_rules = {r.conditions.get("room_type"): r for r in rules if r.rule_type == "room_dimension"}
+        cov_rule = next((r for r in rules if r.rule_type == "ground_coverage"), None)
+        
+        # Ground floor coverage check
+        gf = next((f for f in floors if f.floor_index == 0), None)
+        if gf and land_poly and land_poly.area > 0:
+            gf_area = sum(r.area for r in gf.rooms)
+            actual_cov = gf_area / land_poly.area
+            max_cov = cov_rule.value if cov_rule else 0.65
+            cov_ok = actual_cov <= (max_cov + 0.02) # small numerical buffer
+            design_checks["coverage_compliance"] = {
+                "ground_floor_area_sqm": round(gf_area, 2),
+                "land_area_sqm": round(land_poly.area, 2),
+                "actual_coverage_ratio": round(actual_cov, 3),
+                "permissible_coverage_ratio": max_cov,
+                "compliant": cov_ok
+            }
+            if not cov_ok:
+                violations.append(f"Ground floor coverage ({actual_cov*100:.1f}%) exceeds maximum permissible coverage ({max_cov*100:.1f}%).")
+
+        # Floor-wise room dimensions and clear area check
+        for fl in floors:
+            for rm in fl.rooms:
+                rt = rm.type.lower()
+                applicable_rule = None
+                if "master_bedroom" in rt:
+                    applicable_rule = dim_rules.get("master_bedroom")
+                elif "bedroom" in rt:
+                    applicable_rule = dim_rules.get("bedroom")
+                elif "kitchen" in rt:
+                    applicable_rule = dim_rules.get("kitchen")
+                elif "bathroom" in rt or "toilet" in rt:
+                    applicable_rule = dim_rules.get("bathroom")
+
+                if applicable_rule:
+                    min_area = applicable_rule.value
+                    passed = rm.area >= (min_area - 0.2) # numerical tolerance
+                    check_item = {
+                        "room_id": rm.room_id,
+                        "room_name": rm.name,
+                        "floor": fl.name,
+                        "type": rm.type,
+                        "actual_area": rm.area,
+                        "required_min_area": min_area,
+                        "rule_id": applicable_rule.rule_id,
+                        "compliant": passed
+                    }
+                    design_checks["room_compliance"].append(check_item)
+                    if not passed:
+                        violations.append(
+                            f"Room '{rm.name}' ({rm.area:.2f} m²) on {fl.name} violates statutory minimum area ({min_area} m²) under {applicable_rule.rule_id}."
+                        )
 
     # Status Determination
     if violations:
@@ -193,5 +255,6 @@ def validate_gab_geometry(
         violations=violations,
         warnings=warnings,
         geometry_status=geometry_status,
-        regulatory_status=reg_status
+        regulatory_status=reg_status,
+        design_checks=design_checks
     )

@@ -33,24 +33,28 @@ class RegulatoryEngine:
     def resolve_jurisdiction(cls, reg_context: Optional[RegulatoryContextInput]) -> str:
         """
         Determines the appropriate jurisdiction ID based on the user's location input.
-        Does not invent rules or silently map an unknown authority to an unrelated one.
+        - Colombo Municipal Council strictly maps to 'colombo_municipal_council' (City of Colombo Dev Plan).
+        - All other Municipal Councils, Urban Councils, and Pradeshiya Sabhas across the Western
+          Province (and declared areas) map to 'sri_lanka_uda_standard' (UDA Gazette Extraordinary 2235/54).
+        - Explicit benchmark overrides ('research_test_relaxed') are preserved when requested.
+        - Does not invent rules or silently map an unknown authority to an unrelated one.
         """
         if not reg_context:
             return "sri_lanka_uda_standard"
 
-        # Explicit jurisdiction ID takes precedence if set and recognized
-        if reg_context.jurisdiction_id:
+        # Explicit jurisdiction ID takes precedence if explicitly provided and not default
+        if reg_context.jurisdiction_id and reg_context.jurisdiction_id in ("colombo_municipal_council", "research_test_relaxed"):
             return reg_context.jurisdiction_id
 
-        # Colombo Municipal Council mapping
         auth_name = (reg_context.local_authority_name or "").lower()
         district = (reg_context.district or "").lower()
         auth_type = (reg_context.local_authority_type or "").lower()
 
-        if "colombo municipal council" in auth_name or (auth_type == "municipal_council" and "colombo" in auth_name):
+        # Strict check for Colombo Municipal Council
+        if "colombo municipal council" in auth_name or (auth_type == "municipal_council" and "colombo" in auth_name and "dehiwala" not in auth_name):
             return "colombo_municipal_council"
 
-        # General Urban Development Authority standard applies across urban development declared areas
+        # All 47 local authorities in Western Province fall under UDA Declared Urban Areas (Gazette 2235/54)
         return "sri_lanka_uda_standard"
 
     @classmethod
@@ -87,3 +91,32 @@ class RegulatoryEngine:
                 if edge_type in ("side_left", "side_right") and rule.affected_edge_type == "side":
                     return rule
         return None
+
+    @classmethod
+    def get_max_coverage_rule(cls, rules: List[RegulatoryRule]) -> Optional[RegulatoryRule]:
+        """Finds permissible plot coverage rule."""
+        for rule in rules:
+            if rule.rule_type == "ground_coverage":
+                return rule
+        return None
+
+    @classmethod
+    def get_room_dimension_rules(cls, rules: List[RegulatoryRule]) -> List[RegulatoryRule]:
+        """Returns room dimension rules."""
+        return [r for r in rules if r.rule_type == "room_dimension"]
+
+    @classmethod
+    def get_ceiling_height_rules(cls, rules: List[RegulatoryRule]) -> List[RegulatoryRule]:
+        """Returns ceiling clear height rules."""
+        return [r for r in rules if r.rule_type == "ceiling_height"]
+
+    @classmethod
+    def get_staircase_rules(cls, rules: List[RegulatoryRule]) -> List[RegulatoryRule]:
+        """Returns staircase dimension and clearance rules."""
+        return [r for r in rules if r.rule_type == "staircase"]
+
+    @classmethod
+    def get_ventilation_rules(cls, rules: List[RegulatoryRule]) -> List[RegulatoryRule]:
+        """Returns light and ventilation ratio rules."""
+        return [r for r in rules if r.rule_type == "ventilation_ratio"]
+
