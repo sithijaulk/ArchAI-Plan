@@ -1,8 +1,253 @@
 import { apiClient } from './client';
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface FloorRoom {
+  room_id: string;
+  name: string;
+  room_type: string;
+  area_sqm: number;
+  preference_saved: boolean;
+  preference_revision: number | null;
+  is_orphaned: boolean;
+}
+
+export interface FloorSummary {
+  floor_id: string;
+  floor_name: string;
+  level_index: number;
+  rooms: FloorRoom[];
+}
+
+export interface InteriorContext {
+  project_id: string;
+  project_name: string;
+  floors: FloorSummary[];
+  total_floors: number;
+  total_rooms: number;
+  configured_rooms: number;
+  geometry_staleness: {
+    is_stale: boolean;
+    status: string;
+    geometry_fingerprint: string;
+    stored_fingerprint: string | null;
+    message: string;
+  };
+}
+
+export interface RoomPreferences {
+  id?: string;
+  project_id?: string;
+  floor_id: string;
+  room_id: string;
+  room_type: string;
+  preferences: Record<string, unknown>;
+  preference_revision?: number;
+  is_orphaned?: boolean;
+  geometry_fingerprint?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface EffectivePreferences {
+  room_id: string;
+  floor_id: string;
+  room_type?: string;
+  effective_preferences: Record<string, unknown>;
+  effective?: Record<string, unknown>;
+  sources: Record<string, string> | {
+    building: string[];
+    floor: string[];
+    room: string[];
+  };
+  overridden_keys?: string[];
+  inherited_keys?: string[];
+  specific_assets?: Array<Record<string, unknown>>;
+  custom_constraints?: Array<Record<string, unknown>>;
+  is_orphaned: boolean;
+  preference_revision: number | null;
+}
+
+export interface PreferenceSchema {
+  room_type: string;
+  schema_key: string;
+  specific_section: string | null;
+  fields: Record<string, unknown>;
+  common_fields: Record<string, unknown>;
+}
+
+// ─── API Client ───────────────────────────────────────────────────────────────
+
+const base = (projectId: string) =>
+  `/projects/${projectId}/esai-engine`;
+
 export const esaiApi = {
-  run: async (projectId: string, payload?: unknown): Promise<any> => {
-    const response = await apiClient.post(`/projects/${projectId}/esai-engine/run`, payload ?? {});
+  // Preserved Phase 1 run stub (501 Not Implemented)
+  run: async (projectId: string, payload?: unknown): Promise<unknown> => {
+    const response = await apiClient.post(`${base(projectId)}/run`, payload ?? {});
     return response.data;
+  },
+
+  // ── Context ────────────────────────────────────────────────────────────────
+
+  getContext: async (projectId: string) => {
+    const r = await apiClient.get(`${base(projectId)}/context`);
+    return r.data;
+  },
+
+  /** Returns floors + rooms + per-room preference completion status */
+  getInteriorContext: async (projectId: string): Promise<InteriorContext> => {
+    const r = await apiClient.get(`${base(projectId)}/interior-context`);
+    return r.data;
+  },
+
+  getFloors: async (projectId: string) => {
+    const r = await apiClient.get(`${base(projectId)}/floors`);
+    return r.data;
+  },
+
+  getRooms: async (projectId: string, floorId?: string) => {
+    const params = floorId ? { floor_id: floorId } : {};
+    const r = await apiClient.get(`${base(projectId)}/rooms`, { params });
+    return r.data;
+  },
+
+  getRoom: async (projectId: string, roomId: string) => {
+    const r = await apiClient.get(`${base(projectId)}/rooms/${roomId}`);
+    return r.data;
+  },
+
+  checkStaleness: async (projectId: string) => {
+    const r = await apiClient.get(`${base(projectId)}/staleness`);
+    return r.data;
+  },
+
+  // ── Building Preferences ───────────────────────────────────────────────────
+
+  getBuildingPreferences: async (projectId: string) => {
+    const r = await apiClient.get(`${base(projectId)}/preferences/building`);
+    return r.data;
+  },
+
+  saveBuildingPreferences: async (
+    projectId: string,
+    prefs: Record<string, unknown>,
+    expectedRevision?: number
+  ) => {
+    const params = expectedRevision !== undefined ? { expected_revision: expectedRevision } : {};
+    const r = await apiClient.put(`${base(projectId)}/preferences/building`, prefs, { params });
+    return r.data;
+  },
+
+  patchBuildingPreferences: async (
+    projectId: string,
+    patch: Record<string, unknown>,
+    expectedRevision?: number
+  ) => {
+    const params = expectedRevision !== undefined ? { expected_revision: expectedRevision } : {};
+    const r = await apiClient.patch(`${base(projectId)}/preferences/building`, patch, { params });
+    return r.data;
+  },
+
+  // ── Floor Preferences ──────────────────────────────────────────────────────
+
+  getFloorPreferences: async (projectId: string, floorId: string) => {
+    const r = await apiClient.get(`${base(projectId)}/preferences/floors/${floorId}`);
+    return r.data;
+  },
+
+  saveFloorPreferences: async (
+    projectId: string,
+    floorId: string,
+    prefs: Record<string, unknown>,
+    expectedRevision?: number
+  ) => {
+    const params = expectedRevision !== undefined ? { expected_revision: expectedRevision } : {};
+    const r = await apiClient.put(`${base(projectId)}/preferences/floors/${floorId}`, prefs, { params });
+    return r.data;
+  },
+
+  patchFloorPreferences: async (
+    projectId: string,
+    floorId: string,
+    patch: Record<string, unknown>,
+    expectedRevision?: number
+  ) => {
+    const params = expectedRevision !== undefined ? { expected_revision: expectedRevision } : {};
+    const r = await apiClient.patch(`${base(projectId)}/preferences/floors/${floorId}`, patch, { params });
+    return r.data;
+  },
+
+  resetFloorPreferences: async (projectId: string, floorId: string) => {
+    await apiClient.delete(`${base(projectId)}/preferences/floors/${floorId}`);
+  },
+
+  // ── Room Preferences ───────────────────────────────────────────────────────
+
+  listRoomPreferences: async (projectId: string, floorId?: string) => {
+    const params = floorId ? { floor_id: floorId } : {};
+    const r = await apiClient.get(`${base(projectId)}/preferences/rooms`, { params });
+    return r.data;
+  },
+
+  getRoomPreferences: async (projectId: string, roomId: string): Promise<RoomPreferences | null> => {
+    const r = await apiClient.get(`${base(projectId)}/preferences/rooms/${roomId}`);
+    if (r.data?.preferences === null) return null;
+    return r.data;
+  },
+
+  saveRoomPreferences: async (
+    projectId: string,
+    roomId: string,
+    prefs: Record<string, unknown>,
+    expectedRevision?: number
+  ): Promise<RoomPreferences> => {
+    const params = expectedRevision !== undefined ? { expected_revision: expectedRevision } : {};
+    const r = await apiClient.put(`${base(projectId)}/preferences/rooms/${roomId}`, prefs, { params });
+    return r.data;
+  },
+
+  patchRoomPreferences: async (
+    projectId: string,
+    roomId: string,
+    patch: Record<string, unknown>,
+    expectedRevision?: number
+  ): Promise<RoomPreferences> => {
+    const params = expectedRevision !== undefined ? { expected_revision: expectedRevision } : {};
+    const r = await apiClient.patch(`${base(projectId)}/preferences/rooms/${roomId}`, patch, { params });
+    return r.data;
+  },
+
+  resetRoomPreferences: async (projectId: string, roomId: string): Promise<void> => {
+    await apiClient.delete(`${base(projectId)}/preferences/rooms/${roomId}`);
+  },
+
+  getEffectivePreferences: async (
+    projectId: string,
+    roomId: string,
+    floorId: string
+  ): Promise<EffectivePreferences> => {
+    const r = await apiClient.get(
+      `${base(projectId)}/preferences/rooms/${roomId}/effective`,
+      { params: { floor_id: floorId } }
+    );
+    return r.data;
+  },
+
+  // ── Schema & Orphan Detection ─────────────────────────────────────────────
+
+  getPreferenceSchema: async (projectId: string, roomType: string): Promise<PreferenceSchema> => {
+    const r = await apiClient.get(`${base(projectId)}/preferences/schema/${roomType}`);
+    return r.data;
+  },
+
+  detectOrphans: async (projectId: string) => {
+    const r = await apiClient.post(`${base(projectId)}/preferences/detect-orphans`);
+    return r.data;
+  },
+
+  validateInput: async (projectId: string) => {
+    const r = await apiClient.post(`${base(projectId)}/validate-input`);
+    return r.data;
   },
 };

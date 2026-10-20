@@ -264,3 +264,235 @@ def list_standards(enforceable_only: bool = False, db: Session = Depends(get_db)
 def get_room_profiles(db: Session = Depends(get_db)):
     service = EsaiEngineService(db)
     return {"profiles": service.get_room_profiles()}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# PHASE 2: Multi-Level Client Preference Hierarchy
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Building-level preferences
+@project_router.get("/preferences/building")
+def get_building_preferences(project_id: str, db: Session = Depends(get_db)):
+    _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    prefs = service.get_building_preferences(project_id)
+    return {"preferences": prefs}
+
+
+@project_router.put("/preferences/building")
+def save_building_preferences(
+    project_id: str,
+    payload: Dict[str, Any],
+    expected_revision: Optional[int] = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    return service.save_building_preferences(project, payload, expected_revision=expected_revision)
+
+
+@project_router.patch("/preferences/building")
+def patch_building_preferences(
+    project_id: str,
+    payload: Dict[str, Any],
+    expected_revision: Optional[int] = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    """Merge payload into existing building preferences (PATCH semantics)."""
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    existing = service.get_building_preferences(project_id)
+    merged = (existing["preferences"] if existing and existing.get("preferences") else {})
+    merged.update(payload)
+    return service.save_building_preferences(project, merged, expected_revision=expected_revision)
+
+
+# Floor-level preferences
+@project_router.get("/preferences/floors/{floor_id}")
+def get_floor_preferences(project_id: str, floor_id: str, db: Session = Depends(get_db)):
+    _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    prefs = service.get_floor_preferences(project_id, floor_id)
+    return {"floor_id": floor_id, "preferences": prefs}
+
+
+@project_router.put("/preferences/floors/{floor_id}")
+def save_floor_preferences(
+    project_id: str,
+    floor_id: str,
+    payload: Dict[str, Any],
+    expected_revision: Optional[int] = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    return service.save_floor_preferences(project, floor_id, payload, expected_revision=expected_revision)
+
+
+@project_router.patch("/preferences/floors/{floor_id}")
+def patch_floor_preferences(
+    project_id: str,
+    floor_id: str,
+    payload: Dict[str, Any],
+    expected_revision: Optional[int] = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    existing = service.get_floor_preferences(project_id, floor_id)
+    merged = (existing["preferences"] if existing and existing.get("preferences") else {})
+    merged.update(payload)
+    return service.save_floor_preferences(project, floor_id, merged, expected_revision=expected_revision)
+
+
+@project_router.delete("/preferences/floors/{floor_id}", status_code=status.HTTP_204_NO_CONTENT)
+def reset_floor_preferences(project_id: str, floor_id: str, db: Session = Depends(get_db)):
+    """Delete floor overrides; rooms fall back to building defaults."""
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    service.reset_floor_preferences(project, floor_id)
+
+
+# Room-level preferences
+@project_router.get("/preferences/rooms")
+def list_room_preferences(
+    project_id: str,
+    floor_id: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    return {"room_preferences": service.list_room_preferences(project_id, floor_id=floor_id)}
+
+
+@project_router.get("/preferences/rooms/{room_id}")
+def get_room_preferences(project_id: str, room_id: str, db: Session = Depends(get_db)):
+    _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    prefs = service.get_room_preferences(project_id, room_id)
+    if prefs is None:
+        return {"room_id": room_id, "preferences": None, "note": "No saved preferences. Room will inherit from floor/building defaults."}
+    return prefs
+
+
+@project_router.put("/preferences/rooms/{room_id}")
+def save_room_preferences(
+    project_id: str,
+    room_id: str,
+    payload: Dict[str, Any],
+    expected_revision: Optional[int] = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    return service.save_room_preferences(project, room_id, payload, expected_revision=expected_revision)
+
+
+@project_router.patch("/preferences/rooms/{room_id}")
+def patch_room_preferences(
+    project_id: str,
+    room_id: str,
+    payload: Dict[str, Any],
+    expected_revision: Optional[int] = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    return service.patch_room_preferences(project, room_id, payload, expected_revision=expected_revision)
+
+
+@project_router.delete("/preferences/rooms/{room_id}", status_code=status.HTTP_204_NO_CONTENT)
+def reset_room_preferences(project_id: str, room_id: str, db: Session = Depends(get_db)):
+    """Reset a room's preferences to inherited; does not delete the room itself."""
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    service.reset_room_preferences(project, room_id)
+
+
+# Effective preference resolution
+@project_router.get("/preferences/rooms/{room_id}/effective")
+def get_effective_room_preferences(
+    project_id: str,
+    room_id: str,
+    floor_id: str = Query(..., description="Floor ID the room belongs to"),
+    db: Session = Depends(get_db),
+):
+    """
+    Resolve and return the effective preferences for a room.
+    Merges building → floor → room in order; more specific wins.
+    Returns both the effective result and per-level source attribution.
+    """
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    return service.get_effective_preferences(project, room_id, floor_id)
+
+
+# Room-type preference schema (for dynamic form building on the frontend)
+@project_router.get("/preferences/schema/{room_type}")
+def get_preference_schema(project_id: str, room_type: str, db: Session = Depends(get_db)):
+    _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    return service.get_preference_schema_for_room_type(room_type)
+
+
+@global_router.get("/preference-schema/{room_type}")
+def get_preference_schema_global(room_type: str, db: Session = Depends(get_db)):
+    service = EsaiEngineService(db)
+    return service.get_preference_schema_for_room_type(room_type)
+
+
+# Orphan detection
+@project_router.post("/preferences/detect-orphans")
+def detect_orphaned_preferences(project_id: str, db: Session = Depends(get_db)):
+    """
+    Scan saved preferences and mark any whose room_id no longer exists
+    in the current project geometry as orphaned.
+    """
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    return service.detect_orphaned_preferences(project)
+
+
+# Interior context summary (floors + rooms + saved preference status)
+@project_router.get("/interior-context")
+def get_interior_context(project_id: str, db: Session = Depends(get_db)):
+    """
+    Returns full floors/rooms list from geometry plus preference completion status per room.
+    Used by the frontend navigator to show which rooms have been configured.
+    """
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    floors = service.get_floors(project)
+    saved_prefs = {r["room_id"]: r for r in service.list_room_preferences(project_id)}
+
+    floors_out = []
+    for floor in floors:
+        rooms_out = []
+        for room in floor.rooms:
+            saved = saved_prefs.get(room.room_id)
+            rooms_out.append({
+                "room_id": room.room_id,
+                "name": room.name,
+                "room_type": room.room_type.value,
+                "area_sqm": room.area_sqm,
+                "preference_saved": saved is not None,
+                "preference_revision": saved["preference_revision"] if saved else None,
+                "is_orphaned": saved["is_orphaned"] if saved else False,
+            })
+        floors_out.append({
+            "floor_id": floor.floor_id,
+            "floor_name": floor.floor_name,
+            "level_index": floor.level_index,
+            "rooms": rooms_out,
+        })
+
+    staleness = service.check_geometry_staleness(project)
+    return {
+        "project_id": project_id,
+        "project_name": project.project_name,
+        "floors": floors_out,
+        "total_floors": len(floors_out),
+        "total_rooms": sum(len(f["rooms"]) for f in floors_out),
+        "configured_rooms": sum(1 for p in saved_prefs.values() if not p["is_orphaned"]),
+        "geometry_staleness": staleness,
+    }

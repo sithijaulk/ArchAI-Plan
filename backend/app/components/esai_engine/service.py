@@ -430,3 +430,600 @@ class EsaiEngineService:
 
     def delete_saved_configuration(self, project_id: str, config_id: str) -> bool:
         return self.db_repo.delete_saved_config(project_id, config_id)
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Phase 2: Multi-level Preference Hierarchy
+    # ──────────────────────────────────────────────────────────────────────────
+
+    def _get_geo_fingerprint(self, project: Project) -> str:
+        structural_input = self.get_structural_context(project)
+        return compute_geometry_fingerprint(structural_input)
+
+    def _assert_floor_exists(self, project: Project, floor_id: str) -> None:
+        floors = self.get_floors(project)
+        if not any(f.floor_id == floor_id for f in floors):
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Floor '{floor_id}' not found in project geometry."
+            )
+
+    def _assert_room_exists(self, project: Project, room_id: str) -> None:
+        room = self.get_room_by_id(project, room_id)
+        if not room:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Room '{room_id}' not found in project geometry."
+            )
+
+    def _check_revision(self, project: Project, expected_revision: Optional[int]) -> None:
+        if expected_revision is not None:
+            current_rev = int(getattr(project, "revision", 1) or 1)
+            if current_rev != expected_revision:
+                raise HTTPException(
+                    status_code=http_status.HTTP_409_CONFLICT,
+                    detail={
+                        "code": "PROJECT_STALE_REVISION",
+                        "message": "Project changed since the supplied revision; reload before retrying.",
+                        "expected_revision": expected_revision,
+                        "current_revision": current_rev,
+                    }
+                )
+
+    # ── Building Preferences ──────────────────────────────────────────────────
+
+    def get_building_preferences(self, project_id: str) -> Optional[Dict[str, Any]]:
+        record = self.db_repo.get_design_preference(project_id)
+        if not record:
+            return None
+        return {
+            "id": record.id,
+            "project_id": record.project_id,
+            "preferences": record.preferences_json,
+            "geometry_fingerprint": record.geometry_fingerprint,
+            "created_at": record.created_at.isoformat() if record.created_at else None,
+            "updated_at": record.updated_at.isoformat() if record.updated_at else None,
+        }
+
+    def save_building_preferences(
+        self,
+        project: Project,
+        preferences_data: Dict[str, Any],
+        expected_revision: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        self._check_revision(project, expected_revision)
+        geo_fingerprint = self._get_geo_fingerprint(project)
+
+        try:
+            record = self.db_repo.upsert_design_preference(
+                project_id=project.id,
+                preferences_data=preferences_data,
+                geometry_fingerprint=geo_fingerprint,
+                auto_commit=False,
+            )
+            master_copy = deepcopy(project.master_json or {})
+            interior_layout = master_copy.setdefault("interior_layout", {})
+            pref_section = interior_layout.setdefault("preferences", {})
+            if isinstance(preferences_data, dict):
+                pref_section.update(preferences_data)
+            pref_section["building_defaults"] = preferences_data
+            interior_layout["geometry_fingerprint"] = geo_fingerprint
+            processing = master_copy.setdefault("processing", {})
+            esai_proc = processing.setdefault("esai_engine", {})
+            esai_proc["last_preferences_update"] = datetime.now(timezone.utc).isoformat()
+
+            project.master_json = master_copy
+            project.revision = (getattr(project, "revision", 1) or 1) + 1
+            self.db.commit()
+            self.db.refresh(record)
+            self.db.refresh(project)
+        except Exception:
+            self.db.rollback()
+            raise
+
+        return {
+            "id": record.id,
+            "project_id": record.project_id,
+            "preferences": record.preferences_json,
+            "geometry_fingerprint": record.geometry_fingerprint,
+        }
+
+    # Kept for backward compatibility with existing Phase 1 endpoints
+    def get_design_preferences(self, project_id: str) -> Optional[Dict[str, Any]]:
+        return self.get_building_preferences(project_id)
+
+    def save_design_preferences(
+        self,
+        project: Project,
+        preferences_data: Dict[str, Any],
+        expected_revision: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        return self.save_building_preferences(project, preferences_data, expected_revision)
+
+    # ── Floor Preferences ─────────────────────────────────────────────────────
+
+    def get_floor_preferences(self, project_id: str, floor_id: str) -> Optional[Dict[str, Any]]:
+        record = self.db_repo.get_floor_preference(project_id, floor_id)
+        if not record:
+            return None
+        return {
+            "id": record.id,
+            "project_id": record.project_id,
+            "floor_id": record.floor_id,
+            "preferences": record.preferences_json,
+            "geometry_fingerprint": record.geometry_fingerprint,
+            "created_at": record.created_at.isoformat() if record.created_at else None,
+            "updated_at": record.updated_at.isoformat() if record.updated_at else None,
+        }
+
+    def save_floor_preferences(
+        self,
+        project: Project,
+        floor_id: str,
+        preferences_data: Dict[str, Any],
+        expected_revision: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        self._check_revision(project, expected_revision)
+        self._assert_floor_exists(project, floor_id)
+        geo_fingerprint = self._get_geo_fingerprint(project)
+
+        try:
+            record = self.db_repo.upsert_floor_preference(
+                project_id=project.id,
+                floor_id=floor_id,
+                preferences_data=preferences_data,
+                geometry_fingerprint=geo_fingerprint,
+                auto_commit=False,
+            )
+            master_copy = deepcopy(project.master_json or {})
+            interior_layout = master_copy.setdefault("interior_layout", {})
+            pref_section = interior_layout.setdefault("preferences", {})
+            floors_section = pref_section.setdefault("floors", {})
+            floors_section[floor_id] = preferences_data
+            interior_layout["geometry_fingerprint"] = geo_fingerprint
+
+            processing = master_copy.setdefault("processing", {})
+            esai_proc = processing.setdefault("esai_engine", {})
+            esai_proc["last_preferences_update"] = datetime.now(timezone.utc).isoformat()
+
+            project.master_json = master_copy
+            project.revision = (getattr(project, "revision", 1) or 1) + 1
+            self.db.commit()
+            self.db.refresh(record)
+            self.db.refresh(project)
+        except Exception:
+            self.db.rollback()
+            raise
+
+        return {
+            "id": record.id,
+            "project_id": record.project_id,
+            "floor_id": record.floor_id,
+            "preferences": record.preferences_json,
+            "geometry_fingerprint": record.geometry_fingerprint,
+        }
+
+    def reset_floor_preferences(self, project: Project, floor_id: str) -> bool:
+        """Delete the floor override; rooms fall back to building defaults."""
+        deleted = self.db_repo.delete_floor_preference(project.id, floor_id)
+        if deleted:
+            master_copy = deepcopy(project.master_json or {})
+            interior_layout = master_copy.get("interior_layout", {})
+            floors_section = interior_layout.get("preferences", {}).get("floors", {})
+            floors_section.pop(floor_id, None)
+            project.master_json = master_copy
+            project.revision = (getattr(project, "revision", 1) or 1) + 1
+            self.db.commit()
+            self.db.refresh(project)
+        return deleted
+
+    # ── Room Preferences ──────────────────────────────────────────────────────
+
+    def get_room_preferences(self, project_id: str, room_id: str) -> Optional[Dict[str, Any]]:
+        record = self.db_repo.get_room_preference(project_id, room_id)
+        if not record:
+            return None
+        return {
+            "id": record.id,
+            "project_id": record.project_id,
+            "floor_id": record.floor_id,
+            "room_id": record.room_id,
+            "room_type": record.room_type,
+            "preferences": record.preferences_json,
+            "preference_revision": record.preference_revision,
+            "is_orphaned": record.is_orphaned,
+            "geometry_fingerprint": record.geometry_fingerprint,
+            "created_at": record.created_at.isoformat() if record.created_at else None,
+            "updated_at": record.updated_at.isoformat() if record.updated_at else None,
+        }
+
+    def list_room_preferences(self, project_id: str, floor_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        records = self.db_repo.get_all_room_preferences(project_id, floor_id=floor_id)
+        return [
+            {
+                "id": r.id,
+                "project_id": r.project_id,
+                "floor_id": r.floor_id,
+                "room_id": r.room_id,
+                "room_type": r.room_type,
+                "preferences": r.preferences_json,
+                "preference_revision": r.preference_revision,
+                "is_orphaned": r.is_orphaned,
+                "geometry_fingerprint": r.geometry_fingerprint,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+                "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+            }
+            for r in records
+        ]
+
+    def save_room_preferences(
+        self,
+        project: Project,
+        room_id: str,
+        preferences_data: Dict[str, Any],
+        expected_revision: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        self._check_revision(project, expected_revision)
+        room = self.get_room_by_id(project, room_id)
+        if not room:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Room '{room_id}' not found in project geometry."
+            )
+        geo_fingerprint = self._get_geo_fingerprint(project)
+
+        try:
+            record = self.db_repo.upsert_room_preference(
+                project_id=project.id,
+                floor_id=room.floor_id,
+                room_id=room_id,
+                room_type=room.room_type.value,
+                preferences_data=preferences_data,
+                geometry_fingerprint=geo_fingerprint,
+                auto_commit=False,
+            )
+
+            master_copy = deepcopy(project.master_json or {})
+            interior_layout = master_copy.setdefault("interior_layout", {})
+            pref_section = interior_layout.setdefault("preferences", {})
+            rooms_section = pref_section.setdefault("rooms", {})
+            rooms_section[room_id] = {
+                "floor_id": room.floor_id,
+                **preferences_data,
+            }
+            interior_layout["geometry_fingerprint"] = geo_fingerprint
+
+            pref_section.setdefault("metadata", {}).update({
+                "geometry_revision": getattr(project, "revision", 1),
+                "preference_revision": record.preference_revision,
+            })
+
+            processing = master_copy.setdefault("processing", {})
+            esai_proc = processing.setdefault("esai_engine", {})
+            esai_proc["last_preferences_update"] = datetime.now(timezone.utc).isoformat()
+
+            project.master_json = master_copy
+            project.revision = (getattr(project, "revision", 1) or 1) + 1
+            self.db.commit()
+            self.db.refresh(record)
+            self.db.refresh(project)
+        except Exception:
+            self.db.rollback()
+            raise
+
+        return {
+            "id": record.id,
+            "project_id": record.project_id,
+            "floor_id": record.floor_id,
+            "room_id": record.room_id,
+            "room_type": record.room_type,
+            "preferences": record.preferences_json,
+            "preference_revision": record.preference_revision,
+            "geometry_fingerprint": record.geometry_fingerprint,
+        }
+
+    def patch_room_preferences(
+        self,
+        project: Project,
+        room_id: str,
+        patch_data: Dict[str, Any],
+        expected_revision: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        self._check_revision(project, expected_revision)
+        self._assert_room_exists(project, room_id)
+
+        record = self.db_repo.patch_room_preference(
+            project_id=project.id,
+            room_id=room_id,
+            patch_data=patch_data,
+            auto_commit=False,
+        )
+        if not record:
+            # No existing record; create fresh from patch data
+            room = self.get_room_by_id(project, room_id)
+            geo_fingerprint = self._get_geo_fingerprint(project)
+            record = self.db_repo.upsert_room_preference(
+                project_id=project.id,
+                floor_id=room.floor_id,
+                room_id=room_id,
+                room_type=room.room_type.value,
+                preferences_data=patch_data,
+                geometry_fingerprint=geo_fingerprint,
+                auto_commit=False,
+            )
+
+        # Mirror patch to Master JSON
+        master_copy = deepcopy(project.master_json or {})
+        rooms_section = (
+            master_copy
+            .setdefault("interior_layout", {})
+            .setdefault("preferences", {})
+            .setdefault("rooms", {})
+        )
+        existing = rooms_section.get(room_id, {})
+        existing.update(patch_data)
+        rooms_section[room_id] = existing
+
+        project.master_json = master_copy
+        project.revision = (getattr(project, "revision", 1) or 1) + 1
+        self.db.commit()
+        self.db.refresh(record)
+        self.db.refresh(project)
+
+        return {
+            "id": record.id,
+            "project_id": record.project_id,
+            "floor_id": record.floor_id,
+            "room_id": record.room_id,
+            "room_type": record.room_type,
+            "preferences": record.preferences_json,
+            "preference_revision": record.preference_revision,
+        }
+
+    def reset_room_preferences(self, project: Project, room_id: str) -> bool:
+        """Delete the room override; the room falls back to floor/building defaults."""
+        deleted = self.db_repo.delete_room_preference(project.id, room_id)
+        if deleted:
+            master_copy = deepcopy(project.master_json or {})
+            rooms_section = (
+                master_copy
+                .get("interior_layout", {})
+                .get("preferences", {})
+                .get("rooms", {})
+            )
+            rooms_section.pop(room_id, None)
+            project.master_json = master_copy
+            project.revision = (getattr(project, "revision", 1) or 1) + 1
+            self.db.commit()
+            self.db.refresh(project)
+        return deleted
+
+    # ── Effective Preference Resolution ───────────────────────────────────────
+
+    def get_effective_preferences(
+        self,
+        project: Project,
+        room_id: str,
+        floor_id: str,
+    ) -> Dict[str, Any]:
+        self._assert_room_exists(project, room_id)
+        return self.db_repo.resolve_effective_preferences(
+            project_id=project.id,
+            room_id=room_id,
+            floor_id=floor_id,
+        )
+
+    # ── Orphan Detection ──────────────────────────────────────────────────────
+
+    def detect_orphaned_preferences(self, project: Project) -> Dict[str, Any]:
+        all_rooms = self.get_rooms(project)
+        valid_ids = {r.room_id for r in all_rooms}
+        all_prefs = self.db_repo.get_all_room_preferences(project.id)
+        orphaned = self.db_repo.mark_orphaned_preferences(project.id, valid_ids)
+        return {
+            "scanned_count": len(all_prefs),
+            "orphaned_count": len(orphaned),
+            "orphaned_room_ids": orphaned,
+            "valid_room_count": len(valid_ids),
+            "details": [{"room_id": rid, "status": "orphaned"} for rid in orphaned],
+            "message": (
+                f"Marked {len(orphaned)} preference record(s) as orphaned."
+                if orphaned else
+                "All saved room preferences are valid against current geometry."
+            ),
+        }
+
+
+    # ── Room-Type Preference Schema ───────────────────────────────────────────
+
+    def get_preference_schema_for_room_type(self, room_type_str: str) -> Dict[str, Any]:
+        """
+        Returns the preference schema and options available for a given room type.
+        Used by the frontend to build dynamic forms.
+        """
+        from .contracts import RoomType
+        room_type_map = {
+            RoomType.MASTER_BEDROOM.value: "bedroom",
+            RoomType.BEDROOM.value: "bedroom",
+            RoomType.GUEST_ROOM.value: "bedroom",
+            RoomType.LIVING_ROOM.value: "living_room",
+            RoomType.FAMILY_LIVING_AREA.value: "living_room",
+            RoomType.TV_LOBBY.value: "living_room",
+            RoomType.TV_LOUNGE.value: "living_room",
+            RoomType.LOUNGE.value: "living_room",
+            RoomType.DINING_ROOM.value: "dining",
+            RoomType.DINING_AREA.value: "dining",
+            RoomType.KITCHEN.value: "kitchen",
+            RoomType.PANTRY.value: "kitchen",
+            RoomType.BATHROOM.value: "bathroom",
+            RoomType.ATTACHED_BATHROOM.value: "bathroom",
+            RoomType.COMMON_BATHROOM.value: "bathroom",
+            RoomType.TOILET.value: "bathroom",
+            RoomType.STUDY.value: "office",
+            RoomType.STUDY_OFFICE.value: "office",
+            RoomType.HOME_OFFICE.value: "office",
+            RoomType.UTILITY_ROOM.value: "utility",
+            RoomType.LAUNDRY_ROOM.value: "utility",
+        }
+        schema_key = room_type_map.get(room_type_str, "generic")
+
+        schemas: Dict[str, Any] = {
+            "bedroom": {
+                "specific_section": "bedroom",
+                "fields": {
+                    "bed_type": ["single", "twin", "double", "queen", "king", "bunk", "triple_sleeper"],
+                    "bed_count": {"type": "integer", "min": 1, "max": 4},
+                    "headboard_required": {"type": "boolean"},
+                    "headboard_material": {"type": "string", "optional": True},
+                    "bedside_tables_count": {"type": "integer", "min": 0, "max": 2},
+                    "wardrobe_type": {"type": "string", "optional": True},
+                    "wardrobe_wall_count": {"type": "integer", "min": 0, "max": 4},
+                    "dressing_table_required": {"type": "boolean"},
+                    "study_desk_required": {"type": "boolean"},
+                    "tv_in_bedroom": {"type": "boolean"},
+                    "tv_wall_location": {"type": "string", "optional": True},
+                    "bedside_charging_outlets": {"type": "integer", "min": 0},
+                    "mirror_required": {"type": "boolean"},
+                    "seating_required": {"type": "boolean"},
+                    "seating_type": {"type": "string", "optional": True},
+                },
+            },
+            "bathroom": {
+                "specific_section": "bathroom",
+                "fields": {
+                    "has_bathtub": {"type": "boolean"},
+                    "bathtub_type": {"type": "string", "optional": True},
+                    "has_shower": {"type": "boolean"},
+                    "shower_type": {"type": "string", "optional": True},
+                    "shower_screen_type": {"type": "string", "optional": True},
+                    "toilet_type": {"type": "string", "optional": True},
+                    "bidet_required": {"type": "boolean"},
+                    "washbasin_count": {"type": "integer", "min": 0, "max": 3},
+                    "washbasin_type": {"type": "string", "optional": True},
+                    "vanity_required": {"type": "boolean"},
+                    "mirror_type": {"type": "string", "optional": True},
+                    "hot_water_connection": ["hot_cold", "cold_only", "hot_only"],
+                    "water_heater_type": {"type": "string", "optional": True},
+                    "exhaust_fan_required": {"type": "boolean"},
+                    "towel_rail_count": {"type": "integer", "min": 0},
+                    "heated_towel_rail": {"type": "boolean"},
+                },
+            },
+            "kitchen": {
+                "specific_section": "kitchen",
+                "fields": {
+                    "layout_type": ["single_wall", "l_shaped", "u_shaped", "galley", "parallel", "island", "breakfast_counter", "custom"],
+                    "has_island": {"type": "boolean"},
+                    "island_with_seating": {"type": "boolean"},
+                    "island_seating_count": {"type": "integer", "min": 0},
+                    "countertop_material": {"type": "string", "optional": True},
+                    "cabinet_material": {"type": "string", "optional": True},
+                    "cabinet_finish": {"type": "string", "optional": True},
+                    "sink_type": ["single", "double", "undermount", "farmhouse"],
+                    "hob_type": ["gas", "induction", "electric", "mixed"],
+                    "hob_burner_count": {"type": "integer", "min": 2, "max": 6},
+                    "oven_type": ["built_in", "freestanding", "microwave_combo"],
+                    "hood_type": ["chimney", "island", "under_cabinet", "recirculating"],
+                    "refrigerator_type": {"type": "string", "optional": True},
+                    "dishwasher_required": {"type": "boolean"},
+                    "pantry_cabinet_required": {"type": "boolean"},
+                    "breakfast_bar_required": {"type": "boolean"},
+                    "under_cabinet_lighting": {"type": "boolean"},
+                },
+            },
+            "living_room": {
+                "specific_section": "living_room",
+                "fields": {
+                    "sofa_type": ["2_seater", "3_seater", "l_shaped", "sectional", "chesterfield", "modular"],
+                    "sofa_count": {"type": "integer", "min": 1},
+                    "armchair_count": {"type": "integer", "min": 0},
+                    "coffee_table_required": {"type": "boolean"},
+                    "coffee_table_shape": ["rectangular", "round", "oval", "square"],
+                    "tv_unit_type": ["floor_stand", "wall_mounted", "media_console", "floating"],
+                    "tv_size_inches": {"type": "integer", "min": 32, "max": 100, "optional": True},
+                    "fireplace_required": {"type": "boolean"},
+                    "bookshelf_required": {"type": "boolean"},
+                    "rug_required": {"type": "boolean"},
+                    "open_to_dining": {"type": "boolean"},
+                },
+            },
+            "dining": {
+                "specific_section": "dining",
+                "fields": {
+                    "table_shape": ["rectangular", "round", "oval", "square", "extendable"],
+                    "seating_count": {"type": "integer", "min": 2, "max": 16},
+                    "chair_style": {"type": "string", "optional": True},
+                    "sideboard_required": {"type": "boolean"},
+                    "buffet_cabinet_required": {"type": "boolean"},
+                    "chandelier_over_table": {"type": "boolean"},
+                    "open_to_kitchen": {"type": "boolean"},
+                },
+            },
+            "office": {
+                "specific_section": "office",
+                "fields": {
+                    "desk_type": ["single", "l_shaped", "standing", "corner"],
+                    "desk_count": {"type": "integer", "min": 1},
+                    "chair_type": {"type": "string", "optional": True},
+                    "bookcase_required": {"type": "boolean"},
+                    "filing_cabinet_required": {"type": "boolean"},
+                    "monitor_count": {"type": "integer", "min": 1},
+                    "ethernet_outlet_required": {"type": "boolean"},
+                    "whiteboard_required": {"type": "boolean"},
+                },
+            },
+            "utility": {
+                "specific_section": "utility",
+                "fields": {
+                    "washing_machine_required": {"type": "boolean"},
+                    "dryer_required": {"type": "boolean"},
+                    "utility_sink_required": {"type": "boolean"},
+                    "shelf_count": {"type": "integer", "min": 0},
+                    "countertop_required": {"type": "boolean"},
+                    "ventilation_required": {"type": "boolean"},
+                },
+            },
+            "generic": {
+                "specific_section": None,
+                "fields": {},
+            },
+        }
+
+        common_fields = {
+            "common": {
+                "furniture_density": ["minimal", "standard", "luxurious"],
+                "circulation_priority": ["compact", "standard", "spacious", "accessible"],
+                "accessibility_profile": ["standard", "wheelchair_accessible", "elderly_friendly", "child_safe"],
+                "interior_style": ["modern", "minimalist", "scandinavian", "industrial", "traditional", "contemporary", "luxury", "rustic", "bohemian", "coastal"],
+                "notes": {"type": "string", "optional": True},
+            },
+            "finishes": {
+                "wall_finish": ["paint_matte", "paint_satin", "paint_gloss", "wallpaper", "textured_plaster", "ceramic_tile", "stone_cladding", "wood_panel", "other"],
+                "wall_color": {"type": "string", "optional": True},
+                "floor_finish": ["hardwood", "engineered_wood", "laminate", "ceramic_floor_tile", "porcelain_tile", "marble", "vinyl", "carpet", "polished_concrete", "other"],
+                "ceiling_finish": ["plaster_smooth", "pop_design", "gypsum_board", "wooden_ceiling", "open_exposed", "other"],
+            },
+            "lighting": {
+                "ambient_lighting_type": ["warm_white", "neutral_white", "cool_white", "rgb", "tunable"],
+                "lighting_items": "list[LightingPreferenceItem]",
+            },
+            "electrical": {
+                "outlets": "list[ElectricalOutletItem]",
+            },
+            "services": {
+                "provisions": "list[ServiceProvision]",
+            },
+            "items": {
+                "furniture_items": "list[FurnitureRequirementItem]",
+            },
+            "placement": {
+                "mandatory_catalog_ids": "list[str]",
+                "excluded_catalog_ids": "list[str]",
+                "user_locked_instance_ids": "list[str]",
+            },
+        }
+
+        result = schemas.get(schema_key, schemas["generic"])
+        result["common_fields"] = common_fields
+        result["room_type"] = room_type_str
+        result["schema_key"] = schema_key
+        return result
