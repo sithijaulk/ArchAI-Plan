@@ -47,6 +47,15 @@ from app.schemas.esai import (
     SelectAlternativeResponse,
     DesignStalenessResponse,
     SavedDesignsResponse,
+    SceneDataResponse,
+    RoomEditValidateRequest,
+    RoomEditValidateResponse,
+    SaveRoomEditRequest,
+    SaveRoomEditResponse,
+    LockAssetRequest,
+    LockAssetResponse,
+    RegenerateUnlockedRequest,
+    RegenerateUnlockedResponse,
 )
 from app.components.esai_engine.exceptions import (
     GeometryStalenessError,
@@ -907,5 +916,176 @@ def check_designs_staleness(project_id: str, db: Session = Depends(get_db)):
     service = EsaiEngineService(db)
     report = service.check_design_staleness(project)
     return DesignStalenessResponse(report=report)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# PHASE 6: 3D Scene Visualization Data Endpoint
+# ──────────────────────────────────────────────────────────────────────────────
+
+@project_router.get("/scene", response_model=SceneDataResponse)
+def get_scene_data(
+    project_id: str,
+    floor_id: Optional[str] = Query(default=None),
+    room_id: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    """
+    Exposes authoritative architectural geometry (floors, rooms, walls, doors, windows, elevations)
+    and saved interior design layout data for Three.js / React Three Fiber visualization.
+    """
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    return service.get_scene_data(project, floor_id=floor_id, room_id=room_id)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# PHASE 7: Interactive Editing, Validation, Locking & Selective Regeneration
+# ──────────────────────────────────────────────────────────────────────────────
+
+@project_router.post("/designs/rooms/{room_id}/validate-edit", response_model=RoomEditValidateResponse)
+def validate_room_edit(
+    project_id: str,
+    room_id: str,
+    payload: RoomEditValidateRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Validates proposed manual room edits against authoritative geometry, collisions,
+    door/window access, ergonomic clearances, and mandatory item rules before persistence.
+    """
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    res = service.validate_room_edit(project, room_id, payload.model_dump(mode="json"))
+    return RoomEditValidateResponse(**res)
+
+
+@project_router.patch("/designs/rooms/{room_id}", response_model=SaveRoomEditResponse)
+def save_room_edit(
+    project_id: str,
+    room_id: str,
+    payload: SaveRoomEditRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Atomically saves validated manual room edits to Master JSON with optimistic concurrency
+    control, revision increment, and client preference consistency synchronization.
+    """
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    try:
+        res = service.save_room_edit(
+            project=project,
+            room_id=room_id,
+            edit_data=payload.model_dump(mode="json"),
+            expected_design_revision=payload.expected_design_revision,
+        )
+        return SaveRoomEditResponse(**res)
+    except DesignRevisionConflictError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": e.code, "message": e.message, "details": e.details},
+        )
+    except InvalidDesignSaveError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": e.code, "message": e.message, "details": e.details},
+        )
+
+
+@project_router.post("/designs/rooms/{room_id}/lock", response_model=LockAssetResponse)
+def lock_room_asset(
+    project_id: str,
+    room_id: str,
+    payload: LockAssetRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Persistently locks a placed asset instance in a saved room design.
+    """
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    try:
+        res = service.toggle_asset_lock(
+            project=project,
+            room_id=room_id,
+            instance_id=payload.instance_id,
+            is_locked=True,
+            lock_type=payload.lock_type or "all",
+            expected_design_revision=payload.expected_design_revision,
+        )
+        return LockAssetResponse(**res)
+    except DesignRevisionConflictError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": e.code, "message": e.message, "details": e.details},
+        )
+
+
+@project_router.post("/designs/rooms/{room_id}/unlock", response_model=LockAssetResponse)
+def unlock_room_asset(
+    project_id: str,
+    room_id: str,
+    payload: LockAssetRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Unlocks a placed asset instance in a saved room design.
+    """
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    try:
+        res = service.toggle_asset_lock(
+            project=project,
+            room_id=room_id,
+            instance_id=payload.instance_id,
+            is_locked=False,
+            lock_type=payload.lock_type or "all",
+            expected_design_revision=payload.expected_design_revision,
+        )
+        return LockAssetResponse(**res)
+    except DesignRevisionConflictError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": e.code, "message": e.message, "details": e.details},
+        )
+
+
+@project_router.post("/designs/rooms/{room_id}/regenerate-unlocked", response_model=RegenerateUnlockedResponse)
+def regenerate_unlocked_assets(
+    project_id: str,
+    room_id: str,
+    payload: Optional[RegenerateUnlockedRequest] = None,
+    db: Session = Depends(get_db),
+):
+    """
+    Reoptimizes only unlocked furniture in a room using the real Genetic Algorithm,
+    strictly preserving all user-locked assets at their exact coordinates and rotations.
+    """
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    req = payload or RegenerateUnlockedRequest()
+
+    from app.components.esai_engine.optimizer.genetic_optimizer import OptimizationConfig
+    cfg = OptimizationConfig(
+        population_size=req.population_size or 20,
+        num_generations=req.generations or 15,
+        seed=req.seed,
+    )
+
+    try:
+        res = service.regenerate_unlocked(
+            project=project,
+            room_id=room_id,
+            config=cfg,
+            expected_design_revision=req.expected_design_revision,
+            auto_save=req.auto_save,
+        )
+        return RegenerateUnlockedResponse(**res)
+    except DesignRevisionConflictError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": e.code, "message": e.message, "details": e.details},
+        )
+
 
 

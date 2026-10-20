@@ -14,6 +14,7 @@ from app.components.esai_engine.contracts import (
     GeneratedRoomDesignDTO,
     GeneratedBuildingDesignDTO,
     PlacedFixturePointDTO,
+    PlacedAssetPersistedDTO,
     PersistedRoomDesignDTO,
     SaveDesignResponseDTO,
     SelectAlternativeResponseDTO,
@@ -293,4 +294,107 @@ class SavedDesignsResponse(BaseModel):
     revisions: List[Dict[str, Any]] = Field(default_factory=list)
 
 
+# ─── Phase 6: 3D Scene Visualization Schema ───────────────────────────────────
 
+class SceneDataResponse(BaseModel):
+    project_id: str
+    project_name: str
+    unit: str = "m"
+    geometry_revision: int
+    design_revision: int
+    geometry_fingerprint: Optional[str] = None
+    floors: List[FloorDTO]
+    saved_designs: Dict[str, Any]
+    staleness: Dict[str, Any]
+
+
+# ─── Phase 7: Interactive Editing, Validation & Locking Schemas ───────────────
+
+class ValidationDiagnosticDTO(BaseModel):
+    code: str
+    severity: str = "error"  # "error", "warning", "info"
+    instance_id: Optional[str] = None
+    room_id: Optional[str] = None
+    rule_id: Optional[str] = None
+    message: str
+    suggested_correction: Optional[str] = None
+
+
+class RoomEditValidateRequest(BaseModel):
+    room_id: str
+    floor_id: Optional[str] = None
+    expected_design_revision: Optional[int] = None
+    furniture: List[PlacedAssetPersistedDTO] = Field(default_factory=list)
+    cabinetry: List[PlacedAssetPersistedDTO] = Field(default_factory=list)
+    appliances: List[PlacedAssetPersistedDTO] = Field(default_factory=list)
+    sanitary_fixtures: List[PlacedAssetPersistedDTO] = Field(default_factory=list)
+    decorations: List[PlacedAssetPersistedDTO] = Field(default_factory=list)
+    lighting: List[PlacedFixturePointDTO] = Field(default_factory=list)
+    electrical_points: List[PlacedFixturePointDTO] = Field(default_factory=list)
+    plumbing_requirements: List[PlacedFixturePointDTO] = Field(default_factory=list)
+    service_requirements: List[Dict[str, Any]] = Field(default_factory=list)
+    wall_finishes: Dict[str, Any] = Field(default_factory=dict)
+    floor_finishes: Dict[str, Any] = Field(default_factory=dict)
+    ceiling_finishes: Dict[str, Any] = Field(default_factory=dict)
+    wall_finish: Optional[str] = None
+    wall_color: Optional[str] = None
+    floor_finish: Optional[str] = None
+    ceiling_finish: Optional[str] = None
+
+
+class RoomEditValidateResponse(BaseModel):
+    is_valid: bool
+    hard_constraints_passed: bool
+    diagnostics: List[ValidationDiagnosticDTO] = Field(default_factory=list)
+    overlap_area_sqm: float = 0.0
+    out_of_bounds_area_sqm: float = 0.0
+    door_violation_count: int = 0
+    window_violation_count: int = 0
+    ergonomic_score: float = 1.0
+
+
+class SaveRoomEditRequest(RoomEditValidateRequest):
+    expected_design_revision: Optional[int] = None
+
+
+class SaveRoomEditResponse(BaseModel):
+    success: bool
+    project_id: str
+    room_id: str
+    design_revision: int
+    updated_at: str
+    saved_design: Dict[str, Any]
+
+
+class LockAssetRequest(BaseModel):
+    instance_id: str
+    is_locked: bool = True
+    lock_type: Optional[str] = "all"  # "position", "rotation", "all"
+    expected_design_revision: Optional[int] = None
+
+
+class LockAssetResponse(BaseModel):
+    success: bool
+    project_id: str
+    room_id: str
+    instance_id: str
+    is_locked: bool
+    design_revision: int
+    updated_at: str
+
+
+class RegenerateUnlockedRequest(BaseModel):
+    expected_design_revision: Optional[int] = None
+    seed: Optional[int] = 42
+    population_size: Optional[int] = 20
+    generations: Optional[int] = 15
+    auto_save: bool = True
+
+
+class RegenerateUnlockedResponse(BaseModel):
+    success: bool
+    project_id: str
+    room_id: str
+    design_revision: int
+    saved_design: Optional[Dict[str, Any]] = None
+    diagnostics: List[str] = Field(default_factory=list)

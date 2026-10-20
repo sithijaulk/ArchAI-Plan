@@ -307,6 +307,106 @@ class EsaiEngineService:
             expected_design_revision=expected_design_revision,
         )
 
+    # ── Phase 6: 3D Scene Visualization Data ──────────────────────────────────
+
+    def get_scene_data(
+        self,
+        project: Project,
+        floor_id: Optional[str] = None,
+        room_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Retrieves authoritative architectural geometry and saved interior layouts
+        for 3D WebGL / React Three Fiber rendering.
+        """
+        structural_input = self.get_structural_context(project)
+        floors = SpatialNormalizer.find_all_floors(structural_input)
+
+        if floor_id:
+            floors = [f for f in floors if f.floor_id == floor_id]
+        if room_id:
+            filtered_floors = []
+            for f in floors:
+                f_rooms = [r for r in f.rooms if r.room_id == room_id]
+                if f_rooms:
+                    f_copy = f.model_copy(update={"rooms": f_rooms})
+                    filtered_floors.append(f_copy)
+            floors = filtered_floors
+
+        saved_designs_info = self.persistence_mgr.get_saved_designs(project)
+        all_rooms_designs = saved_designs_info.get("rooms", {})
+
+        if room_id:
+            all_rooms_designs = {k: v for k, v in all_rooms_designs.items() if k == room_id}
+        elif floor_id:
+            all_rooms_designs = {
+                k: v for k, v in all_rooms_designs.items()
+                if v.get("floor_id") == floor_id
+            }
+
+        staleness = self.persistence_mgr.check_design_staleness(project)
+        staleness_dict = staleness.model_dump(mode="json") if hasattr(staleness, "model_dump") else staleness.dict()
+
+        return {
+            "project_id": project.id,
+            "project_name": project.project_name,
+            "unit": structural_input.unit.value if hasattr(structural_input.unit, "value") else str(structural_input.unit),
+            "geometry_revision": getattr(project, "revision", 1) or 1,
+            "design_revision": saved_designs_info.get("design_revision", 0),
+            "geometry_fingerprint": saved_designs_info.get("geometry_fingerprint"),
+            "floors": floors,
+            "saved_designs": all_rooms_designs,
+            "staleness": staleness_dict,
+        }
+
+    # ── Phase 7: Interactive Editing, Validation, Locking & Selective Regeneration ──
+
+    def validate_room_edit(
+        self,
+        project: Project,
+        room_id: str,
+        edit_data: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Validates proposed room layout edits against authoritative geometry and rules."""
+        return self.persistence_mgr.validate_room_edit(project, room_id, edit_data)
+
+    def save_room_edit(
+        self,
+        project: Project,
+        room_id: str,
+        edit_data: Dict[str, Any],
+        expected_design_revision: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Atomically persists validated room layout edits into Master JSON."""
+        return self.persistence_mgr.save_room_edit(project, room_id, edit_data, expected_design_revision)
+
+    def toggle_asset_lock(
+        self,
+        project: Project,
+        room_id: str,
+        instance_id: str,
+        is_locked: bool = True,
+        lock_type: str = "all",
+        expected_design_revision: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Locks or unlocks an asset instance within a saved room layout."""
+        return self.persistence_mgr.toggle_asset_lock(
+            project, room_id, instance_id, is_locked, lock_type, expected_design_revision
+        )
+
+    def regenerate_unlocked(
+        self,
+        project: Project,
+        room_id: str,
+        config: Optional[OptimizationConfig] = None,
+        expected_design_revision: Optional[int] = None,
+        auto_save: bool = True,
+    ) -> Dict[str, Any]:
+        """Reoptimizes unlocked furniture in a room while preserving all locked items."""
+        return self.persistence_mgr.regenerate_unlocked(
+            project, room_id, config, expected_design_revision, auto_save
+        )
+
     # 3. Validation Operations
     def validate_project_input(self, project: Project) -> ValidationResultDTO:
         try:

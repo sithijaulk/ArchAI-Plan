@@ -8,6 +8,10 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Union
 from sqlalchemy.orm import Session
 
+import uuid
+from fastapi import HTTPException, status as http_status
+from shapely.geometry import Polygon
+
 from app.models.project import Project
 from .contracts import (
     Coordinate2D,
@@ -17,6 +21,8 @@ from .contracts import (
     PersistedRoomDesignDTO,
     PlacedAssetPersistedDTO,
     PlacedFixturePointDTO,
+    PlacementMode,
+    ResolvedErgonomicConstraintDTO,
     DesignStalenessRoomReportDTO,
     DesignStalenessReportDTO,
     SaveDesignResponseDTO,
@@ -30,6 +36,9 @@ from .exceptions import (
     PreferenceStalenessError,
 )
 from .geometry import compute_geometry_fingerprint
+from .optimizer.chromosome import ChromosomeCodec, PlacedAssetDTO
+from .optimizer.geometry_constraints import GeometryConstraintEvaluator
+from .optimizer.ergonomic_constraints import ErgonomicConstraintEvaluator
 
 
 def classify_asset_bucket(category: Optional[str]) -> str:
@@ -615,4 +624,516 @@ class EsaiDesignPersistenceManager:
             "persistence": persistence_result,
             "scope": scope,
             "auto_saved": auto_save,
+        }
+
+    # ── Phase 7: Interactive Editing, Validation, Locking & Selective Regeneration ──
+
+    def validate_room_edit(
+        self,
+        project: Project,
+        room_id: str,
+        edit_data: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Validates proposed manual edits to a room layout against authoritative geometry,
+        collision rules, door/window access, ergonomic rules, and mandatory item policies.
+        """
+        room = self.service.get_room_by_id(project, room_id)
+        if not room:
+            raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail=f"Room '{room_id}' not found.")
+
+        # Convert room polygon to Shapely Polygon
+        poly_coords = [(pt.x, pt.y) if hasattr(pt, "x") else (pt["x"], pt["y"]) for pt in room.polygon]
+        room_poly = Polygon(poly_coords)
+
+        # Collect all placed assets from edit_data
+        raw_assets = (
+            edit_data.get("furniture", []) +
+            edit_data.get("cabinetry", []) +
+            edit_data.get("appliances", []) +
+            edit_data.get("sanitary_fixtures", []) +
+            edit_data.get("decorations", [])
+        )
+
+        placed_dto_list: List[PlacedAssetDTO] = []
+        diagnostics = []
+
+        for asset in raw_assets:
+            if isinstance(asset, dict):
+                a_dict = asset
+            else:
+                a_dict = asset.model_dump(mode="json") if hasattr(asset, "model_dump") else asset.dict()
+
+            inst_id = a_dict.get("instance_id") or str(uuid.uuid4())
+            asset_id = a_dict.get("asset_id", "")
+            asset_name = a_dict.get("asset_name", asset_id)
+            cat = a_dict.get("category") or "furniture"
+            subcat = a_dict.get("subcategory") or cat or "furniture"
+            dims_raw = a_dict.get("dimensions", {})
+            w = float(dims_raw.get("width", 1.0) if isinstance(dims_raw, dict) else getattr(dims_raw, "width", 1.0))
+            d = float(dims_raw.get("depth", 1.0) if isinstance(dims_raw, dict) else getattr(dims_raw, "depth", 1.0))
+            h = float(dims_raw.get("height", 1.0) if isinstance(dims_raw, dict) else getattr(dims_raw, "height", 1.0))
+            pos_raw = a_dict.get("position", {})
+            px = float(pos_raw.get("x", 0.0) if isinstance(pos_raw, dict) else getattr(pos_raw, "x", 0.0))
+            py = float(pos_raw.get("y", 0.0) if isinstance(pos_raw, dict) else getattr(pos_raw, "y", 0.0))
+            rot = float(a_dict.get("rotation_deg", 0.0))
+            is_locked = bool(a_dict.get("is_locked", False) or a_dict.get("is_user_locked", False))
+
+            footprint = ChromosomeCodec.calculate_footprint(px, py, w, d, rot)
+
+            dto = PlacedAssetDTO(
+                instance_id=inst_id,
+                asset_id=asset_id,
+                asset_name=asset_name,
+                category=cat,
+                subtype=subcat,
+                dimensions=Dimensions3D(width=w, depth=d, height=h),
+                position=Coordinate2D(x=px, y=py),
+                rotation_deg=rot,
+                placement_mode=PlacementMode.FLOOR_STANDING,
+                priority="user_locked" if is_locked else ("mandatory" if a_dict.get("is_mandatory", True) else "optional"),
+                wall_affinity=a_dict.get("associated_wall_id"),
+                material_variant=a_dict.get("material"),
+                is_locked=is_locked,
+                footprint_polygon=footprint,
+            )
+            placed_dto_list.append(dto)
+
+        # 1. Geometry Validation using Shapely
+        geom_eval = GeometryConstraintEvaluator(
+            room_polygon=room_poly,
+            doors=room.doors,
+            windows=room.windows,
+            fixed_obstructions=room.fixed_obstructions,
+        )
+        geom_result = geom_eval.evaluate(placed_dto_list)
+
+        for v in geom_result.violations:
+            code = "GEOMETRIC_VIOLATION"
+            if "outside usable room" in v:
+                code = "FURNITURE_OUTSIDE_ROOM"
+            elif "door swing" in v:
+                code = "DOOR_ACCESS_BLOCKED"
+            elif "blocks window" in v:
+                code = "WINDOW_ACCESS_BLOCKED"
+            elif "structural obstruction" in v:
+                code = "OBSTRUCTION_COLLISION"
+            elif "Collision between" in v:
+                code = "ASSET_COLLISION"
+
+            diagnostics.append({
+                "code": code,
+                "severity": "error",
+                "message": v,
+                "suggested_correction": "Reposition or rotate the asset away from boundaries, openings, or other furniture.",
+            })
+
+        # 2. Ergonomic Validation
+        ergo_rules = self.service.standards_repo.get_all(enforceable_only=True)
+        resolved_rules = [
+            ResolvedErgonomicConstraintDTO(
+                rule_id=r.id,
+                applicable_categories=r.applicable_categories,
+                clearance_direction=r.clearance_direction,
+                threshold_m=r.threshold_m,
+                priority=r.priority,
+                verification_status=r.verification_status,
+                source_title=r.source_title,
+                source_edition=r.source_edition,
+                source_section=r.source_section,
+                is_mandatory=r.is_mandatory_compliance,
+                description=r.description or "",
+            )
+            for r in ergo_rules
+        ]
+        ergo_eval = ErgonomicConstraintEvaluator(rules=resolved_rules, room_polygon=room_poly)
+        ergo_result = ergo_eval.evaluate(placed_dto_list)
+
+        for ev in ergo_result.violations:
+            diagnostics.append({
+                "code": "ERGONOMIC_CLEARANCE_VIOLATION",
+                "severity": "warning",
+                "message": ev,
+                "suggested_correction": "Increase clearance around asset to satisfy Neufert ergonomic standards.",
+            })
+
+        # 3. Domain Room Specific Checks
+        room_type_lower = room.room_type.value.lower() if hasattr(room.room_type, "value") else str(room.room_type).lower()
+        if "bed" in room_type_lower:
+            has_bed = any("bed" in a.category.lower() or "bed" in a.asset_id.lower() for a in placed_dto_list)
+            if not has_bed:
+                diagnostics.append({
+                    "code": "MANDATORY_ASSET_REMOVAL",
+                    "severity": "error",
+                    "message": "A bedroom requires at least one bed. Removing mandatory bed is not permitted without preference update.",
+                    "suggested_correction": "Add a bed from the catalog or update room preferences.",
+                })
+
+        # Bathroom bathtub check
+        effective_prefs = self.service.get_effective_preferences(project, room_id, room.floor_id)
+        pref_dict = effective_prefs.get("effective_preferences", {}) or effective_prefs.get("effective", {}) or {}
+        plumbing_prefs = pref_dict.get("plumbing", {})
+        if plumbing_prefs.get("bathtub_preferred") is False or plumbing_prefs.get("bathtub") is False:
+            has_bathtub = any("bathtub" in a.category.lower() or "bathtub" in a.asset_id.lower() for a in placed_dto_list)
+            if has_bathtub:
+                diagnostics.append({
+                    "code": "EXCLUDED_ASSET_VIOLATION",
+                    "severity": "error",
+                    "message": "Bathtub is explicitly excluded by client preferences for this bathroom.",
+                    "suggested_correction": "Remove bathtub or update client bathroom preferences to bathtub_preferred=True.",
+                })
+
+        hard_passed = (
+            geom_result.is_valid
+            and not any(d["severity"] == "error" for d in diagnostics)
+        )
+
+        return {
+            "is_valid": hard_passed and len(diagnostics) == 0,
+            "hard_constraints_passed": hard_passed,
+            "diagnostics": diagnostics,
+            "overlap_area_sqm": geom_result.overlap_area_sqm,
+            "out_of_bounds_area_sqm": geom_result.out_of_bounds_area_sqm,
+            "door_violation_count": geom_result.door_violation_count,
+            "window_violation_count": geom_result.window_violation_count,
+            "ergonomic_score": ergo_result.ergonomic_score,
+        }
+
+    def save_room_edit(
+        self,
+        project: Project,
+        room_id: str,
+        edit_data: Dict[str, Any],
+        expected_design_revision: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """
+        Validates and atomically persists user manual edits into projects.master_json['interior_layout']['designs']['rooms'][room_id].
+        """
+        self.db.refresh(project)
+        master_copy = deepcopy(project.master_json or {})
+        interior_layout = master_copy.setdefault("interior_layout", {})
+        current_rev = interior_layout.get("design_revision", 0)
+
+        # 1. Optimistic Concurrency Check
+        if expected_design_revision is not None and expected_design_revision != current_rev:
+            raise DesignRevisionConflictError(
+                message=f"Concurrent conflict: expected design revision {expected_design_revision}, but current revision is {current_rev}.",
+                project_id=project.id,
+                expected_rev=expected_design_revision,
+                current_rev=current_rev,
+            )
+
+        # 2. Authoritative Geometry & Hard Constraint Validation
+        val_res = self.validate_room_edit(project, room_id, edit_data)
+        if not val_res["hard_constraints_passed"]:
+            error_msgs = [d["message"] for d in val_res["diagnostics"] if d["severity"] == "error"]
+            raise InvalidDesignSaveError(
+                message=f"Proposed edits violate hard constraints in room '{room_id}': {'; '.join(error_msgs)}",
+                room_id=room_id,
+                violations=error_msgs,
+            )
+
+        # 3. Fetch existing room design
+        rooms = interior_layout.setdefault("designs", {}).setdefault("rooms", {})
+        existing_room = rooms.get(room_id, {})
+        floor_id = edit_data.get("floor_id") or existing_room.get("floor_id")
+
+        new_rev = current_rev + 1
+        interior_layout["design_revision"] = new_rev
+
+        # Build updated room structure
+        now_iso = datetime.now(timezone.utc).isoformat()
+        updated_room = deepcopy(existing_room)
+        updated_room["room_id"] = room_id
+        if floor_id:
+            updated_room["floor_id"] = floor_id
+        updated_room["design_revision"] = new_rev
+        updated_room["generation_timestamp"] = now_iso
+        updated_room["furniture"] = edit_data.get("furniture", existing_room.get("furniture", []))
+        updated_room["cabinetry"] = edit_data.get("cabinetry", existing_room.get("cabinetry", []))
+        updated_room["appliances"] = edit_data.get("appliances", existing_room.get("appliances", []))
+        updated_room["sanitary_fixtures"] = edit_data.get("sanitary_fixtures", existing_room.get("sanitary_fixtures", []))
+        updated_room["decorations"] = edit_data.get("decorations", existing_room.get("decorations", []))
+        updated_room["lighting"] = edit_data.get("lighting", existing_room.get("lighting", []))
+        updated_room["electrical_points"] = edit_data.get("electrical_points", existing_room.get("electrical_points", []))
+        updated_room["plumbing_requirements"] = edit_data.get("plumbing_requirements", existing_room.get("plumbing_requirements", []))
+        updated_room["service_requirements"] = edit_data.get("service_requirements", existing_room.get("service_requirements", []))
+
+        # Finishes
+        if "wall_finishes" in edit_data:
+            updated_room["wall_finishes"] = edit_data["wall_finishes"]
+        if "floor_finishes" in edit_data:
+            updated_room["floor_finishes"] = edit_data["floor_finishes"]
+        if "ceiling_finishes" in edit_data:
+            updated_room["ceiling_finishes"] = edit_data["ceiling_finishes"]
+        if "wall_finish" in edit_data:
+            updated_room["wall_finish"] = edit_data["wall_finish"]
+        if "wall_color" in edit_data:
+            updated_room["wall_color"] = edit_data["wall_color"]
+        if "floor_finish" in edit_data:
+            updated_room["floor_finish"] = edit_data["floor_finish"]
+        if "ceiling_finish" in edit_data:
+            updated_room["ceiling_finish"] = edit_data["ceiling_finish"]
+
+        # Validation summary
+        updated_room["validation"] = {
+            "hard_constraints_passed": val_res["hard_constraints_passed"],
+            "diagnostics": [d["message"] for d in val_res["diagnostics"]],
+            "overlap_area_sqm": val_res["overlap_area_sqm"],
+            "out_of_bounds_area_sqm": val_res["out_of_bounds_area_sqm"],
+            "ergonomic_score": val_res["ergonomic_score"],
+            "manual_edit": True,
+        }
+
+        rooms[room_id] = updated_room
+
+        # Revision history
+        interior_layout.setdefault("revisions", []).append({
+            "design_revision": new_rev,
+            "timestamp": now_iso,
+            "scope": "room_manual_edit",
+            "room_id": room_id,
+        })
+
+        # Check preference consistency for bed replacement
+        all_assets = (
+            updated_room.get("furniture", []) +
+            updated_room.get("cabinetry", []) +
+            updated_room.get("appliances", []) +
+            updated_room.get("sanitary_fixtures", [])
+        )
+        for a in all_assets:
+            aid = (a.get("asset_id") or "").upper()
+            if "BED_QUEEN" in aid:
+                try:
+                    self.service.patch_room_preferences(project, room_id, {"bedroom": {"bed_type": "queen"}})
+                except Exception:
+                    pass
+                break
+            elif "BED_KING" in aid:
+                try:
+                    self.service.patch_room_preferences(project, room_id, {"bedroom": {"bed_type": "king"}})
+                except Exception:
+                    pass
+                break
+            elif "BED_SINGLE" in aid:
+                try:
+                    self.service.patch_room_preferences(project, room_id, {"bedroom": {"bed_type": "single"}})
+                except Exception:
+                    pass
+                break
+            elif "BED_DOUBLE" in aid:
+                try:
+                    self.service.patch_room_preferences(project, room_id, {"bedroom": {"bed_type": "double"}})
+                except Exception:
+                    pass
+                break
+
+        try:
+            project.master_json = master_copy
+            project.revision = (getattr(project, "revision", 1) or 1) + 1
+            self.db.commit()
+            self.db.refresh(project)
+        except Exception:
+            self.db.rollback()
+            raise
+
+        return {
+            "success": True,
+            "project_id": project.id,
+            "room_id": room_id,
+            "design_revision": new_rev,
+            "updated_at": now_iso,
+            "saved_design": updated_room,
+        }
+
+    def toggle_asset_lock(
+        self,
+        project: Project,
+        room_id: str,
+        instance_id: str,
+        is_locked: bool = True,
+        lock_type: str = "all",
+        expected_design_revision: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """
+        Locks or unlocks a specific placed asset in a room.
+        """
+        self.db.refresh(project)
+        master_copy = deepcopy(project.master_json or {})
+        interior_layout = master_copy.setdefault("interior_layout", {})
+        current_rev = interior_layout.get("design_revision", 0)
+
+        if expected_design_revision is not None and expected_design_revision != current_rev:
+            raise DesignRevisionConflictError(
+                message=f"Concurrent conflict: expected design revision {expected_design_revision}, but current revision is {current_rev}.",
+                project_id=project.id,
+                expected_rev=expected_design_revision,
+                current_rev=current_rev,
+            )
+
+        rooms = interior_layout.setdefault("designs", {}).setdefault("rooms", {})
+        room_design = rooms.get(room_id)
+        if not room_design:
+            raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail=f"No saved design for room '{room_id}'.")
+
+        matched = False
+        for bucket_key in ("furniture", "cabinetry", "appliances", "sanitary_fixtures", "decorations"):
+            bucket = room_design.get(bucket_key, [])
+            for asset in bucket:
+                if asset.get("instance_id") == instance_id:
+                    asset["is_locked"] = is_locked
+                    asset["is_user_locked"] = is_locked
+                    asset["lock_type"] = lock_type
+                    matched = True
+                    break
+            if matched:
+                break
+
+        if not matched:
+            raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail=f"Asset instance '{instance_id}' not found in room '{room_id}'.")
+
+        new_rev = current_rev + 1
+        interior_layout["design_revision"] = new_rev
+        room_design["design_revision"] = new_rev
+
+        now_iso = datetime.now(timezone.utc).isoformat()
+        interior_layout.setdefault("revisions", []).append({
+            "design_revision": new_rev,
+            "timestamp": now_iso,
+            "scope": "asset_lock_toggle",
+            "room_id": room_id,
+            "instance_id": instance_id,
+            "is_locked": is_locked,
+        })
+
+        try:
+            project.master_json = master_copy
+            project.revision = (getattr(project, "revision", 1) or 1) + 1
+            self.db.commit()
+            self.db.refresh(project)
+        except Exception:
+            self.db.rollback()
+            raise
+
+        return {
+            "success": True,
+            "project_id": project.id,
+            "room_id": room_id,
+            "instance_id": instance_id,
+            "is_locked": is_locked,
+            "design_revision": new_rev,
+            "updated_at": now_iso,
+        }
+
+    def regenerate_unlocked(
+        self,
+        project: Project,
+        room_id: str,
+        config: Optional[Any] = None,
+        expected_design_revision: Optional[int] = None,
+        auto_save: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Selectively reoptimizes unlocked furniture in a room using the real Genetic Algorithm,
+        preserving all locked items at their exact coordinates and rotations.
+        """
+        saved_design = self.get_room_design(project, room_id)
+        if not saved_design:
+            raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail=f"No saved design for room '{room_id}'.")
+
+        # Collect locked items
+        all_assets = (
+            saved_design.get("furniture", []) +
+            saved_design.get("cabinetry", []) +
+            saved_design.get("appliances", []) +
+            saved_design.get("sanitary_fixtures", []) +
+            saved_design.get("decorations", [])
+        )
+        locked_assets = [a for a in all_assets if a.get("is_locked") or a.get("is_user_locked")]
+
+        # Build locked placements mapping for the optimizer
+        locked_placements = []
+        for la in locked_assets:
+            pos = la.get("position", {})
+            locked_placements.append({
+                "item_id": la.get("instance_id"),
+                "asset_id": la.get("asset_id"),
+                "category": la.get("category"),
+                "x": float(pos.get("x", 0.0)),
+                "y": float(pos.get("y", 0.0)),
+                "rotation": float(la.get("rotation_deg", 0.0)),
+            })
+
+        # Inject locked placements into room preferences
+        floor_id = saved_design.get("floor_id")
+        effective_prefs = self.service.get_effective_preferences(project, room_id, floor_id)
+        pref_dict = deepcopy(effective_prefs.get("effective_preferences", {}) or effective_prefs.get("effective", {}) or {})
+        pref_dict["locked_placements"] = locked_placements
+
+        # Resolve design input with locked placements
+        room_struct = self.service.get_room_by_id(project, room_id)
+        geo_fp = self.service._get_geo_fingerprint(project)
+        revision = getattr(project, "revision", 1) or 1
+
+        resolved_input = self.service.resolver.resolve(
+            project_id=project.id,
+            floor_id=floor_id or room_struct.floor_id,
+            room_id=room_id,
+            room_name=room_struct.name,
+            room_type_str=room_struct.room_type.value if hasattr(room_struct.room_type, "value") else str(room_struct.room_type),
+            polygon=room_struct.polygon,
+            area_sqm=room_struct.area_sqm,
+            ceiling_height_m=room_struct.ceiling_height or 2.8,
+            doors=room_struct.doors,
+            windows=room_struct.windows,
+            fixed_obstructions=room_struct.fixed_obstructions,
+            effective_preferences={"effective_preferences": pref_dict},
+            geometry_fingerprint=geo_fp,
+            geometry_revision=revision,
+            elevation_m=room_struct.elevation or 0.0,
+        )
+
+        from .generation.room_generator import RoomGenerator
+        room_gen = RoomGenerator()
+        gen_room_result = room_gen.generate_room(resolved_input, config=config)
+
+        if not gen_room_result.hard_constraints_passed:
+            diagnostics = gen_room_result.diagnostics or ["Infeasible spatial configuration with locked items."]
+            return {
+                "success": False,
+                "project_id": project.id,
+                "room_id": room_id,
+                "design_revision": saved_design.get("design_revision", 0),
+                "saved_design": saved_design,
+                "diagnostics": diagnostics,
+            }
+
+        # Persist if requested
+        if auto_save:
+            save_res = self.save_generation_result(
+                project=project,
+                generation_result=gen_room_result,
+                scope="room",
+                target_room_id=room_id,
+                target_floor_id=floor_id,
+                expected_design_revision=expected_design_revision,
+            )
+            updated_design = self.get_room_design(project, room_id)
+            return {
+                "success": True,
+                "project_id": project.id,
+                "room_id": room_id,
+                "design_revision": save_res.design_revision,
+                "saved_design": updated_design,
+                "diagnostics": gen_room_result.diagnostics,
+            }
+
+        return {
+            "success": True,
+            "project_id": project.id,
+            "room_id": room_id,
+            "design_revision": saved_design.get("design_revision", 0),
+            "saved_design": gen_room_result.model_dump(mode="json"),
+            "diagnostics": gen_room_result.diagnostics,
         }

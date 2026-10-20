@@ -30,7 +30,10 @@ import {
   Briefcase,
   HelpCircle,
   FileCheck2,
+  Box,
+  Eye,
 } from 'lucide-react'
+import dynamic from 'next/dynamic'
 
 import { FeatureWorkflowShell } from '@/components/workflow/FeatureWorkflowShell'
 import { useProjectStore } from '@/store/projectStore'
@@ -42,10 +45,25 @@ import {
   EffectivePreferences,
   PreferenceSchema,
 } from '@/lib/api/esai'
+import { SceneDataResponse } from '@/types/esai'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+
+const InteriorViewer = dynamic(
+  () => import('@/components/esai/viewer/InteriorViewer').then((mod) => mod.InteriorViewer),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex flex-col items-center justify-center h-[750px] bg-slate-950 rounded-2xl border border-slate-800 text-slate-400">
+        <RefreshCw className="w-8 h-8 animate-spin text-cyan-400 mb-3" />
+        <span className="text-sm font-semibold text-slate-200">Initializing 3D Three.js Engine...</span>
+        <span className="text-xs text-slate-500 mt-1">Loading architectural geometry and materials</span>
+      </div>
+    ),
+  }
+)
 
 // ─── Constants & Options ───────────────────────────────────────────────────────
 
@@ -124,10 +142,29 @@ export default function EsaiEnginePage() {
   const [gaDesignInput, setGaDesignInput] = useState<any | null>(null)
   const [isResolving, setIsResolving] = useState(false)
 
+  // ── Phase 6: 3D Scene Visualization State ─────────────────────────────────
+  const [workspaceTab, setWorkspaceTab] = useState<'preferences' | 'viewer'>('preferences')
+  const [sceneData, setSceneData] = useState<SceneDataResponse | null>(null)
+  const [isLoadingScene, setIsLoadingScene] = useState(false)
+
   // Redirect if no project selected
   useEffect(() => {
     if (!projectId) router.push('/start')
   }, [projectId, router])
+
+  const loadSceneData = useCallback(async () => {
+    if (!projectId) return
+    setIsLoadingScene(true)
+    try {
+      const data = await esaiApi.getSceneData(projectId)
+      setSceneData(data)
+    } catch (err: any) {
+      console.error('Failed to load scene data', err)
+      setStatusMessage({ type: 'error', text: 'Could not load 3D interior scene data.' })
+    } finally {
+      setIsLoadingScene(false)
+    }
+  }, [projectId])
 
   // ─── Fetch Interior Context ──────────────────────────────────────────────────
   const loadContext = useCallback(async () => {
@@ -414,6 +451,37 @@ export default function EsaiEnginePage() {
               </div>
             )}
 
+            {/* Mode Switcher: Preferences vs 3D Scene View */}
+            <div className="flex items-center bg-muted/40 p-1 rounded-lg border border-border/60">
+              <button
+                onClick={() => setWorkspaceTab('preferences')}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                  workspaceTab === 'preferences'
+                    ? 'bg-cyan-500 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Sliders className="w-3.5 h-3.5" />
+                Preferences
+              </button>
+              <button
+                onClick={() => {
+                  setWorkspaceTab('viewer')
+                  if (!sceneData) {
+                    loadSceneData()
+                  }
+                }}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                  workspaceTab === 'viewer'
+                    ? 'bg-cyan-500 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Box className="w-3.5 h-3.5" />
+                3D Scene & Walkthrough
+              </button>
+            </div>
+
             <Button
               size="sm"
               variant="outline"
@@ -457,8 +525,62 @@ export default function EsaiEnginePage() {
           </div>
         )}
 
-        {/* ─── Main 3-Column Layout ────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* ─── Workspace Switcher: 3D Scene View vs Preferences ────────────────── */}
+        {workspaceTab === 'viewer' ? (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl bg-card/60 border border-border/80 shadow-sm">
+              <div>
+                <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                  <Box className="w-5 h-5 text-cyan-400" />
+                  Realistic 3D Interior Visualization & Interactive Walkthrough
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Authoritative multi-floor CAD/BIM geometry with physically scaled furniture, PBR materials, lighting, and service provisions.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs border-border/80 hover:bg-muted/50 gap-1.5"
+                  onClick={loadSceneData}
+                  disabled={isLoadingScene}
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLoadingScene ? 'animate-spin' : ''}`} />
+                  Refresh 3D Scene
+                </Button>
+              </div>
+            </div>
+
+            {isLoadingScene ? (
+              <div className="flex flex-col items-center justify-center h-[750px] bg-slate-950 rounded-2xl border border-slate-800 text-slate-400">
+                <RefreshCw className="w-8 h-8 animate-spin text-cyan-400 mb-3" />
+                <span className="text-sm font-semibold text-slate-200">Loading Authoritative Scene Data...</span>
+                <span className="text-xs text-slate-500 mt-1">Retrieving floor polygons, walls, doors, and persisted interior layouts</span>
+              </div>
+            ) : sceneData ? (
+              <InteriorViewer
+                sceneData={sceneData}
+                initialFloorId={selectedFloorId}
+                initialRoomId={selectedRoomId}
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-[500px] bg-card/60 rounded-2xl border border-border/70 text-center p-6">
+                <AlertCircle className="w-10 h-10 text-amber-400 mb-3" />
+                <h4 className="text-sm font-semibold text-foreground">No Scene Data Loaded</h4>
+                <p className="text-xs text-muted-foreground max-w-md mt-1 mb-4">
+                  Could not retrieve 3D geometry for this project. Ensure upstream Component 1 geometry exists in the Master JSON.
+                </p>
+                <Button size="sm" onClick={loadSceneData}>
+                  Load Scene Data
+                </Button>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* ─── Main 3-Column Preferences Layout ─────────────────────────────── */
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
           {/* ══════════════════════════════════════════════════════════════════════════
               COLUMN 1 (3 Cols): Spatial Hierarchy Tree Navigator
@@ -1622,6 +1744,7 @@ export default function EsaiEnginePage() {
             </Card>
           </div>
         </div>
+        )}
       </div>
 
       {/* ─── Stage 2 Preview Dialog ────────────────────────────────────────────── */}

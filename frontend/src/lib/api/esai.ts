@@ -321,5 +321,166 @@ export const esaiApi = {
     );
     return r.data.resolved;
   },
+
+  // ── Phase 5 & 6 Persistence, Regeneration & 3D Scene Visualization ────────
+
+  runOptimization: async (
+    projectId: string,
+    payload: {
+      scope?: string;
+      room_id?: string;
+      floor_id?: string;
+      auto_save?: boolean;
+      generations?: number;
+      population_size?: number;
+      seed?: number;
+      alternatives_count?: number;
+    }
+  ): Promise<any> => {
+    const r = await apiClient.post(`${base(projectId)}/run`, payload);
+    return r.data;
+  },
+
+  getSavedDesigns: async (projectId: string): Promise<any> => {
+    const r = await apiClient.get(`${base(projectId)}/designs`);
+    return r.data;
+  },
+
+  getFloorDesigns: async (projectId: string, floorId: string): Promise<any> => {
+    const r = await apiClient.get(`${base(projectId)}/designs/floors/${floorId}`);
+    return r.data;
+  },
+
+  getRoomDesign: async (projectId: string, roomId: string): Promise<any> => {
+    const r = await apiClient.get(`${base(projectId)}/designs/rooms/${roomId}`);
+    return r.data;
+  },
+
+  getRoomAlternatives: async (projectId: string, roomId: string): Promise<any> => {
+    const r = await apiClient.get(`${base(projectId)}/designs/rooms/${roomId}/alternatives`);
+    return r.data;
+  },
+
+  selectAlternative: async (
+    projectId: string,
+    roomId: string,
+    alternativeId: string
+  ): Promise<any> => {
+    const r = await apiClient.post(
+      `${base(projectId)}/designs/rooms/${roomId}/select-alternative`,
+      { alternative_id: alternativeId }
+    );
+    return r.data;
+  },
+
+  saveDesign: async (
+    projectId: string,
+    payload: {
+      building_design?: any;
+      room_design?: any;
+      scope?: string;
+      target_room_id?: string;
+      target_floor_id?: string;
+      expected_design_revision?: number;
+    }
+  ): Promise<any> => {
+    const r = await apiClient.post(`${base(projectId)}/designs/save`, payload);
+    return r.data;
+  },
+
+  regenerateScope: async (
+    projectId: string,
+    payload: {
+      scope: string;
+      room_id?: string;
+      floor_id?: string;
+      auto_save?: boolean;
+      generations?: number;
+      population_size?: number;
+      seed?: number;
+    }
+  ): Promise<any> => {
+    const r = await apiClient.post(`${base(projectId)}/regenerate`, payload);
+    return r.data;
+  },
+
+  getSceneData: async (
+    projectId: string,
+    floorId?: string,
+    roomId?: string
+  ): Promise<any> => {
+    const params: Record<string, string> = {};
+    if (floorId) params.floor_id = floorId;
+    if (roomId) params.room_id = roomId;
+    const r = await apiClient.get(`${base(projectId)}/scene`, { params });
+    return r.data;
+  },
+
+  getDesignStaleness: async (projectId: string): Promise<any> => {
+    const r = await apiClient.get(`${base(projectId)}/designs/staleness`);
+    return r.data;
+  },
+
+  // ── Phase 7: Interactive Customization, Locking & Selective Regeneration ─
+
+  validateRoomEdit: async (
+    projectId: string,
+    roomId: string,
+    payload: any
+  ): Promise<any> => {
+    const r = await apiClient.post(
+      `${base(projectId)}/designs/rooms/${roomId}/validate-edit`,
+      payload
+    );
+    return r.data;
+  },
+
+  saveRoomEdit: async (
+    projectId: string,
+    roomId: string,
+    payload: any
+  ): Promise<any> => {
+    const r = await apiClient.patch(
+      `${base(projectId)}/designs/rooms/${roomId}`,
+      payload
+    );
+    return r.data;
+  },
+
+  lockRoomAsset: async (
+    projectId: string,
+    roomId: string,
+    payload: { instance_id: string; is_locked?: boolean; lock_type?: string; expected_design_revision?: number }
+  ): Promise<any> => {
+    const r = await apiClient.post(
+      `${base(projectId)}/designs/rooms/${roomId}/lock`,
+      payload
+    );
+    return r.data;
+  },
+
+  unlockRoomAsset: async (
+    projectId: string,
+    roomId: string,
+    payload: { instance_id: string; is_locked?: boolean; lock_type?: string; expected_design_revision?: number }
+  ): Promise<any> => {
+    const r = await apiClient.post(
+      `${base(projectId)}/designs/rooms/${roomId}/unlock`,
+      payload
+    );
+    return r.data;
+  },
+
+  regenerateUnlocked: async (
+    projectId: string,
+    roomId: string,
+    payload?: { expected_design_revision?: number; seed?: number; population_size?: number; generations?: number; auto_save?: boolean }
+  ): Promise<any> => {
+    const r = await apiClient.post(
+      `${base(projectId)}/designs/rooms/${roomId}/regenerate-unlocked`,
+      payload || {}
+    );
+    return r.data;
+  },
 };
 

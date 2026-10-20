@@ -123,9 +123,12 @@ class PreferenceToCatalogResolver:
         locked_placements = pref_data.get("locked_placements", [])
         locked_map: Dict[str, Dict[str, Any]] = {}
         for lp in locked_placements:
-            key = lp.get("item_id") or lp.get("asset_id") or lp.get("category")
-            if key:
-                locked_map[key] = lp
+            if lp.get("item_id"):
+                locked_map[str(lp["item_id"])] = lp
+            if lp.get("asset_id"):
+                locked_map[str(lp["asset_id"])] = lp
+            if lp.get("category"):
+                locked_map[str(lp["category"])] = lp
 
         # Helper to instantiate a catalog asset
         def add_instance(
@@ -151,6 +154,8 @@ class PreferenceToCatalogResolver:
             locked_coords = None
             locked_rot = None
             if locked_info:
+                if locked_info.get("item_id"):
+                    inst_id = str(locked_info["item_id"])
                 if "x" in locked_info and "y" in locked_info:
                     locked_coords = Coordinate2D(x=float(locked_info["x"]), y=float(locked_info["y"]))
                 if "rotation" in locked_info:
