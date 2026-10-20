@@ -118,6 +118,21 @@ export interface VastuAnalysis {
   brahmasthan?: {
     status: string;
     obstructing_rooms: string[];
+    exact_center?: [number, number];
+    tolerance?: number;
+    obstructing_objects?: string[];
+  };
+  dwara_sthana?: {
+    house_type: string;
+    classification: string;
+    directions: string[];
+    traditional_result?: string;
+  };
+  main_entrance?: {
+    identified: boolean;
+    door_id?: string | null;
+    sector?: string | null;
+    classification?: string | null;
   };
   bounding_box?: {
     min_x: number;
@@ -128,6 +143,33 @@ export interface VastuAnalysis {
     height: number;
     area_sqft: number;
   };
+}
+
+export interface MissingInfoOption {
+  value: string;
+  label: string;
+}
+
+export interface MissingInfoQuestion {
+  id: string;
+  category: 'orientation' | 'main_entrance' | 'door_direction' | 'room_type' | 'missing_geometry' | 'geometry_conflict';
+  target_element_id?: string;
+  title: string;
+  description: string;
+  field_path: string;
+  current_value: any;
+  suggested_value: any;
+  has_conflict: boolean;
+  is_required: boolean;
+  input_type: 'select' | 'radio' | 'text' | 'number';
+  options: MissingInfoOption[];
+}
+
+export interface MissingInfoReport {
+  has_blocking_missing_info: boolean;
+  questions_count: number;
+  questions: MissingInfoQuestion[];
+  summary: string;
 }
 
 export interface ValidationResult {
@@ -141,6 +183,7 @@ export interface ValidationResult {
   element_counts: ElementCounts;
   vastu_readiness: VastuReadiness;
   spatial_summary: SpatialSummary;
+  missing_info_report?: MissingInfoReport;
   vastu_analysis?: VastuAnalysis;
 }
 
