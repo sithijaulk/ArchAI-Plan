@@ -27,11 +27,15 @@ from .contracts import (
     ResolvedRoomDesignInputDTO,
     GeneratedRoomDesignDTO,
     GeneratedBuildingDesignDTO,
+    SaveDesignResponseDTO,
+    SelectAlternativeResponseDTO,
+    DesignStalenessReportDTO,
 )
 from .optimizer.genetic_optimizer import OptimizationConfig, PyGADLayoutOptimizer
 from .optimizer.baselines import BaselineEvaluator, BaselineComparisonReport
 from .generation.building_generator import BuildingGenerator
 from .generation.room_generator import RoomGenerator
+from .persistence import EsaiDesignPersistenceManager
 from .parser import StructuralInputParser
 from .normalizer import SpatialNormalizer
 from .validators import EsaiInputValidator
@@ -56,6 +60,7 @@ class EsaiEngineService:
         self.validator = EsaiInputValidator(self.catalog_repo, self.standards_repo)
         self.building_generator = BuildingGenerator()
         self.baseline_evaluator = BaselineEvaluator()
+        self.persistence_mgr = EsaiDesignPersistenceManager(db, self)
 
     # 1. Project Structural Context
     def get_structural_context(self, project: Project) -> StructuralInputDTO:
@@ -221,6 +226,85 @@ class EsaiEngineService:
             design_input=design_input,
             eval_budget=eval_budget,
             seed=seed,
+        )
+
+    # ── Phase 5: Persistence, Selective Regeneration & Alternative Selection ───
+
+    def save_design(
+        self,
+        project: Project,
+        generation_result: Any,
+        scope: str = "building",
+        target_room_id: Optional[str] = None,
+        target_floor_id: Optional[str] = None,
+        expected_design_revision: Optional[int] = None,
+    ) -> SaveDesignResponseDTO:
+        """
+        Stage B: Atomically and non-destructively persists validated layouts into Master JSON.
+        """
+        return self.persistence_mgr.save_generation_result(
+            project=project,
+            generation_result=generation_result,
+            scope=scope,
+            target_room_id=target_room_id,
+            target_floor_id=target_floor_id,
+            expected_design_revision=expected_design_revision,
+        )
+
+    def get_saved_designs(self, project: Project) -> Dict[str, Any]:
+        """Retrieves all saved interior designs and revisions from Master JSON."""
+        return self.persistence_mgr.get_saved_designs(project)
+
+    def get_floor_designs(self, project: Project, floor_id: str) -> Dict[str, Any]:
+        """Retrieves saved interior designs for a specific floor from Master JSON."""
+        return self.persistence_mgr.get_floor_designs(project, floor_id)
+
+    def get_room_design(self, project: Project, room_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieves saved interior design for a single room from Master JSON."""
+        return self.persistence_mgr.get_room_design(project, room_id)
+
+    def get_room_alternatives(self, project: Project, room_id: str) -> List[Dict[str, Any]]:
+        """Retrieves saved layout alternatives for a room from Master JSON."""
+        return self.persistence_mgr.get_room_alternatives(project, room_id)
+
+    def select_alternative(
+        self,
+        project: Project,
+        room_id: str,
+        alternative_id: str,
+        expected_design_revision: Optional[int] = None,
+    ) -> SelectAlternativeResponseDTO:
+        """Activates a specific alternative layout for a room and persists atomically."""
+        return self.persistence_mgr.select_alternative(
+            project=project,
+            room_id=room_id,
+            alternative_id=alternative_id,
+            expected_design_revision=expected_design_revision,
+        )
+
+    def check_design_staleness(self, project: Project) -> DesignStalenessReportDTO:
+        """Audits saved designs against authoritative geometry and current client preferences."""
+        return self.persistence_mgr.check_design_staleness(project)
+
+    def regenerate(
+        self,
+        project: Project,
+        scope: str = "room",
+        target_room_id: Optional[str] = None,
+        target_floor_id: Optional[str] = None,
+        config: Optional[OptimizationConfig] = None,
+        auto_save: bool = True,
+        expected_design_revision: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Executes selective regeneration across room, floor, or building scope."""
+        return self.persistence_mgr.regenerate_scope(
+            project=project,
+            scope=scope,
+            target_room_id=target_room_id,
+            target_floor_id=target_floor_id,
+            config=config,
+            auto_save=auto_save,
+            expected_design_revision=expected_design_revision,
         )
 
     # 3. Validation Operations

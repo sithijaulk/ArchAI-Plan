@@ -3,6 +3,7 @@ ESAI Room Generator
 Coordinates evolutionary layout optimization and service/finish planning for a single room.
 """
 from typing import Any, Dict, List, Optional
+from datetime import datetime, timezone
 from ..contracts import (
     GeneratedRoomDesignDTO,
     ResolvedRoomDesignInputDTO,
@@ -122,6 +123,11 @@ class RoomGenerator:
             polygon=design_input.polygon,
             area_sqm=design_input.area_sqm,
             ceiling_height_m=design_input.ceiling_height_m,
+            geometry_revision=getattr(design_input, "geometry_revision", 1),
+            preference_revision=getattr(getattr(design_input, "effective_preferences", None), "preference_revision", 1),
+            geometry_fingerprint=getattr(design_input, "geometry_fingerprint", None),
+            generation_timestamp=datetime.now(timezone.utc).isoformat(),
+            active_alternative_id="primary",
             placed_assets=placed_assets_data,
             service_points=all_service_points,
             lighting_fixtures=lighting_fixtures,

@@ -39,6 +39,21 @@ from app.schemas.esai import (
     RunOptimizationResponse,
     BaselineBenchmarkRequest,
     BaselineBenchmarkResponse,
+    SaveDesignRequest,
+    SaveDesignResponse,
+    RegenerateScopeRequest,
+    RegenerateScopeResponse,
+    SelectAlternativeRequest,
+    SelectAlternativeResponse,
+    DesignStalenessResponse,
+    SavedDesignsResponse,
+)
+from app.components.esai_engine.exceptions import (
+    GeometryStalenessError,
+    PreferenceStalenessError,
+    DesignRevisionConflictError,
+    InvalidDesignSaveError,
+    AlternativeNotFoundError,
 )
 
 # Project-scoped router requiring authentication & authorization
@@ -92,7 +107,30 @@ def run_esai_engine(
         config=cfg,
         expected_revision=req.expected_revision,
     )
-    return RunOptimizationResponse(result=result)
+
+    persistence_res = None
+    if req.auto_save:
+        try:
+            persistence_res = service.save_design(
+                project=project,
+                generation_result=result,
+                scope=req.scope or "building",
+                target_room_id=req.room_id,
+                target_floor_id=req.floor_id,
+                expected_design_revision=req.expected_design_revision,
+            )
+        except (GeometryStalenessError, PreferenceStalenessError, DesignRevisionConflictError) as e:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"code": e.code, "message": e.message, "details": e.details},
+            )
+        except InvalidDesignSaveError as e:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"code": e.code, "message": e.message, "details": e.details},
+            )
+
+    return RunOptimizationResponse(result=result, persistence=persistence_res)
 
 
 @project_router.post("/benchmark", response_model=BaselineBenchmarkResponse)
@@ -669,4 +707,205 @@ def resolve_room_design_input(
     service = EsaiEngineService(db)
     resolved = service.resolve_room_design_input(project, room_id=room_id, floor_id=floor_id)
     return ResolvedDesignInputResponse(resolved=resolved)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# PHASE 5: Safe Master JSON Persistence, Revision Control & Selective Regeneration
+# ──────────────────────────────────────────────────────────────────────────────
+
+@project_router.post("/designs/save", response_model=SaveDesignResponse)
+def save_generated_design(
+    project_id: str,
+    payload: SaveDesignRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Stage B: Atomically saves a validated layout generation result into Master JSON
+    with geometry staleness, preference staleness, and optimistic concurrency checks.
+    """
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+
+    gen_input = payload.building_design or payload.room_design
+    if not gen_input:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Must provide either 'building_design' or 'room_design' in payload.",
+        )
+
+    try:
+        saved_dto = service.save_design(
+            project=project,
+            generation_result=gen_input,
+            scope=payload.scope or "building",
+            target_room_id=payload.target_room_id,
+            target_floor_id=payload.target_floor_id,
+            expected_design_revision=payload.expected_design_revision,
+        )
+        return SaveDesignResponse(
+            success=saved_dto.success,
+            project_id=saved_dto.project_id,
+            design_revision=saved_dto.design_revision,
+            saved_rooms_count=saved_dto.saved_rooms_count,
+            saved_room_ids=saved_dto.saved_room_ids,
+            timestamp=saved_dto.timestamp,
+            details=saved_dto.details,
+        )
+    except (GeometryStalenessError, PreferenceStalenessError, DesignRevisionConflictError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": e.code, "message": e.message, "details": e.details},
+        )
+    except InvalidDesignSaveError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": e.code, "message": e.message, "details": e.details},
+        )
+
+
+@project_router.post("/regenerate", response_model=RegenerateScopeResponse)
+def regenerate_interior_scope(
+    project_id: str,
+    payload: RegenerateScopeRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Executes selective interior regeneration over room, floor, or building scope.
+    Stage A: GA layout optimization (no locks held).
+    Stage B: Optional immediate atomic Master JSON persistence.
+    """
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+
+    from app.components.esai_engine.optimizer.genetic_optimizer import OptimizationConfig
+    cfg = OptimizationConfig(
+        population_size=payload.population_size or 20,
+        num_generations=payload.generations or 15,
+        alternatives_count=payload.alternatives_count or 2,
+        seed=payload.seed,
+    )
+
+    try:
+        regen_res = service.regenerate(
+            project=project,
+            scope=payload.scope or "room",
+            target_room_id=payload.room_id,
+            target_floor_id=payload.floor_id,
+            config=cfg,
+            auto_save=payload.auto_save,
+            expected_design_revision=payload.expected_design_revision,
+        )
+        return RegenerateScopeResponse(
+            generation=regen_res["generation"],
+            persistence=regen_res["persistence"],
+            scope=regen_res["scope"],
+            auto_saved=regen_res["auto_saved"],
+        )
+    except (GeometryStalenessError, PreferenceStalenessError, DesignRevisionConflictError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": e.code, "message": e.message, "details": e.details},
+        )
+    except InvalidDesignSaveError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": e.code, "message": e.message, "details": e.details},
+        )
+
+
+@project_router.get("/designs", response_model=SavedDesignsResponse)
+def get_saved_interior_designs(project_id: str, db: Session = Depends(get_db)):
+    """Retrieves all saved room interior layouts and metadata from Master JSON."""
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    return service.get_saved_designs(project)
+
+
+@project_router.get("/designs/floors/{floor_id}")
+def get_saved_floor_designs(project_id: str, floor_id: str, db: Session = Depends(get_db)):
+    """Retrieves saved room designs on a specific floor from Master JSON."""
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    return service.get_floor_designs(project, floor_id)
+
+
+@project_router.get("/designs/rooms/{room_id}")
+def get_saved_room_design(project_id: str, room_id: str, db: Session = Depends(get_db)):
+    """Retrieves saved interior layout for a single room from Master JSON."""
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    room = service.get_room_design(project, room_id)
+    if not room:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No saved interior design found for room '{room_id}' in project '{project_id}'.",
+        )
+    return room
+
+
+@project_router.get("/designs/rooms/{room_id}/alternatives")
+def get_room_design_alternatives(project_id: str, room_id: str, db: Session = Depends(get_db)):
+    """Retrieves generated layout alternatives for a room from Master JSON."""
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    alternatives = service.get_room_alternatives(project, room_id)
+    return {"room_id": room_id, "alternatives": alternatives, "total": len(alternatives)}
+
+
+@project_router.post("/designs/rooms/{room_id}/select-alternative", response_model=SelectAlternativeResponse)
+def select_room_alternative(
+    project_id: str,
+    room_id: str,
+    payload: SelectAlternativeRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Activates a specific valid layout alternative for a room, updating placed assets
+    and service connections, and committing atomically to Master JSON.
+    """
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    try:
+        res = service.select_alternative(
+            project=project,
+            room_id=room_id,
+            alternative_id=payload.alternative_id,
+            expected_design_revision=payload.expected_design_revision,
+        )
+        return SelectAlternativeResponse(
+            success=res.success,
+            project_id=res.project_id,
+            room_id=res.room_id,
+            active_alternative_id=res.active_alternative_id,
+            design_revision=res.design_revision,
+            updated_at=res.updated_at,
+        )
+    except AlternativeNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": e.code, "message": e.message, "details": e.details},
+        )
+    except DesignRevisionConflictError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": e.code, "message": e.message, "details": e.details},
+        )
+    except InvalidDesignSaveError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": e.code, "message": e.message, "details": e.details},
+        )
+
+
+@project_router.get("/designs/staleness", response_model=DesignStalenessResponse)
+def check_designs_staleness(project_id: str, db: Session = Depends(get_db)):
+    """
+    Audits saved interior designs against authoritative geometry fingerprint and
+    saved client preference revisions, identifying rooms requiring regeneration.
+    """
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    report = service.check_design_staleness(project)
+    return DesignStalenessResponse(report=report)
+
 

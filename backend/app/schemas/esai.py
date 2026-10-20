@@ -14,6 +14,11 @@ from app.components.esai_engine.contracts import (
     GeneratedRoomDesignDTO,
     GeneratedBuildingDesignDTO,
     PlacedFixturePointDTO,
+    PersistedRoomDesignDTO,
+    SaveDesignResponseDTO,
+    SelectAlternativeResponseDTO,
+    DesignStalenessReportDTO,
+    DesignStalenessRoomReportDTO,
 )
 from app.components.esai_engine.catalog import CatalogAsset, FinishAsset
 from app.components.esai_engine.rules import ErgonomicRule
@@ -198,11 +203,14 @@ class RunOptimizationRequest(BaseModel):
     population_size: Optional[int] = Field(default=25, ge=10, le=100)
     generations: Optional[int] = Field(default=20, ge=5, le=100)
     alternatives_count: Optional[int] = Field(default=2, ge=1, le=5)
+    auto_save: bool = Field(default=False, description="Whether to automatically persist validated designs into Master JSON")
     expected_revision: Optional[int] = None
+    expected_design_revision: Optional[int] = None
 
 
 class RunOptimizationResponse(BaseModel):
     result: GeneratedBuildingDesignDTO
+    persistence: Optional[SaveDesignResponseDTO] = None
 
 
 class BaselineBenchmarkRequest(BaseModel):
@@ -214,6 +222,75 @@ class BaselineBenchmarkRequest(BaseModel):
 
 class BaselineBenchmarkResponse(BaseModel):
     report: Dict[str, Any]
+
+
+# ─── Phase 5: Master JSON Persistence & Selective Regeneration Schemas ─────────
+
+class SaveDesignRequest(BaseModel):
+    building_design: Optional[GeneratedBuildingDesignDTO] = None
+    room_design: Optional[GeneratedRoomDesignDTO] = None
+    scope: str = Field(default="building", description="Scope of layout being saved: 'room', 'floor', or 'building'")
+    target_room_id: Optional[str] = None
+    target_floor_id: Optional[str] = None
+    expected_design_revision: Optional[int] = None
+
+
+class SaveDesignResponse(BaseModel):
+    success: bool
+    project_id: str
+    design_revision: int
+    saved_rooms_count: int
+    saved_room_ids: List[str]
+    timestamp: str
+    details: Dict[str, Any] = Field(default_factory=dict)
+
+
+class RegenerateScopeRequest(BaseModel):
+    scope: str = Field(default="room", description="Regeneration scope: 'room', 'floor', or 'building'")
+    room_id: Optional[str] = Field(default=None, description="Target room ID if scope is 'room'")
+    floor_id: Optional[str] = Field(default=None, description="Target floor ID if scope is 'floor'")
+    seed: Optional[int] = Field(default=42, description="Random seed")
+    population_size: Optional[int] = Field(default=20, ge=10, le=100)
+    generations: Optional[int] = Field(default=15, ge=5, le=100)
+    alternatives_count: Optional[int] = Field(default=2, ge=1, le=5)
+    auto_save: bool = Field(default=True, description="Whether to immediately commit validated layout into Master JSON")
+    expected_design_revision: Optional[int] = None
+
+
+class RegenerateScopeResponse(BaseModel):
+    generation: GeneratedBuildingDesignDTO
+    persistence: Optional[SaveDesignResponseDTO] = None
+    scope: str
+    auto_saved: bool
+
+
+class SelectAlternativeRequest(BaseModel):
+    alternative_id: str
+    expected_design_revision: Optional[int] = None
+
+
+class SelectAlternativeResponse(BaseModel):
+    success: bool
+    project_id: str
+    room_id: str
+    active_alternative_id: str
+    design_revision: int
+    updated_at: str
+
+
+class DesignStalenessResponse(BaseModel):
+    report: DesignStalenessReportDTO
+
+
+class SavedDesignsResponse(BaseModel):
+    project_id: str
+    design_revision: int
+    schema_version: str
+    geometry_fingerprint: Optional[str] = None
+    geometry_source: Optional[str] = None
+    total_saved_rooms: int
+    rooms: Dict[str, Any]
+    revisions: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 

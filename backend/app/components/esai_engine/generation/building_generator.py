@@ -96,11 +96,16 @@ class BuildingGenerator:
         else:
             overall_status = "failed"
 
+        structural_input = service.get_structural_context(project)
+        from ..geometry import compute_geometry_fingerprint
+        geo_fingerprint = compute_geometry_fingerprint(structural_input)
+
         return GeneratedBuildingDesignDTO(
             project_id=project.id,
             project_name=project.project_name,
             status=overall_status,
             geometry_revision=rev,
+            geometry_fingerprint=geo_fingerprint,
             scope=scope,
             target_floor_id=target_floor_id,
             target_room_id=target_room_id,

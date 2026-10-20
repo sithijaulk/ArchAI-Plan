@@ -958,6 +958,13 @@ class GeneratedRoomDesignDTO(BaseModel):
     polygon: List[Coordinate2D]
     area_sqm: float
     ceiling_height_m: float
+    geometry_revision: Optional[int] = 1
+    preference_revision: Optional[int] = 1
+    geometry_fingerprint: Optional[str] = None
+    design_revision: Optional[int] = 1
+    catalog_version: str = "1.0.0"
+    generation_timestamp: Optional[str] = None
+    active_alternative_id: Optional[str] = "primary"
     placed_assets: List[Dict[str, Any]] = Field(default_factory=list)
     service_points: List[PlacedFixturePointDTO] = Field(default_factory=list)
     lighting_fixtures: List[PlacedFixturePointDTO] = Field(default_factory=list)
@@ -979,6 +986,7 @@ class GeneratedBuildingDesignDTO(BaseModel):
     project_name: str
     status: str  # "success" | "partial" | "failed"
     geometry_revision: int
+    geometry_fingerprint: Optional[str] = None
     preference_revision: Optional[int] = None
     scope: str  # "room" | "floor" | "building"
     target_floor_id: Optional[str] = None
@@ -988,5 +996,103 @@ class GeneratedBuildingDesignDTO(BaseModel):
     failed_rooms_count: int
     rooms: Dict[str, GeneratedRoomDesignDTO] = Field(default_factory=dict)
     metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+# ─── Phase 5: Master JSON Persistence & Selective Regeneration Contracts ─────
+
+class PlacedAssetPersistedDTO(BaseModel):
+    instance_id: str
+    asset_id: str
+    asset_name: str
+    category: str
+    subcategory: Optional[str] = None
+    variant_id: Optional[str] = None
+    dimensions: Dimensions3D
+    position: Coordinate2D
+    rotation_deg: float
+    placement_mode: str = "floor_standing"
+    associated_wall_id: Optional[str] = None
+    is_locked: bool = False
+    is_mandatory: bool = True
+    material: Optional[str] = None
+    color: Optional[str] = None
+    bounding_box: Optional[Dict[str, float]] = None
+    validation_metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class PersistedRoomDesignDTO(BaseModel):
+    project_id: str
+    floor_id: str
+    room_id: str
+    room_name: str
+    room_type: str
+    geometry_revision: int = 1
+    geometry_fingerprint: Optional[str] = None
+    preference_revision: Optional[int] = 1
+    design_revision: int = 1
+    catalog_version: str = "1.0.0"
+    generation_status: str = "success"
+    generation_timestamp: str
+    active_alternative_id: str = "primary"
+    polygon: List[Coordinate2D] = Field(default_factory=list)
+    area_sqm: float = 0.0
+    ceiling_height_m: float = 2.8
+    furniture: List[PlacedAssetPersistedDTO] = Field(default_factory=list)
+    cabinetry: List[PlacedAssetPersistedDTO] = Field(default_factory=list)
+    appliances: List[PlacedAssetPersistedDTO] = Field(default_factory=list)
+    sanitary_fixtures: List[PlacedAssetPersistedDTO] = Field(default_factory=list)
+    lighting: List[PlacedFixturePointDTO] = Field(default_factory=list)
+    electrical_points: List[PlacedFixturePointDTO] = Field(default_factory=list)
+    plumbing_requirements: List[PlacedFixturePointDTO] = Field(default_factory=list)
+    service_requirements: List[Dict[str, Any]] = Field(default_factory=list)
+    wall_finishes: Dict[str, Any] = Field(default_factory=dict)
+    floor_finishes: Dict[str, Any] = Field(default_factory=dict)
+    ceiling_finishes: Dict[str, Any] = Field(default_factory=dict)
+    decorations: List[PlacedAssetPersistedDTO] = Field(default_factory=list)
+    validation: Dict[str, Any] = Field(default_factory=dict)
+    alternatives: List[Dict[str, Any]] = Field(default_factory=list)
+    generation_metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class DesignStalenessRoomReportDTO(BaseModel):
+    room_id: str
+    floor_id: str
+    room_name: str
+    has_saved_design: bool
+    design_revision: Optional[int] = None
+    is_stale: bool = False
+    geometry_stale: bool = False
+    preference_stale: bool = False
+    saved_geometry_fingerprint: Optional[str] = None
+    current_geometry_fingerprint: Optional[str] = None
+    saved_preference_revision: Optional[int] = None
+    current_preference_revision: Optional[int] = None
+    reason: Optional[str] = None
+
+
+class DesignStalenessReportDTO(BaseModel):
+    project_id: str
+    current_geometry_fingerprint: str
+    is_any_room_stale: bool
+    rooms: Dict[str, DesignStalenessRoomReportDTO]
+
+
+class SaveDesignResponseDTO(BaseModel):
+    success: bool
+    project_id: str
+    design_revision: int
+    saved_rooms_count: int
+    saved_room_ids: List[str]
+    timestamp: str
+    details: Dict[str, Any] = Field(default_factory=dict)
+
+
+class SelectAlternativeResponseDTO(BaseModel):
+    success: bool
+    project_id: str
+    room_id: str
+    active_alternative_id: str
+    design_revision: int
+    updated_at: str
 
 
