@@ -1,0 +1,2346 @@
+{
+  "project_id": "VSAI-TEST-001",
+  "project_name": "Vsai Test Floorplan Master",
+  "schema_version": "1.0",
+  "land_info": {},
+  "buildable_footprint": {},
+  "floor_plan": {
+    "id": "FP-TEST-001",
+    "name": "Sample Residential Floor Plan - Vastu Test",
+    "units": "mm",
+    "coordinate_system": {
+      "origin": "top_left",
+      "x_axis": "right",
+      "y_axis": "down"
+    },
+    "dimensions": {
+      "width": 12000,
+      "height": 9000
+    },
+    "boundary": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          0,
+          0
+        ],
+        [
+          12000,
+          0
+        ],
+        [
+          12000,
+          9000
+        ],
+        [
+          0,
+          9000
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    "rooms": [
+      {
+        "id": "room-01",
+        "name": "Living Room",
+        "type": "living_room",
+        "polygon": [
+          [
+            0,
+            0
+          ],
+          [
+            4000,
+            0
+          ],
+          [
+            4000,
+            3000
+          ],
+          [
+            0,
+            3000
+          ],
+          [
+            0,
+            0
+          ]
+        ],
+        "dimensions": {
+          "width": 4000,
+          "height": 3000
+        }
+      },
+      {
+        "id": "room-02",
+        "name": "Kitchen",
+        "type": "kitchen",
+        "polygon": [
+          [
+            4000,
+            0
+          ],
+          [
+            8000,
+            0
+          ],
+          [
+            8000,
+            3000
+          ],
+          [
+            4000,
+            3000
+          ],
+          [
+            4000,
+            0
+          ]
+        ],
+        "dimensions": {
+          "width": 4000,
+          "height": 3000
+        }
+      },
+      {
+        "id": "room-03",
+        "name": "Pooja Room",
+        "type": "pooja_room",
+        "polygon": [
+          [
+            8000,
+            0
+          ],
+          [
+            12000,
+            0
+          ],
+          [
+            12000,
+            3000
+          ],
+          [
+            8000,
+            3000
+          ],
+          [
+            8000,
+            0
+          ]
+        ],
+        "dimensions": {
+          "width": 4000,
+          "height": 3000
+        }
+      },
+      {
+        "id": "room-04",
+        "name": "Bedroom",
+        "type": "bedroom",
+        "polygon": [
+          [
+            0,
+            3000
+          ],
+          [
+            4000,
+            3000
+          ],
+          [
+            4000,
+            6000
+          ],
+          [
+            0,
+            6000
+          ],
+          [
+            0,
+            3000
+          ]
+        ],
+        "dimensions": {
+          "width": 4000,
+          "height": 3000
+        }
+      },
+      {
+        "id": "room-05",
+        "name": "Central Hall",
+        "type": "hallway",
+        "polygon": [
+          [
+            4000,
+            3000
+          ],
+          [
+            8000,
+            3000
+          ],
+          [
+            8000,
+            6000
+          ],
+          [
+            4000,
+            6000
+          ],
+          [
+            4000,
+            3000
+          ]
+        ],
+        "dimensions": {
+          "width": 4000,
+          "height": 3000
+        }
+      },
+      {
+        "id": "room-06",
+        "name": "Washroom",
+        "type": "toilet",
+        "polygon": [
+          [
+            8000,
+            3000
+          ],
+          [
+            12000,
+            3000
+          ],
+          [
+            12000,
+            6000
+          ],
+          [
+            8000,
+            6000
+          ],
+          [
+            8000,
+            3000
+          ]
+        ],
+        "dimensions": {
+          "width": 4000,
+          "height": 3000
+        }
+      },
+      {
+        "id": "room-07",
+        "name": "Master Bedroom",
+        "type": "master_bedroom",
+        "polygon": [
+          [
+            0,
+            6000
+          ],
+          [
+            6000,
+            6000
+          ],
+          [
+            6000,
+            9000
+          ],
+          [
+            0,
+            9000
+          ],
+          [
+            0,
+            6000
+          ]
+        ],
+        "dimensions": {
+          "width": 6000,
+          "height": 3000
+        }
+      },
+      {
+        "id": "room-08",
+        "name": "Staircase",
+        "type": "staircase",
+        "polygon": [
+          [
+            5500,
+            3500
+          ],
+          [
+            6500,
+            3500
+          ],
+          [
+            6500,
+            5500
+          ],
+          [
+            5500,
+            5500
+          ],
+          [
+            5500,
+            3500
+          ]
+        ],
+        "dimensions": {
+          "width": 1000,
+          "height": 2000
+        }
+      },
+      {
+        "id": "room-09",
+        "name": "Store Room",
+        "type": "store_room",
+        "polygon": [
+          [
+            6000,
+            6000
+          ],
+          [
+            9000,
+            6000
+          ],
+          [
+            9000,
+            9000
+          ],
+          [
+            6000,
+            9000
+          ],
+          [
+            6000,
+            6000
+          ]
+        ],
+        "dimensions": {
+          "width": 3000,
+          "height": 3000
+        }
+      }
+    ],
+    "walls": [
+      {
+        "id": "wall-01",
+        "start": [
+          0,
+          0
+        ],
+        "end": [
+          12000,
+          0
+        ],
+        "type": "external"
+      },
+      {
+        "id": "wall-02",
+        "start": [
+          12000,
+          0
+        ],
+        "end": [
+          12000,
+          9000
+        ],
+        "type": "external"
+      },
+      {
+        "id": "wall-03",
+        "start": [
+          12000,
+          9000
+        ],
+        "end": [
+          0,
+          9000
+        ],
+        "type": "external"
+      },
+      {
+        "id": "wall-04",
+        "start": [
+          0,
+          9000
+        ],
+        "end": [
+          0,
+          0
+        ],
+        "type": "external"
+      },
+      {
+        "id": "wall-05",
+        "start": [
+          4000,
+          0
+        ],
+        "end": [
+          4000,
+          9000
+        ],
+        "type": "internal"
+      },
+      {
+        "id": "wall-06",
+        "start": [
+          8000,
+          0
+        ],
+        "end": [
+          8000,
+          9000
+        ],
+        "type": "internal"
+      },
+      {
+        "id": "wall-07",
+        "start": [
+          0,
+          3000
+        ],
+        "end": [
+          12000,
+          3000
+        ],
+        "type": "internal"
+      },
+      {
+        "id": "wall-08",
+        "start": [
+          0,
+          6000
+        ],
+        "end": [
+          12000,
+          6000
+        ],
+        "type": "internal"
+      }
+    ],
+    "doors": [
+      {
+        "id": "door-01",
+        "name": "Main Entrance",
+        "direction": "S",
+        "wall_id": "wall-03",
+        "position": [
+          2500,
+          9000
+        ],
+        "is_main_entrance": true
+      },
+      {
+        "id": "door-02",
+        "name": "Kitchen Door",
+        "direction": "E",
+        "wall_id": "wall-06",
+        "position": [
+          8000,
+          1800
+        ],
+        "is_main_entrance": false
+      }
+    ],
+    "windows": [
+      {
+        "id": "window-01",
+        "direction": "N",
+        "wall_id": "wall-01",
+        "position": [
+          2000,
+          0
+        ]
+      },
+      {
+        "id": "window-02",
+        "direction": "E",
+        "wall_id": "wall-02",
+        "position": [
+          12000,
+          4200
+        ]
+      },
+      {
+        "id": "window-03",
+        "direction": "W",
+        "wall_id": "wall-04",
+        "position": [
+          0,
+          4500
+        ]
+      }
+    ],
+    "spatial_metadata": {
+      "north_direction": "top",
+      "room_adjacency": [
+        {
+          "room_a": "room-01",
+          "room_b": "room-02"
+        },
+        {
+          "room_a": "room-02",
+          "room_b": "room-03"
+        },
+        {
+          "room_a": "room-04",
+          "room_b": "room-05"
+        },
+        {
+          "room_a": "room-05",
+          "room_b": "room-06"
+        }
+      ]
+    }
+  },
+  "structural_rectification": {
+    "status": "completed",
+    "baseline_score": 18,
+    "rectified_score": 26,
+    "score_delta": 8,
+    "baseline_floor_plan": {
+      "id": "FP-TEST-001",
+      "name": "Sample Residential Floor Plan - Vastu Test",
+      "units": "mm",
+      "coordinate_system": {
+        "origin": "top_left",
+        "x_axis": "right",
+        "y_axis": "down"
+      },
+      "dimensions": {
+        "width": 12000,
+        "height": 9000
+      },
+      "boundary": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            0,
+            0
+          ],
+          [
+            12000,
+            0
+          ],
+          [
+            12000,
+            9000
+          ],
+          [
+            0,
+            9000
+          ],
+          [
+            0,
+            0
+          ]
+        ]
+      },
+      "rooms": [
+        {
+          "id": "room-01",
+          "name": "Living Room",
+          "type": "living_room",
+          "polygon": [
+            [
+              0,
+              0
+            ],
+            [
+              4000,
+              0
+            ],
+            [
+              4000,
+              3000
+            ],
+            [
+              0,
+              3000
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          "dimensions": {
+            "width": 4000,
+            "height": 3000
+          }
+        },
+        {
+          "id": "room-02",
+          "name": "Kitchen",
+          "type": "kitchen",
+          "polygon": [
+            [
+              4000,
+              0
+            ],
+            [
+              8000,
+              0
+            ],
+            [
+              8000,
+              3000
+            ],
+            [
+              4000,
+              3000
+            ],
+            [
+              4000,
+              0
+            ]
+          ],
+          "dimensions": {
+            "width": 4000,
+            "height": 3000
+          }
+        },
+        {
+          "id": "room-03",
+          "name": "Pooja Room",
+          "type": "pooja_room",
+          "polygon": [
+            [
+              8000,
+              0
+            ],
+            [
+              12000,
+              0
+            ],
+            [
+              12000,
+              3000
+            ],
+            [
+              8000,
+              3000
+            ],
+            [
+              8000,
+              0
+            ]
+          ],
+          "dimensions": {
+            "width": 4000,
+            "height": 3000
+          }
+        },
+        {
+          "id": "room-04",
+          "name": "Bedroom",
+          "type": "bedroom",
+          "polygon": [
+            [
+              0,
+              3000
+            ],
+            [
+              4000,
+              3000
+            ],
+            [
+              4000,
+              6000
+            ],
+            [
+              0,
+              6000
+            ],
+            [
+              0,
+              3000
+            ]
+          ],
+          "dimensions": {
+            "width": 4000,
+            "height": 3000
+          }
+        },
+        {
+          "id": "room-05",
+          "name": "Central Hall",
+          "type": "hallway",
+          "polygon": [
+            [
+              4000,
+              3000
+            ],
+            [
+              8000,
+              3000
+            ],
+            [
+              8000,
+              6000
+            ],
+            [
+              4000,
+              6000
+            ],
+            [
+              4000,
+              3000
+            ]
+          ],
+          "dimensions": {
+            "width": 4000,
+            "height": 3000
+          }
+        },
+        {
+          "id": "room-06",
+          "name": "Washroom",
+          "type": "toilet",
+          "polygon": [
+            [
+              8000,
+              3000
+            ],
+            [
+              12000,
+              3000
+            ],
+            [
+              12000,
+              6000
+            ],
+            [
+              8000,
+              6000
+            ],
+            [
+              8000,
+              3000
+            ]
+          ],
+          "dimensions": {
+            "width": 4000,
+            "height": 3000
+          }
+        },
+        {
+          "id": "room-07",
+          "name": "Master Bedroom",
+          "type": "master_bedroom",
+          "polygon": [
+            [
+              0,
+              6000
+            ],
+            [
+              6000,
+              6000
+            ],
+            [
+              6000,
+              9000
+            ],
+            [
+              0,
+              9000
+            ],
+            [
+              0,
+              6000
+            ]
+          ],
+          "dimensions": {
+            "width": 6000,
+            "height": 3000
+          }
+        },
+        {
+          "id": "room-08",
+          "name": "Staircase",
+          "type": "staircase",
+          "polygon": [
+            [
+              5500,
+              3500
+            ],
+            [
+              6500,
+              3500
+            ],
+            [
+              6500,
+              5500
+            ],
+            [
+              5500,
+              5500
+            ],
+            [
+              5500,
+              3500
+            ]
+          ],
+          "dimensions": {
+            "width": 1000,
+            "height": 2000
+          }
+        },
+        {
+          "id": "room-09",
+          "name": "Store Room",
+          "type": "store_room",
+          "polygon": [
+            [
+              6000,
+              6000
+            ],
+            [
+              9000,
+              6000
+            ],
+            [
+              9000,
+              9000
+            ],
+            [
+              6000,
+              9000
+            ],
+            [
+              6000,
+              6000
+            ]
+          ],
+          "dimensions": {
+            "width": 3000,
+            "height": 3000
+          }
+        }
+      ],
+      "walls": [
+        {
+          "id": "wall-01",
+          "start": [
+            0,
+            0
+          ],
+          "end": [
+            12000,
+            0
+          ],
+          "type": "external"
+        },
+        {
+          "id": "wall-02",
+          "start": [
+            12000,
+            0
+          ],
+          "end": [
+            12000,
+            9000
+          ],
+          "type": "external"
+        },
+        {
+          "id": "wall-03",
+          "start": [
+            12000,
+            9000
+          ],
+          "end": [
+            0,
+            9000
+          ],
+          "type": "external"
+        },
+        {
+          "id": "wall-04",
+          "start": [
+            0,
+            9000
+          ],
+          "end": [
+            0,
+            0
+          ],
+          "type": "external"
+        },
+        {
+          "id": "wall-05",
+          "start": [
+            4000,
+            0
+          ],
+          "end": [
+            4000,
+            9000
+          ],
+          "type": "internal"
+        },
+        {
+          "id": "wall-06",
+          "start": [
+            8000,
+            0
+          ],
+          "end": [
+            8000,
+            9000
+          ],
+          "type": "internal"
+        },
+        {
+          "id": "wall-07",
+          "start": [
+            0,
+            3000
+          ],
+          "end": [
+            12000,
+            3000
+          ],
+          "type": "internal"
+        },
+        {
+          "id": "wall-08",
+          "start": [
+            0,
+            6000
+          ],
+          "end": [
+            12000,
+            6000
+          ],
+          "type": "internal"
+        }
+      ],
+      "doors": [
+        {
+          "id": "door-01",
+          "name": "Main Entrance",
+          "direction": "S",
+          "wall_id": "wall-03",
+          "position": [
+            2500,
+            9000
+          ],
+          "is_main_entrance": true
+        },
+        {
+          "id": "door-02",
+          "name": "Kitchen Door",
+          "direction": "E",
+          "wall_id": "wall-06",
+          "position": [
+            8000,
+            1800
+          ],
+          "is_main_entrance": false
+        }
+      ],
+      "windows": [
+        {
+          "id": "window-01",
+          "direction": "N",
+          "wall_id": "wall-01",
+          "position": [
+            2000,
+            0
+          ]
+        },
+        {
+          "id": "window-02",
+          "direction": "E",
+          "wall_id": "wall-02",
+          "position": [
+            12000,
+            4200
+          ]
+        },
+        {
+          "id": "window-03",
+          "direction": "W",
+          "wall_id": "wall-04",
+          "position": [
+            0,
+            4500
+          ]
+        }
+      ],
+      "spatial_metadata": {
+        "north_direction": "top",
+        "room_adjacency": [
+          {
+            "room_a": "room-01",
+            "room_b": "room-02"
+          },
+          {
+            "room_a": "room-02",
+            "room_b": "room-03"
+          },
+          {
+            "room_a": "room-04",
+            "room_b": "room-05"
+          },
+          {
+            "room_a": "room-05",
+            "room_b": "room-06"
+          }
+        ]
+      }
+    },
+    "rectified_floor_plan": {
+      "id": "FP-TEST-001",
+      "name": "Sample Residential Floor Plan - Vastu Test",
+      "units": "mm",
+      "coordinate_system": {
+        "origin": "top_left",
+        "x_axis": "right",
+        "y_axis": "down"
+      },
+      "dimensions": {
+        "width": 12000,
+        "height": 9000
+      },
+      "boundary": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            0,
+            0
+          ],
+          [
+            12000,
+            0
+          ],
+          [
+            12000,
+            9000
+          ],
+          [
+            0,
+            9000
+          ],
+          [
+            0,
+            0
+          ]
+        ]
+      },
+      "rooms": [
+        {
+          "id": "room-01",
+          "name": "Living Room",
+          "type": "living_room",
+          "polygon": [
+            [
+              0,
+              6000
+            ],
+            [
+              6000,
+              6000
+            ],
+            [
+              6000,
+              9000
+            ],
+            [
+              0,
+              9000
+            ],
+            [
+              0,
+              6000
+            ]
+          ],
+          "dimensions": {
+            "width": 4000,
+            "height": 3000
+          }
+        },
+        {
+          "id": "room-02",
+          "name": "Kitchen",
+          "type": "kitchen",
+          "polygon": [
+            [
+              8000,
+              3000
+            ],
+            [
+              12000,
+              3000
+            ],
+            [
+              12000,
+              6000
+            ],
+            [
+              8000,
+              6000
+            ],
+            [
+              8000,
+              3000
+            ]
+          ],
+          "dimensions": {
+            "width": 4000,
+            "height": 3000
+          }
+        },
+        {
+          "id": "room-03",
+          "name": "Pooja Room",
+          "type": "pooja_room",
+          "polygon": [
+            [
+              6000,
+              6000
+            ],
+            [
+              9000,
+              6000
+            ],
+            [
+              9000,
+              9000
+            ],
+            [
+              6000,
+              9000
+            ],
+            [
+              6000,
+              6000
+            ]
+          ],
+          "dimensions": {
+            "width": 4000,
+            "height": 3000
+          }
+        },
+        {
+          "id": "room-04",
+          "name": "Bedroom",
+          "type": "bedroom",
+          "polygon": [
+            [
+              0,
+              3000
+            ],
+            [
+              4000,
+              3000
+            ],
+            [
+              4000,
+              6000
+            ],
+            [
+              0,
+              6000
+            ],
+            [
+              0,
+              3000
+            ]
+          ],
+          "dimensions": {
+            "width": 4000,
+            "height": 3000
+          }
+        },
+        {
+          "id": "room-05",
+          "name": "Central Hall",
+          "type": "hallway",
+          "polygon": [
+            [
+              5500,
+              3500
+            ],
+            [
+              6500,
+              3500
+            ],
+            [
+              6500,
+              5500
+            ],
+            [
+              5500,
+              5500
+            ],
+            [
+              5500,
+              3500
+            ]
+          ],
+          "dimensions": {
+            "width": 4000,
+            "height": 3000
+          }
+        },
+        {
+          "id": "room-06",
+          "name": "Washroom",
+          "type": "toilet",
+          "polygon": [
+            [
+              4000,
+              0
+            ],
+            [
+              8000,
+              0
+            ],
+            [
+              8000,
+              3000
+            ],
+            [
+              4000,
+              3000
+            ],
+            [
+              4000,
+              0
+            ]
+          ],
+          "dimensions": {
+            "width": 4000,
+            "height": 3000
+          }
+        },
+        {
+          "id": "room-07",
+          "name": "Master Bedroom",
+          "type": "master_bedroom",
+          "polygon": [
+            [
+              0,
+              0
+            ],
+            [
+              4000,
+              0
+            ],
+            [
+              4000,
+              3000
+            ],
+            [
+              0,
+              3000
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          "dimensions": {
+            "width": 6000,
+            "height": 3000
+          }
+        },
+        {
+          "id": "room-08",
+          "name": "Staircase",
+          "type": "staircase",
+          "polygon": [
+            [
+              4000,
+              3000
+            ],
+            [
+              8000,
+              3000
+            ],
+            [
+              8000,
+              6000
+            ],
+            [
+              4000,
+              6000
+            ],
+            [
+              4000,
+              3000
+            ]
+          ],
+          "dimensions": {
+            "width": 1000,
+            "height": 2000
+          }
+        },
+        {
+          "id": "room-09",
+          "name": "Store Room",
+          "type": "store_room",
+          "polygon": [
+            [
+              8000,
+              0
+            ],
+            [
+              12000,
+              0
+            ],
+            [
+              12000,
+              3000
+            ],
+            [
+              8000,
+              3000
+            ],
+            [
+              8000,
+              0
+            ]
+          ],
+          "dimensions": {
+            "width": 3000,
+            "height": 3000
+          }
+        }
+      ],
+      "walls": [
+        {
+          "id": "wall-01",
+          "start": [
+            0,
+            0
+          ],
+          "end": [
+            12000,
+            0
+          ],
+          "type": "external"
+        },
+        {
+          "id": "wall-02",
+          "start": [
+            12000,
+            0
+          ],
+          "end": [
+            12000,
+            9000
+          ],
+          "type": "external"
+        },
+        {
+          "id": "wall-03",
+          "start": [
+            12000,
+            9000
+          ],
+          "end": [
+            0,
+            9000
+          ],
+          "type": "external"
+        },
+        {
+          "id": "wall-04",
+          "start": [
+            0,
+            9000
+          ],
+          "end": [
+            0,
+            0
+          ],
+          "type": "external"
+        },
+        {
+          "id": "wall-05",
+          "start": [
+            4000,
+            0
+          ],
+          "end": [
+            4000,
+            9000
+          ],
+          "type": "internal"
+        },
+        {
+          "id": "wall-06",
+          "start": [
+            8000,
+            0
+          ],
+          "end": [
+            8000,
+            9000
+          ],
+          "type": "internal"
+        },
+        {
+          "id": "wall-07",
+          "start": [
+            0,
+            3000
+          ],
+          "end": [
+            12000,
+            3000
+          ],
+          "type": "internal"
+        },
+        {
+          "id": "wall-08",
+          "start": [
+            0,
+            6000
+          ],
+          "end": [
+            12000,
+            6000
+          ],
+          "type": "internal"
+        }
+      ],
+      "doors": [
+        {
+          "id": "door-01",
+          "name": "Main Entrance",
+          "direction": "S",
+          "wall_id": "wall-03",
+          "position": [
+            2500,
+            9000
+          ],
+          "is_main_entrance": true
+        },
+        {
+          "id": "door-02",
+          "name": "Kitchen Door",
+          "direction": "E",
+          "wall_id": "wall-06",
+          "position": [
+            8000,
+            1800
+          ],
+          "is_main_entrance": false
+        }
+      ],
+      "windows": [
+        {
+          "id": "window-01",
+          "direction": "N",
+          "wall_id": "wall-01",
+          "position": [
+            2000,
+            0
+          ]
+        },
+        {
+          "id": "window-02",
+          "direction": "E",
+          "wall_id": "wall-02",
+          "position": [
+            12000,
+            4200
+          ]
+        },
+        {
+          "id": "window-03",
+          "direction": "W",
+          "wall_id": "wall-04",
+          "position": [
+            0,
+            4500
+          ]
+        }
+      ],
+      "spatial_metadata": {
+        "north_direction": "top",
+        "room_adjacency": [
+          {
+            "room_a": "room-01",
+            "room_b": "room-02"
+          },
+          {
+            "room_a": "room-02",
+            "room_b": "room-03"
+          },
+          {
+            "room_a": "room-04",
+            "room_b": "room-05"
+          },
+          {
+            "room_a": "room-05",
+            "room_b": "room-06"
+          }
+        ]
+      },
+      "structural_elements": []
+    },
+    "modifications": [
+      {
+        "roomId": "room-03",
+        "roomName": "Pooja Room",
+        "previousSector": "South-East (Agneya / Agni)",
+        "newSector": "North (Uttara / Kubera)",
+        "reason": "Cleared central Brahmasthan core; aligned sacred sanctum with cosmic Ishanya morning light.",
+        "pointsGained": 20,
+        "previousCenter": [
+          10000.0,
+          1500.0
+        ],
+        "newCenter": [
+          7500.0,
+          7500.0
+        ]
+      },
+      {
+        "roomId": "room-02",
+        "roomName": "Kitchen",
+        "previousSector": "South (Dakshina / Yama)",
+        "newSector": "East (Purva / Indra)",
+        "reason": "Shifted cooking hearth out of conflict sector to primary Agni quadrant for health and wealth.",
+        "pointsGained": 15,
+        "previousCenter": [
+          6000.0,
+          1500.0
+        ],
+        "newCenter": [
+          10000.0,
+          4500.0
+        ]
+      },
+      {
+        "roomId": "room-07",
+        "roomName": "Master Bedroom",
+        "previousSector": "North-West (Vayavya / Vayu)",
+        "newSector": "South-West (Nairutya / Nirrithi)",
+        "reason": "Anchored head of family sanctuary into heavy earth Nairutya corner for stability and grounding.",
+        "pointsGained": 12,
+        "previousCenter": [
+          3000.0,
+          7500.0
+        ],
+        "newCenter": [
+          2000.0,
+          1500.0
+        ]
+      },
+      {
+        "roomId": "room-05",
+        "roomName": "Central Hall",
+        "previousSector": "Brahmasthan (Center / Brahma Core)",
+        "newSector": "Brahmasthan (Center / Brahma Core)",
+        "reason": "Positioned welcome and social area to capture welcoming cosmic morning energy.",
+        "pointsGained": 5,
+        "previousCenter": [
+          6000.0,
+          4500.0
+        ],
+        "newCenter": [
+          6000.0,
+          4500.0
+        ]
+      }
+    ],
+    "applied_modifications_count": 4,
+    "post_rectification_analysis": {
+      "score": 26,
+      "grade": "D",
+      "grade_description": "Major Non-Compliance: Fundamental spatial redesign recommended.",
+      "good_aspects": [
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Living Room - Auspicious Sector (North-West (Vayavya / Vayu))",
+          "room_id": "room-01",
+          "room_name": "Living Room",
+          "sector": "NORTH_WEST",
+          "sector_display": "North-West (Vayavya / Vayu)",
+          "polygon": [
+            [
+              0,
+              6000
+            ],
+            [
+              6000,
+              6000
+            ],
+            [
+              6000,
+              9000
+            ],
+            [
+              0,
+              9000
+            ],
+            [
+              0,
+              6000
+            ]
+          ],
+          "description": "Living Room is ideally positioned in North-West (Vayavya / Vayu), which is the primary auspicious sector for Living Room in Vastu Shastra.",
+          "points_earned": 2.8
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Pooja Room - Acceptable Alternative (North (Uttara / Kubera))",
+          "room_id": "room-03",
+          "room_name": "Pooja Room",
+          "sector": "NORTH",
+          "sector_display": "North (Uttara / Kubera)",
+          "polygon": [
+            [
+              6000,
+              6000
+            ],
+            [
+              9000,
+              6000
+            ],
+            [
+              9000,
+              9000
+            ],
+            [
+              6000,
+              9000
+            ],
+            [
+              6000,
+              6000
+            ]
+          ],
+          "description": "Pooja Room is located in North (Uttara / Kubera), which is listed as an acceptable secondary alternative for Pooja Room.",
+          "points_earned": 2.4
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Bedroom - Auspicious Sector (West (Pashchima / Varuna))",
+          "room_id": "room-04",
+          "room_name": "Bedroom",
+          "sector": "WEST",
+          "sector_display": "West (Pashchima / Varuna)",
+          "polygon": [
+            [
+              0,
+              3000
+            ],
+            [
+              4000,
+              3000
+            ],
+            [
+              4000,
+              6000
+            ],
+            [
+              0,
+              6000
+            ],
+            [
+              0,
+              3000
+            ]
+          ],
+          "description": "Bedroom is ideally positioned in West (Pashchima / Varuna), which is the primary auspicious sector for Bedroom in Vastu Shastra.",
+          "points_earned": 2.8
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Washroom - Acceptable Alternative (South (Dakshina / Yama))",
+          "room_id": "room-06",
+          "room_name": "Washroom",
+          "sector": "SOUTH",
+          "sector_display": "South (Dakshina / Yama)",
+          "polygon": [
+            [
+              4000,
+              0
+            ],
+            [
+              8000,
+              0
+            ],
+            [
+              8000,
+              3000
+            ],
+            [
+              4000,
+              3000
+            ],
+            [
+              4000,
+              0
+            ]
+          ],
+          "description": "Washroom is located in South (Dakshina / Yama), which is listed as an acceptable secondary alternative for Toilet / Washroom.",
+          "points_earned": 2.4
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Master Bedroom - Auspicious Sector (South-West (Nairutya / Nirrithi))",
+          "room_id": "room-07",
+          "room_name": "Master Bedroom",
+          "sector": "SOUTH_WEST",
+          "sector_display": "South-West (Nairutya / Nirrithi)",
+          "polygon": [
+            [
+              0,
+              0
+            ],
+            [
+              4000,
+              0
+            ],
+            [
+              4000,
+              3000
+            ],
+            [
+              0,
+              3000
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          "description": "Master Bedroom is ideally positioned in South-West (Nairutya / Nirrithi), which is the primary auspicious sector for Master Bedroom in Vastu Shastra.",
+          "points_earned": 2.8
+        }
+      ],
+      "defects": [
+        {
+          "rule_id": "vsai.brahmasthan.exact_center",
+          "title": "Brahmasthan Exact Center Point Obstructed",
+          "severity": "CRITICAL",
+          "room_id": null,
+          "room_name": "Room 'Central Hall', Room 'Staircase'",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "polygon": null,
+          "description": "The exact Brahmasthan center point (6000.00, 4500.00) is occupied or intersected by 2 represented spatial object(s): Room 'Central Hall', Room 'Staircase'.",
+          "remedy": "Ensure the exact plan center point (Brahmasthan core) is left completely free and open. Relocate load-bearing walls, structural columns, pillars, staircases, and enclosed partitions away from the center coordinate.",
+          "points_deducted": 25
+        },
+        {
+          "rule_id": "vsai.dwara_sthana.combination",
+          "title": "Dwara Sthana Defect: Nanda Combination (BAD)",
+          "severity": "HIGH",
+          "room_id": null,
+          "room_name": "Doors (EAST, SOUTH)",
+          "sector": "EAST",
+          "sector_display": "Cardinal Facings: EAST, SOUTH",
+          "polygon": null,
+          "description": "Dwara Sthana door configuration is classified as Nanda (BAD). Traditional attribution: Harm/misfortune to women (traditional claim). Current doors face EAST, SOUTH.",
+          "remedy": "Rebalance door placements to favor auspicious combinations such as Dhanya (East), Jaya (South), Kanta (East & West), Manorama (South & West), Sumukha (East, South & West), or Vijaya (All 4 cardinal directions).",
+          "points_deducted": 25
+        },
+        {
+          "rule_id": "vsai.main_entrance.direction",
+          "title": "Main Entrance in Inauspicious Direction (North-West (Vayavya / Vayu))",
+          "severity": "HIGH",
+          "room_id": "door-01",
+          "room_name": "Main Entrance",
+          "sector": "NORTH_WEST",
+          "sector_display": "North-West (Vayavya / Vayu)",
+          "polygon": [],
+          "description": "The main entrance 'Main Entrance' is positioned in North-West (Vayavya / Vayu). Vastu Shastra guidelines designate North, North-East, East, South of South-East, or West of North-West as positive suitable entrance zones.",
+          "remedy": "Relocate the primary entrance door towards North, North-East (Ishanya), or East (Indra) to enhance auspicious ingress of prana and prosperity.",
+          "points_deducted": 25
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Kitchen Sub-Optimal Placement (East (Purva / Indra))",
+          "severity": "MEDIUM",
+          "room_id": "room-02",
+          "room_name": "Kitchen",
+          "sector": "EAST",
+          "sector_display": "East (Purva / Indra)",
+          "polygon": [
+            [
+              8000,
+              3000
+            ],
+            [
+              12000,
+              3000
+            ],
+            [
+              12000,
+              6000
+            ],
+            [
+              8000,
+              6000
+            ],
+            [
+              8000,
+              3000
+            ]
+          ],
+          "description": "Kitchen is located in East (Purva / Indra). Recommended preferred directions are SOUTH_EAST.",
+          "remedy": "Relocate cooking stove towards South-East (Agneya) or North-West (Vayavya).",
+          "points_deducted": 1.7
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Central Hall Sub-Optimal Placement (Brahmasthan (Center / Brahma Core))",
+          "severity": "MEDIUM",
+          "room_id": "room-05",
+          "room_name": "Central Hall",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "polygon": [
+            [
+              5500,
+              3500
+            ],
+            [
+              6500,
+              3500
+            ],
+            [
+              6500,
+              5500
+            ],
+            [
+              5500,
+              5500
+            ],
+            [
+              5500,
+              3500
+            ]
+          ],
+          "description": "Central Hall is located in Brahmasthan (Center / Brahma Core). Recommended preferred directions are NORTH_WEST, NORTH, NORTH_EAST, EAST.",
+          "remedy": "Align living seating towards North or East during conversations.",
+          "points_deducted": 1.7
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Staircase in Prohibited Zone (Brahmasthan (Center / Brahma Core))",
+          "severity": "CRITICAL",
+          "room_id": "room-08",
+          "room_name": "Staircase",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "polygon": [
+            [
+              4000,
+              3000
+            ],
+            [
+              8000,
+              3000
+            ],
+            [
+              8000,
+              6000
+            ],
+            [
+              4000,
+              6000
+            ],
+            [
+              4000,
+              3000
+            ]
+          ],
+          "description": "Staircase is located in Brahmasthan (Center / Brahma Core). Vastu Shastra explicitly states that Staircase must AVOID NORTH_EAST, CENTER, CENTER_BRAHMASTHAN.",
+          "remedy": "Build staircases clockwise and keep them out of the sacred central Brahmasthan.",
+          "points_deducted": 2.8
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Store Room Sub-Optimal Placement (South-East (Agneya / Agni))",
+          "severity": "MEDIUM",
+          "room_id": "room-09",
+          "room_name": "Store Room",
+          "sector": "SOUTH_EAST",
+          "sector_display": "South-East (Agneya / Agni)",
+          "polygon": [
+            [
+              8000,
+              0
+            ],
+            [
+              12000,
+              0
+            ],
+            [
+              12000,
+              3000
+            ],
+            [
+              8000,
+              3000
+            ],
+            [
+              8000,
+              0
+            ]
+          ],
+          "description": "Store Room is located in South-East (Agneya / Agni). Recommended preferred directions are SOUTH, WEST.",
+          "remedy": "Heavy storage should be positioned in heavier South or West sectors.",
+          "points_deducted": 1.7
+        }
+      ],
+      "total_rules_evaluated": 4,
+      "passed_rules_count": 5,
+      "failed_rules_count": 7,
+      "room_sectors": {
+        "room-01": {
+          "id": "room-01",
+          "name": "Living Room",
+          "type": "living_room",
+          "sector": "NORTH_WEST",
+          "sector_display": "North-West (Vayavya / Vayu)",
+          "centroid": [
+            2400.0,
+            7200.0
+          ],
+          "polygon": [
+            [
+              0,
+              6000
+            ],
+            [
+              6000,
+              6000
+            ],
+            [
+              6000,
+              9000
+            ],
+            [
+              0,
+              9000
+            ],
+            [
+              0,
+              6000
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": false
+        },
+        "room-02": {
+          "id": "room-02",
+          "name": "Kitchen",
+          "type": "kitchen",
+          "sector": "EAST",
+          "sector_display": "East (Purva / Indra)",
+          "centroid": [
+            9600.0,
+            4200.0
+          ],
+          "polygon": [
+            [
+              8000,
+              3000
+            ],
+            [
+              12000,
+              3000
+            ],
+            [
+              12000,
+              6000
+            ],
+            [
+              8000,
+              6000
+            ],
+            [
+              8000,
+              3000
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": false
+        },
+        "room-03": {
+          "id": "room-03",
+          "name": "Pooja Room",
+          "type": "pooja_room",
+          "sector": "NORTH",
+          "sector_display": "North (Uttara / Kubera)",
+          "centroid": [
+            7200.0,
+            7200.0
+          ],
+          "polygon": [
+            [
+              6000,
+              6000
+            ],
+            [
+              9000,
+              6000
+            ],
+            [
+              9000,
+              9000
+            ],
+            [
+              6000,
+              9000
+            ],
+            [
+              6000,
+              6000
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": false
+        },
+        "room-04": {
+          "id": "room-04",
+          "name": "Bedroom",
+          "type": "bedroom",
+          "sector": "WEST",
+          "sector_display": "West (Pashchima / Varuna)",
+          "centroid": [
+            1600.0,
+            4200.0
+          ],
+          "polygon": [
+            [
+              0,
+              3000
+            ],
+            [
+              4000,
+              3000
+            ],
+            [
+              4000,
+              6000
+            ],
+            [
+              0,
+              6000
+            ],
+            [
+              0,
+              3000
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": false
+        },
+        "room-05": {
+          "id": "room-05",
+          "name": "Central Hall",
+          "type": "hallway",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "centroid": [
+            5900.0,
+            4300.0
+          ],
+          "polygon": [
+            [
+              5500,
+              3500
+            ],
+            [
+              6500,
+              3500
+            ],
+            [
+              6500,
+              5500
+            ],
+            [
+              5500,
+              5500
+            ],
+            [
+              5500,
+              3500
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": true
+        },
+        "room-06": {
+          "id": "room-06",
+          "name": "Washroom",
+          "type": "toilet",
+          "sector": "SOUTH",
+          "sector_display": "South (Dakshina / Yama)",
+          "centroid": [
+            5600.0,
+            1200.0
+          ],
+          "polygon": [
+            [
+              4000,
+              0
+            ],
+            [
+              8000,
+              0
+            ],
+            [
+              8000,
+              3000
+            ],
+            [
+              4000,
+              3000
+            ],
+            [
+              4000,
+              0
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": false
+        },
+        "room-07": {
+          "id": "room-07",
+          "name": "Master Bedroom",
+          "type": "master_bedroom",
+          "sector": "SOUTH_WEST",
+          "sector_display": "South-West (Nairutya / Nirrithi)",
+          "centroid": [
+            1600.0,
+            1200.0
+          ],
+          "polygon": [
+            [
+              0,
+              0
+            ],
+            [
+              4000,
+              0
+            ],
+            [
+              4000,
+              3000
+            ],
+            [
+              0,
+              3000
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": false
+        },
+        "room-08": {
+          "id": "room-08",
+          "name": "Staircase",
+          "type": "staircase",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "centroid": [
+            5600.0,
+            4200.0
+          ],
+          "polygon": [
+            [
+              4000,
+              3000
+            ],
+            [
+              8000,
+              3000
+            ],
+            [
+              8000,
+              6000
+            ],
+            [
+              4000,
+              6000
+            ],
+            [
+              4000,
+              3000
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": true
+        },
+        "room-09": {
+          "id": "room-09",
+          "name": "Store Room",
+          "type": "store_room",
+          "sector": "SOUTH_EAST",
+          "sector_display": "South-East (Agneya / Agni)",
+          "centroid": [
+            9600.0,
+            1200.0
+          ],
+          "polygon": [
+            [
+              8000,
+              0
+            ],
+            [
+              12000,
+              0
+            ],
+            [
+              12000,
+              3000
+            ],
+            [
+              8000,
+              3000
+            ],
+            [
+              8000,
+              0
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": false
+        }
+      },
+      "brahmasthan": {
+        "status": "OBSTRUCTED",
+        "exact_center": [
+          6000.0,
+          4500.0
+        ],
+        "tolerance": 0.05,
+        "obstructing_objects": [
+          "Central Hall",
+          "Staircase"
+        ],
+        "obstructing_rooms": [
+          "Central Hall",
+          "Staircase"
+        ]
+      },
+      "dwara_sthana": {
+        "house_type": "Nanda",
+        "classification": "BAD",
+        "directions": [
+          "EAST",
+          "SOUTH"
+        ],
+        "traditional_result": "Harm/misfortune to women (traditional claim)"
+      },
+      "main_entrance": {
+        "identified": true,
+        "door_id": "door-01",
+        "sector": "NORTH_WEST",
+        "classification": "UNSUITABLE"
+      },
+      "bounding_box": {
+        "min_x": 0,
+        "max_x": 12000,
+        "min_y": 0,
+        "max_y": 9000,
+        "width": 12000,
+        "height": 9000,
+        "area_sqft": 108000000.0
+      },
+      "rule_details": {
+        "vsai.brahmasthan.exact_center": {
+          "status": "FAIL",
+          "exact_center": [
+            6000.0,
+            4500.0
+          ],
+          "tolerance": 0.05,
+          "obstructing_objects_count": 2,
+          "obstructing_objects": [
+            {
+              "id": "room-05",
+              "name": "Central Hall",
+              "type": "room"
+            },
+            {
+              "id": "room-08",
+              "name": "Staircase",
+              "type": "room"
+            }
+          ]
+        },
+        "vsai.dwara_sthana.combination": {
+          "house_type": "Nanda",
+          "classification": "BAD",
+          "directions": [
+            "EAST",
+            "SOUTH"
+          ],
+          "traditional_result": "Harm/misfortune to women (traditional claim)",
+          "doors_count": 2,
+          "door_details": [
+            {
+              "id": "door-01",
+              "name": "Main Entrance",
+              "cardinal_direction": "SOUTH",
+              "sector": "NORTH_WEST",
+              "is_main_entrance": true
+            },
+            {
+              "id": "door-02",
+              "name": "Kitchen Door",
+              "cardinal_direction": "EAST",
+              "sector": "SOUTH_EAST",
+              "is_main_entrance": false
+            }
+          ]
+        },
+        "vsai.main_entrance.direction": {
+          "identified": true,
+          "door_id": "door-01",
+          "door_name": "Main Entrance",
+          "sector": "NORTH_WEST",
+          "classification": "UNSUITABLE"
+        },
+        "vsai.room.direction": {
+          "evaluated_rooms_count": 9
+        }
+      }
+    }
+  },
+  "interior_layout": {},
+  "exterior_landscape": {},
+  "processing": {
+    "gab_gen": {
+      "status": "pending"
+    },
+    "vsai_rectifier": {
+      "status": "completed",
+      "updatedAt": "2026-10-20T15:02:53.764Z"
+    },
+    "esai_engine": {
+      "status": "pending"
+    },
+    "elia_engine": {
+      "status": "pending"
+    }
+  },
+  "test_notes": {
+    "purpose": "Synthetic sample for testing JSON upload, validation, and Vastu analysis; not a construction drawing.",
+    "expected_checks_to_inspect": [
+      "Exact center point is x=6000, y=4500; staircase polygon includes that point.",
+      "Door directions are South and East; inspect how the configured door-combination rule classifies them.",
+      "Main entrance is explicitly marked and direction is S.",
+      "Room-direction checks depend on whether the engine maps room polygons to directional zones."
+    ]
+  }
+}

@@ -1,6 +1,7 @@
 {
   "project_id": "project-1",
   "project_name": "Sample House",
+  "schema_version": "1.0",
   "land_info": {
     "orientation": "north"
   },
@@ -224,6 +225,249 @@
     },
     "vastu_compliance_score": null,
     "score_status": "unavailable",
+    "vastu_analysis": {
+      "score": 56,
+      "grade": "B",
+      "grade_description": "Moderate Vastu Harmony: Key elemental or directional rectifications needed.",
+      "good_aspects": [
+        {
+          "rule_id": "vsai.dwara_sthana.combination",
+          "title": "Dwara Sthana: Dhruva Combination (VERY_GOOD)",
+          "room_id": null,
+          "room_name": "Doors",
+          "sector": "CENTER",
+          "sector_display": "Global House Doors",
+          "polygon": null,
+          "description": "House has no door representations detected. Traditional Dwara Sthana classification: Dhruva (VERY_GOOD) \u2014 Wealth, grain and prosperity.",
+          "points_earned": 25
+        },
+        {
+          "rule_id": "vsai.main_entrance.direction",
+          "title": "Main Entrance: Pending Designation",
+          "room_id": null,
+          "room_name": "Main Entrance",
+          "sector": "NORTH",
+          "sector_display": "Entrance Sector Pending",
+          "polygon": null,
+          "description": "No doors are represented in the floor plan to evaluate main entrance direction. Stage 1 analysis requires explicit door representations.",
+          "points_earned": 15
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Submitted baseline - Acceptable Alternative (West (Pashchima / Varuna))",
+          "room_id": "living",
+          "room_name": "Submitted baseline",
+          "sector": "WEST",
+          "sector_display": "West (Pashchima / Varuna)",
+          "polygon": [
+            [
+              0,
+              0
+            ],
+            [
+              4,
+              0
+            ],
+            [
+              4,
+              4
+            ],
+            [
+              0,
+              4
+            ]
+          ],
+          "description": "Submitted baseline is located in West (Pashchima / Varuna), which is listed as an acceptable secondary alternative for Living Room.",
+          "points_earned": 10.6
+        }
+      ],
+      "defects": [
+        {
+          "rule_id": "vsai.brahmasthan.exact_center",
+          "title": "Brahmasthan Exact Center Point Obstructed",
+          "severity": "CRITICAL",
+          "room_id": null,
+          "room_name": "Room 'Submitted baseline', Room 'Bedroom'",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "polygon": null,
+          "description": "The exact Brahmasthan center point (4.00, 2.00) is occupied or intersected by 2 represented spatial object(s): Room 'Submitted baseline', Room 'Bedroom'.",
+          "remedy": "Ensure the exact plan center point (Brahmasthan core) is left completely free and open. Relocate load-bearing walls, structural columns, pillars, staircases, and enclosed partitions away from the center coordinate.",
+          "points_deducted": 25
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Bedroom Sub-Optimal Placement (East (Purva / Indra))",
+          "severity": "MEDIUM",
+          "room_id": "bedroom",
+          "room_name": "Bedroom",
+          "sector": "EAST",
+          "sector_display": "East (Purva / Indra)",
+          "polygon": [
+            [
+              4,
+              0
+            ],
+            [
+              8,
+              0
+            ],
+            [
+              8,
+              4
+            ],
+            [
+              4,
+              4
+            ]
+          ],
+          "description": "Bedroom is located in East (Purva / Indra). Recommended preferred directions are SOUTH_WEST, SOUTH, WEST, NORTH_WEST.",
+          "remedy": "Orient sleeping head direction towards South or East.",
+          "points_deducted": 7.5
+        }
+      ],
+      "total_rules_evaluated": 4,
+      "passed_rules_count": 3,
+      "failed_rules_count": 2,
+      "room_sectors": {
+        "living": {
+          "id": "living",
+          "name": "Submitted baseline",
+          "type": "submitted baseline",
+          "sector": "WEST",
+          "sector_display": "West (Pashchima / Varuna)",
+          "centroid": [
+            2.0,
+            2.0
+          ],
+          "polygon": [
+            [
+              0,
+              0
+            ],
+            [
+              4,
+              0
+            ],
+            [
+              4,
+              4
+            ],
+            [
+              0,
+              4
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": true
+        },
+        "bedroom": {
+          "id": "bedroom",
+          "name": "Bedroom",
+          "type": "bedroom",
+          "sector": "EAST",
+          "sector_display": "East (Purva / Indra)",
+          "centroid": [
+            6.0,
+            2.0
+          ],
+          "polygon": [
+            [
+              4,
+              0
+            ],
+            [
+              8,
+              0
+            ],
+            [
+              8,
+              4
+            ],
+            [
+              4,
+              4
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": true
+        }
+      },
+      "brahmasthan": {
+        "status": "OBSTRUCTED",
+        "exact_center": [
+          4.0,
+          2.0
+        ],
+        "tolerance": 0.05,
+        "obstructing_objects": [
+          "Submitted baseline",
+          "Bedroom"
+        ],
+        "obstructing_rooms": [
+          "Submitted baseline",
+          "Bedroom"
+        ]
+      },
+      "dwara_sthana": {
+        "house_type": "Dhruva",
+        "classification": "VERY_GOOD",
+        "directions": [],
+        "traditional_result": "Wealth, grain and prosperity"
+      },
+      "main_entrance": {
+        "identified": false,
+        "door_id": null,
+        "sector": null,
+        "classification": null
+      },
+      "bounding_box": {
+        "min_x": 0,
+        "max_x": 8,
+        "min_y": 0,
+        "max_y": 4,
+        "width": 8,
+        "height": 4,
+        "area_sqft": 32.0
+      },
+      "rule_details": {
+        "vsai.brahmasthan.exact_center": {
+          "status": "FAIL",
+          "exact_center": [
+            4.0,
+            2.0
+          ],
+          "tolerance": 0.05,
+          "obstructing_objects_count": 2,
+          "obstructing_objects": [
+            {
+              "id": "living",
+              "name": "Submitted baseline",
+              "type": "room"
+            },
+            {
+              "id": "bedroom",
+              "name": "Bedroom",
+              "type": "room"
+            }
+          ]
+        },
+        "vsai.dwara_sthana.combination": {
+          "house_type": "Dhruva",
+          "classification": "VERY_GOOD",
+          "directions": [],
+          "traditional_result": "Wealth, grain and prosperity",
+          "doors_count": 0
+        },
+        "vsai.main_entrance.direction": {
+          "identified": false,
+          "reason": "No door representations present."
+        },
+        "vsai.room.direction": {
+          "evaluated_rooms_count": 2
+        }
+      }
+    },
     "rule_results": [
       {
         "rule_id": "vastu.padavinyasa_9x9",
@@ -313,10 +557,10 @@
       "room_overlaps": []
     },
     "warnings": [
-      "No Vastu or structural rules are configured from validated project definitions.",
+      "Automatic floor plan rectification and pretrained model integration are deferred for Stage 2.",
       "Image segmentation and image-to-vector extraction require Stage 2 AI processing."
     ],
-    "processed_at": "2026-10-12T20:26:55.890894+00:00"
+    "processed_at": "2026-10-20T15:21:57.532220+00:00"
   },
   "interior_layout": {
     "furniture": [
