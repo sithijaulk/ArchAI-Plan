@@ -42,9 +42,44 @@ export interface RegulatoryContext {
   district?: string;
   local_authority_type?: string;
   local_authority_name?: string;
+  authority_id?: string;
   development_zone?: string;
+  zone_confirmed?: boolean;
   road_width?: number;
   road_category?: string;
+  site_restrictions?: {
+    restriction_type: string;
+    checked: boolean;
+    intersected?: boolean | null;
+    verification_status?: string;
+    notes?: string;
+  }[];
+}
+
+export type ComplianceVerdict =
+  | 'compliant'
+  | 'non_compliant'
+  | 'requires_regulatory_verification'
+  | 'conflict_requires_review'
+  | 'not_applicable';
+
+export interface RegulatoryResolution {
+  authority_id?: string | null;
+  authority_name?: string | null;
+  authority_type?: string | null;
+  district?: string | null;
+  province?: string;
+  authority_verification_status?: string;
+  planning_jurisdiction_id: string;
+  uda_declared_area: boolean;
+  uda_jurisdiction_status: string;
+  development_zone?: string | null;
+  zone_verification_status: string;
+  applicability_status: string;
+  governing_sources: string[];
+  applicable_rule_ids: string[];
+  unresolved_requirements: string[];
+  disclaimers: string[];
 }
 
 export interface ClientRequirements {
@@ -168,6 +203,10 @@ export interface GabGenValidation {
   area_difference_percent?: number;
   violations: string[];
   warnings: string[];
+  compliance_verdict?: ComplianceVerdict;
+  unresolved_requirements?: string[];
+  conflicting_requirements?: string[];
+  regulatory_resolution?: RegulatoryResolution;
 }
 
 export interface GabGenMasterJson {

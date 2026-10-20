@@ -1,11 +1,12 @@
 "use client";
 
 import React from 'react';
-import { Plus, Trash2, Home, Layers, Sparkles, Building2, MapPin } from 'lucide-react';
+import { Plus, Trash2, Home, Layers, Sparkles, Building2, MapPin, AlertTriangle, CheckCircle, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ClientRequirements, RoomRequirement, RegulatoryContext } from '../../types';
+import { SRI_LANKA_ADMIN_DATA } from '../../data/sriLankaLocations';
 
 interface RequirementsFormProps {
   requirements: ClientRequirements;
@@ -123,7 +124,7 @@ export const RequirementsForm: React.FC<RequirementsFormProps> = ({
         </div>
 
         {/* Location & Local Authority (Dependent Selections) */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs pt-1">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs pt-1">
           <div>
             <Label className="text-[10px] text-muted-foreground block mb-1">Province</Label>
             <select
@@ -132,13 +133,14 @@ export const RequirementsForm: React.FC<RequirementsFormProps> = ({
                 updateRegulatory('province', e.target.value);
                 updateRegulatory('district', '');
                 updateRegulatory('local_authority_name', '');
+                updateRegulatory('local_authority_type', '');
               }}
               className="w-full px-2 py-1.5 text-xs bg-background border border-border rounded text-foreground"
             >
               <option value="">Select Province</option>
-              <option value="Western">Western</option>
-              <option value="Central">Central</option>
-              <option value="Southern">Southern</option>
+              <option value="Western">Western (47 Verified Councils)</option>
+              <option value="Central">Central (Provisional)</option>
+              <option value="Southern">Southern (Provisional)</option>
             </select>
           </div>
 
@@ -149,56 +151,81 @@ export const RequirementsForm: React.FC<RequirementsFormProps> = ({
               onChange={(e) => {
                 updateRegulatory('district', e.target.value);
                 updateRegulatory('local_authority_name', '');
+                updateRegulatory('local_authority_type', '');
               }}
               className="w-full px-2 py-1.5 text-xs bg-background border border-border rounded text-foreground"
             >
               <option value="">Select District</option>
-              {requirements.regulatory_context?.province === 'Western' && (
-                <>
-                  <option value="Colombo">Colombo</option>
-                  <option value="Gampaha">Gampaha</option>
-                  <option value="Kalutara">Kalutara</option>
-                </>
-              )}
-              {requirements.regulatory_context?.province === 'Central' && (
-                <>
-                  <option value="Kandy">Kandy</option>
-                  <option value="Matale">Matale</option>
-                  <option value="Nuwara Eliya">Nuwara Eliya</option>
-                </>
-              )}
-              {requirements.regulatory_context?.province === 'Southern' && (
-                <>
-                  <option value="Galle">Galle</option>
-                  <option value="Matara">Matara</option>
-                  <option value="Hambantota">Hambantota</option>
-                </>
-              )}
+              {requirements.regulatory_context?.province && SRI_LANKA_ADMIN_DATA[requirements.regulatory_context.province] &&
+                Object.keys(SRI_LANKA_ADMIN_DATA[requirements.regulatory_context.province].districts).map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))
+              }
             </select>
           </div>
 
           <div>
-            <Label className="text-[10px] text-muted-foreground block mb-1">Authority Type</Label>
+            <Label className="text-[10px] text-muted-foreground block mb-1">Local Authority</Label>
             <select
-              value={requirements.regulatory_context?.local_authority_type || 'Municipal Council'}
-              onChange={(e) => updateRegulatory('local_authority_type', e.target.value)}
+              value={requirements.regulatory_context?.local_authority_name || ''}
+              onChange={(e) => {
+                const selectedName = e.target.value;
+                const prov = requirements.regulatory_context?.province || 'Western';
+                const dist = requirements.regulatory_context?.district || '';
+                const authObj = SRI_LANKA_ADMIN_DATA[prov]?.districts[dist]?.authorities.find(a => a.name === selectedName);
+                updateRegulatory('local_authority_name', selectedName);
+                if (authObj) {
+                  updateRegulatory('local_authority_type', authObj.type);
+                }
+              }}
               className="w-full px-2 py-1.5 text-xs bg-background border border-border rounded text-foreground"
             >
-              <option value="Municipal Council">Municipal Council</option>
-              <option value="Urban Council">Urban Council</option>
-              <option value="Pradeshiya Sabha">Pradeshiya Sabha</option>
+              <option value="">Select Authority</option>
+              {requirements.regulatory_context?.province && requirements.regulatory_context?.district &&
+                SRI_LANKA_ADMIN_DATA[requirements.regulatory_context.province]?.districts[requirements.regulatory_context.district]?.authorities.map((a) => (
+                  <option key={a.name} value={a.name}>
+                    {a.name} ({a.type})
+                  </option>
+                ))
+              }
             </select>
           </div>
+        </div>
 
+        {/* Development Zone & Street Line Verification */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs pt-1 border-t border-border/40">
           <div>
-            <Label className="text-[10px] text-muted-foreground block mb-1">Authority Name</Label>
+            <Label className="text-[10px] text-muted-foreground block mb-1">Development Zone (Optional)</Label>
             <Input
               type="text"
-              value={requirements.regulatory_context?.local_authority_name || ''}
-              onChange={(e) => updateRegulatory('local_authority_name', e.target.value)}
-              placeholder="e.g. Colombo Municipal Council"
+              value={requirements.regulatory_context?.development_zone || ''}
+              onChange={(e) => updateRegulatory('development_zone', e.target.value)}
+              placeholder="e.g. Primary Residential Zone / Commercial"
               className="text-xs h-8"
             />
+          </div>
+
+          <div className="flex items-center gap-2 pt-4">
+            <input
+              type="checkbox"
+              id="zone_confirmed"
+              checked={requirements.regulatory_context?.zone_confirmed || false}
+              onChange={(e) => updateRegulatory('zone_confirmed', e.target.checked)}
+              className="rounded border-border text-primary focus:ring-primary w-4 h-4"
+            />
+            <label htmlFor="zone_confirmed" className="text-[11px] text-muted-foreground cursor-pointer select-none">
+              Confirmed against official UDA Gazetted Zoning Schedule
+            </label>
+          </div>
+        </div>
+
+        {/* Regulatory Transparency Notice Banner */}
+        <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 p-2.5 flex items-start gap-2">
+          <Info className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+          <div className="text-[11px] leading-relaxed text-muted-foreground">
+            <span className="font-semibold text-foreground block mb-0.5">Statutory Planning Transparency</span>
+            GAB-Gen resolves regulations against Gazette Extraordinary No. 2235/54 & City of Colombo Development Plan.
+            Unknown authorities, unconfirmed zoning, or missing access road widths strictly require statutory verification prior to construction.
           </div>
         </div>
       </div>

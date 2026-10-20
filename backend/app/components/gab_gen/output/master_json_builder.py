@@ -94,15 +94,27 @@ def build_gab_master_json(
         "warnings": reconstructed_data.get("warnings", [])
     }
 
+    # Enhanced Regulatory Provenance in Master JSON
+    reg_res_dict = validation.regulatory_resolution.model_dump() if validation.regulatory_resolution else None
     mj["regulatory_rules"] = {
         "jurisdiction": rules[0].jurisdiction_id if rules else "none",
+        "regulatory_resolution": reg_res_dict,
+        "source_registry_version": "1.0.0",
+        "authority_registry_version": "1.0.0",
+        "compliance_verdict": validation.compliance_verdict.value if hasattr(validation.compliance_verdict, "value") else str(validation.compliance_verdict),
+        "unresolved_requirements": validation.unresolved_requirements,
+        "conflicting_requirements": validation.conflicting_requirements,
+        "site_restriction_summary": validation.site_restriction_summary,
         "applied_rules": [r.model_dump() for r in rules]
     }
 
     mj["buildable_footprint"] = {
         "polygon": buildable_data.get("polygon", []),
         "area": buildable_data.get("area", 0.0),
-        "valid": buildable_data.get("valid", False)
+        "valid": buildable_data.get("valid", False),
+        "provisional": buildable_data.get("provisional", False),
+        "provisional_reasons": buildable_data.get("provisional_reasons", []),
+        "preview_label": buildable_data.get("preview_label", "BUILDABLE ENVELOPE")
     }
 
     mj["client_requirements"] = requirements.model_dump()

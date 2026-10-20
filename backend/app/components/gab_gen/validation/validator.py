@@ -4,18 +4,27 @@ Performs comprehensive Stage-1 structural and geometric validation:
 - Legal land polygon validity
 - Vector closure tolerance cross-check against config
 - Declared area vs reconstructed area cross-check against config
-- Regulatory rules presence & verification status check
+- Multi-state regulatory rules verification (COMPLIANT, NON_COMPLIANT, REQUIRES_REGULATORY_VERIFICATION, CONFLICT_REQUIRES_REVIEW)
 - Buildable footprint containment inside legal parcel
 - Room containment inside buildable footprint
 - No illegal overlapping of rooms
 - Staircase geometric alignment across multi-storey floors
 - Storey count consistency
+- Site-level restrictions checking (wetlands, flood retention, road & canal reservations)
 """
 import json
 import os
 from typing import Any, Dict, List, Optional, Tuple
 from shapely.geometry import Polygon
-from ..schemas import ValidationResult, FloorPlanDefinition, RegulatoryRule
+from ..schemas import (
+    ValidationResult,
+    FloorPlanDefinition,
+    RegulatoryRule,
+    ComplianceStatus,
+    ApplicabilityStatus,
+    RegulatoryResolutionOutput,
+    SiteRestrictionCheck
+)
 
 _CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "gab_validation_config.json")
 
@@ -75,13 +84,17 @@ def validate_gab_geometry(
     area_check: Dict[str, Any],
     floors: List[FloorPlanDefinition],
     expected_storey_count: int = 1,
-    rules: Optional[List[RegulatoryRule]] = None
+    rules: Optional[List[RegulatoryRule]] = None,
+    regulatory_resolution: Optional[RegulatoryResolutionOutput] = None,
+    site_restrictions: Optional[List[SiteRestrictionCheck]] = None
 ) -> ValidationResult:
     """
-    Performs comprehensive GAB Stage-1 validation.
+    Performs comprehensive GAB Stage-1 structural and multi-state regulatory validation.
     """
     violations: List[str] = []
     warnings: List[str] = []
+    unresolved_requirements: List[str] = []
+    conflicting_requirements: List[str] = []
     closure_tolerance, _ = get_tolerances()
 
     # 1. Check legal land polygon validity
@@ -98,13 +111,32 @@ def validate_gab_geometry(
     if area_check.get("exceeds_tolerance"):
         warnings.append(area_check.get("warning", "Area discrepancy exceeds configured tolerance."))
 
-    # 4. Check regulatory rules
+    # 4. Check regulatory rules & resolution
     if not rules:
         violations.append("No verified regulatory setback configuration exists.")
+        unresolved_requirements.append("No regulatory rules supplied.")
     else:
         for r in rules:
-            if r.verification_status != "verified":
+            if r.verification_status == "research_test":
                 warnings.append(f"Rule '{r.rule_id}' is running in research_test mode (authority: {r.authority}).")
+                unresolved_requirements.append(f"Rule '{r.rule_id}' is a research benchmark.")
+            elif r.verification_status != "verified":
+                warnings.append(f"Rule '{r.rule_id}' has unverified status: '{r.verification_status}'.")
+                unresolved_requirements.append(f"Rule '{r.rule_id}' is pending verification.")
+
+    if regulatory_resolution:
+        for u in regulatory_resolution.unresolved_requirements:
+            if u not in unresolved_requirements:
+                unresolved_requirements.append(u)
+        if regulatory_resolution.authority_verification_status != "verified":
+            warnings.append(
+                f"Local Authority '{regulatory_resolution.authority_name}' verification status is "
+                f"'{regulatory_resolution.authority_verification_status}'."
+            )
+        if regulatory_resolution.zone_verification_status != "verified":
+            warnings.append(
+                f"Development zone '{regulatory_resolution.development_zone or 'Not specified'}' is not officially verified."
+            )
 
     # 5. Check buildable footprint validity & containment
     if not buildable_poly or not buildable_poly.is_valid or buildable_poly.area <= 0:
@@ -152,7 +184,7 @@ def validate_gab_geometry(
         elif len(stair_polys) >= 2:
             base_floor, base_stair = stair_polys[0]
             for f_name, s_poly in stair_polys[1:]:
-                # Stair cores must overlap almost perfectly (>95% intersection)
+                # Stair cores must overlap almost perfectly (>90% intersection)
                 intersect_area = base_stair.intersection(s_poly).area
                 min_area = min(base_stair.area, s_poly.area)
                 if min_area > 0 and (intersect_area / min_area) < 0.9:
@@ -169,14 +201,14 @@ def validate_gab_geometry(
     if rules:
         dim_rules = {r.conditions.get("room_type"): r for r in rules if r.rule_type == "room_dimension"}
         cov_rule = next((r for r in rules if r.rule_type == "ground_coverage"), None)
-        
+
         # Ground floor coverage check
         gf = next((f for f in floors if f.floor_index == 0), None)
         if gf and land_poly and land_poly.area > 0:
             gf_area = sum(r.area for r in gf.rooms)
             actual_cov = gf_area / land_poly.area
             max_cov = cov_rule.value if cov_rule else 0.65
-            cov_ok = actual_cov <= (max_cov + 0.02) # small numerical buffer
+            cov_ok = actual_cov <= (max_cov + 0.02)  # small numerical buffer
             design_checks["coverage_compliance"] = {
                 "ground_floor_area_sqm": round(gf_area, 2),
                 "land_area_sqm": round(land_poly.area, 2),
@@ -203,7 +235,7 @@ def validate_gab_geometry(
 
                 if applicable_rule:
                     min_area = applicable_rule.value
-                    passed = rm.area >= (min_area - 0.2) # numerical tolerance
+                    passed = rm.area >= (min_area - 0.2)  # numerical tolerance
                     check_item = {
                         "room_id": rm.room_id,
                         "room_name": rm.name,
@@ -220,28 +252,67 @@ def validate_gab_geometry(
                             f"Room '{rm.name}' ({rm.area:.2f} m²) on {fl.name} violates statutory minimum area ({min_area} m²) under {applicable_rule.rule_id}."
                         )
 
-    # Status Determination
+    # 10. Site-Level Restrictions Evaluation
+    site_restriction_summary: List[Dict[str, Any]] = []
+    if site_restrictions:
+        for r_check in site_restrictions:
+            summary_item = {
+                "restriction_type": r_check.restriction_type.value if hasattr(r_check.restriction_type, "value") else str(r_check.restriction_type),
+                "checked": r_check.checked,
+                "intersected": r_check.intersected,
+                "verification_status": r_check.verification_status,
+                "dataset_name": r_check.dataset_name,
+                "notes": r_check.notes
+            }
+            site_restriction_summary.append(summary_item)
+            if not r_check.checked:
+                unresolved_requirements.append(
+                    f"Site restriction '{summary_item['restriction_type']}' has NOT been checked against authoritative geospatial datasets."
+                )
+            elif r_check.intersected is True:
+                violations.append(
+                    f"Site intersects protected restriction overlay '{summary_item['restriction_type']}' "
+                    f"(dataset: {r_check.dataset_name or 'unknown'}). Buffer or statutory clearance required."
+                )
+
+    # 11. Strict Multi-State Compliance Verdict & Status
+    # Rule: Never mark COMPLIANT if mandatory applicable checks remain unresolved or violations exist.
     if violations:
+        compliance_verdict = ComplianceStatus.NON_COMPLIANT
         status = "failed"
         valid = False
-        geometry_status = "invalid"
+        geometry_status = "invalid" if any("polygon" in v.lower() or "room" in v.lower() or "staircase" in v.lower() for v in violations) else "valid"
+    elif conflicting_requirements:
+        compliance_verdict = ComplianceStatus.CONFLICT_REQUIRES_REVIEW
+        status = "needs_verification"
+        valid = True
+        geometry_status = "valid"
+    elif unresolved_requirements:
+        compliance_verdict = ComplianceStatus.REQUIRES_REGULATORY_VERIFICATION
+        status = "needs_verification"
+        valid = True
+        geometry_status = "valid"
     elif warnings:
+        compliance_verdict = ComplianceStatus.REQUIRES_REGULATORY_VERIFICATION
         status = "needs_verification"
         valid = True
         geometry_status = "valid"
     else:
+        compliance_verdict = ComplianceStatus.COMPLIANT
         status = "completed"
         valid = True
         geometry_status = "valid"
 
-    # Regulatory status
+    # Regulatory status summary string
     reg_status = "verified"
     if not rules:
         reg_status = "missing"
     elif any(r.verification_status == "research_test" for r in rules):
         reg_status = "research_test"
-    elif any(r.verification_status == "needs_verification" for r in rules):
+    elif compliance_verdict == ComplianceStatus.REQUIRES_REGULATORY_VERIFICATION:
         reg_status = "needs_verification"
+    elif compliance_verdict == ComplianceStatus.CONFLICT_REQUIRES_REVIEW:
+        reg_status = "conflict"
 
     return ValidationResult(
         valid=valid,
@@ -256,5 +327,10 @@ def validate_gab_geometry(
         warnings=warnings,
         geometry_status=geometry_status,
         regulatory_status=reg_status,
+        compliance_verdict=compliance_verdict,
+        unresolved_requirements=unresolved_requirements,
+        conflicting_requirements=conflicting_requirements,
+        site_restriction_summary=site_restriction_summary,
+        regulatory_resolution=regulatory_resolution,
         design_checks=design_checks
     )

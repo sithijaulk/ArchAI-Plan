@@ -93,6 +93,63 @@ class ManualSurveyExtractionRequest(BaseModel):
     road_width_origin: Optional[str] = Field(default=None, description="ocr_annotation | user")
 
 
+class ComplianceStatus(str, Enum):
+    COMPLIANT = "compliant"
+    NON_COMPLIANT = "non_compliant"
+    REQUIRES_REGULATORY_VERIFICATION = "requires_regulatory_verification"
+    CONFLICT_REQUIRES_REVIEW = "conflict_requires_review"
+    NOT_APPLICABLE = "not_applicable"
+
+
+class ApplicabilityStatus(str, Enum):
+    APPLICABLE_VERIFIED = "applicable_verified"
+    NOT_APPLICABLE_VERIFIED = "not_applicable_verified"
+    REQUIRES_REGULATORY_VERIFICATION = "requires_regulatory_verification"
+    CONFLICT_REQUIRES_REVIEW = "conflict_requires_review"
+
+
+class SiteRestrictionType(str, Enum):
+    FLOOD_PRONE = "flood_prone"
+    WETLAND = "wetland"
+    PADDY_LAND = "paddy_land"
+    ROAD_RESERVATION = "road_reservation"
+    CANAL_RESERVATION = "canal_reservation"
+    COASTAL_RESTRICTION = "coastal_restriction"
+    ENVIRONMENTAL_SENSITIVE = "environmental_sensitive"
+
+
+class SiteRestrictionCheck(BaseModel):
+    restriction_type: SiteRestrictionType
+    checked: bool = False
+    intersected: Optional[bool] = None
+    dataset_name: Optional[str] = None
+    dataset_version: Optional[str] = None
+    crs: Optional[str] = None
+    buffer_required_m: Optional[float] = None
+    legal_source_id: Optional[str] = None
+    verification_status: str = "unverified"  # verified, unverified, not_checked
+    notes: Optional[str] = None
+
+
+class RegulatoryResolutionOutput(BaseModel):
+    authority_id: Optional[str] = None
+    authority_name: Optional[str] = None
+    authority_type: Optional[str] = None
+    district: Optional[str] = None
+    province: Optional[str] = "Western"
+    authority_verification_status: str = "unverified"  # verified, unverified, provisional
+    planning_jurisdiction_id: str
+    uda_declared_area: bool = True
+    uda_jurisdiction_status: str = "verified"  # verified, requires_regulatory_verification
+    development_zone: Optional[str] = None
+    zone_verification_status: str = "unverified"  # verified, requires_regulatory_verification
+    applicability_status: ApplicabilityStatus = ApplicabilityStatus.REQUIRES_REGULATORY_VERIFICATION
+    governing_sources: List[str] = Field(default_factory=list)
+    applicable_rule_ids: List[str] = Field(default_factory=list)
+    unresolved_requirements: List[str] = Field(default_factory=list)
+    disclaimers: List[str] = Field(default_factory=list)
+
+
 # -------------------------------------------------------------
 # 2. Regulatory Context Schema
 # -------------------------------------------------------------
@@ -105,10 +162,13 @@ class RegulatoryContextInput(BaseModel):
     district: Optional[str] = None
     local_authority_type: Optional[str] = Field(default=None, description="municipal_council | urban_council | pradeshiya_sabha")
     local_authority_name: Optional[str] = None
+    authority_id: Optional[str] = Field(default=None, description="Stable canonical authority ID, e.g. LK-11-CMC")
     development_zone: Optional[str] = None
+    zone_confirmed: bool = Field(default=False, description="Whether zone was verified against official gazetted zoning map")
     # Not collected from the user any more; populated from verified survey data when available.
     road_width: Optional[float] = None
     road_category: Optional[str] = None
+    site_restrictions: List[SiteRestrictionCheck] = Field(default_factory=list)
 
 
 # -------------------------------------------------------------
@@ -324,6 +384,14 @@ class ValidationResult(BaseModel):
     regulatory_status: Optional[str] = Field(
         default=None, description="verified | unverified | incomplete | missing | research_test"
     )
+    compliance_verdict: ComplianceStatus = Field(
+        default=ComplianceStatus.REQUIRES_REGULATORY_VERIFICATION,
+        description="Strict multi-state compliance: compliant, non_compliant, requires_regulatory_verification, conflict_requires_review, not_applicable"
+    )
+    unresolved_requirements: List[str] = Field(default_factory=list)
+    conflicting_requirements: List[str] = Field(default_factory=list)
+    site_restriction_summary: List[Dict[str, Any]] = Field(default_factory=list)
+    regulatory_resolution: Optional[RegulatoryResolutionOutput] = None
     design_checks: Dict[str, Any] = Field(default_factory=dict)
 
 

@@ -50,12 +50,12 @@ class GabGenService:
         existing_master_json: Optional[Dict[str, Any]] = None,
         allow_research_test: bool = False
     ) -> GabGenRunOutput:
-        # Determine jurisdiction from requirements or parameter
-        jurisdiction_id = (
-            jurisdiction
-            or (requirements.regulatory_context.jurisdiction_id if requirements.regulatory_context else None)
-            or "sri_lanka_uda_standard"
+        # Step 0: Resolve full deterministic regulatory context
+        reg_resolution = RegulatoryEngine.resolve_full_regulatory_context(
+            reg_context=requirements.regulatory_context,
+            allow_research_test=allow_research_test
         )
+        jurisdiction_id = jurisdiction or reg_resolution.planning_jurisdiction_id
 
         # Step 1: Mathematical Vector Reconstruction in Canonical P0 Coordinates
         reconstructed = reconstruct_polygon(survey_request)
@@ -119,7 +119,8 @@ class GabGenService:
         buildable_res = compute_buildable_footprint(
             shapely_poly=shapely_land,
             edges=reconstructed.get("edges", []),
-            rules=rules
+            rules=rules,
+            regulatory_context=reg_resolution
         )
         shapely_buildable = buildable_res.get("shapely_polygon")
         buildable_area = buildable_res.get("area", 0.0)
@@ -133,7 +134,8 @@ class GabGenService:
                 reconstructed_area_sqm=area_check.get("reconstructed_area_sqm"),
                 area_difference_percent=area_check.get("area_difference_percent"),
                 violations=[buildable_res.get("error", "Buildable footprint computation failed or collapsed site.")],
-                warnings=reconstructed.get("warnings", [])
+                warnings=reconstructed.get("warnings", []),
+                regulatory_resolution=reg_resolution
             )
             master_json = build_gab_master_json(
                 project_id=project_id,
@@ -173,7 +175,8 @@ class GabGenService:
                 reconstructed_area_sqm=area_check.get("reconstructed_area_sqm"),
                 area_difference_percent=area_check.get("area_difference_percent"),
                 violations=[allocation_res.get("details", "Client programme exceeds buildable footprint capacity.")],
-                warnings=reconstructed.get("warnings", [])
+                warnings=reconstructed.get("warnings", []),
+                regulatory_resolution=reg_resolution
             )
             master_json = build_gab_master_json(
                 project_id=project_id,
@@ -204,7 +207,8 @@ class GabGenService:
             floor_allocations=allocation_res.get("floors", [])
         )
 
-        # Step 8: Complete Validation
+        # Step 8: Complete Multi-State Validation
+        site_restrictions = requirements.regulatory_context.site_restrictions if requirements.regulatory_context else []
         validation = validate_gab_geometry(
             land_poly=shapely_land,
             buildable_poly=shapely_buildable,
@@ -212,7 +216,9 @@ class GabGenService:
             area_check=area_check,
             floors=floors,
             expected_storey_count=requirements.storey_count,
-            rules=rules
+            rules=rules,
+            regulatory_resolution=reg_resolution,
+            site_restrictions=site_restrictions
         )
 
         # If reconstruction flagged needs_verification, ensure overall status reflects it
