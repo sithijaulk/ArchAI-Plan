@@ -283,6 +283,76 @@ export interface GabGenValidation {
   preference_evaluations?: PreferenceEvaluationResult[];
 }
 
+export interface HeuristicScoreBreakdown {
+  space_utilization: number;
+  circulation_efficiency: number;
+  room_suitability: number;
+  adjacency_satisfaction: number;
+  preference_satisfaction: number;
+  staircase_efficiency: number;
+  compactness: number;
+}
+
+export interface NumericalFeatureVector {
+  feature_schema_version: string;
+  total_usable_room_area_sqm: number;
+  building_footprint_area_sqm: number;
+  area_utilization_ratio: number;
+  circulation_area_sqm: number;
+  circulation_ratio: number;
+  mandatory_room_satisfaction_ratio: number;
+  preferred_room_size_satisfaction_ratio: number;
+  adjacency_satisfaction_ratio: number;
+  average_room_aspect_ratio: number;
+  room_dimension_penalty: number;
+  staircase_area_ratio: number;
+  floor_distribution_balance: number;
+  parking_satisfaction: number;
+  exterior_wall_access_ratio: number;
+  window_feasibility_ratio: number;
+  compactness_ratio: number;
+}
+
+export interface CandidateRejectionReason {
+  code: string;
+  requirement_id?: string | null;
+  message: string;
+}
+
+export interface FloorPlanCandidate {
+  candidate_id: string;
+  candidate_fingerprint: string;
+  display_name: string;
+  rank: number;
+  heuristic_score: number;
+  score_breakdown: HeuristicScoreBreakdown;
+  feasibility_status: 'FEASIBLE_VERIFIED_CONSTRAINTS' | 'FEASIBLE_WITH_REGULATORY_UNCERTAINTY' | 'INFEASIBLE' | 'GENERATION_FAILED';
+  rejection_reasons: CandidateRejectionReason[];
+  strategy_name: string;
+  footprint_variant: string;
+  building_footprint_polygon: Point2D[];
+  building_footprint_area_sqm: number;
+  floors: FloorPlan[];
+  roof_geometry?: GeneratedRoofGeometry;
+  validation: GabGenValidation;
+  preference_evaluations: PreferenceEvaluationResult[];
+  features: NumericalFeatureVector;
+  unmet_preferences: string[];
+  regulatory_verification_status: string;
+}
+
+export interface CandidateGenerationMetadata {
+  generation_run_id: string;
+  generator_version: string;
+  feature_schema_version: string;
+  ranking_method: string;
+  requested_candidate_count: number;
+  feasible_candidate_count: number;
+  rejected_candidate_count: number;
+  selected_candidate_id: string | null;
+  candidates: FloorPlanCandidate[];
+}
+
 export interface GabGenMasterJson {
   project_id: string;
   project_name: string;
@@ -353,11 +423,13 @@ export interface GabGenMasterJson {
     polygon: Point2D[];
     area: number;
   };
+  candidate_generation?: CandidateGenerationMetadata;
   edit_history?: {
     timestamp: string;
     action: string;
     room_id?: string;
     target_floor_id?: string;
+    candidate_id?: string;
   }[];
   gab_gen_validation: GabGenValidation;
   processing: {
@@ -367,6 +439,8 @@ export interface GabGenMasterJson {
       gab_gen_version?: string;
       survey_provider: string;
       allocation_provider: string;
+      candidate_count?: number;
+      selected_candidate_id?: string | null;
     };
     [key: string]: any;
   };
@@ -380,4 +454,7 @@ export interface GabGenRunOutput {
   master_json: GabGenMasterJson;
   validation: GabGenValidation;
   warnings: string[];
+  candidates?: FloorPlanCandidate[];
+  selected_candidate_id?: string | null;
 }
+

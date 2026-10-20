@@ -90,5 +90,18 @@ export const gabGenExtendedApi = {
     const res = await apiClient.get(`/projects/${projectId}/gab-gen/master-json`);
     return res.data;
   },
+
+  getCandidates: async (projectId: string) => {
+    const res = await apiClient.get(`/projects/${projectId}/gab-gen/candidates`);
+    return res.data;
+  },
+
+  selectCandidate: async (projectId: string, candidateId: string) => {
+    const res = await apiClient.post(`/projects/${projectId}/gab-gen/select-candidate`, {
+      candidate_id: candidateId,
+    });
+    return res.data;
+  },
 };
+
 

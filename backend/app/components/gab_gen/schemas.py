@@ -487,6 +487,79 @@ class ValidationResult(BaseModel):
     )
 
 
+class CandidateFeasibilityStatus(str, Enum):
+    FEASIBLE_VERIFIED_CONSTRAINTS = "FEASIBLE_VERIFIED_CONSTRAINTS"
+    FEASIBLE_WITH_REGULATORY_UNCERTAINTY = "FEASIBLE_WITH_REGULATORY_UNCERTAINTY"
+    INFEASIBLE = "INFEASIBLE"
+    GENERATION_FAILED = "GENERATION_FAILED"
+
+
+class CandidateRejectionReason(BaseModel):
+    code: str
+    requirement_id: Optional[str] = None
+    message: str
+
+
+class NumericalFeatureVector(BaseModel):
+    feature_schema_version: str = "1.0.0"
+    total_usable_room_area_sqm: float = 0.0
+    building_footprint_area_sqm: float = 0.0
+    area_utilization_ratio: float = 0.0
+    circulation_area_sqm: float = 0.0
+    circulation_ratio: float = 0.0
+    mandatory_room_satisfaction_ratio: float = 0.0
+    preferred_room_size_satisfaction_ratio: float = 0.0
+    adjacency_satisfaction_ratio: float = 0.0
+    average_room_aspect_ratio: float = 1.0
+    room_dimension_penalty: float = 0.0
+    staircase_area_ratio: float = 0.0
+    floor_distribution_balance: float = 1.0
+    parking_satisfaction: float = 1.0
+    exterior_wall_access_ratio: float = 1.0
+    window_feasibility_ratio: float = 1.0
+    compactness_ratio: float = 1.0
+
+
+class HeuristicScoreBreakdown(BaseModel):
+    space_utilization: float = 0.0
+    circulation_efficiency: float = 0.0
+    room_suitability: float = 0.0
+    adjacency_satisfaction: float = 0.0
+    preference_satisfaction: float = 0.0
+    staircase_efficiency: float = 0.0
+    compactness: float = 0.0
+
+
+class CandidateGenerationConfig(BaseModel):
+    requested_candidate_count: int = Field(default=3, ge=1, le=10)
+    max_generation_attempts: int = Field(default=20, ge=1, le=100)
+    deterministic_seed: int = Field(default=42)
+    minimum_layout_diversity: float = Field(default=0.10, ge=0.0, le=1.0)
+    ranking_method: str = "heuristic_v1"
+
+
+class FloorPlanCandidate(BaseModel):
+    candidate_id: str
+    candidate_fingerprint: str
+    display_name: str
+    rank: int = 1
+    heuristic_score: float = 0.0
+    score_breakdown: HeuristicScoreBreakdown = Field(default_factory=HeuristicScoreBreakdown)
+    feasibility_status: CandidateFeasibilityStatus = CandidateFeasibilityStatus.FEASIBLE_VERIFIED_CONSTRAINTS
+    rejection_reasons: List[CandidateRejectionReason] = Field(default_factory=list)
+    strategy_name: str = "default_proportional"
+    footprint_variant: str = "conformal_offset"
+    building_footprint_polygon: List[Point2D] = Field(default_factory=list)
+    building_footprint_area_sqm: float = 0.0
+    floors: List[FloorPlanDefinition] = Field(default_factory=list)
+    roof_geometry: Optional[GeneratedRoofGeometry] = None
+    validation: ValidationResult
+    preference_evaluations: List[PreferenceEvaluationResult] = Field(default_factory=list)
+    features: NumericalFeatureVector = Field(default_factory=NumericalFeatureVector)
+    unmet_preferences: List[str] = Field(default_factory=list)
+    regulatory_verification_status: str = "verified"
+
+
 class GabGenRunOutput(BaseModel):
     project_id: str
     project_name: str
@@ -495,3 +568,6 @@ class GabGenRunOutput(BaseModel):
     master_json: Dict[str, Any]
     validation: ValidationResult
     warnings: List[str] = Field(default_factory=list)
+    candidates: List[FloorPlanCandidate] = Field(default_factory=list)
+    selected_candidate_id: Optional[str] = None
+

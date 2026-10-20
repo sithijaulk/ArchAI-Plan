@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Layers, AlertTriangle, CheckCircle2, FileCode } from 'lucide-react';
 import { PlanPreview2D } from './PlanPreview2D';
 import { PlanPreview3D } from './PlanPreview3D';
+import { CandidateComparison } from './CandidateComparison';
 import { GabGenMasterJson } from '../../types';
 import { gabGenExtendedApi } from '../../api';
 
@@ -29,6 +30,8 @@ export const BlueprintViewer: React.FC<BlueprintViewerProps> = ({
   const [activeTab, setActiveTab] = useState<'2d' | '3d' | 'json'>('2d');
   const [editMessage, setEditMessage] = useState<string | null>(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isSelectingCand, setIsSelectingCand] = useState(false);
+
 
   const floors = data?.floor_plan?.floors || [];
   const validation = data?.gab_gen_validation;
@@ -161,6 +164,25 @@ export const BlueprintViewer: React.FC<BlueprintViewerProps> = ({
     }
   };
 
+  const handleSelectCandidate = async (candidateId: string) => {
+    if (!projectId || !data) return;
+    setIsSelectingCand(true);
+    setEditMessage(null);
+    try {
+      const res = await gabGenExtendedApi.selectCandidate(projectId, candidateId);
+      if (res.master_json && onUpdate) {
+        onUpdate(res.master_json);
+        setEditMessage(`Candidate '${candidateId}' activated successfully.`);
+      }
+    } catch (err: any) {
+      setEditMessage(err.response?.data?.detail || "Failed to select candidate.");
+    } finally {
+      setIsSelectingCand(false);
+    }
+  };
+
+  const candidatePool = data?.candidate_generation?.candidates || [];
+  const selectedCandidateId = data?.candidate_generation?.selected_candidate_id || data?.building_footprint?.candidate_id || null;
 
   return (
     <div className="space-y-4">
@@ -190,6 +212,16 @@ export const BlueprintViewer: React.FC<BlueprintViewerProps> = ({
           />
         </div>
       </div>
+
+      {/* Phase 5 Candidate Alternatives Comparison */}
+      {candidatePool.length > 0 && (
+        <CandidateComparison
+          candidates={candidatePool}
+          selectedCandidateId={selectedCandidateId}
+          onSelectCandidate={handleSelectCandidate}
+          isLoading={isSelectingCand}
+        />
+      )}
 
       {/* Status & Validation Banner */}
       {validation && (
@@ -226,6 +258,7 @@ export const BlueprintViewer: React.FC<BlueprintViewerProps> = ({
           </div>
         </div>
       )}
+
 
       {/* Floor Selector Bar (for Multi-Storey) */}
       {floors.length > 1 && (

@@ -690,8 +690,84 @@ def get_gab_master_json(project_id: str, db: Session = Depends(get_db)):
     return project.master_json
 
 
+@router.get("/candidates")
+def get_generated_candidates(project_id: str, db: Session = Depends(get_db)):
+    """Returns the generated candidates list, ranking, and selection metadata."""
+    project = _get_project_or_404(project_id, db)
+    mj = project.master_json or {}
+    cand_section = mj.get("candidate_generation", {})
+    if not cand_section.get("candidates"):
+        raise HTTPException(status_code=404, detail="No candidates generated yet for this project.")
+    return cand_section
+
+
+@router.post("/select-candidate")
+def select_candidate(
+    project_id: str,
+    payload: Dict[str, Any],
+    db: Session = Depends(get_db)
+):
+    """
+    Selects a candidate by ID, activating its floors, footprint, roof, and validation in Master JSON.
+    Preserves all unselected candidates in the candidate pool.
+    """
+    project = _get_project_or_404(project_id, db)
+    mj = project.master_json or {}
+    candidate_id = payload.get("candidate_id")
+    if not candidate_id:
+        raise HTTPException(status_code=400, detail="candidate_id is required.")
+
+    cand_section = mj.get("candidate_generation", {})
+    candidates = cand_section.get("candidates", [])
+    matching_cand = next((c for c in candidates if c.get("candidate_id") == candidate_id), None)
+
+    if not matching_cand:
+        raise HTTPException(status_code=404, detail=f"Candidate with ID '{candidate_id}' not found in candidate pool.")
+
+    # Activate matching candidate geometry
+    mj["floor_plan"] = {"floors": matching_cand.get("floors", [])}
+    if matching_cand.get("roof_geometry"):
+        mj["roof_geometry"] = matching_cand.get("roof_geometry")
+    if matching_cand.get("building_footprint_polygon"):
+        mj["building_footprint"] = {
+            "candidate_id": candidate_id,
+            "shape_type": matching_cand.get("footprint_variant", "conformal_offset"),
+            "polygon": matching_cand.get("building_footprint_polygon", []),
+            "area": matching_cand.get("building_footprint_area_sqm", 0.0)
+        }
+    if matching_cand.get("validation"):
+        mj["gab_gen_validation"] = matching_cand.get("validation")
+
+    # Update active selection in candidate_generation and processing
+    cand_section["selected_candidate_id"] = candidate_id
+    mj["candidate_generation"] = cand_section
+    if "processing" in mj and "gab_gen" in mj["processing"]:
+        mj["processing"]["gab_gen"]["selected_candidate_id"] = candidate_id
+
+    # Record edit history
+    history = mj.get("edit_history", [])
+    history.append({
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "action": "select_candidate",
+        "candidate_id": candidate_id
+    })
+    mj["edit_history"] = history
+
+    project.master_json = mj
+    db.commit()
+    db.refresh(project)
+
+    return {
+        "message": f"Candidate '{candidate_id}' selected successfully.",
+        "selected_candidate_id": candidate_id,
+        "floor_plan": mj["floor_plan"],
+        "master_json": mj
+    }
+
+
 @router.post("/run")
 def run_gab_gen_compat(project_id: str, db: Session = Depends(get_db)):
     """Compatibility endpoint for shared run trigger."""
     return generate_blueprint(project_id, dev_test_mode=True, db=db)
+
 

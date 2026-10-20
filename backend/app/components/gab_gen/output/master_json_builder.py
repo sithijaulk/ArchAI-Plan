@@ -23,11 +23,12 @@ from ..schemas import (
     ClientRequirementsInput,
     FloorPlanDefinition,
     ValidationResult,
-    RegulatoryRule
+    RegulatoryRule,
+    FloorPlanCandidate
 )
 
-SCHEMA_VERSION = "2.0.0"
-GAB_GEN_VERSION = "1.0.0"
+SCHEMA_VERSION = "2.1.0"
+GAB_GEN_VERSION = "1.5.0"
 
 
 def build_gab_master_json(
@@ -42,7 +43,10 @@ def build_gab_master_json(
     floors: List[FloorPlanDefinition],
     validation: ValidationResult,
     file_metadata: Optional[Dict[str, Any]] = None,
-    existing_master_json: Optional[Dict[str, Any]] = None
+    existing_master_json: Optional[Dict[str, Any]] = None,
+    candidates: Optional[List[FloorPlanCandidate]] = None,
+    selected_candidate_id: Optional[str] = None,
+    generation_metadata: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
     Constructs or non-destructively merges GAB-Gen results into Centralized Master JSON.
@@ -141,6 +145,7 @@ def build_gab_master_json(
         "floors": allocation_data.get("floors", [])
     }
 
+    # Active / Selected Floor Plan Definition (Directly consumed by 2D/3D Viewer and Editor)
     mj["floor_plan"] = {
         "floors": [fl.model_dump() for fl in floors]
     }
@@ -160,12 +165,26 @@ def build_gab_master_json(
     )
     mj["roof_geometry"] = roof_geom.model_dump()
 
-    # Building Footprint Candidate (Candidate 1: Optimal Setback Envelope)
+    # Active Building Footprint
     mj["building_footprint"] = {
-        "candidate_id": "FP_PRIMARY",
+        "candidate_id": selected_candidate_id or "FP_CANDIDATE_001",
         "shape_type": "conformal_offset",
         "polygon": buildable_data.get("polygon", []),
         "area": buildable_data.get("area", 0.0)
+    }
+
+    # Phase 5: Multi-Candidate Floor Plan Options & Selection Pool
+    cands_list = [c.model_dump() for c in (candidates or [])]
+    mj["candidate_generation"] = {
+        "generation_run_id": (generation_metadata or {}).get("generation_run_id", f"RUN_{project_id[:8]}"),
+        "generator_version": GAB_GEN_VERSION,
+        "feature_schema_version": "1.0.0",
+        "ranking_method": (generation_metadata or {}).get("ranking_method", "heuristic_v1"),
+        "requested_candidate_count": (generation_metadata or {}).get("requested_candidate_count", len(cands_list)),
+        "feasible_candidate_count": len(cands_list),
+        "rejected_candidate_count": (generation_metadata or {}).get("rejected_candidate_count", 0),
+        "selected_candidate_id": selected_candidate_id or (cands_list[0]["candidate_id"] if cands_list else None),
+        "candidates": cands_list
     }
 
     mj["gab_gen_validation"] = validation.model_dump()
@@ -180,8 +199,11 @@ def build_gab_master_json(
         "stage": "stage_1",
         "gab_gen_version": GAB_GEN_VERSION,
         "survey_provider": survey_request.source.value if hasattr(survey_request.source, "value") else str(survey_request.source),
-        "allocation_provider": allocation_data.get("provider", "rule_based_baseline")
+        "allocation_provider": allocation_data.get("provider", "rule_based_baseline"),
+        "candidate_count": len(cands_list),
+        "selected_candidate_id": selected_candidate_id or (cands_list[0]["candidate_id"] if cands_list else None)
     }
     mj["processing"] = processing
 
     return mj
+
