@@ -1,9 +1,14 @@
 import json
+import logging
 import math
 from collections.abc import Mapping
 from copy import deepcopy
 from typing import Any, Dict, List, Optional, Tuple, Set
 
+logger = logging.getLogger(__name__)
+
+from .master_json import MasterJsonAdapter
+from .missing_info_service import detect_missing_and_ambiguous_info
 from ..utils.vsai_geometry import (
     GeometryValidationError,
     _signed_area,
@@ -101,6 +106,15 @@ def validate_master_json(
         )
 
     # -------------------------------------------------------------
+    # Stage A.2: Configurable Schema Normalization (MasterJsonAdapter)
+    # Automatically maps fields from GAB-Gen or custom uploads using master_json_config.json
+    # -------------------------------------------------------------
+    try:
+        data = MasterJsonAdapter.normalize(data)
+    except Exception as norm_err:
+        logger.warning("MasterJsonAdapter normalization encountered warning: %s", norm_err)
+
+    # -------------------------------------------------------------
     # Stage B: Required Structure Validation
     # -------------------------------------------------------------
     project_id = data.get("project_id")
@@ -108,10 +122,18 @@ def validate_master_json(
         errors.append("Required field 'project_id' is missing or not a non-empty string.")
         missing_fields.append("project_id")
 
-    project_name = data.get("project_name")
+    project_name = (
+        data.get("project_name")
+        or (data.get("floor_plan") and data["floor_plan"].get("name"))
+        or data.get("name")
+        or (project_id and f"Project {project_id}")
+    )
     if not isinstance(project_name, str) or not project_name.strip():
         errors.append("Required field 'project_name' is missing or not a non-empty string.")
         missing_fields.append("project_name")
+    else:
+        # Populate so downstream components and database have project_name
+        data["project_name"] = project_name
 
     floor_plan = data.get("floor_plan")
     if floor_plan is None:
@@ -330,11 +352,29 @@ def validate_master_json(
     # -------------------------------------------------------------
     # Stage D: Orientation and Vastu-Readiness Validation
     # -------------------------------------------------------------
+    # Detect spatial_metadata.north_direction shorthand (e.g. "top" -> "North")
+    spatial_meta = floor_plan.get("spatial_metadata", {}) if isinstance(floor_plan, dict) else {}
+    raw_north = spatial_meta.get("north_direction") if isinstance(spatial_meta, dict) else None
+    mapped_north = None
+    if isinstance(raw_north, str):
+        lowered = raw_north.lower().strip()
+        if lowered in ("top", "up"):
+            mapped_north = "North"
+        elif lowered in ("right",):
+            mapped_north = "East"
+        elif lowered in ("bottom", "down"):
+            mapped_north = "South"
+        elif lowered in ("left",):
+            mapped_north = "West"
+        elif lowered in VALID_ORIENTATIONS or lowered.replace("-", "") in VALID_ORIENTATIONS:
+            mapped_north = raw_north.title()
+
     orientation_val = (
         land_info.get("orientation")
         or floor_plan.get("orientation")
         or data.get("orientation")
         or data.get("north_direction")
+        or mapped_north
     )
 
     has_valid_orientation = False
@@ -455,20 +495,33 @@ def validate_master_json(
 
     vastu_readiness = {
         "status": vastu_status,
+        "brahmasthan_exact_center": {"ready": brahmasthan_ready, "reason": brahmasthan_reason},
+        "dwara_sthana_combination": {"ready": True, "reason": None if has_doors else "Dhruva evaluated (no doors present)"},
+        "main_entrance_direction": {"ready": entrance_ready, "reason": entrance_reason},
+        "directional_room_placement": {"ready": directional_ready, "reason": directional_reason},
+        # Legacy keys for UI compatibility:
         "padavinyasa_9x9": {"ready": padavinyasa_ready, "reason": padavinyasa_reason},
         "brahmasthan": {"ready": brahmasthan_ready, "reason": brahmasthan_reason},
         "entrance_32_pada": {"ready": entrance_ready, "reason": entrance_reason},
-        "directional_room_placement": {"ready": directional_ready, "reason": directional_reason},
     }
 
+    # Detect missing, ambiguous, or conflicting information
+    missing_info_report = detect_missing_and_ambiguous_info(data)
+
     # Evaluate full Vastu Shastra rules & score via extensible Vastu Engine
+    # Only run the four finalized Vastu rule groups after the required data is available
     vastu_analysis = None
-    try:
-        from .vastu_engine import evaluate_vastu_shastra
-        if isinstance(data, dict):
-            vastu_analysis = evaluate_vastu_shastra(data)
-    except Exception as v_err:
-        logger.warning(f"Vastu engine execution error: {v_err}")
+    if not missing_info_report.get("has_blocking_missing_info"):
+        try:
+            from .vastu_engine import evaluate_vastu_shastra
+            if isinstance(data, dict):
+                vastu_analysis = evaluate_vastu_shastra(data)
+        except Exception as v_err:
+            logger.warning(f"Vastu engine execution error: {v_err}")
+    else:
+        logger.info(f"Vastu analysis deferred: {missing_info_report.get('summary')}")
+        if vastu_readiness.get("status") == "READY":
+            vastu_readiness["status"] = "NEEDS_USER_CONFIRMATION"
 
     return {
         "status": overall_status,
@@ -481,6 +534,7 @@ def validate_master_json(
         "element_counts": element_counts,
         "vastu_readiness": vastu_readiness,
         "spatial_summary": spatial_summary,
+        "missing_info_report": missing_info_report,
         "vastu_analysis": vastu_analysis,
     }
 
@@ -553,4 +607,11 @@ def _build_invalid_response(errors: List[str], summary: str, filename: str) -> D
             "boundary_points_count": 0,
             "bounding_box": None,
         },
+        "missing_info_report": {
+            "has_blocking_missing_info": True,
+            "questions_count": 0,
+            "questions": [],
+            "summary": summary,
+        },
+        "vastu_analysis": None,
     }

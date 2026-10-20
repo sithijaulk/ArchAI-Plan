@@ -18,6 +18,48 @@ class RuleDefinition:
     unavailable_reason: str = "An exact, validated rule definition is not present in the project specification."
 
 
+def _eval_brahmasthan_exact_center(master_json: Mapping[str, Any]) -> bool | None:
+    try:
+        from .vastu_engine import evaluate_vastu_shastra
+        res = evaluate_vastu_shastra(dict(master_json))
+        return res["brahmasthan"]["status"] == "CLEAR"
+    except Exception:
+        return None
+
+
+def _eval_dwara_sthana(master_json: Mapping[str, Any]) -> bool | None:
+    try:
+        from .vastu_engine import evaluate_vastu_shastra
+        res = evaluate_vastu_shastra(dict(master_json))
+        return res["dwara_sthana"]["classification"] in ("VERY_GOOD", "GOOD")
+    except Exception:
+        return None
+
+
+def _eval_main_entrance(master_json: Mapping[str, Any]) -> bool | None:
+    try:
+        from .vastu_engine import evaluate_vastu_shastra
+        res = evaluate_vastu_shastra(dict(master_json))
+        return res["main_entrance"].get("classification") == "POSITIVE_SUITABLE"
+    except Exception:
+        return None
+
+
+def _eval_room_direction(master_json: Mapping[str, Any]) -> bool | None:
+    try:
+        from .vastu_engine import evaluate_vastu_shastra
+        res = evaluate_vastu_shastra(dict(master_json))
+        # Pass if no critical or high defects detected in room placement
+        critical_room_defects = [
+            d for d in res["defects"]
+            if d.get("rule_id") == "vsai.room.direction" and d.get("severity") in ("CRITICAL", "HIGH")
+        ]
+        return len(critical_room_defects) == 0
+    except Exception:
+        return None
+
+
+# Legacy unconfigured rule definitions tested by regression tests
 RULE_DEFINITIONS = (
     RuleDefinition(
         "vastu.padavinyasa_9x9",
@@ -48,6 +90,42 @@ RULE_DEFINITIONS = (
         "directional",
         "Directional room-use evaluation",
         unavailable_reason="The directional requirements, orientation source, and room-use mapping are unspecified.",
+    ),
+)
+
+# 4 Finalized Vastu Rules from VSAI_Rectifier_Finalized_Vastu_Rules.json
+FINALIZED_RULE_DEFINITIONS = (
+    RuleDefinition(
+        "vsai.brahmasthan.exact_center",
+        "brahmasthan",
+        "Brahmasthan Exact Center-Point Check: verifies exact center point is free of spatial objects",
+        configured=True,
+        weight=25.0,
+        evaluator=_eval_brahmasthan_exact_center,
+    ),
+    RuleDefinition(
+        "vsai.dwara_sthana.combination",
+        "door_combination",
+        "Dwara Sthana Door-Combination Analysis: classifies 16 cardinal door configurations",
+        configured=True,
+        weight=25.0,
+        evaluator=_eval_dwara_sthana,
+    ),
+    RuleDefinition(
+        "vsai.main_entrance.direction",
+        "main_entrance",
+        "Main Entrance Direction Analysis: verifies positive suitable entrance sectors",
+        configured=True,
+        weight=25.0,
+        evaluator=_eval_main_entrance,
+    ),
+    RuleDefinition(
+        "vsai.room.direction",
+        "room_placement",
+        "Room Direction Analysis: directional room orientation and avoidance constraints",
+        configured=True,
+        weight=25.0,
+        evaluator=_eval_room_direction,
     ),
 )
 
@@ -138,6 +216,6 @@ def evaluate_rules(
             "coverage_percent": (evaluated / configured * 100) if configured else None,
         },
         "vastu_compliance_score": round(weighted_passed / weighted_total * 100, 2) if score_available else None,
-        "score_status": "incomplete" if score_available else "unavailable",
-        "score_formula": "100 * sum(weight of passed evaluated rules) / sum(weight of all evaluated rules); unspecified weights equal 1.",
+        "score_status": "evaluated" if score_available else "unavailable",
+        "score_formula": "100 * sum(weight of passed evaluated rules) / sum(weight of all evaluated rules).",
     }
