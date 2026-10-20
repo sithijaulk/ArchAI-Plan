@@ -1,0 +1,111 @@
+{
+  "project_id": "test-vsai-defects",
+  "project_name": "Defective Layout Plan - Rectification Needed",
+  "land_info": {
+    "boundary_points": [
+      [0.0, 0.0],
+      [50.0, 0.0],
+      [50.0, 50.0],
+      [0.0, 50.0]
+    ],
+    "area_sqft": 2500.0,
+    "orientation": "North",
+    "road_facing": "South"
+  },
+  "buildable_footprint": {
+    "polygon": [
+      [2.0, 2.0],
+      [48.0, 2.0],
+      [48.0, 48.0],
+      [2.0, 48.0]
+    ]
+  },
+  "floor_plan": {
+    "rooms": [
+      {
+        "id": "room-toilet-ne",
+        "name": "Attached Toilet in Ishanya",
+        "type": "toilet_washroom",
+        "polygon": [
+          [34.0, 34.0],
+          [48.0, 34.0],
+          [48.0, 48.0],
+          [34.0, 48.0]
+        ]
+      },
+      {
+        "id": "room-kitchen-ne",
+        "name": "Kitchen in East",
+        "type": "kitchen",
+        "polygon": [
+          [34.0, 18.0],
+          [48.0, 18.0],
+          [48.0, 32.0],
+          [34.0, 32.0]
+        ]
+      },
+      {
+        "id": "room-master-bed-n",
+        "name": "Master Bedroom in North",
+        "type": "master_bedroom",
+        "polygon": [
+          [18.0, 34.0],
+          [32.0, 34.0],
+          [32.0, 48.0],
+          [18.0, 48.0]
+        ]
+      },
+      {
+        "id": "room-living-sw",
+        "name": "Living Room in South-West",
+        "type": "living_room",
+        "polygon": [
+          [2.0, 2.0],
+          [16.0, 2.0],
+          [16.0, 16.0],
+          [2.0, 16.0]
+        ]
+      }
+    ],
+    "doors": [
+      {
+        "id": "door-main-south",
+        "name": "South Entrance Door",
+        "type": "main_entrance",
+        "is_main_entrance": true,
+        "cardinal_direction": "SOUTH",
+        "position": [25.0, 0.5]
+      },
+      {
+        "id": "door-east",
+        "name": "East Balcony Door",
+        "type": "secondary",
+        "cardinal_direction": "EAST",
+        "position": [49.5, 25.0]
+      }
+    ],
+    "walls": [],
+    "structural_elements": [
+      {
+        "id": "pillar-center-block",
+        "name": "Center Heavy Pillar",
+        "type": "pillar",
+        "polygon": [
+          [24.0, 24.0],
+          [26.0, 24.0],
+          [26.0, 26.0],
+          [24.0, 26.0]
+        ]
+      }
+    ]
+  },
+  "structural_rectification": {},
+  "interior_layout": {},
+  "exterior_landscape": {},
+  "processing": {
+    "gab_gen": { "status": "completed" },
+    "vsai_rectifier": { "status": "pending" },
+    "esai_engine": { "status": "pending" },
+    "elia_engine": { "status": "pending" }
+  }
+}

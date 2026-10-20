@@ -1,0 +1,276 @@
+{
+  "project_id": "VSAI-TEST-001",
+  "project_name": "Sample Residential Floor Plan - Vastu Test",
+  "schema_version": "1.0",
+  "land_info": {
+    "orientation": "North",
+    "area_sqft": 1162.5
+  },
+  "floor_plan": {
+    "id": "FP-TEST-001",
+    "name": "Sample Residential Floor Plan - Vastu Test",
+    "units": "mm",
+    "coordinate_system": {
+      "origin": "top_left",
+      "x_axis": "right",
+      "y_axis": "down"
+    },
+    "dimensions": {
+      "width": 12000,
+      "height": 9000
+    },
+    "boundary": {
+      "type": "Polygon",
+      "coordinates": [
+        [0, 0],
+        [12000, 0],
+        [12000, 9000],
+        [0, 9000],
+        [0, 0]
+      ]
+    },
+    "rooms": [
+      {
+        "id": "room-01",
+        "name": "Living Room",
+        "type": "living_room",
+        "polygon": [
+          [0, 0],
+          [4000, 0],
+          [4000, 3000],
+          [0, 3000]
+        ],
+        "dimensions": {
+          "width": 4000,
+          "height": 3000
+        }
+      },
+      {
+        "id": "room-02",
+        "name": "Kitchen",
+        "type": "kitchen",
+        "polygon": [
+          [4000, 0],
+          [8000, 0],
+          [8000, 3000],
+          [4000, 3000]
+        ],
+        "dimensions": {
+          "width": 4000,
+          "height": 3000
+        }
+      },
+      {
+        "id": "room-03",
+        "name": "Pooja Room",
+        "type": "pooja_room",
+        "polygon": [
+          [8000, 0],
+          [12000, 0],
+          [12000, 3000],
+          [8000, 3000]
+        ],
+        "dimensions": {
+          "width": 4000,
+          "height": 3000
+        }
+      },
+      {
+        "id": "room-04",
+        "name": "Bedroom",
+        "type": "bedroom",
+        "polygon": [
+          [0, 3000],
+          [4000, 3000],
+          [4000, 6000],
+          [0, 6000]
+        ],
+        "dimensions": {
+          "width": 4000,
+          "height": 3000
+        }
+      },
+      {
+        "id": "room-05",
+        "name": "Central Hall",
+        "type": "hallway",
+        "polygon": [
+          [4000, 3000],
+          [8000, 3000],
+          [8000, 6000],
+          [4000, 6000]
+        ],
+        "dimensions": {
+          "width": 4000,
+          "height": 3000
+        }
+      },
+      {
+        "id": "room-06",
+        "name": "Washroom",
+        "type": "toilet",
+        "polygon": [
+          [8000, 3000],
+          [12000, 3000],
+          [12000, 6000],
+          [8000, 6000]
+        ],
+        "dimensions": {
+          "width": 4000,
+          "height": 3000
+        }
+      },
+      {
+        "id": "room-07",
+        "name": "Master Bedroom",
+        "type": "master_bedroom",
+        "polygon": [
+          [0, 6000],
+          [6000, 6000],
+          [6000, 9000],
+          [0, 9000]
+        ],
+        "dimensions": {
+          "width": 6000,
+          "height": 3000
+        }
+      },
+      {
+        "id": "room-08",
+        "name": "Staircase",
+        "type": "staircase",
+        "polygon": [
+          [5500, 3500],
+          [6500, 3500],
+          [6500, 5500],
+          [5500, 5500]
+        ],
+        "dimensions": {
+          "width": 1000,
+          "height": 2000
+        }
+      },
+      {
+        "id": "room-09",
+        "name": "Store Room",
+        "type": "store_room",
+        "polygon": [
+          [6000, 6000],
+          [9000, 6000],
+          [9000, 9000],
+          [6000, 9000]
+        ],
+        "dimensions": {
+          "width": 3000,
+          "height": 3000
+        }
+      }
+    ],
+    "walls": [
+      {
+        "id": "wall-01",
+        "start": [0, 0],
+        "end": [12000, 0],
+        "type": "external"
+      },
+      {
+        "id": "wall-02",
+        "start": [12000, 0],
+        "end": [12000, 9000],
+        "type": "external"
+      },
+      {
+        "id": "wall-03",
+        "start": [12000, 9000],
+        "end": [0, 9000],
+        "type": "external"
+      },
+      {
+        "id": "wall-04",
+        "start": [0, 9000],
+        "end": [0, 0],
+        "type": "external"
+      },
+      {
+        "id": "wall-05",
+        "start": [4000, 0],
+        "end": [4000, 9000],
+        "type": "internal"
+      },
+      {
+        "id": "wall-06",
+        "start": [8000, 0],
+        "end": [8000, 9000],
+        "type": "internal"
+      },
+      {
+        "id": "wall-07",
+        "start": [0, 3000],
+        "end": [12000, 3000],
+        "type": "internal"
+      },
+      {
+        "id": "wall-08",
+        "start": [0, 6000],
+        "end": [12000, 6000],
+        "type": "internal"
+      }
+    ],
+    "doors": [
+      {
+        "id": "door-01",
+        "name": "Main Entrance",
+        "direction": "SOUTH",
+        "wall_id": "wall-03",
+        "position": [2500, 9000],
+        "is_main_entrance": true
+      },
+      {
+        "id": "door-02",
+        "name": "Kitchen Door",
+        "direction": "EAST",
+        "wall_id": "wall-06",
+        "position": [8000, 1800],
+        "is_main_entrance": false
+      }
+    ],
+    "windows": [
+      {
+        "id": "window-01",
+        "direction": "NORTH",
+        "wall_id": "wall-01",
+        "position": [2000, 0]
+      },
+      {
+        "id": "window-02",
+        "direction": "EAST",
+        "wall_id": "wall-02",
+        "position": [12000, 4200]
+      },
+      {
+        "id": "window-03",
+        "direction": "WEST",
+        "wall_id": "wall-04",
+        "position": [0, 4500]
+      }
+    ],
+    "spatial_metadata": {
+      "north_direction": "top",
+      "room_adjacency": [
+        { "room_a": "room-01", "room_b": "room-02" },
+        { "room_a": "room-02", "room_b": "room-03" },
+        { "room_a": "room-04", "room_b": "room-05" },
+        { "room_a": "room-05", "room_b": "room-06" }
+      ]
+    }
+  },
+  "test_notes": {
+    "purpose": "Synthetic sample for testing JSON upload, validation, and Vastu analysis; not a construction drawing.",
+    "expected_checks_to_inspect": [
+      "Exact center point is x=6000, y=4500; staircase polygon includes that point.",
+      "Door directions are South and East; inspect how the configured door-combination rule classifies them.",
+      "Main entrance is explicitly marked and direction is S.",
+      "Room-direction checks depend on whether the engine maps room polygons to directional zones."
+    ]
+  }
+}

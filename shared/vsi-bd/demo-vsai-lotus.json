@@ -1,0 +1,1311 @@
+{
+  "project_id": "demo-vsai-lotus",
+  "project_name": "Lotus Villa - Residential Plan",
+  "schema_version": "1.0",
+  "land_info": {
+    "boundary_points": [
+      [
+        0,
+        0
+      ],
+      [
+        50,
+        0
+      ],
+      [
+        50,
+        60
+      ],
+      [
+        0,
+        60
+      ]
+    ],
+    "area_sqft": 3000,
+    "orientation": "North",
+    "road_facing": "North"
+  },
+  "buildable_footprint": {
+    "polygon": [
+      [
+        5,
+        5
+      ],
+      [
+        45,
+        5
+      ],
+      [
+        45,
+        55
+      ],
+      [
+        5,
+        55
+      ]
+    ]
+  },
+  "floor_plan": {
+    "rooms": [
+      {
+        "id": "room-living",
+        "name": "Living Room",
+        "type": "living",
+        "polygon": [
+          [
+            5,
+            5
+          ],
+          [
+            25,
+            5
+          ],
+          [
+            25,
+            25
+          ],
+          [
+            5,
+            25
+          ]
+        ]
+      },
+      {
+        "id": "room-kitchen",
+        "name": "Kitchen",
+        "type": "kitchen",
+        "polygon": [
+          [
+            25,
+            5
+          ],
+          [
+            45,
+            5
+          ],
+          [
+            45,
+            20
+          ],
+          [
+            25,
+            20
+          ]
+        ]
+      },
+      {
+        "id": "room-master-bed",
+        "name": "Master Bedroom",
+        "type": "master_bedroom",
+        "polygon": [
+          [
+            5,
+            25
+          ],
+          [
+            25,
+            25
+          ],
+          [
+            25,
+            50
+          ],
+          [
+            5,
+            50
+          ]
+        ]
+      },
+      {
+        "id": "room-pooja",
+        "name": "Pooja Room",
+        "type": "pooja",
+        "polygon": [
+          [
+            25,
+            20
+          ],
+          [
+            35,
+            20
+          ],
+          [
+            35,
+            30
+          ],
+          [
+            25,
+            30
+          ]
+        ]
+      },
+      {
+        "id": "room-bath",
+        "name": "Common Bathroom",
+        "type": "bathroom",
+        "polygon": [
+          [
+            35,
+            20
+          ],
+          [
+            45,
+            20
+          ],
+          [
+            45,
+            30
+          ],
+          [
+            35,
+            30
+          ]
+        ]
+      }
+    ],
+    "structural_elements": [
+      {
+        "id": "col-1",
+        "type": "column",
+        "polygon": [
+          [
+            5,
+            5
+          ],
+          [
+            6,
+            5
+          ],
+          [
+            6,
+            6
+          ],
+          [
+            5,
+            6
+          ]
+        ]
+      },
+      {
+        "id": "col-2",
+        "type": "column",
+        "polygon": [
+          [
+            25,
+            5
+          ],
+          [
+            26,
+            5
+          ],
+          [
+            26,
+            6
+          ],
+          [
+            25,
+            6
+          ]
+        ]
+      }
+    ],
+    "doors": [
+      {
+        "id": "door-main-manual",
+        "name": "Main Entrance (User Confirmed)",
+        "direction": "EAST",
+        "is_main_entrance": true,
+        "position": [
+          0,
+          0
+        ]
+      }
+    ]
+  },
+  "structural_rectification": {
+    "status": "completed",
+    "baseline_score": 37,
+    "rectified_score": 44,
+    "score_delta": 7,
+    "baseline_floor_plan": {
+      "rooms": [
+        {
+          "id": "room-living",
+          "name": "Living Room",
+          "type": "living",
+          "polygon": [
+            [
+              5,
+              5
+            ],
+            [
+              25,
+              5
+            ],
+            [
+              25,
+              25
+            ],
+            [
+              5,
+              25
+            ]
+          ]
+        },
+        {
+          "id": "room-kitchen",
+          "name": "Kitchen",
+          "type": "kitchen",
+          "polygon": [
+            [
+              25,
+              5
+            ],
+            [
+              45,
+              5
+            ],
+            [
+              45,
+              20
+            ],
+            [
+              25,
+              20
+            ]
+          ]
+        },
+        {
+          "id": "room-master-bed",
+          "name": "Master Bedroom",
+          "type": "master_bedroom",
+          "polygon": [
+            [
+              5,
+              25
+            ],
+            [
+              25,
+              25
+            ],
+            [
+              25,
+              50
+            ],
+            [
+              5,
+              50
+            ]
+          ]
+        },
+        {
+          "id": "room-pooja",
+          "name": "Pooja Room",
+          "type": "pooja",
+          "polygon": [
+            [
+              25,
+              20
+            ],
+            [
+              35,
+              20
+            ],
+            [
+              35,
+              30
+            ],
+            [
+              25,
+              30
+            ]
+          ]
+        },
+        {
+          "id": "room-bath",
+          "name": "Common Bathroom",
+          "type": "bathroom",
+          "polygon": [
+            [
+              35,
+              20
+            ],
+            [
+              45,
+              20
+            ],
+            [
+              45,
+              30
+            ],
+            [
+              35,
+              30
+            ]
+          ]
+        }
+      ],
+      "structural_elements": [
+        {
+          "id": "col-1",
+          "type": "column",
+          "polygon": [
+            [
+              5,
+              5
+            ],
+            [
+              6,
+              5
+            ],
+            [
+              6,
+              6
+            ],
+            [
+              5,
+              6
+            ]
+          ]
+        },
+        {
+          "id": "col-2",
+          "type": "column",
+          "polygon": [
+            [
+              25,
+              5
+            ],
+            [
+              26,
+              5
+            ],
+            [
+              26,
+              6
+            ],
+            [
+              25,
+              6
+            ]
+          ]
+        }
+      ],
+      "doors": [
+        {
+          "id": "door-main-manual",
+          "name": "Main Entrance (User Confirmed)",
+          "direction": "EAST",
+          "is_main_entrance": true,
+          "position": [
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    "rectified_floor_plan": {
+      "rooms": [
+        {
+          "id": "room-living",
+          "name": "Living Room",
+          "type": "living",
+          "polygon": [
+            [
+              5,
+              25
+            ],
+            [
+              25,
+              25
+            ],
+            [
+              25,
+              50
+            ],
+            [
+              5,
+              50
+            ]
+          ]
+        },
+        {
+          "id": "room-kitchen",
+          "name": "Kitchen",
+          "type": "kitchen",
+          "polygon": [
+            [
+              25,
+              5
+            ],
+            [
+              45,
+              5
+            ],
+            [
+              45,
+              20
+            ],
+            [
+              25,
+              20
+            ]
+          ]
+        },
+        {
+          "id": "room-master-bed",
+          "name": "Master Bedroom",
+          "type": "master_bedroom",
+          "polygon": [
+            [
+              5,
+              5
+            ],
+            [
+              25,
+              5
+            ],
+            [
+              25,
+              25
+            ],
+            [
+              5,
+              25
+            ]
+          ]
+        },
+        {
+          "id": "room-pooja",
+          "name": "Pooja Room",
+          "type": "pooja",
+          "polygon": [
+            [
+              35,
+              20
+            ],
+            [
+              45,
+              20
+            ],
+            [
+              45,
+              30
+            ],
+            [
+              35,
+              30
+            ]
+          ]
+        },
+        {
+          "id": "room-bath",
+          "name": "Common Bathroom",
+          "type": "bathroom",
+          "polygon": [
+            [
+              25,
+              20
+            ],
+            [
+              35,
+              20
+            ],
+            [
+              35,
+              30
+            ],
+            [
+              25,
+              30
+            ]
+          ]
+        }
+      ],
+      "structural_elements": [
+        {
+          "id": "col-1",
+          "type": "column",
+          "polygon": [
+            [
+              5,
+              5
+            ],
+            [
+              6,
+              5
+            ],
+            [
+              6,
+              6
+            ],
+            [
+              5,
+              6
+            ]
+          ]
+        },
+        {
+          "id": "col-2",
+          "type": "column",
+          "polygon": [
+            [
+              25,
+              5
+            ],
+            [
+              26,
+              5
+            ],
+            [
+              26,
+              6
+            ],
+            [
+              25,
+              6
+            ]
+          ]
+        }
+      ],
+      "doors": [
+        {
+          "id": "door-main-manual",
+          "name": "Main Entrance (User Confirmed)",
+          "direction": "EAST",
+          "is_main_entrance": true,
+          "position": [
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    "modifications": [
+      {
+        "roomId": "room-pooja",
+        "roomName": "Pooja Room",
+        "previousSector": "Brahmasthan (Center / Brahma Core)",
+        "newSector": "East (Purva / Indra)",
+        "reason": "Cleared central Brahmasthan core; aligned sacred sanctum with cosmic Ishanya morning light.",
+        "pointsGained": 20,
+        "previousCenter": [
+          30,
+          25
+        ],
+        "newCenter": [
+          40,
+          25
+        ]
+      },
+      {
+        "roomId": "room-master-bed",
+        "roomName": "Master Bedroom",
+        "previousSector": "North-West (Vayavya / Vayu)",
+        "newSector": "South-West (Nairutya / Nirrithi)",
+        "reason": "Anchored head of family sanctuary into heavy earth Nairutya corner for stability and grounding.",
+        "pointsGained": 12,
+        "previousCenter": [
+          15,
+          37.5
+        ],
+        "newCenter": [
+          15,
+          15
+        ]
+      }
+    ],
+    "applied_modifications_count": 2,
+    "post_rectification_analysis": {
+      "score": 44,
+      "grade": "C",
+      "grade_description": "Significant Vastu Defects: Critical zones (e.g. Brahmasthan or Toilet) need relocation.",
+      "good_aspects": [
+        {
+          "rule_id": "vsai.dwara_sthana.combination",
+          "title": "Dwara Sthana: Dhanya Combination (GOOD)",
+          "room_id": null,
+          "room_name": "Doors (EAST)",
+          "sector": "EAST",
+          "sector_display": "Cardinal Facings: EAST",
+          "polygon": null,
+          "description": "Dwara Sthana classification: Dhanya (GOOD). Traditional attribution: Good harvest and grain resources. Doors present in 1 direction(s): EAST.",
+          "points_earned": 21
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Living Room - Acceptable Alternative (West (Pashchima / Varuna))",
+          "room_id": "room-living",
+          "room_name": "Living Room",
+          "sector": "WEST",
+          "sector_display": "West (Pashchima / Varuna)",
+          "polygon": [
+            [
+              5,
+              25
+            ],
+            [
+              25,
+              25
+            ],
+            [
+              25,
+              50
+            ],
+            [
+              5,
+              50
+            ]
+          ],
+          "description": "Living Room is located in West (Pashchima / Varuna), which is listed as an acceptable secondary alternative for Living Room.",
+          "points_earned": 4.2
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Kitchen - Auspicious Sector (South-East (Agneya / Agni))",
+          "room_id": "room-kitchen",
+          "room_name": "Kitchen",
+          "sector": "SOUTH_EAST",
+          "sector_display": "South-East (Agneya / Agni)",
+          "polygon": [
+            [
+              25,
+              5
+            ],
+            [
+              45,
+              5
+            ],
+            [
+              45,
+              20
+            ],
+            [
+              25,
+              20
+            ]
+          ],
+          "description": "Kitchen is ideally positioned in South-East (Agneya / Agni), which is the primary auspicious sector for Kitchen in Vastu Shastra.",
+          "points_earned": 5
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Master Bedroom - Auspicious Sector (South-West (Nairutya / Nirrithi))",
+          "room_id": "room-master-bed",
+          "room_name": "Master Bedroom",
+          "sector": "SOUTH_WEST",
+          "sector_display": "South-West (Nairutya / Nirrithi)",
+          "polygon": [
+            [
+              5,
+              5
+            ],
+            [
+              25,
+              5
+            ],
+            [
+              25,
+              25
+            ],
+            [
+              5,
+              25
+            ]
+          ],
+          "description": "Master Bedroom is ideally positioned in South-West (Nairutya / Nirrithi), which is the primary auspicious sector for Master Bedroom in Vastu Shastra.",
+          "points_earned": 5
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Pooja Room - Acceptable Alternative (East (Purva / Indra))",
+          "room_id": "room-pooja",
+          "room_name": "Pooja Room",
+          "sector": "EAST",
+          "sector_display": "East (Purva / Indra)",
+          "polygon": [
+            [
+              35,
+              20
+            ],
+            [
+              45,
+              20
+            ],
+            [
+              45,
+              30
+            ],
+            [
+              35,
+              30
+            ]
+          ],
+          "description": "Pooja Room is located in East (Purva / Indra), which is listed as an acceptable secondary alternative for Pooja Room.",
+          "points_earned": 4.2
+        }
+      ],
+      "defects": [
+        {
+          "rule_id": "vsai.brahmasthan.exact_center",
+          "title": "Brahmasthan Exact Center Point Obstructed",
+          "severity": "CRITICAL",
+          "room_id": null,
+          "room_name": "Room 'Living Room', Room 'Common Bathroom'",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "polygon": null,
+          "description": "The exact Brahmasthan center point (25.00, 30.00) is occupied or intersected by 2 represented spatial object(s): Room 'Living Room', Room 'Common Bathroom'.",
+          "remedy": "Ensure the exact plan center point (Brahmasthan core) is left completely free and open. Relocate load-bearing walls, structural columns, pillars, staircases, and enclosed partitions away from the center coordinate.",
+          "points_deducted": 25
+        },
+        {
+          "rule_id": "vsai.main_entrance.direction",
+          "title": "Main Entrance in Inauspicious Direction (South-West (Nairutya / Nirrithi))",
+          "severity": "HIGH",
+          "room_id": "door-main-manual",
+          "room_name": "Main Entrance (User Confirmed)",
+          "sector": "SOUTH_WEST",
+          "sector_display": "South-West (Nairutya / Nirrithi)",
+          "polygon": [],
+          "description": "The main entrance 'Main Entrance (User Confirmed)' is positioned in South-West (Nairutya / Nirrithi). Vastu Shastra guidelines designate North, North-East, East, South of South-East, or West of North-West as positive suitable entrance zones.",
+          "remedy": "Relocate the primary entrance door towards North, North-East (Ishanya), or East (Indra) to enhance auspicious ingress of prana and prosperity.",
+          "points_deducted": 25
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Common Bathroom in Prohibited Zone (Brahmasthan (Center / Brahma Core))",
+          "severity": "CRITICAL",
+          "room_id": "room-bath",
+          "room_name": "Common Bathroom",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "polygon": [
+            [
+              25,
+              20
+            ],
+            [
+              35,
+              20
+            ],
+            [
+              35,
+              30
+            ],
+            [
+              25,
+              30
+            ]
+          ],
+          "description": "Common Bathroom is located in Brahmasthan (Center / Brahma Core). Vastu Shastra explicitly states that Toilet / Washroom must AVOID NORTH_EAST, CENTER, CENTER_BRAHMASTHAN.",
+          "remedy": "Relocate toilet fixtures away from North-East and central Brahmasthan to West or North-West. Never share common walls between a toilet and a Pooja room.",
+          "points_deducted": 5
+        }
+      ],
+      "total_rules_evaluated": 4,
+      "passed_rules_count": 5,
+      "failed_rules_count": 3,
+      "room_sectors": {
+        "room-living": {
+          "id": "room-living",
+          "name": "Living Room",
+          "type": "living",
+          "sector": "WEST",
+          "sector_display": "West (Pashchima / Varuna)",
+          "centroid": [
+            15,
+            37.5
+          ],
+          "polygon": [
+            [
+              5,
+              25
+            ],
+            [
+              25,
+              25
+            ],
+            [
+              25,
+              50
+            ],
+            [
+              5,
+              50
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": true
+        },
+        "room-kitchen": {
+          "id": "room-kitchen",
+          "name": "Kitchen",
+          "type": "kitchen",
+          "sector": "SOUTH_EAST",
+          "sector_display": "South-East (Agneya / Agni)",
+          "centroid": [
+            35,
+            12.5
+          ],
+          "polygon": [
+            [
+              25,
+              5
+            ],
+            [
+              45,
+              5
+            ],
+            [
+              45,
+              20
+            ],
+            [
+              25,
+              20
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": false
+        },
+        "room-master-bed": {
+          "id": "room-master-bed",
+          "name": "Master Bedroom",
+          "type": "master_bedroom",
+          "sector": "SOUTH_WEST",
+          "sector_display": "South-West (Nairutya / Nirrithi)",
+          "centroid": [
+            15,
+            15
+          ],
+          "polygon": [
+            [
+              5,
+              5
+            ],
+            [
+              25,
+              5
+            ],
+            [
+              25,
+              25
+            ],
+            [
+              5,
+              25
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": false
+        },
+        "room-pooja": {
+          "id": "room-pooja",
+          "name": "Pooja Room",
+          "type": "pooja",
+          "sector": "EAST",
+          "sector_display": "East (Purva / Indra)",
+          "centroid": [
+            40,
+            25
+          ],
+          "polygon": [
+            [
+              35,
+              20
+            ],
+            [
+              45,
+              20
+            ],
+            [
+              45,
+              30
+            ],
+            [
+              35,
+              30
+            ]
+          ],
+          "overlaps_brahmasthan": false,
+          "occupies_exact_center": false
+        },
+        "room-bath": {
+          "id": "room-bath",
+          "name": "Common Bathroom",
+          "type": "bathroom",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "centroid": [
+            30,
+            25
+          ],
+          "polygon": [
+            [
+              25,
+              20
+            ],
+            [
+              35,
+              20
+            ],
+            [
+              35,
+              30
+            ],
+            [
+              25,
+              30
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": true
+        }
+      },
+      "brahmasthan": {
+        "status": "OBSTRUCTED",
+        "exact_center": [
+          25,
+          30
+        ],
+        "tolerance": 0.05,
+        "obstructing_objects": [
+          "Living Room",
+          "Common Bathroom"
+        ],
+        "obstructing_rooms": [
+          "Living Room",
+          "Common Bathroom"
+        ]
+      },
+      "dwara_sthana": {
+        "house_type": "Dhanya",
+        "classification": "GOOD",
+        "directions": [
+          "EAST"
+        ],
+        "traditional_result": "Good harvest and grain resources"
+      },
+      "main_entrance": {
+        "identified": true,
+        "door_id": "door-main-manual",
+        "sector": "SOUTH_WEST",
+        "classification": "UNSUITABLE"
+      },
+      "bounding_box": {
+        "min_x": 0,
+        "max_x": 50,
+        "min_y": 0,
+        "max_y": 60,
+        "width": 50,
+        "height": 60,
+        "area_sqft": 3000
+      },
+      "rule_details": {
+        "vsai.brahmasthan.exact_center": {
+          "status": "FAIL",
+          "exact_center": [
+            25,
+            30
+          ],
+          "tolerance": 0.05,
+          "obstructing_objects_count": 2,
+          "obstructing_objects": [
+            {
+              "id": "room-living",
+              "name": "Living Room",
+              "type": "room"
+            },
+            {
+              "id": "room-bath",
+              "name": "Common Bathroom",
+              "type": "room"
+            }
+          ]
+        },
+        "vsai.dwara_sthana.combination": {
+          "house_type": "Dhanya",
+          "classification": "GOOD",
+          "directions": [
+            "EAST"
+          ],
+          "traditional_result": "Good harvest and grain resources",
+          "doors_count": 1,
+          "door_details": [
+            {
+              "id": "door-main-manual",
+              "name": "Main Entrance (User Confirmed)",
+              "cardinal_direction": "EAST",
+              "sector": "SOUTH_WEST",
+              "is_main_entrance": true
+            }
+          ]
+        },
+        "vsai.main_entrance.direction": {
+          "identified": true,
+          "door_id": "door-main-manual",
+          "door_name": "Main Entrance (User Confirmed)",
+          "sector": "SOUTH_WEST",
+          "classification": "UNSUITABLE"
+        },
+        "vsai.room.direction": {
+          "evaluated_rooms_count": 5
+        }
+      }
+    }
+  },
+  "interior_layout": {},
+  "exterior_landscape": {},
+  "processing": {
+    "gab_gen": {
+      "status": "completed"
+    },
+    "vsai_rectifier": {
+      "status": "completed",
+      "updatedAt": "2026-10-20T08:08:56.769Z"
+    },
+    "esai_engine": {
+      "status": "pending"
+    },
+    "elia_engine": {
+      "status": "pending"
+    }
+  },
+  "original_source_snapshot": {
+    "project_id": "demo-vsai-lotus",
+    "project_name": "Lotus Villa - Residential Plan",
+    "land_info": {
+      "boundary_points": [
+        [
+          0,
+          0
+        ],
+        [
+          50,
+          0
+        ],
+        [
+          50,
+          60
+        ],
+        [
+          0,
+          60
+        ]
+      ],
+      "area_sqft": 3000,
+      "orientation": "North-East",
+      "road_facing": "North"
+    },
+    "buildable_footprint": {
+      "polygon": [
+        [
+          5,
+          5
+        ],
+        [
+          45,
+          5
+        ],
+        [
+          45,
+          55
+        ],
+        [
+          5,
+          55
+        ]
+      ]
+    },
+    "floor_plan": {
+      "rooms": [
+        {
+          "id": "room-living",
+          "name": "Living Room",
+          "type": "living",
+          "polygon": [
+            [
+              5,
+              5
+            ],
+            [
+              25,
+              5
+            ],
+            [
+              25,
+              25
+            ],
+            [
+              5,
+              25
+            ]
+          ]
+        },
+        {
+          "id": "room-kitchen",
+          "name": "Kitchen",
+          "type": "kitchen",
+          "polygon": [
+            [
+              25,
+              5
+            ],
+            [
+              45,
+              5
+            ],
+            [
+              45,
+              20
+            ],
+            [
+              25,
+              20
+            ]
+          ]
+        },
+        {
+          "id": "room-master-bed",
+          "name": "Master Bedroom",
+          "type": "master_bedroom",
+          "polygon": [
+            [
+              5,
+              25
+            ],
+            [
+              25,
+              25
+            ],
+            [
+              25,
+              50
+            ],
+            [
+              5,
+              50
+            ]
+          ]
+        },
+        {
+          "id": "room-pooja",
+          "name": "Pooja Room",
+          "type": "pooja",
+          "polygon": [
+            [
+              25,
+              20
+            ],
+            [
+              35,
+              20
+            ],
+            [
+              35,
+              30
+            ],
+            [
+              25,
+              30
+            ]
+          ]
+        },
+        {
+          "id": "room-bath",
+          "name": "Common Bathroom",
+          "type": "bathroom",
+          "polygon": [
+            [
+              35,
+              20
+            ],
+            [
+              45,
+              20
+            ],
+            [
+              45,
+              30
+            ],
+            [
+              35,
+              30
+            ]
+          ]
+        }
+      ],
+      "structural_elements": [
+        {
+          "id": "col-1",
+          "type": "column",
+          "polygon": [
+            [
+              5,
+              5
+            ],
+            [
+              6,
+              5
+            ],
+            [
+              6,
+              6
+            ],
+            [
+              5,
+              6
+            ]
+          ]
+        },
+        {
+          "id": "col-2",
+          "type": "column",
+          "polygon": [
+            [
+              25,
+              5
+            ],
+            [
+              26,
+              5
+            ],
+            [
+              26,
+              6
+            ],
+            [
+              25,
+              6
+            ]
+          ]
+        }
+      ]
+    },
+    "structural_rectification": {},
+    "interior_layout": {},
+    "exterior_landscape": {},
+    "processing": {
+      "gab_gen": {
+        "status": "completed"
+      },
+      "vsai_rectifier": {
+        "status": "pending"
+      },
+      "esai_engine": {
+        "status": "pending"
+      },
+      "elia_engine": {
+        "status": "pending"
+      }
+    }
+  },
+  "user_confirmations": {
+    "orientation": "NORTH",
+    "has_no_doors_confirmation": "add_entrance_manually"
+  },
+  "spatial_metadata": {
+    "north_direction": "North"
+  }
+}

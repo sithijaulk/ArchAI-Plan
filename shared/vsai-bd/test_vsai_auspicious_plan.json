@@ -1,0 +1,165 @@
+{
+  "project_id": "test-vsai-auspicious",
+  "project_name": "Auspicious Vastu Harmony Villa",
+  "land_info": {
+    "boundary_points": [
+      [0.0, 0.0],
+      [50.0, 0.0],
+      [50.0, 50.0],
+      [0.0, 50.0]
+    ],
+    "area_sqft": 2500.0,
+    "orientation": "North",
+    "road_facing": "North"
+  },
+  "buildable_footprint": {
+    "polygon": [
+      [2.0, 2.0],
+      [48.0, 2.0],
+      [48.0, 48.0],
+      [2.0, 48.0]
+    ]
+  },
+  "floor_plan": {
+    "rooms": [
+      {
+        "id": "room-master-bed",
+        "name": "Master Bedroom",
+        "type": "master_bedroom",
+        "polygon": [
+          [2.0, 2.0],
+          [16.0, 2.0],
+          [16.0, 16.0],
+          [2.0, 16.0]
+        ]
+      },
+      {
+        "id": "room-kitchen",
+        "name": "Kitchen",
+        "type": "kitchen",
+        "polygon": [
+          [34.0, 2.0],
+          [48.0, 2.0],
+          [48.0, 16.0],
+          [34.0, 16.0]
+        ]
+      },
+      {
+        "id": "room-pooja",
+        "name": "Pooja Room",
+        "type": "pooja_room",
+        "polygon": [
+          [34.0, 34.0],
+          [48.0, 34.0],
+          [48.0, 48.0],
+          [34.0, 48.0]
+        ]
+      },
+      {
+        "id": "room-living",
+        "name": "Living Room",
+        "type": "living_room",
+        "polygon": [
+          [2.0, 34.0],
+          [16.0, 34.0],
+          [16.0, 48.0],
+          [2.0, 48.0]
+        ]
+      },
+      {
+        "id": "room-toilet",
+        "name": "Washroom",
+        "type": "toilet_washroom",
+        "polygon": [
+          [2.0, 18.0],
+          [14.0, 18.0],
+          [14.0, 30.0],
+          [2.0, 30.0]
+        ]
+      },
+      {
+        "id": "room-courtyard",
+        "name": "Open Central Courtyard",
+        "type": "courtyard",
+        "polygon": [
+          [18.0, 18.0],
+          [32.0, 18.0],
+          [32.0, 32.0],
+          [18.0, 32.0]
+        ]
+      }
+    ],
+    "doors": [
+      {
+        "id": "door-main",
+        "name": "Grand Main Entrance",
+        "type": "main_entrance",
+        "is_main_entrance": true,
+        "cardinal_direction": "NORTH",
+        "position": [25.0, 49.5]
+      },
+      {
+        "id": "door-east",
+        "name": "East Garden Door",
+        "type": "exterior_door",
+        "cardinal_direction": "EAST",
+        "position": [49.5, 25.0]
+      },
+      {
+        "id": "door-south",
+        "name": "South Veranda Door",
+        "type": "exterior_door",
+        "cardinal_direction": "SOUTH",
+        "position": [25.0, 0.5]
+      },
+      {
+        "id": "door-west",
+        "name": "West Service Door",
+        "type": "exterior_door",
+        "cardinal_direction": "WEST",
+        "position": [0.5, 25.0]
+      }
+    ],
+    "walls": [
+      {
+        "id": "wall-perimeter-n",
+        "name": "North Exterior Wall",
+        "start": [0.0, 50.0],
+        "end": [50.0, 50.0]
+      }
+    ],
+    "structural_elements": [
+      {
+        "id": "col-sw",
+        "name": "South-West Column",
+        "type": "column",
+        "polygon": [
+          [1.0, 1.0],
+          [2.0, 1.0],
+          [2.0, 2.0],
+          [1.0, 2.0]
+        ]
+      },
+      {
+        "id": "col-se",
+        "name": "South-East Column",
+        "type": "column",
+        "polygon": [
+          [48.0, 1.0],
+          [49.0, 1.0],
+          [49.0, 2.0],
+          [48.0, 2.0]
+        ]
+      }
+    ]
+  },
+  "structural_rectification": {},
+  "interior_layout": {},
+  "exterior_landscape": {},
+  "processing": {
+    "gab_gen": { "status": "completed" },
+    "vsai_rectifier": { "status": "pending" },
+    "esai_engine": { "status": "pending" },
+    "elia_engine": { "status": "pending" }
+  }
+}

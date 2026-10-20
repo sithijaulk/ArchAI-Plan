@@ -1,0 +1,385 @@
+{
+  "specification_name": "ArchAI Plan — VSAI Rectifier Finalized Vastu Rules",
+  "version": "1.0",
+  "status": "finalized_for_stage_1_analysis",
+  "scope": {
+    "stage_1": "Master JSON upload, validation, Vastu rule analysis, findings, defects, recommendations",
+    "automatic_rectification": "deferred",
+    "floor_plan_redrawing": "deferred"
+  },
+  "direction_grid": {
+    "type": "3x3",
+    "requires_known_orientation": true,
+    "center_formula": {
+      "x": "W / 2",
+      "y": "H / 2"
+    },
+    "cells": {
+      "top_left": "NORTH_WEST",
+      "top_center": "NORTH",
+      "top_right": "NORTH_EAST",
+      "middle_left": "WEST",
+      "center": "CENTER_BRAHMASTHAN",
+      "middle_right": "EAST",
+      "bottom_left": "SOUTH_WEST",
+      "bottom_center": "SOUTH",
+      "bottom_right": "SOUTH_EAST"
+    }
+  },
+  "rules": [
+    {
+      "rule_id": "vsai.brahmasthan.exact_center",
+      "name": "Brahmasthan Exact Center-Point Check",
+      "category": "brahmasthan",
+      "center_formula": {
+        "x": "W / 2",
+        "y": "H / 2"
+      },
+      "condition": "No represented spatial object may occupy or intersect the exact plan center point.",
+      "objects_to_check": [
+        "rooms",
+        "walls",
+        "doors",
+        "columns",
+        "pillars",
+        "staircases",
+        "other represented spatial objects"
+      ],
+      "pass_condition": "No represented object occupies/intersects the exact center point.",
+      "fail_condition": "One or more represented objects occupy/intersect the exact center point.",
+      "checks_entire_center_cell": false,
+      "notes": [
+        "Any numerical tolerance must be explicitly configured and tested."
+      ]
+    },
+    {
+      "rule_id": "vsai.dwara_sthana.combination",
+      "name": "Dwara Sthana Door-Combination Analysis",
+      "category": "door_combination",
+      "dhruva_condition": "No doors anywhere in the house",
+      "combinations": [
+        {
+          "house_type": "Dhruva",
+          "directions": [],
+          "classification": "VERY_GOOD",
+          "traditional_result": "Wealth, grain and prosperity"
+        },
+        {
+          "house_type": "Dhanya",
+          "directions": [
+            "EAST"
+          ],
+          "classification": "GOOD",
+          "traditional_result": "Good harvest and grain resources"
+        },
+        {
+          "house_type": "Jaya",
+          "directions": [
+            "SOUTH"
+          ],
+          "classification": "GOOD",
+          "traditional_result": "Victory in activities"
+        },
+        {
+          "house_type": "Nanda",
+          "directions": [
+            "EAST",
+            "SOUTH"
+          ],
+          "classification": "BAD",
+          "traditional_result": "Harm/misfortune to women (traditional claim)"
+        },
+        {
+          "house_type": "Khara",
+          "directions": [
+            "WEST"
+          ],
+          "classification": "BAD",
+          "traditional_result": "Loss of property and wealth (traditional claim)"
+        },
+        {
+          "house_type": "Kanta",
+          "directions": [
+            "EAST",
+            "WEST"
+          ],
+          "classification": "GOOD",
+          "traditional_result": "Happiness and progress for children/grandchildren"
+        },
+        {
+          "house_type": "Manorama",
+          "directions": [
+            "SOUTH",
+            "WEST"
+          ],
+          "classification": "GOOD",
+          "traditional_result": "Beauty, peace and happiness in the home"
+        },
+        {
+          "house_type": "Sumukha",
+          "directions": [
+            "WEST",
+            "SOUTH",
+            "EAST"
+          ],
+          "classification": "GOOD",
+          "traditional_result": "Resources and comfort"
+        },
+        {
+          "house_type": "Durmukha",
+          "directions": [
+            "NORTH"
+          ],
+          "classification": "BAD",
+          "traditional_result": "Misfortune (traditional claim)"
+        },
+        {
+          "house_type": "Ugra",
+          "directions": [
+            "NORTH",
+            "EAST"
+          ],
+          "classification": "BAD",
+          "traditional_result": "Distress for the family (traditional claim)"
+        },
+        {
+          "house_type": "Ripuda",
+          "directions": [
+            "SOUTH",
+            "NORTH"
+          ],
+          "classification": "BAD",
+          "traditional_result": "Fear and adversity from enemies (traditional claim)"
+        },
+        {
+          "house_type": "Vittada",
+          "directions": [
+            "EAST",
+            "SOUTH",
+            "NORTH"
+          ],
+          "classification": "GOOD",
+          "traditional_result": "Wealth and money"
+        },
+        {
+          "house_type": "Kshaya/Nasha",
+          "directions": [
+            "WEST",
+            "NORTH"
+          ],
+          "classification": "BAD",
+          "traditional_result": "Destruction and decline (traditional claim)"
+        },
+        {
+          "house_type": "Akranda",
+          "directions": [
+            "EAST",
+            "WEST",
+            "NORTH"
+          ],
+          "classification": "BAD",
+          "traditional_result": "Sorrow and tears (traditional claim)"
+        },
+        {
+          "house_type": "Vipula",
+          "directions": [
+            "WEST",
+            "SOUTH",
+            "NORTH"
+          ],
+          "classification": "GOOD",
+          "traditional_result": "Abundant resources and reputation"
+        },
+        {
+          "house_type": "Vijaya",
+          "directions": [
+            "EAST",
+            "SOUTH",
+            "WEST",
+            "NORTH"
+          ],
+          "classification": "VERY_GOOD",
+          "traditional_result": "Great wealth and happiness"
+        }
+      ],
+      "automatic_door_movement": false,
+      "notes": [
+        "Traditional outcomes are retained as source claims, not scientifically established predictions."
+      ]
+    },
+    {
+      "rule_id": "vsai.main_entrance.direction",
+      "name": "Main Entrance Direction Analysis",
+      "category": "main_entrance",
+      "positive_zones": [
+        {
+          "zone": "NORTH",
+          "classification": "POSITIVE_SUITABLE"
+        },
+        {
+          "zone": "NORTH_EAST",
+          "classification": "POSITIVE_SUITABLE"
+        },
+        {
+          "zone": "EAST",
+          "classification": "POSITIVE_SUITABLE"
+        },
+        {
+          "zone": "SOUTH_OF_SOUTH_EAST",
+          "classification": "POSITIVE_SUITABLE",
+          "boundary_status": "NEEDS_SOURCE_BOUNDARY"
+        },
+        {
+          "zone": "WEST_OF_NORTH_WEST",
+          "classification": "POSITIVE_SUITABLE",
+          "boundary_status": "NEEDS_SOURCE_BOUNDARY"
+        }
+      ],
+      "requires_main_entrance_identification": true,
+      "notes": [
+        "Do not guess boundaries for South of Southeast or West of Northwest."
+      ]
+    },
+    {
+      "rule_id": "vsai.room.direction",
+      "name": "Room Direction Analysis",
+      "category": "room_placement",
+      "room_guidance": [
+        {
+          "room": "living_room",
+          "preferred_directions": [
+            "NORTH_WEST",
+            "NORTH",
+            "NORTH_EAST",
+            "EAST"
+          ],
+          "notes": "As stated"
+        },
+        {
+          "room": "kitchen",
+          "preferred_directions": [
+            "SOUTH_EAST"
+          ],
+          "notes": "Primary option"
+        },
+        {
+          "room": "kitchen",
+          "preferred_directions": [
+            "NORTH_WEST"
+          ],
+          "notes": "Alternative listed"
+        },
+        {
+          "room": "master_bedroom",
+          "preferred_directions": [
+            "SOUTH_WEST"
+          ],
+          "notes": "Head of family bedroom"
+        },
+        {
+          "room": "childrens_bedroom",
+          "preferred_directions": [
+            "SOUTH",
+            "WEST"
+          ],
+          "notes": "As stated"
+        },
+        {
+          "room": "childrens_bedroom",
+          "preferred_directions": [
+            "SOUTH_EAST",
+            "NORTH_WEST"
+          ],
+          "notes": "Alternatives listed"
+        },
+        {
+          "room": "parents_grandparents_bedroom",
+          "preferred_directions": [
+            "NORTH",
+            "EAST"
+          ],
+          "notes": "As stated"
+        },
+        {
+          "room": "guest_bedroom",
+          "preferred_directions": [
+            "NORTH_WEST"
+          ],
+          "notes": "As stated"
+        },
+        {
+          "room": "pooja_room",
+          "preferred_directions": [
+            "NORTH_EAST"
+          ],
+          "notes": "Primary option"
+        },
+        {
+          "room": "pooja_room",
+          "preferred_directions": [
+            "NORTH",
+            "EAST"
+          ],
+          "notes": "Alternatives listed"
+        },
+        {
+          "room": "bath_area",
+          "preferred_directions": [
+            "NORTH",
+            "EAST"
+          ],
+          "notes": "Distinct from toilet/washroom"
+        },
+        {
+          "room": "toilet_washroom",
+          "preferred_directions": [
+            "WEST",
+            "NORTH_WEST"
+          ],
+          "avoid_as_stated": [
+            "NORTH_EAST",
+            "BRAHMASTHAN"
+          ]
+        },
+        {
+          "room": "store_room",
+          "preferred_directions": [
+            "SOUTH",
+            "WEST"
+          ],
+          "notes": "Source wording 'station room' needs confirmation if relevant"
+        },
+        {
+          "room": "staircase",
+          "preferred_directions": [
+            "SOUTH",
+            "WEST"
+          ],
+          "notes": "Source also says keep out of Brahmasthan"
+        }
+      ],
+      "notes": [
+        "Do not convert alternatives into forbidden directions unless explicitly stated."
+      ]
+    }
+  ],
+  "stage_1_pipeline": [
+    "Receive Component 1 Master JSON",
+    "Validate dimensions, coordinate origin, orientation, rooms, walls, doors, and available spatial elements",
+    "Create 3x3 direction grid",
+    "Run Brahmasthan exact-center check",
+    "Run Dwara Sthana door-combination classification",
+    "Run main entrance direction analysis",
+    "Run room direction analysis",
+    "Return per-rule findings, defects, and recommendations",
+    "Defer automatic rectification and redrawing"
+  ],
+  "open_implementation_items": [
+    "Exact boundaries for South of Southeast and West of Northwest entrance zones",
+    "How the main entrance is identified in Master JSON",
+    "Numerical tolerance for exact-center geometry checks",
+    "Overall score formula and weights across the four rules",
+    "Rectification geometry and structural constraints are deferred",
+    "Align object names and input schema with actual Master JSON"
+  ]
+}
