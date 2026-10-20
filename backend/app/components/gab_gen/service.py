@@ -221,6 +221,28 @@ class GabGenService:
             site_restrictions=site_restrictions
         )
 
+        # Step 8b: Deterministic Architectural Preference & Adjacency Evaluation
+        from .validation.preference_evaluator import evaluate_architectural_preferences
+        from .schemas import PreferenceEvaluationStatus
+        pref_results = evaluate_architectural_preferences(
+            requirements=requirements,
+            floors=floors,
+            survey_request=survey_request,
+            buildable_poly=shapely_buildable
+        )
+        validation.preference_evaluations = pref_results
+
+        # If any hard constraint preference failed, mark overall validation as failed or needs review
+        failed_hard_prefs = [
+            p for p in pref_results
+            if p.is_hard_constraint and p.status in (PreferenceEvaluationStatus.NOT_SATISFIED, PreferenceEvaluationStatus.NOT_EVALUABLE)
+        ]
+        if failed_hard_prefs:
+            for hp in failed_hard_prefs:
+                validation.violations.append(f"Hard architectural constraint failed ({hp.preference_id}): {hp.explanation}")
+            validation.valid = False
+            validation.status = "infeasible"
+
         # If reconstruction flagged needs_verification, ensure overall status reflects it
         if reconstructed.get("needs_verification") and validation.status == "completed":
             validation.status = "needs_verification"

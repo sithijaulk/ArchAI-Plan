@@ -52,15 +52,57 @@ export interface ManualSurveyData {
   georeference_status?: string;
 }
 
+export type AdjacencyRelationshipType =
+  | 'direct_access'
+  | 'shared_boundary'
+  | 'near'
+  | 'prefer_near'
+  | 'prefer_separate'
+  | 'must_not_directly_connect';
+
+export interface RoomAdjacencyRequirement {
+  adjacency_id: string;
+  source_room_id: string;
+  target_room_id: string;
+  relationship: AdjacencyRelationshipType;
+  priority: 'high' | 'medium' | 'low';
+  is_hard_constraint: boolean;
+  maximum_route_distance_m?: number | null;
+  notes?: string;
+}
+
+export type PreferenceEvaluationStatus =
+  | 'satisfied'
+  | 'not_satisfied'
+  | 'partially_satisfied'
+  | 'not_evaluable'
+  | 'not_applicable';
+
+export interface PreferenceEvaluationResult {
+  preference_id: string;
+  category: string;
+  status: PreferenceEvaluationStatus;
+  is_hard_constraint: boolean;
+  evidence: Record<string, any>;
+  explanation: string;
+}
+
 export interface RoomRequirement {
   id: string;
   type: string;
   quantity: number;
   required: boolean;
   preferred_min_area?: number;
+  preferred_area_sqm?: number;
+  minimum_width_m?: number;
+  preferred_width_m?: number;
+  preferred_length_m?: number;
   floor_preference: number | string; // 'auto' or 0, 1, 2, 3
+  floor_assignment_type?: 'required_floor' | 'preferred_floor' | 'any_floor';
   priority: 'high' | 'medium' | 'low';
   custom_name?: string;
+  window_orientation_preference?: string;
+  notes?: string;
 }
 
 export interface RegulatoryContext {
@@ -131,6 +173,10 @@ export interface ClientRequirements {
   preferred_total_building_area?: number;
   preferred_ground_coverage?: number;
   rooms: RoomRequirement[];
+  adjacencies?: RoomAdjacencyRequirement[];
+  preferred_entrance_orientation?: string;
+  preferred_entrance_edge_id?: string;
+  building_orientation_preference?: string;
   occupant_count?: number;
   open_plan_living_dining?: boolean;
   separate_kitchen?: boolean;
@@ -234,6 +280,7 @@ export interface GabGenValidation {
   unresolved_requirements?: string[];
   conflicting_requirements?: string[];
   regulatory_resolution?: RegulatoryResolution;
+  preference_evaluations?: PreferenceEvaluationResult[];
 }
 
 export interface GabGenMasterJson {

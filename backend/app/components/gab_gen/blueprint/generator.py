@@ -111,6 +111,10 @@ def generate_blueprint_floors(
                     coords = [Point2D(x=round(c[0], 3), y=round(c[1], 3)) for c in list(poly_geom.exterior.coords)[:-1]]
                     c_pt = poly_geom.centroid
                     r_id = f"{floor_id}_{r_data['type'][:3].upper()}_{idx+1}"
+                    # Compute bounding dimensions of room polygon
+                    r_minx, r_miny, r_maxx, r_maxy = poly_geom.bounds
+                    r_w = round(r_maxx - r_minx, 2)
+                    r_l = round(r_maxy - r_miny, 2)
                     generated_rooms.append(
                         RoomPolygon(
                             room_id=r_id,
@@ -121,7 +125,11 @@ def generate_blueprint_floors(
                             target_area=round(r_data["target_area"], 2),
                             polygon=coords,
                             center=Point2D(x=round(c_pt.x, 3), y=round(c_pt.y, 3)),
-                            is_structural_stair=False
+                            width_m=min(r_w, r_l),
+                            length_m=max(r_w, r_l),
+                            is_structural_stair=False,
+                            required=r_data.get("required"),
+                            req_id=r_data.get("req_id")
                         )
                     )
 

@@ -206,15 +206,64 @@ class RegulatoryContextInput(BaseModel):
 # 3. Client Residential Requirements Schemas
 # -------------------------------------------------------------
 
+class FloorAssignmentType(str, Enum):
+    REQUIRED_FLOOR = "required_floor"
+    PREFERRED_FLOOR = "preferred_floor"
+    ANY_FLOOR = "any_floor"
+
+
+class AdjacencyRelationshipType(str, Enum):
+    DIRECT_ACCESS = "direct_access"
+    SHARED_BOUNDARY = "shared_boundary"
+    NEAR = "near"
+    PREFER_NEAR = "prefer_near"
+    PREFER_SEPARATE = "prefer_separate"
+    MUST_NOT_DIRECTLY_CONNECT = "must_not_directly_connect"
+
+
+class RoomAdjacencyRequirement(BaseModel):
+    adjacency_id: str = Field(..., description="Unique identifier for adjacency constraint")
+    source_room_id: str = Field(..., description="Stable ID of source room requirement")
+    target_room_id: str = Field(..., description="Stable ID of target room requirement")
+    relationship: AdjacencyRelationshipType = Field(default=AdjacencyRelationshipType.PREFER_NEAR)
+    priority: RoomPriority = Field(default=RoomPriority.HIGH)
+    is_hard_constraint: bool = Field(default=False, description="True if mandatory (fails generation if unmet)")
+    maximum_route_distance_m: Optional[float] = Field(default=None, gt=0, description="Max acceptable door-to-door or route distance in meters")
+    notes: Optional[str] = None
+
+
+class PreferenceEvaluationStatus(str, Enum):
+    SATISFIED = "satisfied"
+    NOT_SATISFIED = "not_satisfied"
+    PARTIALLY_SATISFIED = "partially_satisfied"
+    NOT_EVALUABLE = "not_evaluable"
+    NOT_APPLICABLE = "not_applicable"
+
+
+class PreferenceEvaluationResult(BaseModel):
+    preference_id: str
+    category: str = "adjacency"  # adjacency | floor | dimension | entrance | orientation | parking | staircase | window | roof
+    status: PreferenceEvaluationStatus = PreferenceEvaluationStatus.NOT_EVALUABLE
+    is_hard_constraint: bool = False
+    evidence: Dict[str, Any] = Field(default_factory=dict)
+    explanation: str = ""
+
+
 class RoomRequirement(BaseModel):
     id: str = Field(..., description="Unique identifier for requirement entry")
     type: str = Field(..., description="Room type e.g. living_room, master_bedroom, kitchen")
     quantity: int = Field(default=1, ge=1, le=10)
     required: bool = Field(default=True, description="True if mandatory, False if optional")
     preferred_min_area: Optional[float] = Field(default=None, gt=0, description="Minimum preferred area in sqm")
+    preferred_area_sqm: Optional[float] = Field(default=None, gt=0, description="Target/preferred area in sqm")
+    minimum_width_m: Optional[float] = Field(default=None, gt=0, description="Minimum clear width in meters")
+    preferred_width_m: Optional[float] = Field(default=None, gt=0, description="Preferred width in meters")
+    preferred_length_m: Optional[float] = Field(default=None, gt=0, description="Preferred length in meters")
     floor_preference: Union[int, str] = Field(default="auto", description="'auto' or integer floor index (0, 1, 2, 3)")
+    floor_assignment_type: FloorAssignmentType = Field(default=FloorAssignmentType.PREFERRED_FLOOR)
     priority: RoomPriority = Field(default=RoomPriority.HIGH)
     custom_name: Optional[str] = Field(default=None)
+    window_orientation_preference: Optional[str] = Field(default=None, description="e.g. north, south, east, west, exterior_wall")
     notes: Optional[str] = Field(default=None, description="Free-text customer preference for this room")
 
 
@@ -248,6 +297,14 @@ class ClientRequirementsInput(BaseModel):
 
     # Room Programme
     rooms: List[RoomRequirement] = Field(default_factory=list)
+
+    # Architectural Adjacency Constraints & Preferences
+    adjacencies: List[RoomAdjacencyRequirement] = Field(default_factory=list)
+
+    # Orientation & Entrance Preferences
+    preferred_entrance_orientation: Optional[str] = Field(default=None, description="north | south | east | west | road_frontage")
+    preferred_entrance_edge_id: Optional[str] = Field(default=None, description="Edge ID preferred for main entrance door")
+    building_orientation_preference: Optional[str] = Field(default=None, description="north_facing | road_facing")
 
     # Amenities & Functional Preferences
     occupant_count: Optional[int] = Field(default=4, ge=1)
@@ -424,6 +481,10 @@ class ValidationResult(BaseModel):
     site_restriction_summary: List[Dict[str, Any]] = Field(default_factory=list)
     regulatory_resolution: Optional[RegulatoryResolutionOutput] = None
     design_checks: Dict[str, Any] = Field(default_factory=dict)
+    preference_evaluations: List[PreferenceEvaluationResult] = Field(
+        default_factory=list,
+        description="Deterministic post-generation preference evaluation results"
+    )
 
 
 class GabGenRunOutput(BaseModel):

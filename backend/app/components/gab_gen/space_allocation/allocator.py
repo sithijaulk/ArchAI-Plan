@@ -124,6 +124,11 @@ class RuleBasedSpaceAllocationProvider(SpaceAllocationProvider):
                     "required": req.required,
                     "priority": req.priority.value if hasattr(req.priority, "value") else str(req.priority),
                     "floor_preference": str(req.floor_preference),
+                    "floor_assignment_type": req.floor_assignment_type.value if hasattr(req.floor_assignment_type, "value") else str(req.floor_assignment_type),
+                    "minimum_width_m": req.minimum_width_m,
+                    "preferred_width_m": req.preferred_width_m,
+                    "preferred_length_m": req.preferred_length_m,
+                    "window_orientation_preference": req.window_orientation_preference,
                     "assigned_floor_index": 0,
                     "is_stair": False
                 }

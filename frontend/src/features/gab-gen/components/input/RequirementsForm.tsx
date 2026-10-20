@@ -744,6 +744,173 @@ export const RequirementsForm: React.FC<RequirementsFormProps> = ({
         )}
       </div>
 
+      {/* 5. Architectural Adjacencies & Orientation */}
+      <div className="space-y-4 p-4 rounded-xl bg-card border border-border">
+        <div className="flex items-center justify-between pb-2 border-b border-border/50">
+          <div className="flex items-center gap-2">
+            <Layers className="w-4 h-4 text-primary" />
+            <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
+              Room Adjacency & Entrance Orientation
+            </h4>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              if (requirements.rooms.length < 2) return;
+              const newAdj = {
+                adjacency_id: `adj_${Date.now()}`,
+                source_room_id: requirements.rooms[0].id,
+                target_room_id: requirements.rooms[1].id,
+                relationship: 'prefer_near' as const,
+                priority: 'high' as const,
+                is_hard_constraint: false,
+                maximum_route_distance_m: 6.0
+              };
+              onChange({
+                ...requirements,
+                adjacencies: [...(requirements.adjacencies || []), newAdj]
+              });
+            }}
+            disabled={requirements.rooms.length < 2}
+            className="h-7 text-xs gap-1"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add Adjacency
+          </Button>
+        </div>
+
+        {/* Entrance & Building Orientation */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+          <div>
+            <Label className="text-[11px] text-muted-foreground">Main Entrance Orientation</Label>
+            <select
+              value={requirements.preferred_entrance_orientation || 'road_frontage'}
+              onChange={(e) => updateField('preferred_entrance_orientation', e.target.value)}
+              className="w-full mt-1 px-2.5 py-1.5 text-xs bg-background border border-border rounded text-foreground"
+            >
+              <option value="road_frontage">Road Frontage (Recommended)</option>
+              <option value="north">North Facing</option>
+              <option value="south">South Facing</option>
+              <option value="east">East Facing (Morning Sun)</option>
+              <option value="west">West Facing</option>
+            </select>
+          </div>
+
+          <div>
+            <Label className="text-[11px] text-muted-foreground">Building Orientation Preference</Label>
+            <select
+              value={requirements.building_orientation_preference || 'road_facing'}
+              onChange={(e) => updateField('building_orientation_preference', e.target.value)}
+              className="w-full mt-1 px-2.5 py-1.5 text-xs bg-background border border-border rounded text-foreground"
+            >
+              <option value="road_facing">Align with Road Frontage</option>
+              <option value="north_facing">Align with Solar North</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Adjacencies List */}
+        {(!requirements.adjacencies || requirements.adjacencies.length === 0) ? (
+          <p className="text-xs text-muted-foreground italic text-center py-2">
+            No specific room adjacency constraints added. Rooms will follow standard functional grouping heuristics.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {requirements.adjacencies.map((adj, aIdx) => (
+              <div key={adj.adjacency_id} className="flex flex-wrap items-center gap-2 p-2.5 rounded-lg bg-card/60 border border-border/80 text-xs">
+                {/* Source Room */}
+                <select
+                  value={adj.source_room_id}
+                  onChange={(e) => {
+                    const updated = [...(requirements.adjacencies || [])];
+                    updated[aIdx] = { ...updated[aIdx], source_room_id: e.target.value };
+                    onChange({ ...requirements, adjacencies: updated });
+                  }}
+                  className="bg-background border border-border rounded px-2 py-1 text-foreground text-[11px]"
+                >
+                  {requirements.rooms.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.custom_name || r.type}
+                    </option>
+                  ))}
+                </select>
+
+                <span className="text-muted-foreground text-[10px]">should be</span>
+
+                {/* Relationship */}
+                <select
+                  value={adj.relationship}
+                  onChange={(e) => {
+                    const updated = [...(requirements.adjacencies || [])];
+                    updated[aIdx] = { ...updated[aIdx], relationship: e.target.value as any };
+                    onChange({ ...requirements, adjacencies: updated });
+                  }}
+                  className="bg-background border border-border rounded px-2 py-1 text-foreground text-[11px] font-medium"
+                >
+                  <option value="direct_access">Direct Door Access</option>
+                  <option value="shared_boundary">Shared Wall Boundary</option>
+                  <option value="near">Near (Close Proximity)</option>
+                  <option value="prefer_near">Prefer Near</option>
+                  <option value="prefer_separate">Prefer Separate</option>
+                  <option value="must_not_directly_connect">Must Not Directly Connect</option>
+                </select>
+
+                <span className="text-muted-foreground text-[10px]">to</span>
+
+                {/* Target Room */}
+                <select
+                  value={adj.target_room_id}
+                  onChange={(e) => {
+                    const updated = [...(requirements.adjacencies || [])];
+                    updated[aIdx] = { ...updated[aIdx], target_room_id: e.target.value };
+                    onChange({ ...requirements, adjacencies: updated });
+                  }}
+                  className="bg-background border border-border rounded px-2 py-1 text-foreground text-[11px]"
+                >
+                  {requirements.rooms.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.custom_name || r.type}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Mandatory / Soft Toggle */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const updated = [...(requirements.adjacencies || [])];
+                    updated[aIdx] = { ...updated[aIdx], is_hard_constraint: !updated[aIdx].is_hard_constraint };
+                    onChange({ ...requirements, adjacencies: updated });
+                  }}
+                  className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ml-auto ${
+                    adj.is_hard_constraint ? "bg-amber-500/20 text-amber-500 border border-amber-500/30" : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {adj.is_hard_constraint ? 'Hard Constraint' : 'Soft Preference'}
+                </button>
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    onChange({
+                      ...requirements,
+                      adjacencies: (requirements.adjacencies || []).filter((_, idx) => idx !== aIdx)
+                    });
+                  }}
+                  className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <Button
         type="button"
         onClick={onSave}
