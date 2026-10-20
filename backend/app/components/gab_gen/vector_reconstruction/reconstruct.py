@@ -32,6 +32,7 @@ from ..schemas import ManualSurveyExtractionRequest, DistanceUnit, Point2D
 
 PERCH_TO_SQM = 25.29285264
 SQFT_TO_SQM = 0.09290304
+ACRE_TO_SQM = 4046.8564224
 
 # Load validation config
 _CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "gab_validation_config.json")

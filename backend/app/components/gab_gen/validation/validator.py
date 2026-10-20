@@ -162,12 +162,24 @@ def validate_gab_geometry(
     if violations:
         status = "failed"
         valid = False
+        geometry_status = "invalid"
     elif warnings:
         status = "needs_verification"
         valid = True
+        geometry_status = "valid"
     else:
         status = "completed"
         valid = True
+        geometry_status = "valid"
+
+    # Regulatory status
+    reg_status = "verified"
+    if not rules:
+        reg_status = "missing"
+    elif any(r.verification_status == "research_test" for r in rules):
+        reg_status = "research_test"
+    elif any(r.verification_status == "needs_verification" for r in rules):
+        reg_status = "needs_verification"
 
     return ValidationResult(
         valid=valid,
@@ -179,5 +191,7 @@ def validate_gab_geometry(
         area_difference_sqm=area_check.get("area_difference_sqm"),
         area_difference_percent=area_check.get("area_difference_percent"),
         violations=violations,
-        warnings=warnings
+        warnings=warnings,
+        geometry_status=geometry_status,
+        regulatory_status=reg_status
     )

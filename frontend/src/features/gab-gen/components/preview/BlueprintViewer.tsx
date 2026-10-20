@@ -8,19 +8,71 @@ import { Layers, AlertTriangle, CheckCircle2, FileCode } from 'lucide-react';
 import { PlanPreview2D } from './PlanPreview2D';
 import { PlanPreview3D } from './PlanPreview3D';
 import { GabGenMasterJson } from '../../types';
+import { gabGenExtendedApi } from '../../api';
 
 interface BlueprintViewerProps {
   data: GabGenMasterJson | null;
   projectName: string;
+  projectId?: string;
+  onUpdate?: (updated: GabGenMasterJson) => void;
 }
 
-export const BlueprintViewer: React.FC<BlueprintViewerProps> = ({ data, projectName }) => {
+export const BlueprintViewer: React.FC<BlueprintViewerProps> = ({
+  data,
+  projectName,
+  projectId,
+  onUpdate
+}) => {
   const [selectedFloor, setSelectedFloor] = useState<number | 'all'>('all');
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [exploded3D, setExploded3D] = useState(false);
   const [activeTab, setActiveTab] = useState<'2d' | '3d' | 'json'>('2d');
+  const [editMessage, setEditMessage] = useState<string | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   const floors = data?.floor_plan?.floors || [];
   const validation = data?.gab_gen_validation;
+
+  // Selected room details
+  const selectedRoom = selectedRoomId
+    ? floors.flatMap(f => f.rooms).find(r => r.room_id === selectedRoomId)
+    : null;
+
+  const handleNudgeRoom = async (dx: number, dy: number) => {
+    if (!selectedRoom || !projectId || !data) return;
+    setIsSavingEdit(true);
+    setEditMessage(null);
+
+    const newPolygon = selectedRoom.polygon.map(p => ({
+      x: Math.round((p.x + dx) * 100) / 100,
+      y: Math.round((p.y + dy) * 100) / 100
+    }));
+
+    try {
+      const res = await gabGenExtendedApi.editRoom(projectId, {
+        room_id: selectedRoom.room_id,
+        target_floor_id: selectedRoom.floor_id,
+        polygon: newPolygon
+      });
+
+      if (!res.valid) {
+        setEditMessage(`Constraint violation: ${res.violations?.join('; ') || 'Cannot move room outside bounds.'}`);
+      } else {
+        setEditMessage("Room moved successfully!");
+        if (onUpdate && res.floor_plan) {
+          onUpdate({
+            ...data,
+            floor_plan: res.floor_plan
+          });
+        }
+      }
+    } catch (err: any) {
+      setEditMessage(err.response?.data?.detail || "Failed to edit room.");
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
 
   return (
     <div className="space-y-4">
@@ -142,10 +194,42 @@ export const BlueprintViewer: React.FC<BlueprintViewerProps> = ({ data, projectN
           )}
         </div>
 
+        {/* Room Editor Bar if a room is selected */}
+        {selectedRoom && (
+          <div className="mb-3 p-2.5 rounded-lg bg-pink-500/10 border border-pink-500/30 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-pink-400">Selected Room:</span>
+              <strong className="text-foreground">{selectedRoom.name}</strong>
+              <span className="text-muted-foreground font-mono">({selectedRoom.area.toFixed(1)} m²)</span>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-muted-foreground mr-1">Move:</span>
+              <Button size="sm" variant="outline" className="h-6 w-6 p-0 text-xs" onClick={() => handleNudgeRoom(-0.5, 0)} disabled={isSavingEdit}>←</Button>
+              <Button size="sm" variant="outline" className="h-6 w-6 p-0 text-xs" onClick={() => handleNudgeRoom(0.5, 0)} disabled={isSavingEdit}>→</Button>
+              <Button size="sm" variant="outline" className="h-6 w-6 p-0 text-xs" onClick={() => handleNudgeRoom(0, 0.5)} disabled={isSavingEdit}>↑</Button>
+              <Button size="sm" variant="outline" className="h-6 w-6 p-0 text-xs" onClick={() => handleNudgeRoom(0, -0.5)} disabled={isSavingEdit}>↓</Button>
+              <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px] text-muted-foreground" onClick={() => setSelectedRoomId(null)}>Deselect</Button>
+            </div>
+          </div>
+        )}
+
+        {editMessage && (
+          <div className="mb-3 p-2 rounded text-xs bg-muted/60 border border-border/80 text-foreground">
+            {editMessage}
+          </div>
+        )}
+
         {/* Keep 2D canvas mounted or visible so export does not capture blank */}
         <div id="gab-2d-canvas" className={activeTab === '2d' ? 'block' : 'hidden'}>
-          <PlanPreview2D data={data} selectedFloorIndex={selectedFloor} />
+          <PlanPreview2D
+            data={data}
+            selectedFloorIndex={selectedFloor}
+            selectedRoomId={selectedRoomId}
+            onSelectRoom={(id) => setSelectedRoomId(id)}
+          />
         </div>
+
 
         {activeTab === '3d' && (
           <PlanPreview3D

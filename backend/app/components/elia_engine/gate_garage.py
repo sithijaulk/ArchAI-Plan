@@ -71,17 +71,17 @@ def _count_fitting_bays(polygon: Polygon, bay_w: float, bay_l: float, tolerance:
     best = 0
     centroid = polygon.centroid
     from .rule_repository import elia_rules
-    cumulative_budget = elia_rules()["access"].get("max_grid_cells", 200000)
+    cumulative_limit = elia_rules()["access"].get("max_grid_cells", 200000)
     cumulative_evaluations = 0
-    
+
     for angle_deg in angles:
         rotated = affinity.rotate(polygon, -angle_deg, origin=centroid, use_radians=False)
         min_x, min_y, max_x, max_y = rotated.bounds
-        
+
         estimated_cells = ((max_x - min_x) / bay_w) * ((max_y - min_y) / bay_l)
-        if estimated_cells > cumulative_budget:
-            raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Search budget exhausted for garage bay fitting.")
-            
+        if estimated_cells > cumulative_limit:
+            raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Search limit exhausted for garage bay fitting.")
+
         buffered = rotated.buffer(1e-5)
         # Try sub-bay grid offsets (0, 1/2) x (0, 1/2) in both dimensions
         for off_x in (0.0, bay_w / 2.0):
@@ -93,8 +93,8 @@ def _count_fitting_bays(polygon: Polygon, bay_w: float, bay_l: float, tolerance:
                     x = min_x + off_x
                     while x + bay_w <= max_x + tolerance:
                         cumulative_evaluations += 1
-                        if cumulative_evaluations > cumulative_budget:
-                            raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Search budget exhausted for garage bay fitting.")
+                        if cumulative_evaluations > cumulative_limit:
+                            raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Search limit exhausted for garage bay fitting.")
                             
                         candidate = box(x, y, x + bay_w, y + bay_l)
                         if (buffered.covers(candidate) and
@@ -404,8 +404,8 @@ def plan_garage(land: Polygon, residual: BaseGeometry, gate: Mapping[str, Any], 
             
             estimated_cells = ((max_x - min_x) / step) * ((max_y - min_y) / step)
             if estimated_cells > elia_rules()["access"].get("max_grid_cells", 200000):
-                raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Search budget exhausted for garage.")
-                
+                raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Search limit exhausted for garage.")
+
             fallback_candidates = [Point(x, y) for y in _frange(min_y + length / 2, max_y - length / 2, step)
                                    for x in _frange(min_x + width / 2, max_x - width / 2, step)]
             fallback_candidates.sort(key=lambda point: (point.distance(gate_point), point.y, point.x))
@@ -413,10 +413,10 @@ def plan_garage(land: Polygon, residual: BaseGeometry, gate: Mapping[str, Any], 
         else:
             min_x, min_y, max_x, max_y = residual.bounds
             step = max(width / 2, 1.0)
-            
+
             estimated_cells = ((max_x - min_x) / step) * ((max_y - min_y) / step)
             if estimated_cells > elia_rules()["access"].get("max_grid_cells", 200000):
-                raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Search budget exhausted for garage.")
+                raise ELIAError("ELIA_PLANNING_LIMIT_EXCEEDED", "Search limit exhausted for garage.")
                 
             candidates = [Point(x, y) for y in _frange(min_y + length / 2, max_y - length / 2, step)
                           for x in _frange(min_x + width / 2, max_x - width / 2, step)]

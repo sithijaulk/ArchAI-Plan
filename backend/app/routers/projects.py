@@ -311,3 +311,9 @@ def run_gab_gen(project_id: str, db: Session = Depends(get_db), _admin=Depends(r
 @router.post("/{project_id}/esai-engine/run")
 def run_esai(project_id: str, db: Session = Depends(get_db), _admin=Depends(require_admin)):
     return _component_not_implemented(project_id, "esai_engine", db)
+
+
+@router.post("/{project_id}/vsai-rectifier/run")
+def run_vsai(project_id: str, db: Session = Depends(get_db), _admin=Depends(require_admin)):
+    return _component_not_implemented(project_id, "vsai_rectifier", db)
+

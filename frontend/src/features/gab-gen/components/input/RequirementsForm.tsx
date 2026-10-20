@@ -122,40 +122,87 @@ export const RequirementsForm: React.FC<RequirementsFormProps> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 text-xs pt-1">
+        {/* Location & Local Authority (Dependent Selections) */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs pt-1">
           <div>
-            <Label className="text-[10px] text-muted-foreground block mb-1">Province (Optional)</Label>
-            <Input
-              type="text"
+            <Label className="text-[10px] text-muted-foreground block mb-1">Province</Label>
+            <select
               value={requirements.regulatory_context?.province || ''}
-              onChange={(e) => updateRegulatory('province', e.target.value)}
-              placeholder="e.g. Western"
-              className="text-xs h-8"
-            />
+              onChange={(e) => {
+                updateRegulatory('province', e.target.value);
+                updateRegulatory('district', '');
+                updateRegulatory('local_authority_name', '');
+              }}
+              className="w-full px-2 py-1.5 text-xs bg-background border border-border rounded text-foreground"
+            >
+              <option value="">Select Province</option>
+              <option value="Western">Western</option>
+              <option value="Central">Central</option>
+              <option value="Southern">Southern</option>
+            </select>
           </div>
+
           <div>
-            <Label className="text-[10px] text-muted-foreground block mb-1">District (Optional)</Label>
+            <Label className="text-[10px] text-muted-foreground block mb-1">District</Label>
+            <select
+              value={requirements.regulatory_context?.district || ''}
+              onChange={(e) => {
+                updateRegulatory('district', e.target.value);
+                updateRegulatory('local_authority_name', '');
+              }}
+              className="w-full px-2 py-1.5 text-xs bg-background border border-border rounded text-foreground"
+            >
+              <option value="">Select District</option>
+              {requirements.regulatory_context?.province === 'Western' && (
+                <>
+                  <option value="Colombo">Colombo</option>
+                  <option value="Gampaha">Gampaha</option>
+                  <option value="Kalutara">Kalutara</option>
+                </>
+              )}
+              {requirements.regulatory_context?.province === 'Central' && (
+                <>
+                  <option value="Kandy">Kandy</option>
+                  <option value="Matale">Matale</option>
+                  <option value="Nuwara Eliya">Nuwara Eliya</option>
+                </>
+              )}
+              {requirements.regulatory_context?.province === 'Southern' && (
+                <>
+                  <option value="Galle">Galle</option>
+                  <option value="Matara">Matara</option>
+                  <option value="Hambantota">Hambantota</option>
+                </>
+              )}
+            </select>
+          </div>
+
+          <div>
+            <Label className="text-[10px] text-muted-foreground block mb-1">Authority Type</Label>
+            <select
+              value={requirements.regulatory_context?.local_authority_type || 'Municipal Council'}
+              onChange={(e) => updateRegulatory('local_authority_type', e.target.value)}
+              className="w-full px-2 py-1.5 text-xs bg-background border border-border rounded text-foreground"
+            >
+              <option value="Municipal Council">Municipal Council</option>
+              <option value="Urban Council">Urban Council</option>
+              <option value="Pradeshiya Sabha">Pradeshiya Sabha</option>
+            </select>
+          </div>
+
+          <div>
+            <Label className="text-[10px] text-muted-foreground block mb-1">Authority Name</Label>
             <Input
               type="text"
-              value={requirements.regulatory_context?.district || ''}
-              onChange={(e) => updateRegulatory('district', e.target.value)}
-              placeholder="e.g. Colombo"
-              className="text-xs h-8"
-            />
-          </div>
-          <div>
-            <Label className="text-[10px] text-muted-foreground block mb-1">Road Width (m)</Label>
-            <Input
-              type="number"
-              step="0.5"
-              value={requirements.regulatory_context?.road_width || ''}
-              onChange={(e) => updateRegulatory('road_width', parseFloat(e.target.value) || 0)}
-              placeholder="e.g. 6.0"
+              value={requirements.regulatory_context?.local_authority_name || ''}
+              onChange={(e) => updateRegulatory('local_authority_name', e.target.value)}
+              placeholder="e.g. Colombo Municipal Council"
               className="text-xs h-8"
             />
           </div>
         </div>
       </div>
+
 
       {/* 2. Land Extent & Building Profile */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-xl bg-card border border-border">
@@ -177,11 +224,13 @@ export const RequirementsForm: React.FC<RequirementsFormProps> = ({
               className="px-3 py-1.5 text-xs bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             >
               <option value="perches">Perches</option>
+              <option value="acres">Acres</option>
               <option value="sqft">Sq. Ft</option>
               <option value="sqm">Sq. Meters</option>
             </select>
           </div>
         </div>
+
 
         <div>
           <Label className="text-xs font-semibold mb-1 block">Number of Storeys (1 - 4 Floors)</Label>
@@ -232,27 +281,43 @@ export const RequirementsForm: React.FC<RequirementsFormProps> = ({
         <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
           Amenities & Spatial Constraints
         </h4>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
           <div>
-            <Label className="text-[11px] text-muted-foreground block mb-1">Occupant Count</Label>
+            <Label className="text-[11px] text-muted-foreground block mb-1">Total Bedrooms</Label>
             <Input
               type="number"
-              min="1"
-              value={requirements.occupant_count || 4}
-              onChange={(e) => updateField('occupant_count', parseInt(e.target.value) || 1)}
+              min="0"
+              max="10"
+              value={requirements.bedroom_count ?? ''}
+              onChange={(e) => updateField('bedroom_count', parseInt(e.target.value) || 0)}
               className="text-xs h-8"
+              placeholder="e.g. 3"
             />
           </div>
 
           <div>
-            <Label className="text-[11px] text-muted-foreground block mb-1">Parking Bay Capacity</Label>
+            <Label className="text-[11px] text-muted-foreground block mb-1">Master Bedrooms</Label>
             <Input
               type="number"
               min="0"
               max="4"
-              value={requirements.parking_capacity ?? 0}
-              onChange={(e) => updateField('parking_capacity', parseInt(e.target.value) || 0)}
+              value={requirements.master_bedroom_count ?? ''}
+              onChange={(e) => updateField('master_bedroom_count', parseInt(e.target.value) || 0)}
               className="text-xs h-8"
+              placeholder="e.g. 1"
+            />
+          </div>
+
+          <div>
+            <Label className="text-[11px] text-muted-foreground block mb-1">Total Bathrooms</Label>
+            <Input
+              type="number"
+              min="0"
+              max="8"
+              value={requirements.bathroom_count ?? ''}
+              onChange={(e) => updateField('bathroom_count', parseInt(e.target.value) || 0)}
+              className="text-xs h-8"
+              placeholder="e.g. 2"
             />
           </div>
 
@@ -268,6 +333,21 @@ export const RequirementsForm: React.FC<RequirementsFormProps> = ({
             />
           </div>
         </div>
+
+        {/* Consistency Check Alerts */}
+        {requirements.bedroom_count !== undefined && requirements.master_bedroom_count !== undefined &&
+          requirements.master_bedroom_count > requirements.bedroom_count && (
+            <div className="p-2 bg-destructive/10 text-destructive text-[11px] rounded border border-destructive/20">
+              Master bedrooms ({requirements.master_bedroom_count}) cannot exceed total bedrooms ({requirements.bedroom_count}).
+            </div>
+        )}
+        {requirements.bathroom_count !== undefined && requirements.attached_bathroom_count !== undefined &&
+          requirements.attached_bathroom_count > requirements.bathroom_count && (
+            <div className="p-2 bg-destructive/10 text-destructive text-[11px] rounded border border-destructive/20">
+              Attached bathrooms ({requirements.attached_bathroom_count}) cannot exceed total bathrooms ({requirements.bathroom_count}).
+            </div>
+        )}
+
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-border/40 text-xs">
           <label className="flex items-center gap-2 cursor-pointer">

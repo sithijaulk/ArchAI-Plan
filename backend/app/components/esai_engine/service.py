@@ -3,12 +3,15 @@ ESAI Engine Core Service
 Orchestrates Master JSON parsing, room and floor discovery, client requirement management,
 catalog queries, standards retrieval, and cross-validation without AI optimization.
 Maintains controlled HTTP 501 on run() until Stage 2.
+Enforces transactional persistence and non-destructive Master JSON transformations.
 """
+from copy import deepcopy
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+from fastapi import HTTPException, status as http_status
 from sqlalchemy.orm import Session
 
 from app.models.project import Project
-from app.services.master_json import merge_master_json
 from .catalog import FurnitureCatalogRepository, CatalogAsset
 from .rules import ErgonomicStandardsRepository, ErgonomicRule
 from .contracts import (
@@ -24,7 +27,9 @@ from .parser import StructuralInputParser
 from .normalizer import SpatialNormalizer
 from .validators import EsaiInputValidator
 from .repositories import EsaiDatabaseRepository
+from .geometry import compute_geometry_fingerprint
 from .exceptions import EsaiException, StructuralInputValidationError
+
 
 
 class EsaiEngineService:
@@ -104,10 +109,25 @@ class EsaiEngineService:
             )
 
     def validate_room_requirements(self, project: Project, requirements: RoomRequirementsDTO) -> ValidationResultDTO:
-        room = self.get_room_by_id(project, requirements.room_id)
-        return self.validator.validate_room_requirements(requirements, room)
+        try:
+            structural_input = self.get_structural_context(project)
+            room = SpatialNormalizer.find_room_by_id(structural_input, requirements.room_id)
+            return self.validator.validate_room_requirements(requirements, room, structural_input=structural_input)
+        except StructuralInputValidationError as e:
+            return ValidationResultDTO(
+                valid=False,
+                errors=[
+                    ValidationMessage(
+                        code="STRUCTURAL_VALIDATION_FAILED",
+                        path=e.details.get("path", "floor_plan"),
+                        room_id=requirements.room_id,
+                        message=str(e),
+                        severity="error"
+                    )
+                ]
+            )
 
-    # 4. Requirements & Persistence
+    # 4. Requirements & Persistence (Transactional & Non-Destructive)
     def get_all_requirements(self, project_id: str) -> List[Dict[str, Any]]:
         records = self.db_repo.get_room_requirements(project_id)
         return [
@@ -124,40 +144,127 @@ class EsaiEngineService:
             for r in records
         ]
 
+    def check_geometry_staleness(self, project: Project) -> Dict[str, Any]:
+        structural_input = self.get_structural_context(project)
+        current_fingerprint = compute_geometry_fingerprint(structural_input)
+        master_json = project.master_json or {}
+        interior_layout = master_json.get("interior_layout", {})
+        stored_fingerprint = interior_layout.get("geometry_fingerprint")
+
+        if stored_fingerprint is None:
+            return {
+                "is_stale": False,
+                "status": "initial",
+                "geometry_fingerprint": current_fingerprint,
+                "stored_fingerprint": None,
+                "geometry_source": structural_input.geometry_source,
+                "message": "No previous interior geometry fingerprint stored."
+            }
+
+        is_stale = (current_fingerprint != stored_fingerprint)
+        return {
+            "is_stale": is_stale,
+            "status": "stale" if is_stale else "up_to_date",
+            "geometry_fingerprint": current_fingerprint,
+            "stored_fingerprint": stored_fingerprint,
+            "geometry_source": structural_input.geometry_source,
+            "message": "Authoritative structural geometry has changed since interior layout was processed. Revalidation required." if is_stale else "Interior layout geometry matches authoritative structural geometry."
+        }
+
     def save_room_requirements(
         self,
         project: Project,
         requirements: RoomRequirementsDTO,
-        status: str = "draft"
+        status: str = "draft",
+        target_status: Optional[str] = None,
+        expected_revision: Optional[int] = None
     ) -> Dict[str, Any]:
-        # Validate first
+        desired_status = target_status if target_status is not None else status
+
+        # 0. Concurrency check if expected_revision supplied
+        if expected_revision is not None:
+            current_rev = int(getattr(project, "revision", 1) or 1)
+            if current_rev != expected_revision:
+                raise HTTPException(
+                    status_code=http_status.HTTP_409_CONFLICT,
+                    detail={
+                        "code": "PROJECT_STALE_REVISION",
+                        "message": "Project changed since the supplied revision; reload before retrying.",
+                        "expected_revision": expected_revision,
+                        "current_revision": current_rev
+                    }
+                )
+
+        # 1. Validate requirements against project geometry
         val_result = self.validate_room_requirements(project, requirements)
+
+        # Room/Floor identity errors: reject immediately
+        room_not_found = any(err.code == "ROOM_NOT_FOUND" for err in val_result.errors)
+        floor_not_found = any(err.code == "FLOOR_NOT_FOUND" for err in val_result.errors)
+        if room_not_found or floor_not_found:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND if (room_not_found or floor_not_found) else http_status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={
+                    "code": "ROOM_OR_FLOOR_NOT_FOUND",
+                    "message": "Requirements reference a room or floor that does not exist in the loaded project geometry.",
+                    "errors": [err.model_dump() for err in val_result.errors]
+                }
+            )
+
+        # If invalid and not draft: reject submission.
+        # If draft and invalid: mark explicitly as invalid_draft, never usable for optimization.
         if not val_result.valid:
-            # Raise or persist as draft with errors
-            pass
+            if desired_status != "draft":
+                raise HTTPException(
+                    status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail={
+                        "code": "REQUIREMENTS_VALIDATION_FAILED",
+                        "message": "Client requirements contain errors and cannot be submitted as usable.",
+                        "errors": [err.model_dump() for err in val_result.errors]
+                    }
+                )
+            effective_status = "invalid_draft"
+        else:
+            effective_status = desired_status
 
-        # Persist to relational table
-        rec = self.db_repo.upsert_room_requirement(
-            project_id=project.id,
-            floor_id=requirements.floor_id,
-            room_id=requirements.room_id,
-            requirements_data=requirements.model_dump(),
-            status=status
-        )
+        # 2. Compute geometry fingerprint
+        structural_input = self.get_structural_context(project)
+        geo_fingerprint = compute_geometry_fingerprint(structural_input)
 
-        # Safely sync to Master JSON without mutating structural geometry
-        current_master = project.master_json or {}
-        interior_layout = current_master.get("interior_layout") or {}
-        room_reqs = interior_layout.get("room_requirements") or {}
-        room_reqs[requirements.room_id] = requirements.model_dump()
+        # 3. Transactional persistence: relational upsert + Master JSON update roll back together
+        try:
+            rec = self.db_repo.upsert_room_requirement(
+                project_id=project.id,
+                floor_id=requirements.floor_id,
+                room_id=requirements.room_id,
+                requirements_data=requirements.model_dump(mode="json"),
+                status=effective_status,
+                auto_commit=False
+            )
 
-        interior_layout["room_requirements"] = room_reqs
-        project.master_json = merge_master_json(
-            project.master_json,
-            {"interior_layout": interior_layout}
-        )
-        self.db.commit()
-        self.db.refresh(project)
+            # Non-destructive immutable transformation on Master JSON
+            # Only update ESAI-owned fields: interior_layout.room_requirements and processing.esai_engine
+            master_copy = deepcopy(project.master_json or {})
+            interior_layout = master_copy.setdefault("interior_layout", {})
+            interior_layout["geometry_fingerprint"] = geo_fingerprint
+            interior_layout["geometry_source"] = structural_input.geometry_source
+            room_reqs = interior_layout.setdefault("room_requirements", {})
+            room_reqs[requirements.room_id] = requirements.model_dump(mode="json")
+
+            processing = master_copy.setdefault("processing", {})
+            esai_proc = processing.setdefault("esai_engine", {})
+            esai_proc["status"] = "pending"
+            esai_proc["last_requirements_update"] = datetime.now(timezone.utc).isoformat()
+
+            project.master_json = master_copy
+            project.revision = (getattr(project, "revision", 1) or 1) + 1
+
+            self.db.commit()
+            self.db.refresh(rec)
+            self.db.refresh(project)
+        except Exception:
+            self.db.rollback()
+            raise
 
         return {
             "id": rec.id,
@@ -167,7 +274,78 @@ class EsaiEngineService:
             "validation": val_result.model_dump()
         }
 
-    # 5. Saved Configurations
+    def get_design_preferences(self, project_id: str) -> Optional[Dict[str, Any]]:
+        record = self.db_repo.get_design_preference(project_id)
+        if not record:
+            return None
+        return {
+            "id": record.id,
+            "project_id": record.project_id,
+            "preferences": record.preferences_json,
+            "geometry_fingerprint": record.geometry_fingerprint,
+            "created_at": record.created_at.isoformat() if record.created_at else None,
+            "updated_at": record.updated_at.isoformat() if record.updated_at else None,
+        }
+
+    def save_design_preferences(
+        self,
+        project: Project,
+        preferences_data: Dict[str, Any],
+        expected_revision: Optional[int] = None
+    ) -> Dict[str, Any]:
+        if expected_revision is not None:
+            current_rev = int(getattr(project, "revision", 1) or 1)
+            if current_rev != expected_revision:
+                raise HTTPException(
+                    status_code=http_status.HTTP_409_CONFLICT,
+                    detail={
+                        "code": "PROJECT_STALE_REVISION",
+                        "message": "Project changed since the supplied revision; reload before retrying.",
+                        "expected_revision": expected_revision,
+                        "current_revision": current_rev
+                    }
+                )
+
+        structural_input = self.get_structural_context(project)
+        geo_fingerprint = compute_geometry_fingerprint(structural_input)
+
+        try:
+            record = self.db_repo.upsert_design_preference(
+                project_id=project.id,
+                preferences_data=preferences_data,
+                geometry_fingerprint=geo_fingerprint,
+                auto_commit=False
+            )
+
+            master_copy = deepcopy(project.master_json or {})
+            interior_layout = master_copy.setdefault("interior_layout", {})
+            interior_layout["preferences"] = preferences_data
+            interior_layout["geometry_fingerprint"] = geo_fingerprint
+            interior_layout["geometry_source"] = structural_input.geometry_source
+
+            processing = master_copy.setdefault("processing", {})
+            esai_proc = processing.setdefault("esai_engine", {})
+            esai_proc["last_preferences_update"] = datetime.now(timezone.utc).isoformat()
+
+            project.master_json = master_copy
+            project.revision = (getattr(project, "revision", 1) or 1) + 1
+
+            self.db.commit()
+            self.db.refresh(record)
+            self.db.refresh(project)
+        except Exception:
+            self.db.rollback()
+            raise
+
+        return {
+            "id": record.id,
+            "project_id": record.project_id,
+            "preferences": record.preferences_json,
+            "geometry_fingerprint": record.geometry_fingerprint,
+        }
+
+
+    # 5. Saved Configurations (Validated against actual project geometry)
     def list_saved_configurations(self, project_id: str) -> List[Dict[str, Any]]:
         configs = self.db_repo.list_saved_configs(project_id)
         return [
@@ -185,12 +363,28 @@ class EsaiEngineService:
 
     def create_saved_configuration(
         self,
-        project_id: str,
+        project: Project,
         name: str,
         room_ids: List[str],
         settings: Dict[str, Any]
     ) -> Dict[str, Any]:
-        config = self.db_repo.create_saved_config(project_id, name, room_ids, settings)
+        all_rooms = self.get_rooms(project)
+        valid_room_ids = {r.room_id for r in all_rooms}
+
+        if not room_ids:
+            raise HTTPException(
+                status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Saved configuration must include at least one room ID."
+            )
+
+        invalid_rooms = [rid for rid in room_ids if rid not in valid_room_ids]
+        if invalid_rooms:
+            raise HTTPException(
+                status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"Configuration references invalid room ID(s): {invalid_rooms}. All room IDs must exist in project geometry."
+            )
+
+        config = self.db_repo.create_saved_config(project.id, name, room_ids, settings)
         return {
             "id": config.id,
             "project_id": config.project_id,
@@ -201,14 +395,24 @@ class EsaiEngineService:
 
     def update_saved_configuration(
         self,
-        project_id: str,
+        project: Project,
         config_id: str,
         name: Optional[str] = None,
         room_ids: Optional[List[str]] = None,
         settings: Optional[Dict[str, Any]] = None
     ) -> Optional[Dict[str, Any]]:
+        if room_ids is not None:
+            all_rooms = self.get_rooms(project)
+            valid_room_ids = {r.room_id for r in all_rooms}
+            invalid_rooms = [rid for rid in room_ids if rid not in valid_room_ids]
+            if invalid_rooms:
+                raise HTTPException(
+                    status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail=f"Configuration references invalid room ID(s): {invalid_rooms}. All room IDs must exist in project geometry."
+                )
+
         config = self.db_repo.update_saved_config(
-            project_id=project_id,
+            project_id=project.id,
             config_id=config_id,
             configuration_name=name,
             room_ids=room_ids,

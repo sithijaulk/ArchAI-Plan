@@ -6,6 +6,11 @@ import type {
   ELIAValidationResponse,
   ELIAContextResponse,
   ELIAResultResponse,
+  CandidateValidationRequest,
+  CandidateValidationResponse,
+  CandidateSaveRequest,
+  CandidateSaveResponse,
+  ProjectFeasibilityResponse,
 } from '@/types/elia';
 
 export interface SriLankaLocation {
@@ -110,4 +115,47 @@ export const eliaApi = {
     });
     return response.data;
   },
+
+  validateCandidate: async (
+    projectId: string,
+    payload: CandidateValidationRequest,
+    options?: { signal?: AbortSignal }
+  ): Promise<CandidateValidationResponse> => {
+    const response = await apiClient.post(`/projects/${projectId}/elia-engine/validate-candidate`, payload, {
+      signal: options?.signal,
+    });
+    return response.data;
+  },
+
+  saveCandidate: async (
+    projectId: string,
+    payload: CandidateSaveRequest,
+    options?: { signal?: AbortSignal }
+  ): Promise<CandidateSaveResponse> => {
+    const response = await apiClient.post(`/projects/${projectId}/elia-engine/save-candidate`, payload, {
+      signal: options?.signal,
+    });
+    return response.data;
+  },
+
+  getVegetationCatalog: async (
+    options?: { signal?: AbortSignal }
+  ): Promise<Record<string, unknown>> => {
+    const response = await apiClient.get('/elia-engine/vegetation-catalog', {
+      signal: options?.signal,
+    });
+    return response.data;
+  },
+
+  assessFeasibility: async (
+    projectId: string,
+    payload: ELIARequestPayload,
+    options?: { signal?: AbortSignal }
+  ): Promise<ProjectFeasibilityResponse> => {
+    const response = await apiClient.post(`/projects/${projectId}/elia-engine/feasibility`, payload, {
+      signal: options?.signal,
+    });
+    return response.data;
+  },
 };
+

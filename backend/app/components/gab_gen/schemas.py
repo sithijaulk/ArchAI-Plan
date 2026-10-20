@@ -15,6 +15,7 @@ class DistanceUnit(str, Enum):
 
 class LandExtentUnit(str, Enum):
     PERCHES = "perches"
+    ACRES = "acres"
     SQUARE_FEET = "sqft"
     SQUARE_METERS = "sqm"
 
@@ -67,6 +68,14 @@ class SurveyEdgeInput(BaseModel):
     source: SurveySource = Field(default=SurveySource.MANUAL)
     confidence: Optional[float] = Field(default=None, description="OCR confidence (null for Stage 1)")
     source_bbox: Optional[List[int]] = Field(default=None, description="Bounding box if detected (null for Stage 1)")
+    # Provenance of each value. 'ocr' = read from document text, 'image_geometry' = derived from
+    # detected line angles + north arrow, 'user' = typed/corrected by the user during verification.
+    distance_origin: Optional[str] = Field(default=None, description="ocr | image_geometry | user | fixture")
+    bearing_origin: Optional[str] = Field(default=None, description="ocr | image_geometry | user | fixture")
+    verification_status: Optional[str] = Field(
+        default=None, description="unverified | user_verified | user_corrected | ambiguous"
+    )
+    flags: List[str] = Field(default_factory=list, description="Machine-readable uncertainty flags")
 
 
 class ManualSurveyExtractionRequest(BaseModel):
@@ -74,6 +83,14 @@ class ManualSurveyExtractionRequest(BaseModel):
     reference_edge: Optional[str] = Field(default=None, description="Starting edge id")
     source: SurveySource = Field(default=SurveySource.MANUAL)
     edges: List[SurveyEdgeInput] = Field(..., min_length=3, description="Boundary edges in clockwise sequence")
+    # Set only when the user explicitly confirms the boundary table in the verification UI.
+    verified_by_user: bool = Field(default=False)
+    verified_at: Optional[str] = None
+    north_angle_origin: Optional[str] = Field(default=None, description="ocr_arrow | user | default_unknown")
+    road_frontage_edge_id: Optional[str] = Field(default=None, description="Edge facing the access road, if identified")
+    road_frontage_origin: Optional[str] = Field(default=None, description="ocr_annotation | user | none")
+    road_width_m: Optional[float] = Field(default=None, gt=0, description="Road width read from the document (verified by user)")
+    road_width_origin: Optional[str] = Field(default=None, description="ocr_annotation | user")
 
 
 # -------------------------------------------------------------
@@ -81,12 +98,15 @@ class ManualSurveyExtractionRequest(BaseModel):
 # -------------------------------------------------------------
 
 class RegulatoryContextInput(BaseModel):
-    jurisdiction_id: str = Field(default="sri_lanka_uda_standard", description="Identifier of regulatory jurisdiction")
+    # Legacy/explicit override. When local authority details are supplied the rules engine
+    # resolves the jurisdiction itself (see regulations/rules.py::resolve_jurisdiction).
+    jurisdiction_id: Optional[str] = Field(default="sri_lanka_uda_standard", description="Identifier of regulatory jurisdiction")
     province: Optional[str] = None
     district: Optional[str] = None
-    local_authority_type: Optional[str] = None
+    local_authority_type: Optional[str] = Field(default=None, description="municipal_council | urban_council | pradeshiya_sabha")
     local_authority_name: Optional[str] = None
     development_zone: Optional[str] = None
+    # Not collected from the user any more; populated from verified survey data when available.
     road_width: Optional[float] = None
     road_category: Optional[str] = None
 
@@ -104,6 +124,7 @@ class RoomRequirement(BaseModel):
     floor_preference: Union[int, str] = Field(default="auto", description="'auto' or integer floor index (0, 1, 2, 3)")
     priority: RoomPriority = Field(default=RoomPriority.HIGH)
     custom_name: Optional[str] = Field(default=None)
+    notes: Optional[str] = Field(default=None, description="Free-text customer preference for this room")
 
 
 class ClientRequirementsInput(BaseModel):
@@ -124,6 +145,15 @@ class ClientRequirementsInput(BaseModel):
     storey_count: int = Field(default=1, ge=1, le=4, description="Number of storeys (1-4)")
     preferred_total_building_area: Optional[float] = Field(default=None, gt=0)
     preferred_ground_coverage: Optional[float] = Field(default=None, gt=0)
+
+    # Programme summary counts (optional; when supplied they are reconciled with `rooms`)
+    bedroom_count: Optional[int] = Field(default=None, ge=0, le=12, description="Total bedrooms incl. master bedrooms")
+    master_bedroom_count: Optional[int] = Field(default=None, ge=0, le=12)
+    bathroom_count: Optional[int] = Field(default=None, ge=0, le=12, description="Total bathrooms incl. attached")
+    kitchen_required: Optional[bool] = None
+    living_room_required: Optional[bool] = None
+    dining_room_required: Optional[bool] = None
+    parking_type: Optional[str] = Field(default=None, description="covered_garage | open_carport")
 
     # Room Programme
     rooms: List[RoomRequirement] = Field(default_factory=list)
@@ -155,13 +185,18 @@ class RegulatoryRule(BaseModel):
     source_document: str
     source_date: str
     source_reference: Optional[str] = None
+    source_url: Optional[str] = None
     rule_type: str  # setback, ground_coverage, max_height, rear_space
     conditions: Dict[str, Any] = Field(default_factory=dict)
     affected_edge_type: str  # road_front, rear, side, all
-    value: float  # In meters
+    value: float  # In meters (setback) or ratio (coverage)
     unit: str = "m"
     effective_date: str
-    verification_status: str  # verified, research_test, needs_verification
+    verification_status: str  # verified, needs_verification, research_test
+    version: Optional[str] = None
+    last_reviewed: Optional[str] = None
+    reviewed_by: Optional[str] = None
+    notes: Optional[str] = None
 
 
 # -------------------------------------------------------------
@@ -193,6 +228,22 @@ class RoomPolygon(BaseModel):
     polygon: List[Point2D]
     center: Point2D
     is_structural_stair: bool = False
+    required: Optional[bool] = None
+    req_id: Optional[str] = None
+    attached_to: Optional[str] = Field(default=None, description="room_id of the room this space is attached to")
+    # generated = produced by the layout engine; edited = geometry changed by the user
+    geometry_origin: Optional[str] = Field(default=None, description="generated | edited | user_added")
+
+
+class Opening(BaseModel):
+    opening_id: str
+    floor_id: str
+    kind: str  # door | entrance_door | window
+    position: Point2D
+    width: float
+    wall_start: Point2D
+    wall_end: Point2D
+    room_ids: List[str] = Field(default_factory=list)
 
 
 class FloorPlanDefinition(BaseModel):
@@ -205,6 +256,9 @@ class FloorPlanDefinition(BaseModel):
     target_allocated_area: float
     rooms: List[RoomPolygon] = Field(default_factory=list)
     walls: List[WallSegment] = Field(default_factory=list)
+    circulation: List[RoomPolygon] = Field(default_factory=list, description="Corridors / landings (not habitable rooms)")
+    openings: List[Opening] = Field(default_factory=list)
+    unplaced_rooms: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class ValidationResult(BaseModel):
@@ -218,6 +272,13 @@ class ValidationResult(BaseModel):
     area_difference_percent: Optional[float] = None
     violations: List[str] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)
+    # Geometry validity and regulatory verification are reported separately on purpose:
+    # a plan can be geometrically valid while its rules are still unverified.
+    geometry_status: Optional[str] = Field(default=None, description="valid | invalid")
+    regulatory_status: Optional[str] = Field(
+        default=None, description="verified | unverified | incomplete | missing | research_test"
+    )
+    design_checks: Dict[str, Any] = Field(default_factory=dict)
 
 
 class GabGenRunOutput(BaseModel):

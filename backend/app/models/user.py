@@ -1,8 +1,10 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Boolean, DateTime, Enum
-from sqlalchemy.orm import relationship
-from ..database import Base
+from sqlalchemy import Column, String, Boolean, DateTime
+try:
+    from .database import Base
+except (ImportError, ValueError):
+    from app.database import Base
 
 
 class User(Base):

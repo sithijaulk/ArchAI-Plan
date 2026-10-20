@@ -8,9 +8,17 @@ import { GabGenMasterJson, Point2D, FloorPlan } from '../../types';
 interface PlanPreview2DProps {
   data: GabGenMasterJson | null;
   selectedFloorIndex: number | 'all';
+  selectedRoomId?: string | null;
+  onSelectRoom?: (roomId: string) => void;
 }
 
-export const PlanPreview2D: React.FC<PlanPreview2DProps> = ({ data, selectedFloorIndex }) => {
+export const PlanPreview2D: React.FC<PlanPreview2DProps> = ({
+  data,
+  selectedFloorIndex,
+  selectedRoomId,
+  onSelectRoom
+}) => {
+
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -23,7 +31,7 @@ export const PlanPreview2D: React.FC<PlanPreview2DProps> = ({ data, selectedFloo
   if (!data) {
     return (
       <div className="h-[450px] flex items-center justify-center text-muted-foreground text-xs">
-        No blueprint data generated yet. Click "Generate Blueprint" to begin.
+        No blueprint data generated yet. Click &quot;Generate Blueprint&quot; to begin.
       </div>
     );
   }
@@ -195,41 +203,61 @@ export const PlanPreview2D: React.FC<PlanPreview2DProps> = ({ data, selectedFloo
 
           {/* 3. Room Polygons for Active Floor */}
           {activeFloor &&
-            activeFloor.rooms.map((rm) => (
-              <g key={rm.room_id}>
-                <polygon
-                  points={rm.polygon.map((p) => `${p.x},${-p.y}`).join(' ')}
-                  fill={
-                    rm.is_structural_stair
-                      ? 'rgba(234, 179, 8, 0.28)'
-                      : 'rgba(99, 102, 241, 0.16)'
-                  }
-                  stroke={rm.is_structural_stair ? '#eab308' : '#818cf8'}
-                  strokeWidth="0.1"
-                />
-                <text
-                  x={rm.center.x}
-                  y={-rm.center.y - 0.2}
-                  fontSize="0.48"
-                  fill="#f8fafc"
-                  textAnchor="middle"
-                  fontWeight="600"
-                  className="pointer-events-none select-none"
+            activeFloor.rooms.map((rm) => {
+              const isSelected = selectedRoomId === rm.room_id;
+              return (
+                <g
+                  key={rm.room_id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onSelectRoom) onSelectRoom(rm.room_id);
+                  }}
+                  className="cursor-pointer"
                 >
-                  {rm.name}
-                </text>
-                <text
-                  x={rm.center.x}
-                  y={-rm.center.y + 0.4}
-                  fontSize="0.34"
-                  fill="#94a3b8"
-                  textAnchor="middle"
-                  className="pointer-events-none select-none"
-                >
-                  {rm.area.toFixed(1)} m²
-                </text>
-              </g>
-            ))}
+                  <polygon
+                    points={rm.polygon.map((p) => `${p.x},${-p.y}`).join(' ')}
+                    fill={
+                      isSelected
+                        ? 'rgba(236, 72, 153, 0.45)'
+                        : rm.is_structural_stair
+                        ? 'rgba(234, 179, 8, 0.28)'
+                        : 'rgba(99, 102, 241, 0.16)'
+                    }
+                    stroke={
+                      isSelected
+                        ? '#ec4899'
+                        : rm.is_structural_stair
+                        ? '#eab308'
+                        : '#818cf8'
+                    }
+                    strokeWidth={isSelected ? '0.25' : '0.1'}
+                  />
+
+                  <text
+                    x={rm.center.x}
+                    y={-rm.center.y - 0.2}
+                    fontSize="0.48"
+                    fill="#f8fafc"
+                    textAnchor="middle"
+                    fontWeight="600"
+                    className="pointer-events-none select-none"
+                  >
+                    {rm.name}
+                  </text>
+                  <text
+                    x={rm.center.x}
+                    y={-rm.center.y + 0.4}
+                    fontSize="0.34"
+                    fill="#94a3b8"
+                    textAnchor="middle"
+                    className="pointer-events-none select-none"
+                  >
+                    {rm.area.toFixed(1)} m²
+                  </text>
+                </g>
+              );
+            })}
+
 
           {/* 4. Wall Segments */}
           {activeFloor &&

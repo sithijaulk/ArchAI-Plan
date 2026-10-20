@@ -334,8 +334,17 @@ export default function GabGenPage() {
 
           {/* Right Column: 2D/3D Multi-Floor Blueprint Viewer */}
           <div className="lg:col-span-7">
-            <BlueprintViewer data={outputData} projectName={projectName} />
+            <BlueprintViewer
+              data={outputData}
+              projectName={projectName}
+              projectId={projectId}
+              onUpdate={(updated) => {
+                setOutputData(updated);
+                setOutput('gab_gen', updated);
+              }}
+            />
           </div>
+
         </div>
       </div>
     </FeatureWorkflowShell>
