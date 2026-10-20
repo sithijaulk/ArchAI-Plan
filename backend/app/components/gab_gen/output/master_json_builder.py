@@ -72,19 +72,33 @@ def build_gab_master_json(
     mj["input_metadata"] = input_meta
 
     # GAB-owned domain sections
+    survey_dict = survey_request.model_dump()
     mj["survey_extraction"] = {
         "provider": survey_request.source.value if hasattr(survey_request.source, "value") else str(survey_request.source),
         "north_angle": survey_request.north_angle,
+        "north_angle_origin": survey_request.north_angle_origin,
         "reference_edge": survey_request.reference_edge,
+        "verification_status": survey_request.verification_status.value if hasattr(survey_request.verification_status, "value") else str(survey_request.verification_status),
+        "verified_by_user": survey_request.verified_by_user,
+        "verified_at": survey_request.verified_at,
+        "drawing_scale": survey_request.drawing_scale,
+        "drawing_scale_origin": survey_request.drawing_scale_origin,
+        "selected_page_number": survey_request.selected_page_number,
+        "total_pages": survey_request.total_pages,
+        "georeference_status": survey_request.georeference_status.value if hasattr(survey_request.georeference_status, "value") else str(survey_request.georeference_status),
+        "crs_identifier": survey_request.crs_identifier,
         "edges": [e.model_dump() for e in survey_request.edges]
     }
 
     mj["land_info"] = {
         "source_land_polygon": reconstructed_data.get("vertices", []),
+        "bowditch_adjusted_polygon": reconstructed_data.get("bowditch_adjusted_vertices", []),
+        "traverse_adjustment_method": reconstructed_data.get("traverse_adjustment_method", "none"),
         "reconstructed_area": reconstructed_data.get("reconstructed_area", 0.0),
         "declared_area": validation.declared_area_sqm or 0.0,
         "area_difference_percent": validation.area_difference_percent or 0.0,
-        "perimeter": reconstructed_data.get("perimeter", 0.0)
+        "perimeter": reconstructed_data.get("perimeter", 0.0),
+        "coordinate_origin": reconstructed_data.get("coordinate_origin", "P0 local")
     }
 
     mj["geometry_validation"] = {

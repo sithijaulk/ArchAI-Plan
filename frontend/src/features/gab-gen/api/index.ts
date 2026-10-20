@@ -63,8 +63,8 @@ export const gabGenExtendedApi = {
     return res.data;
   },
 
-  extractSurvey: async (projectId: string) => {
-    const res = await apiClient.post(`/projects/${projectId}/gab-gen/extract-survey`);
+  extractSurvey: async (projectId: string, pageNumber: number = 1) => {
+    const res = await apiClient.post(`/projects/${projectId}/gab-gen/extract-survey?page_number=${pageNumber}`);
     return res.data;
   },
 

@@ -86,7 +86,8 @@ export const SurveyVerification: React.FC<SurveyVerificationProps> = ({
     setIsExtractingOcr(true);
     setPreviewError(null);
     try {
-      const res = await gabGenExtendedApi.extractSurvey(projectId);
+      const pageToExtract = surveyData.selected_page_number || 1;
+      const res = await gabGenExtendedApi.extractSurvey(projectId, pageToExtract);
       if (res.survey_extraction) {
         onChange(res.survey_extraction);
       }
@@ -130,28 +131,64 @@ export const SurveyVerification: React.FC<SurveyVerificationProps> = ({
       </div>
 
 
-      <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-card border border-border">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-3 rounded-xl bg-card border border-border">
         <div>
-          <Label className="text-xs font-semibold mb-1 block">Plan North Angle (Metadata)</Label>
-          <div className="flex items-center gap-2">
-            <Compass className="w-4 h-4 text-primary" />
+          <Label className="text-xs font-semibold mb-1 block">Plan North Angle</Label>
+          <div className="flex items-center gap-1.5">
+            <Compass className="w-4 h-4 text-primary shrink-0" />
             <Input
               type="number"
               min="0"
               max="359.9"
               value={surveyData.north_angle}
-              onChange={(e) => onChange({ ...surveyData, north_angle: parseFloat(e.target.value) || 0 })}
-              className="text-xs"
+              onChange={(e) => onChange({ ...surveyData, north_angle: parseFloat(e.target.value) || 0, north_angle_origin: 'user' })}
+              className="text-xs h-7"
             />
-            <span className="text-xs text-muted-foreground">deg</span>
+            <span className="text-[10px] text-muted-foreground">deg</span>
+          </div>
+          <span className="text-[9px] text-muted-foreground block mt-0.5">
+            Origin: {surveyData.north_angle_origin || 'default_unknown'}
+          </span>
+        </div>
+
+        <div>
+          <Label className="text-xs font-semibold mb-1 block">Drawing Scale</Label>
+          <Input
+            type="text"
+            placeholder="e.g. 1:100, 1:200"
+            value={surveyData.drawing_scale || ''}
+            onChange={(e) => onChange({ ...surveyData, drawing_scale: e.target.value, drawing_scale_origin: 'user' })}
+            className="text-xs h-7"
+          />
+          <span className="text-[9px] text-muted-foreground block mt-0.5">
+            Origin: {surveyData.drawing_scale_origin || 'unknown'}
+          </span>
+        </div>
+
+        <div>
+          <Label className="text-xs font-semibold mb-1 block">Selected Page</Label>
+          <div className="flex items-center gap-1.5">
+            <Input
+              type="number"
+              min="1"
+              max={surveyData.total_pages || 1}
+              value={surveyData.selected_page_number || 1}
+              onChange={(e) => onChange({ ...surveyData, selected_page_number: parseInt(e.target.value) || 1 })}
+              className="text-xs h-7 w-16"
+            />
+            <span className="text-[10px] text-muted-foreground">of {surveyData.total_pages || 1}</span>
           </div>
         </div>
 
         <div>
-          <Label className="text-xs font-semibold mb-1 block">Extraction Provenance</Label>
-          <div className="p-2 bg-muted/30 rounded border border-border/50 text-xs">
-            <span className="font-semibold uppercase text-primary">{surveyData.source}</span>
-            {surveyData.source === 'fixture' && ' (DEV TEST ONLY)'}
+          <Label className="text-xs font-semibold mb-1 block">Status & Origin</Label>
+          <div className="p-1.5 bg-muted/30 rounded border border-border/50 text-[10px] flex items-center justify-between">
+            <span className="font-semibold uppercase text-primary truncate max-w-[80px]">
+              {surveyData.source}
+            </span>
+            <span className="text-[9px] px-1.5 py-0.5 rounded bg-background font-mono text-muted-foreground">
+              {surveyData.verification_status || 'unverified'}
+            </span>
           </div>
         </div>
       </div>

@@ -16,13 +16,40 @@ export interface SurveyEdge {
   source: 'manual' | 'fixture' | 'easyocr';
   confidence?: number | null;
   source_bbox?: number[] | null;
+  distance_origin?: string;
+  bearing_origin?: string;
+  verification_status?: string;
+  flags?: string[];
 }
+
+export type SurveyVerificationLifecycleStatus =
+  | 'uploaded'
+  | 'preprocessing'
+  | 'extracted_unverified'
+  | 'requires_user_correction'
+  | 'geometry_invalid'
+  | 'user_verified'
+  | 'ready_for_generation'
+  | 'processing_failed';
 
 export interface ManualSurveyData {
   north_angle: number;
   reference_edge?: string | null;
-  source: 'manual' | 'fixture';
+  source: 'manual' | 'fixture' | 'easyocr';
   edges: SurveyEdge[];
+  verified_by_user?: boolean;
+  verified_at?: string | null;
+  verification_status?: SurveyVerificationLifecycleStatus;
+  north_angle_origin?: string | null;
+  drawing_scale?: string | null;
+  drawing_scale_origin?: string | null;
+  road_frontage_edge_id?: string | null;
+  road_frontage_origin?: string | null;
+  road_width_m?: number | null;
+  road_width_origin?: string | null;
+  selected_page_number?: number;
+  total_pages?: number;
+  georeference_status?: string;
 }
 
 export interface RoomRequirement {

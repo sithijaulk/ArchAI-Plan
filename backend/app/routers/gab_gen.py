@@ -149,6 +149,15 @@ async def upload_survey_file(
     # Validate actual file payload content
     _validate_file_content(contents, ext)
 
+    # Multi-page PDF inspection
+    total_pages = 1
+    if ext == ".pdf":
+        from ..components.gab_gen.survey_vision.preprocessing import get_pdf_page_count
+        try:
+            total_pages = get_pdf_page_count(contents)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
     upload_dir = os.path.join(settings.upload_dir, "surveys", project_id)
     os.makedirs(upload_dir, exist_ok=True)
     stored_name = f"{uuid.uuid4()}{ext}"
@@ -164,6 +173,7 @@ async def upload_survey_file(
         "file_path": rel_url,
         "content_type": file.content_type,
         "size_bytes": len(contents),
+        "total_pages": total_pages,
         "uploaded_at": datetime.now(timezone.utc).isoformat()
     }
 
@@ -465,10 +475,12 @@ def generate_blueprint(
 @router.post("/extract-survey")
 def extract_survey_ocr(
     project_id: str,
+    page_number: int = Query(default=1, ge=1),
     db: Session = Depends(get_db)
 ):
     """
     Triggers automated OpenCV + EasyOCR extraction from the uploaded survey/deed file.
+    Supports specific page selection for multi-page PDF documents.
     Populates candidate boundary measurements with confidence scores and verification flags.
     Never fabricates values; ambiguous results are marked for verification.
     """
@@ -497,7 +509,8 @@ def extract_survey_ocr(
         extracted = provider.extract_survey({
             "file_bytes": file_bytes,
             "filename": source_file.get("original_filename"),
-            "ext": ext
+            "ext": ext,
+            "page_number": page_number
         })
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Survey OCR extraction failed: {str(e)}")

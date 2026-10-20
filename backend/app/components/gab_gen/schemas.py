@@ -78,6 +78,24 @@ class SurveyEdgeInput(BaseModel):
     flags: List[str] = Field(default_factory=list, description="Machine-readable uncertainty flags")
 
 
+class SurveyVerificationStatus(str, Enum):
+    UPLOADED = "uploaded"
+    PREPROCESSING = "preprocessing"
+    EXTRACTED_UNVERIFIED = "extracted_unverified"
+    REQUIRES_USER_CORRECTION = "requires_user_correction"
+    GEOMETRY_INVALID = "geometry_invalid"
+    USER_VERIFIED = "user_verified"
+    READY_FOR_GENERATION = "ready_for_generation"
+    PROCESSING_FAILED = "processing_failed"
+
+
+class GeoreferenceStatus(str, Enum):
+    LOCAL_P0_ONLY = "local_p0_only"
+    APPROXIMATE_ESTIMATE = "approximate_estimate"
+    VERIFIED_CRS = "verified_crs"
+    UNKNOWN = "unknown"
+
+
 class ManualSurveyExtractionRequest(BaseModel):
     north_angle: float = Field(default=0.0, ge=0.0, lt=360.0, description="North orientation angle in degrees (image rotation metadata only)")
     reference_edge: Optional[str] = Field(default=None, description="Starting edge id")
@@ -86,11 +104,24 @@ class ManualSurveyExtractionRequest(BaseModel):
     # Set only when the user explicitly confirms the boundary table in the verification UI.
     verified_by_user: bool = Field(default=False)
     verified_at: Optional[str] = None
+    verification_status: SurveyVerificationStatus = Field(
+        default=SurveyVerificationStatus.EXTRACTED_UNVERIFIED,
+        description="Explicit lifecycle status: uploaded, extracted_unverified, requires_user_correction, user_verified, etc."
+    )
     north_angle_origin: Optional[str] = Field(default=None, description="ocr_arrow | user | default_unknown")
+    drawing_scale: Optional[str] = Field(default=None, description="e.g. 1:100, 1:200, 1:500")
+    drawing_scale_origin: Optional[str] = Field(default=None, description="ocr_text | user | unknown")
     road_frontage_edge_id: Optional[str] = Field(default=None, description="Edge facing the access road, if identified")
     road_frontage_origin: Optional[str] = Field(default=None, description="ocr_annotation | user | none")
     road_width_m: Optional[float] = Field(default=None, gt=0, description="Road width read from the document (verified by user)")
     road_width_origin: Optional[str] = Field(default=None, description="ocr_annotation | user")
+    selected_page_number: int = Field(default=1, ge=1, description="Selected 1-based page index from PDF or document")
+    total_pages: int = Field(default=1, ge=1, description="Total pages in the uploaded document")
+    georeference_status: GeoreferenceStatus = Field(
+        default=GeoreferenceStatus.LOCAL_P0_ONLY,
+        description="Whether geometry is in canonical local P0 coordinates or verified real-world CRS"
+    )
+    crs_identifier: Optional[str] = Field(default=None, description="e.g. EPSG:5235 (SLD99 / Sri Lanka Grid 1999) if verified")
 
 
 class ComplianceStatus(str, Enum):
