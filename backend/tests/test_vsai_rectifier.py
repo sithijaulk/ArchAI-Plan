@@ -16,6 +16,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.config import settings
 from app.database import Base, get_db
+from app.dependencies import require_admin
 from app.main import app
 from app.models.component_run import ComponentRun, ProjectOutput
 from app.models.project import Project
@@ -197,6 +198,7 @@ class VsaiApiTests(unittest.TestCase):
                 db.close()
 
         app.dependency_overrides[get_db] = override_get_db
+        app.dependency_overrides[require_admin] = lambda: True
 
     @classmethod
     def tearDownClass(cls):
