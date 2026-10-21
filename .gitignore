@@ -16,6 +16,7 @@ backend/__pycache__/
 # Environment secrets
 frontend/.env.local
 backend/.env
+.env
 
 # Uploads (keep directory structure, ignore content)
 backend/app/uploads/**
