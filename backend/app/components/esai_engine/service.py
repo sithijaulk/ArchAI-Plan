@@ -36,6 +36,12 @@ from .optimizer.baselines import BaselineEvaluator, BaselineComparisonReport
 from .generation.building_generator import BuildingGenerator
 from .generation.room_generator import RoomGenerator
 from .persistence import EsaiDesignPersistenceManager
+from .reporting import (
+    EsaiReportService,
+    PdfReportRequest,
+    ReportOptionsResponse,
+    ReportDataDTO,
+)
 from .parser import StructuralInputParser
 from .normalizer import SpatialNormalizer
 from .validators import EsaiInputValidator
@@ -61,6 +67,7 @@ class EsaiEngineService:
         self.building_generator = BuildingGenerator()
         self.baseline_evaluator = BaselineEvaluator()
         self.persistence_mgr = EsaiDesignPersistenceManager(db, self)
+        self.reporting_service = EsaiReportService(self)
 
     # 1. Project Structural Context
     def get_structural_context(self, project: Project) -> StructuralInputDTO:
@@ -119,7 +126,7 @@ class EsaiEngineService:
         return self.catalog_repo.get_all_finishes(category=category, style=style)
 
     def get_styles(self) -> Dict[str, Any]:
-        return {k: v.dict() for k, v in self.room_knowledge_repo.list_styles().items()}
+        return {k: (v.model_dump() if hasattr(v, "model_dump") else v.dict()) for k, v in self.room_knowledge_repo.list_styles().items()}
 
     def get_standards(
         self,
@@ -137,7 +144,7 @@ class EsaiEngineService:
         return self.standards_repo.get_all(enforceable_only=enforceable_only, mandatory_only=mandatory_only)
 
     def get_room_profiles(self) -> List[Dict[str, Any]]:
-        return [p.dict() for p in self.room_knowledge_repo.list_profiles()]
+        return [(p.model_dump() if hasattr(p, "model_dump") else p.dict()) for p in self.room_knowledge_repo.list_profiles()]
 
     def get_functional_relationships(
         self,
@@ -1128,6 +1135,7 @@ class EsaiEngineService:
             project_id=project.id,
             room_id=room_id,
             floor_id=floor_id,
+            master_json=project.master_json,
         )
 
     # ── Orphan Detection ──────────────────────────────────────────────────────
@@ -1345,3 +1353,16 @@ class EsaiEngineService:
         result["room_type"] = room_type_str
         result["schema_key"] = schema_key
         return result
+
+    # 13. Phase 8: Reporting & PDF Export
+    def get_report_options(self, project: Project) -> ReportOptionsResponse:
+        """Returns supported scopes, sections, available floors, rooms, and staleness info."""
+        return self.reporting_service.get_report_options(project)
+
+    def generate_pdf_report(self, project: Project, request: PdfReportRequest) -> bytes:
+        """Generates a professional architectural PDF interior design report."""
+        return self.reporting_service.generate_pdf_report(project, request)
+
+    def get_export_data(self, project: Project, request: PdfReportRequest) -> Dict[str, Any]:
+        """Returns structured JSON export data of ESAI-owned design data."""
+        return self.reporting_service.get_export_data(project, request)

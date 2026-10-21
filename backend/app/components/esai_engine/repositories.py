@@ -269,9 +269,12 @@ class EsaiDatabaseRepository:
         project_id: str,
         room_id: str,
         floor_id: str,
+        master_json: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Deterministic 4-level preference resolution.
+        projects.master_json is the authoritative single source of truth;
+        Phase 2 relational tables act as an index/mirror.
 
         Resolution order (most-specific wins):
           Room explicit value > Floor override > Building default > System fallback
@@ -282,20 +285,47 @@ class EsaiDatabaseRepository:
         - Only ABSENT keys fall through to the next level.
         - Item-level locked selections and custom constraints are preserved at room level.
         """
+        # 1. Base building preferences (from table)
         building_rec = self.get_design_preference(project_id)
         building_dict = (building_rec.preferences_json or {}) if building_rec else {}
         building_clean = building_dict.get("preferences", building_dict) if isinstance(building_dict.get("preferences"), dict) else building_dict
 
+        # 2. Base floor preferences (from table)
         floor_rec = self.get_floor_preference(project_id, floor_id)
         floor_dict = (floor_rec.preferences_json or {}) if floor_rec else {}
         floor_clean = floor_dict.get("preferences", floor_dict) if isinstance(floor_dict.get("preferences"), dict) else floor_dict
 
+        # 3. Base room preferences (from table)
         room_rec = self.get_room_preference(project_id, room_id)
         room_dict = (room_rec.preferences_json or {}) if room_rec else {}
         if isinstance(room_dict.get("preferences"), dict):
             room_clean = deepcopy(room_dict["preferences"])
         else:
             room_clean = {k: v for k, v in room_dict.items() if k not in ("specific_assets", "custom_constraints")}
+
+        # 4. Authoritative overlay from projects.master_json (Single Source of Truth)
+        if master_json:
+            mj_interior = master_json.get("interior_layout", {})
+            mj_prefs = mj_interior.get("preferences", {}) or master_json.get("client_preferences", {})
+            if isinstance(mj_prefs, dict):
+                # Building level in master_json
+                mj_bldg = mj_prefs.get("building") or {k: v for k, v in mj_prefs.items() if k not in ("rooms", "floors", "metadata")}
+                if isinstance(mj_bldg, dict):
+                    for k, v in mj_bldg.items():
+                        building_clean[k] = v
+
+                # Floor level in master_json
+                mj_flrs = mj_prefs.get("floors", {})
+                if isinstance(mj_flrs, dict) and floor_id in mj_flrs and isinstance(mj_flrs[floor_id], dict):
+                    for k, v in mj_flrs[floor_id].items():
+                        floor_clean[k] = v
+
+                # Room level in master_json
+                mj_rms = mj_prefs.get("rooms", {})
+                if isinstance(mj_rms, dict) and room_id in mj_rms and isinstance(mj_rms[room_id], dict):
+                    for k, v in mj_rms[room_id].items():
+                        if k not in ("specific_assets", "custom_constraints", "floor_id"):
+                            room_clean[k] = v
 
         # Cascade: building -> floor -> room
         effective = deepcopy(building_clean)
