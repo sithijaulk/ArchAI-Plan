@@ -23,6 +23,7 @@ import React, { useMemo, useState, useRef, useEffect, Suspense } from 'react'
 import { Canvas, useThree } from '@react-three/fiber'
 import { OrbitControls, Grid, OrthographicCamera, PerspectiveCamera, TransformControls } from '@react-three/drei'
 import * as THREE from 'three'
+import { WebGLErrorBoundary } from '@/components/visualization/WebGLErrorBoundary'
 import type {
   ExteriorFeature,
   ExteriorLandscape,
@@ -1184,31 +1185,37 @@ export default function ExteriorSceneViewer({
           </div>
         </div>
       )}
-
-      <Canvas
-        camera={{ position: [14, 20, 14], fov: 45, near: 0.1, far: 600 }}
-        shadows
-        gl={{ antialias: true, alpha: false }}
-        onCreated={({ gl }) => {
-          gl.setClearColor('#0a140a')
-        }}
-      >
-        <Suspense fallback={null}>
-          <MainScene
-            viewModel={viewModel ?? null}
-            landscape={landscape}
-            cameraPreset={cameraPreset}
-            resetCount={resetCount}
-            controlsRef={controlsRef}
-            selectedFeatureId={selectedFeatureId}
-            gizmoMode={activeGizmoMode}
-            onFeatureMoved={onFeatureMoved}
-            onFeatureRotated={onFeatureRotated}
-            onFeatureScaled={onFeatureScaled}
-            lockedFeatureIds={lockedFeatureIds}
-          />
-        </Suspense>
-      </Canvas>
+      <WebGLErrorBoundary title="ELIA 3D Exterior Viewport Unavailable">
+        <Canvas
+          camera={{ position: [14, 20, 14], fov: 45, near: 0.1, far: 600 }}
+          shadows
+          gl={{
+            antialias: true,
+            alpha: false,
+            powerPreference: 'default',
+            failIfMajorPerformanceCaveat: false,
+          }}
+          onCreated={({ gl }) => {
+            gl.setClearColor('#0a140a')
+          }}
+        >
+          <Suspense fallback={null}>
+            <MainScene
+              viewModel={viewModel ?? null}
+              landscape={landscape}
+              cameraPreset={cameraPreset}
+              resetCount={resetCount}
+              controlsRef={controlsRef}
+              selectedFeatureId={selectedFeatureId}
+              gizmoMode={activeGizmoMode}
+              onFeatureMoved={onFeatureMoved}
+              onFeatureRotated={onFeatureRotated}
+              onFeatureScaled={onFeatureScaled}
+              lockedFeatureIds={lockedFeatureIds}
+            />
+          </Suspense>
+        </Canvas>
+      </WebGLErrorBoundary>
     </div>
   )
 }

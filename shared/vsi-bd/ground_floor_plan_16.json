@@ -1,0 +1,439 @@
+{
+  "project_id": "PRJ-FLOORPLAN-016",
+  "project_name": "Architectural Ground Floor Plan 16",
+  "schema_version": "1.0",
+  "land_info": {
+    "orientation": null,
+    "road_facing": null,
+    "area_sqft": null
+  },
+  "floor_plan": {
+    "id": "FP-016-GROUND",
+    "name": "Ground Floor Plan",
+    "units": "mm",
+    "coordinate_system": {
+      "origin": "top_left",
+      "x_axis": "right",
+      "y_axis": "down"
+    },
+    "dimensions": {
+      "width": 8000,
+      "height": 13550
+    },
+    "boundary": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          4680,
+          0
+        ],
+        [
+          8000,
+          0
+        ],
+        [
+          8000,
+          13550
+        ],
+        [
+          3600,
+          13550
+        ],
+        [
+          3600,
+          10700
+        ],
+        [
+          0,
+          10700
+        ],
+        [
+          0,
+          1700
+        ],
+        [
+          4680,
+          1700
+        ],
+        [
+          4680,
+          0
+        ]
+      ]
+    },
+    "rooms": [
+      {
+        "id": "room-01",
+        "name": "Living Room",
+        "type": "living_room",
+        "polygon": [
+          [
+            330,
+            2000
+          ],
+          [
+            4650,
+            2000
+          ],
+          [
+            4650,
+            6880
+          ],
+          [
+            330,
+            6880
+          ]
+        ],
+        "dimensions": {
+          "width": 4320,
+          "height": 4880
+        },
+        "original_label": "SEJOUR",
+        "area_sqm": 20.85
+      },
+      {
+        "id": "room-02",
+        "name": "Kitchen",
+        "type": "kitchen",
+        "polygon": [
+          [
+            4860,
+            1950
+          ],
+          [
+            7650,
+            1950
+          ],
+          [
+            7650,
+            6120
+          ],
+          [
+            4860,
+            6120
+          ]
+        ],
+        "dimensions": {
+          "width": 2790,
+          "height": 4170
+        },
+        "original_label": "CUISINE",
+        "area_sqm": 11.97
+      },
+      {
+        "id": "room-03",
+        "name": "Pantry",
+        "type": "pantry",
+        "polygon": [
+          [
+            4920,
+            210
+          ],
+          [
+            7820,
+            210
+          ],
+          [
+            7820,
+            1670
+          ],
+          [
+            4920,
+            1670
+          ]
+        ],
+        "dimensions": {
+          "width": 2900,
+          "height": 1460
+        },
+        "original_label": "CELLIER",
+        "area_sqm": 4.42
+      },
+      {
+        "id": "room-04",
+        "name": "Bedroom 1",
+        "type": "bedroom",
+        "polygon": [
+          [
+            330,
+            7000
+          ],
+          [
+            3610,
+            7000
+          ],
+          [
+            3610,
+            10320
+          ],
+          [
+            330,
+            10320
+          ]
+        ],
+        "dimensions": {
+          "width": 3280,
+          "height": 3320
+        },
+        "original_label": "CH.1",
+        "area_sqm": 11.05
+      },
+      {
+        "id": "room-05",
+        "name": "Bedroom 2",
+        "type": "bedroom",
+        "polygon": [
+          [
+            3950,
+            7980
+          ],
+          [
+            7660,
+            7980
+          ],
+          [
+            7660,
+            10720
+          ],
+          [
+            3950,
+            10720
+          ]
+        ],
+        "dimensions": {
+          "width": 3710,
+          "height": 2740
+        },
+        "original_label": "CH.2",
+        "area_sqm": 10.81
+      },
+      {
+        "id": "room-06",
+        "name": "Bathroom",
+        "type": "bathroom",
+        "polygon": [
+          [
+            6060,
+            6230
+          ],
+          [
+            7670,
+            6230
+          ],
+          [
+            7670,
+            7780
+          ],
+          [
+            6060,
+            7780
+          ]
+        ],
+        "dimensions": {
+          "width": 1610,
+          "height": 1550
+        },
+        "original_label": "BAINS",
+        "area_sqm": 3.05
+      },
+      {
+        "id": "room-07",
+        "name": "Toilet",
+        "type": "toilet",
+        "polygon": [
+          [
+            4880,
+            6220
+          ],
+          [
+            5950,
+            6220
+          ],
+          [
+            5950,
+            7070
+          ],
+          [
+            4880,
+            7070
+          ]
+        ],
+        "dimensions": {
+          "width": 1070,
+          "height": 850
+        },
+        "original_label": "WC",
+        "area_sqm": 1.02
+      },
+      {
+        "id": "room-08",
+        "name": "Passage",
+        "type": "hallway",
+        "polygon": [
+          [
+            3700,
+            6970
+          ],
+          [
+            4840,
+            6970
+          ],
+          [
+            4840,
+            7910
+          ],
+          [
+            3700,
+            7910
+          ]
+        ],
+        "dimensions": {
+          "width": 1140,
+          "height": 940
+        },
+        "original_label": "DEGT.",
+        "area_sqm": 1.79
+      },
+      {
+        "id": "room-09",
+        "name": "Cellar",
+        "type": "storage",
+        "polygon": [
+          [
+            3920,
+            10840
+          ],
+          [
+            7650,
+            10840
+          ],
+          [
+            7650,
+            13270
+          ],
+          [
+            3920,
+            13270
+          ]
+        ],
+        "dimensions": {
+          "width": 3730,
+          "height": 2430
+        },
+        "original_label": "CAVE",
+        "area_sqm": 8.88
+      },
+      {
+        "id": "room-10",
+        "name": "Porch",
+        "type": "porch",
+        "polygon": [
+          [
+            0,
+            100
+          ],
+          [
+            4600,
+            100
+          ],
+          [
+            4600,
+            1680
+          ],
+          [
+            0,
+            1680
+          ]
+        ],
+        "dimensions": {
+          "width": 4600,
+          "height": 1580
+        },
+        "original_label": "Porche",
+        "area_sqm": null
+      },
+      {
+        "id": "room-11",
+        "name": "Terrace",
+        "type": "terrace",
+        "polygon": [
+          [
+            0,
+            10700
+          ],
+          [
+            3600,
+            10700
+          ],
+          [
+            3600,
+            13550
+          ],
+          [
+            0,
+            13550
+          ]
+        ],
+        "dimensions": {
+          "width": 3600,
+          "height": 2850
+        },
+        "original_label": "Terrasse",
+        "area_sqm": null
+      }
+    ],
+    "structural_elements": [
+      {
+        "id": "col-01",
+        "type": "column",
+        "polygon": [
+          [
+            2920,
+            0
+          ],
+          [
+            3120,
+            0
+          ],
+          [
+            3120,
+            200
+          ],
+          [
+            2920,
+            200
+          ]
+        ]
+      },
+      {
+        "id": "col-02",
+        "type": "column",
+        "polygon": [
+          [
+            0,
+            13300
+          ],
+          [
+            200,
+            13300
+          ],
+          [
+            200,
+            13500
+          ],
+          [
+            0,
+            13500
+          ]
+        ]
+      }
+    ],
+    "measurement_notes": {
+      "overall_dimensions": "8.00 m by 13.55 m, transcribed from the drawing",
+      "room_areas": "area_sqm fields are taken from labels printed on the drawing; null means not provided",
+      "coordinates": "Room polygons, room dimensions, building boundary offsets and column sizes are approximate interpretations of the raster image, not surveyed architectural measurements.",
+      "external_spaces": "Porch and terrace are included as rooms for compatibility with the supplied schema, although their polygons are exterior to the enclosed-building boundary.",
+      "orientation": "North and road direction are not indicated on the drawing."
+    }
+  }
+}

@@ -60,7 +60,7 @@ def run_operational_verification(base_url: str, token: str | None, project_id: s
         print("Ensure the backend process is running before executing live checks.")
         return False
     print(f"PASS: Backend process active (App: {health.get('app')}, Env: {health.get('env')})")
-    print("NOTE: /api/health confirms process availability; it does not test MySQL connectivity.")
+    print("NOTE: /api/health confirms process availability; it does not test PostgreSQL connectivity.")
 
     # 2. Reference endpoints check
     print("\n[Step 2] Checking reference rules and catalogue endpoints...")

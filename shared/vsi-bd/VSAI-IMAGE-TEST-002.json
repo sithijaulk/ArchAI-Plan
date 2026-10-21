@@ -1,0 +1,1864 @@
+{
+  "project_id": "VSAI-IMAGE-TEST-002",
+  "project_name": "Uploaded Ground Floor Plan - Sample Vastu Test",
+  "schema_version": "1.0",
+  "land_info": {
+    "orientation": "North",
+    "orientation_source": "assumed_for_test",
+    "notes": "North is assumed to be the top of the image because a clear north arrow is not visible. Confirm before interpreting results."
+  },
+  "buildable_footprint": {},
+  "floor_plan": {
+    "id": "FP-IMAGE-TEST-002",
+    "name": "Ground Floor Plan - Garage, Atelier, Hall, Kitchen, WC, Cellier, Living/Dining",
+    "units": "m",
+    "coordinate_system": {
+      "origin": "top_left",
+      "x_axis": "right",
+      "y_axis": "down"
+    },
+    "dimensions": {
+      "width": 10.1,
+      "height": 13.2
+    },
+    "boundary": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          0,
+          0
+        ],
+        [
+          10.1,
+          0
+        ],
+        [
+          10.1,
+          13.2
+        ],
+        [
+          0,
+          13.2
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    "rooms": [
+      {
+        "id": "room-garage-atelier",
+        "name": "Garage / Atelier",
+        "type": "garage",
+        "polygon": [
+          [
+            0.9,
+            0
+          ],
+          [
+            6.2,
+            0
+          ],
+          [
+            6.2,
+            5.6
+          ],
+          [
+            0.9,
+            5.6
+          ],
+          [
+            0.9,
+            0
+          ]
+        ],
+        "dimensions": {
+          "width": 5.3,
+          "height": 5.6
+        },
+        "source_area_m2": 22.96,
+        "approximate_from_image": true
+      },
+      {
+        "id": "room-hall",
+        "name": "Hall",
+        "type": "hallway",
+        "polygon": [
+          [
+            4,
+            5.6
+          ],
+          [
+            6,
+            5.6
+          ],
+          [
+            6,
+            7
+          ],
+          [
+            4,
+            7
+          ],
+          [
+            4,
+            5.6
+          ]
+        ],
+        "dimensions": {
+          "width": 2,
+          "height": 1.4
+        },
+        "source_area_m2": 3.66,
+        "approximate_from_image": true
+      },
+      {
+        "id": "room-cellier",
+        "name": "Cellier",
+        "type": "store_room",
+        "polygon": [
+          [
+            1,
+            6
+          ],
+          [
+            4,
+            6
+          ],
+          [
+            4,
+            8
+          ],
+          [
+            1,
+            8
+          ],
+          [
+            1,
+            6
+          ]
+        ],
+        "dimensions": {
+          "width": 3,
+          "height": 2
+        },
+        "source_area_m2": 4.76,
+        "approximate_from_image": true
+      },
+      {
+        "id": "room-wc",
+        "name": "WC",
+        "type": "toilet",
+        "polygon": [
+          [
+            1,
+            8
+          ],
+          [
+            3,
+            8
+          ],
+          [
+            3,
+            9
+          ],
+          [
+            1,
+            9
+          ],
+          [
+            1,
+            8
+          ]
+        ],
+        "dimensions": {
+          "width": 2,
+          "height": 1
+        },
+        "source_area_m2": 1.61,
+        "approximate_from_image": true
+      },
+      {
+        "id": "room-kitchen",
+        "name": "Cuisine (Kitchen)",
+        "type": "kitchen",
+        "polygon": [
+          [
+            6,
+            6
+          ],
+          [
+            10,
+            6
+          ],
+          [
+            10,
+            9
+          ],
+          [
+            6,
+            9
+          ],
+          [
+            6,
+            6
+          ]
+        ],
+        "dimensions": {
+          "width": 4,
+          "height": 3
+        },
+        "source_area_m2": 10.12,
+        "approximate_from_image": true
+      },
+      {
+        "id": "room-living-dining",
+        "name": "S\u00e9jour / Repas (Living / Dining)",
+        "type": "living_room",
+        "polygon": [
+          [
+            0,
+            9
+          ],
+          [
+            8,
+            9
+          ],
+          [
+            8,
+            13.2
+          ],
+          [
+            0,
+            13.2
+          ],
+          [
+            0,
+            9
+          ]
+        ],
+        "dimensions": {
+          "width": 8,
+          "height": 4.2
+        },
+        "source_area_m2": 29.6,
+        "approximate_from_image": true
+      }
+    ],
+    "walls": [
+      {
+        "id": "wall-north-garage",
+        "start": [
+          0.9,
+          0
+        ],
+        "end": [
+          6.2,
+          0
+        ],
+        "type": "external"
+      },
+      {
+        "id": "wall-east-garage",
+        "start": [
+          6.2,
+          0
+        ],
+        "end": [
+          6.2,
+          5.6
+        ],
+        "type": "external"
+      },
+      {
+        "id": "wall-west-garage",
+        "start": [
+          0.9,
+          0
+        ],
+        "end": [
+          0.9,
+          6.8
+        ],
+        "type": "external"
+      },
+      {
+        "id": "wall-south-living",
+        "start": [
+          0,
+          13.2
+        ],
+        "end": [
+          8,
+          13.2
+        ],
+        "type": "external"
+      },
+      {
+        "id": "wall-east-kitchen",
+        "start": [
+          10,
+          6
+        ],
+        "end": [
+          10,
+          9
+        ],
+        "type": "external"
+      },
+      {
+        "id": "wall-west-living",
+        "start": [
+          0,
+          9
+        ],
+        "end": [
+          0,
+          13.2
+        ],
+        "type": "external"
+      }
+    ],
+    "doors": [
+      {
+        "id": "door-main-living",
+        "name": "Main Entrance",
+        "direction": "S",
+        "wall_id": "wall-south-living",
+        "position": [
+          2,
+          13.2
+        ],
+        "is_main_entrance": true,
+        "approximate_from_image": true
+      },
+      {
+        "id": "door-kitchen-terrace",
+        "name": "Kitchen / Terrace Door",
+        "direction": "E",
+        "wall_id": "wall-east-kitchen",
+        "position": [
+          10,
+          7.5
+        ],
+        "is_main_entrance": false,
+        "approximate_from_image": true
+      },
+      {
+        "id": "door-hall-garage",
+        "name": "Hall / Garage Door",
+        "direction": "N",
+        "wall_id": "wall-north-garage",
+        "position": [
+          4,
+          5.6
+        ],
+        "is_main_entrance": false,
+        "approximate_from_image": true
+      }
+    ],
+    "windows": [
+      {
+        "id": "window-garage-north",
+        "direction": "N",
+        "wall_id": "wall-north-garage",
+        "position": [
+          3,
+          0
+        ]
+      },
+      {
+        "id": "window-garage-east",
+        "direction": "E",
+        "wall_id": "wall-east-garage",
+        "position": [
+          6.2,
+          2.5
+        ]
+      },
+      {
+        "id": "window-kitchen-east",
+        "direction": "E",
+        "wall_id": "wall-east-kitchen",
+        "position": [
+          10,
+          7.5
+        ]
+      }
+    ],
+    "spatial_metadata": {
+      "north_direction": "top",
+      "room_adjacency": [
+        {
+          "room_a": "room-garage-atelier",
+          "room_b": "room-hall"
+        },
+        {
+          "room_a": "room-hall",
+          "room_b": "room-cellier"
+        },
+        {
+          "room_a": "room-hall",
+          "room_b": "room-kitchen"
+        },
+        {
+          "room_a": "room-kitchen",
+          "room_b": "room-living-dining"
+        },
+        {
+          "room_a": "room-cellier",
+          "room_b": "room-wc"
+        },
+        {
+          "room_a": "room-wc",
+          "room_b": "room-living-dining"
+        }
+      ]
+    }
+  },
+  "structural_rectification": {
+    "status": "completed",
+    "baseline_score": 42,
+    "rectified_score": 44,
+    "score_delta": 2,
+    "baseline_floor_plan": {
+      "id": "FP-IMAGE-TEST-002",
+      "name": "Ground Floor Plan - Garage, Atelier, Hall, Kitchen, WC, Cellier, Living/Dining",
+      "units": "m",
+      "coordinate_system": {
+        "origin": "top_left",
+        "x_axis": "right",
+        "y_axis": "down"
+      },
+      "dimensions": {
+        "width": 10.1,
+        "height": 13.2
+      },
+      "boundary": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            0,
+            0
+          ],
+          [
+            10.1,
+            0
+          ],
+          [
+            10.1,
+            13.2
+          ],
+          [
+            0,
+            13.2
+          ],
+          [
+            0,
+            0
+          ]
+        ]
+      },
+      "rooms": [
+        {
+          "id": "room-garage-atelier",
+          "name": "Garage / Atelier",
+          "type": "garage",
+          "polygon": [
+            [
+              0.9,
+              0
+            ],
+            [
+              6.2,
+              0
+            ],
+            [
+              6.2,
+              5.6
+            ],
+            [
+              0.9,
+              5.6
+            ],
+            [
+              0.9,
+              0
+            ]
+          ],
+          "dimensions": {
+            "width": 5.3,
+            "height": 5.6
+          },
+          "source_area_m2": 22.96,
+          "approximate_from_image": true
+        },
+        {
+          "id": "room-hall",
+          "name": "Hall",
+          "type": "hallway",
+          "polygon": [
+            [
+              4,
+              5.6
+            ],
+            [
+              6,
+              5.6
+            ],
+            [
+              6,
+              7
+            ],
+            [
+              4,
+              7
+            ],
+            [
+              4,
+              5.6
+            ]
+          ],
+          "dimensions": {
+            "width": 2,
+            "height": 1.4
+          },
+          "source_area_m2": 3.66,
+          "approximate_from_image": true
+        },
+        {
+          "id": "room-cellier",
+          "name": "Cellier",
+          "type": "store_room",
+          "polygon": [
+            [
+              1,
+              6
+            ],
+            [
+              4,
+              6
+            ],
+            [
+              4,
+              8
+            ],
+            [
+              1,
+              8
+            ],
+            [
+              1,
+              6
+            ]
+          ],
+          "dimensions": {
+            "width": 3,
+            "height": 2
+          },
+          "source_area_m2": 4.76,
+          "approximate_from_image": true
+        },
+        {
+          "id": "room-wc",
+          "name": "WC",
+          "type": "toilet",
+          "polygon": [
+            [
+              1,
+              8
+            ],
+            [
+              3,
+              8
+            ],
+            [
+              3,
+              9
+            ],
+            [
+              1,
+              9
+            ],
+            [
+              1,
+              8
+            ]
+          ],
+          "dimensions": {
+            "width": 2,
+            "height": 1
+          },
+          "source_area_m2": 1.61,
+          "approximate_from_image": true
+        },
+        {
+          "id": "room-kitchen",
+          "name": "Cuisine (Kitchen)",
+          "type": "kitchen",
+          "polygon": [
+            [
+              6,
+              6
+            ],
+            [
+              10,
+              6
+            ],
+            [
+              10,
+              9
+            ],
+            [
+              6,
+              9
+            ],
+            [
+              6,
+              6
+            ]
+          ],
+          "dimensions": {
+            "width": 4,
+            "height": 3
+          },
+          "source_area_m2": 10.12,
+          "approximate_from_image": true
+        },
+        {
+          "id": "room-living-dining",
+          "name": "S\u00e9jour / Repas (Living / Dining)",
+          "type": "living_room",
+          "polygon": [
+            [
+              0,
+              9
+            ],
+            [
+              8,
+              9
+            ],
+            [
+              8,
+              13.2
+            ],
+            [
+              0,
+              13.2
+            ],
+            [
+              0,
+              9
+            ]
+          ],
+          "dimensions": {
+            "width": 8,
+            "height": 4.2
+          },
+          "source_area_m2": 29.6,
+          "approximate_from_image": true
+        }
+      ],
+      "walls": [
+        {
+          "id": "wall-north-garage",
+          "start": [
+            0.9,
+            0
+          ],
+          "end": [
+            6.2,
+            0
+          ],
+          "type": "external"
+        },
+        {
+          "id": "wall-east-garage",
+          "start": [
+            6.2,
+            0
+          ],
+          "end": [
+            6.2,
+            5.6
+          ],
+          "type": "external"
+        },
+        {
+          "id": "wall-west-garage",
+          "start": [
+            0.9,
+            0
+          ],
+          "end": [
+            0.9,
+            6.8
+          ],
+          "type": "external"
+        },
+        {
+          "id": "wall-south-living",
+          "start": [
+            0,
+            13.2
+          ],
+          "end": [
+            8,
+            13.2
+          ],
+          "type": "external"
+        },
+        {
+          "id": "wall-east-kitchen",
+          "start": [
+            10,
+            6
+          ],
+          "end": [
+            10,
+            9
+          ],
+          "type": "external"
+        },
+        {
+          "id": "wall-west-living",
+          "start": [
+            0,
+            9
+          ],
+          "end": [
+            0,
+            13.2
+          ],
+          "type": "external"
+        }
+      ],
+      "doors": [
+        {
+          "id": "door-main-living",
+          "name": "Main Entrance",
+          "direction": "S",
+          "wall_id": "wall-south-living",
+          "position": [
+            2,
+            13.2
+          ],
+          "is_main_entrance": true,
+          "approximate_from_image": true
+        },
+        {
+          "id": "door-kitchen-terrace",
+          "name": "Kitchen / Terrace Door",
+          "direction": "E",
+          "wall_id": "wall-east-kitchen",
+          "position": [
+            10,
+            7.5
+          ],
+          "is_main_entrance": false,
+          "approximate_from_image": true
+        },
+        {
+          "id": "door-hall-garage",
+          "name": "Hall / Garage Door",
+          "direction": "N",
+          "wall_id": "wall-north-garage",
+          "position": [
+            4,
+            5.6
+          ],
+          "is_main_entrance": false,
+          "approximate_from_image": true
+        }
+      ],
+      "windows": [
+        {
+          "id": "window-garage-north",
+          "direction": "N",
+          "wall_id": "wall-north-garage",
+          "position": [
+            3,
+            0
+          ]
+        },
+        {
+          "id": "window-garage-east",
+          "direction": "E",
+          "wall_id": "wall-east-garage",
+          "position": [
+            6.2,
+            2.5
+          ]
+        },
+        {
+          "id": "window-kitchen-east",
+          "direction": "E",
+          "wall_id": "wall-east-kitchen",
+          "position": [
+            10,
+            7.5
+          ]
+        }
+      ],
+      "spatial_metadata": {
+        "north_direction": "top",
+        "room_adjacency": [
+          {
+            "room_a": "room-garage-atelier",
+            "room_b": "room-hall"
+          },
+          {
+            "room_a": "room-hall",
+            "room_b": "room-cellier"
+          },
+          {
+            "room_a": "room-hall",
+            "room_b": "room-kitchen"
+          },
+          {
+            "room_a": "room-kitchen",
+            "room_b": "room-living-dining"
+          },
+          {
+            "room_a": "room-cellier",
+            "room_b": "room-wc"
+          },
+          {
+            "room_a": "room-wc",
+            "room_b": "room-living-dining"
+          }
+        ]
+      }
+    },
+    "rectified_floor_plan": {
+      "id": "FP-IMAGE-TEST-002",
+      "name": "Ground Floor Plan - Garage, Atelier, Hall, Kitchen, WC, Cellier, Living/Dining",
+      "units": "m",
+      "coordinate_system": {
+        "origin": "top_left",
+        "x_axis": "right",
+        "y_axis": "down"
+      },
+      "dimensions": {
+        "width": 10.1,
+        "height": 13.2
+      },
+      "boundary": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            0,
+            0
+          ],
+          [
+            10.1,
+            0
+          ],
+          [
+            10.1,
+            13.2
+          ],
+          [
+            0,
+            13.2
+          ],
+          [
+            0,
+            0
+          ]
+        ]
+      },
+      "rooms": [
+        {
+          "id": "room-garage-atelier",
+          "name": "Garage / Atelier",
+          "type": "garage",
+          "polygon": [
+            [
+              6,
+              6
+            ],
+            [
+              10,
+              6
+            ],
+            [
+              10,
+              9
+            ],
+            [
+              6,
+              9
+            ],
+            [
+              6,
+              6
+            ]
+          ],
+          "dimensions": {
+            "width": 5.3,
+            "height": 5.6
+          },
+          "source_area_m2": 22.96,
+          "approximate_from_image": true
+        },
+        {
+          "id": "room-hall",
+          "name": "Hall",
+          "type": "hallway",
+          "polygon": [
+            [
+              0,
+              9
+            ],
+            [
+              8,
+              9
+            ],
+            [
+              8,
+              13.2
+            ],
+            [
+              0,
+              13.2
+            ],
+            [
+              0,
+              9
+            ]
+          ],
+          "dimensions": {
+            "width": 2,
+            "height": 1.4
+          },
+          "source_area_m2": 3.66,
+          "approximate_from_image": true
+        },
+        {
+          "id": "room-cellier",
+          "name": "Cellier",
+          "type": "store_room",
+          "polygon": [
+            [
+              1,
+              6
+            ],
+            [
+              4,
+              6
+            ],
+            [
+              4,
+              8
+            ],
+            [
+              1,
+              8
+            ],
+            [
+              1,
+              6
+            ]
+          ],
+          "dimensions": {
+            "width": 3,
+            "height": 2
+          },
+          "source_area_m2": 4.76,
+          "approximate_from_image": true
+        },
+        {
+          "id": "room-wc",
+          "name": "WC",
+          "type": "toilet",
+          "polygon": [
+            [
+              1,
+              8
+            ],
+            [
+              3,
+              8
+            ],
+            [
+              3,
+              9
+            ],
+            [
+              1,
+              9
+            ],
+            [
+              1,
+              8
+            ]
+          ],
+          "dimensions": {
+            "width": 2,
+            "height": 1
+          },
+          "source_area_m2": 1.61,
+          "approximate_from_image": true
+        },
+        {
+          "id": "room-kitchen",
+          "name": "Cuisine (Kitchen)",
+          "type": "kitchen",
+          "polygon": [
+            [
+              0.9,
+              0
+            ],
+            [
+              6.2,
+              0
+            ],
+            [
+              6.2,
+              5.6
+            ],
+            [
+              0.9,
+              5.6
+            ],
+            [
+              0.9,
+              0
+            ]
+          ],
+          "dimensions": {
+            "width": 4,
+            "height": 3
+          },
+          "source_area_m2": 10.12,
+          "approximate_from_image": true
+        },
+        {
+          "id": "room-living-dining",
+          "name": "S\u00e9jour / Repas (Living / Dining)",
+          "type": "living_room",
+          "polygon": [
+            [
+              4,
+              5.6
+            ],
+            [
+              6,
+              5.6
+            ],
+            [
+              6,
+              7
+            ],
+            [
+              4,
+              7
+            ],
+            [
+              4,
+              5.6
+            ]
+          ],
+          "dimensions": {
+            "width": 8,
+            "height": 4.2
+          },
+          "source_area_m2": 29.6,
+          "approximate_from_image": true
+        }
+      ],
+      "walls": [
+        {
+          "id": "wall-north-garage",
+          "start": [
+            0.9,
+            0
+          ],
+          "end": [
+            6.2,
+            0
+          ],
+          "type": "external"
+        },
+        {
+          "id": "wall-east-garage",
+          "start": [
+            6.2,
+            0
+          ],
+          "end": [
+            6.2,
+            5.6
+          ],
+          "type": "external"
+        },
+        {
+          "id": "wall-west-garage",
+          "start": [
+            0.9,
+            0
+          ],
+          "end": [
+            0.9,
+            6.8
+          ],
+          "type": "external"
+        },
+        {
+          "id": "wall-south-living",
+          "start": [
+            0,
+            13.2
+          ],
+          "end": [
+            8,
+            13.2
+          ],
+          "type": "external"
+        },
+        {
+          "id": "wall-east-kitchen",
+          "start": [
+            10,
+            6
+          ],
+          "end": [
+            10,
+            9
+          ],
+          "type": "external"
+        },
+        {
+          "id": "wall-west-living",
+          "start": [
+            0,
+            9
+          ],
+          "end": [
+            0,
+            13.2
+          ],
+          "type": "external"
+        }
+      ],
+      "doors": [
+        {
+          "id": "door-main-living",
+          "name": "Main Entrance",
+          "direction": "S",
+          "wall_id": "wall-south-living",
+          "position": [
+            2,
+            13.2
+          ],
+          "is_main_entrance": true,
+          "approximate_from_image": true
+        },
+        {
+          "id": "door-kitchen-terrace",
+          "name": "Kitchen / Terrace Door",
+          "direction": "E",
+          "wall_id": "wall-east-kitchen",
+          "position": [
+            10,
+            7.5
+          ],
+          "is_main_entrance": false,
+          "approximate_from_image": true
+        },
+        {
+          "id": "door-hall-garage",
+          "name": "Hall / Garage Door",
+          "direction": "N",
+          "wall_id": "wall-north-garage",
+          "position": [
+            4,
+            5.6
+          ],
+          "is_main_entrance": false,
+          "approximate_from_image": true
+        }
+      ],
+      "windows": [
+        {
+          "id": "window-garage-north",
+          "direction": "N",
+          "wall_id": "wall-north-garage",
+          "position": [
+            3,
+            0
+          ]
+        },
+        {
+          "id": "window-garage-east",
+          "direction": "E",
+          "wall_id": "wall-east-garage",
+          "position": [
+            6.2,
+            2.5
+          ]
+        },
+        {
+          "id": "window-kitchen-east",
+          "direction": "E",
+          "wall_id": "wall-east-kitchen",
+          "position": [
+            10,
+            7.5
+          ]
+        }
+      ],
+      "spatial_metadata": {
+        "north_direction": "top",
+        "room_adjacency": [
+          {
+            "room_a": "room-garage-atelier",
+            "room_b": "room-hall"
+          },
+          {
+            "room_a": "room-hall",
+            "room_b": "room-cellier"
+          },
+          {
+            "room_a": "room-hall",
+            "room_b": "room-kitchen"
+          },
+          {
+            "room_a": "room-kitchen",
+            "room_b": "room-living-dining"
+          },
+          {
+            "room_a": "room-cellier",
+            "room_b": "room-wc"
+          },
+          {
+            "room_a": "room-wc",
+            "room_b": "room-living-dining"
+          }
+        ]
+      },
+      "structural_elements": []
+    },
+    "modifications": [
+      {
+        "roomId": "room-kitchen",
+        "roomName": "Cuisine (Kitchen)",
+        "previousSector": "East (Purva / Indra)",
+        "newSector": "South (Dakshina / Yama)",
+        "reason": "Shifted cooking hearth out of conflict sector to primary Agni quadrant for health and wealth.",
+        "pointsGained": 15,
+        "previousCenter": [
+          8.0,
+          7.5
+        ],
+        "newCenter": [
+          3.6,
+          2.8
+        ]
+      },
+      {
+        "roomId": "room-hall",
+        "roomName": "Hall",
+        "previousSector": "Brahmasthan (Center / Brahma Core)",
+        "newSector": "North (Uttara / Kubera)",
+        "reason": "Positioned welcome and social area to capture welcoming cosmic morning energy.",
+        "pointsGained": 5,
+        "previousCenter": [
+          5.0,
+          6.3
+        ],
+        "newCenter": [
+          4.0,
+          11.1
+        ]
+      }
+    ],
+    "applied_modifications_count": 2,
+    "post_rectification_analysis": {
+      "score": 44,
+      "grade": "C",
+      "grade_description": "Significant Vastu Defects: Critical zones (e.g. Brahmasthan or Toilet) need relocation.",
+      "good_aspects": [
+        {
+          "rule_id": "vsai.dwara_sthana.combination",
+          "title": "Dwara Sthana: Vittada Combination (GOOD)",
+          "room_id": null,
+          "room_name": "Doors (EAST, NORTH, SOUTH)",
+          "sector": "EAST",
+          "sector_display": "Cardinal Facings: EAST, NORTH, SOUTH",
+          "polygon": null,
+          "description": "Dwara Sthana classification: Vittada (GOOD). Traditional attribution: Wealth and money. Doors present in 3 direction(s): EAST, NORTH, SOUTH.",
+          "points_earned": 21
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Garage / Atelier - Auspicious Sector (East (Purva / Indra))",
+          "room_id": "room-garage-atelier",
+          "room_name": "Garage / Atelier",
+          "sector": "EAST",
+          "sector_display": "East (Purva / Indra)",
+          "polygon": [
+            [
+              6,
+              6
+            ],
+            [
+              10,
+              6
+            ],
+            [
+              10,
+              9
+            ],
+            [
+              6,
+              9
+            ],
+            [
+              6,
+              6
+            ]
+          ],
+          "description": "Garage / Atelier is ideally positioned in East (Purva / Indra), which is the primary auspicious sector for Living Room in Vastu Shastra.",
+          "points_earned": 4.2
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Hall - Auspicious Sector (North-West (Vayavya / Vayu))",
+          "room_id": "room-hall",
+          "room_name": "Hall",
+          "sector": "NORTH_WEST",
+          "sector_display": "North-West (Vayavya / Vayu)",
+          "polygon": [
+            [
+              0,
+              9
+            ],
+            [
+              8,
+              9
+            ],
+            [
+              8,
+              13.2
+            ],
+            [
+              0,
+              13.2
+            ],
+            [
+              0,
+              9
+            ]
+          ],
+          "description": "Hall is ideally positioned in North-West (Vayavya / Vayu), which is the primary auspicious sector for Living Room in Vastu Shastra.",
+          "points_earned": 4.2
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Cellier - Auspicious Sector (West (Pashchima / Varuna))",
+          "room_id": "room-cellier",
+          "room_name": "Cellier",
+          "sector": "WEST",
+          "sector_display": "West (Pashchima / Varuna)",
+          "polygon": [
+            [
+              1,
+              6
+            ],
+            [
+              4,
+              6
+            ],
+            [
+              4,
+              8
+            ],
+            [
+              1,
+              8
+            ],
+            [
+              1,
+              6
+            ]
+          ],
+          "description": "Cellier is ideally positioned in West (Pashchima / Varuna), which is the primary auspicious sector for Store Room in Vastu Shastra.",
+          "points_earned": 4.2
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "WC - Auspicious Sector (West (Pashchima / Varuna))",
+          "room_id": "room-wc",
+          "room_name": "WC",
+          "sector": "WEST",
+          "sector_display": "West (Pashchima / Varuna)",
+          "polygon": [
+            [
+              1,
+              8
+            ],
+            [
+              3,
+              8
+            ],
+            [
+              3,
+              9
+            ],
+            [
+              1,
+              9
+            ],
+            [
+              1,
+              8
+            ]
+          ],
+          "description": "WC is ideally positioned in West (Pashchima / Varuna), which is the primary auspicious sector for Toilet / Washroom in Vastu Shastra.",
+          "points_earned": 4.2
+        }
+      ],
+      "defects": [
+        {
+          "rule_id": "vsai.brahmasthan.exact_center",
+          "title": "Brahmasthan Exact Center Point Obstructed",
+          "severity": "CRITICAL",
+          "room_id": null,
+          "room_name": "Room 'S\u00e9jour / Repas (Living / Dining)'",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "polygon": null,
+          "description": "The exact Brahmasthan center point (5.00, 6.60) is occupied or intersected by 1 represented spatial object(s): Room 'S\u00e9jour / Repas (Living / Dining)'.",
+          "remedy": "Ensure the exact plan center point (Brahmasthan core) is left completely free and open. Relocate load-bearing walls, structural columns, pillars, staircases, and enclosed partitions away from the center coordinate.",
+          "points_deducted": 25
+        },
+        {
+          "rule_id": "vsai.main_entrance.direction",
+          "title": "Main Entrance in Inauspicious Direction (North-West (Vayavya / Vayu))",
+          "severity": "HIGH",
+          "room_id": "door-main-living",
+          "room_name": "Main Entrance",
+          "sector": "NORTH_WEST",
+          "sector_display": "North-West (Vayavya / Vayu)",
+          "polygon": [],
+          "description": "The main entrance 'Main Entrance' is positioned in North-West (Vayavya / Vayu). Vastu Shastra guidelines designate North, North-East, East, South of South-East, or West of North-West as positive suitable entrance zones.",
+          "remedy": "Relocate the primary entrance door towards North, North-East (Ishanya), or East (Indra) to enhance auspicious ingress of prana and prosperity.",
+          "points_deducted": 25
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Cuisine (Kitchen) in Prohibited Zone (South-West (Nairutya / Nirrithi))",
+          "severity": "CRITICAL",
+          "room_id": "room-kitchen",
+          "room_name": "Cuisine (Kitchen)",
+          "sector": "SOUTH_WEST",
+          "sector_display": "South-West (Nairutya / Nirrithi)",
+          "polygon": [
+            [
+              0.9,
+              0
+            ],
+            [
+              6.2,
+              0
+            ],
+            [
+              6.2,
+              5.6
+            ],
+            [
+              0.9,
+              5.6
+            ],
+            [
+              0.9,
+              0
+            ]
+          ],
+          "description": "Cuisine (Kitchen) is located in South-West (Nairutya / Nirrithi). Vastu Shastra explicitly states that Kitchen must AVOID NORTH_EAST, SOUTH_WEST, CENTER.",
+          "remedy": "Relocate cooking stove towards South-East (Agneya) or North-West (Vayavya).",
+          "points_deducted": 4.2
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "S\u00e9jour / Repas (Living / Dining) Sub-Optimal Placement (Brahmasthan (Center / Brahma Core))",
+          "severity": "MEDIUM",
+          "room_id": "room-living-dining",
+          "room_name": "S\u00e9jour / Repas (Living / Dining)",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "polygon": [
+            [
+              4,
+              5.6
+            ],
+            [
+              6,
+              5.6
+            ],
+            [
+              6,
+              7
+            ],
+            [
+              4,
+              7
+            ],
+            [
+              4,
+              5.6
+            ]
+          ],
+          "description": "S\u00e9jour / Repas (Living / Dining) is located in Brahmasthan (Center / Brahma Core). Recommended preferred directions are NORTH_WEST, NORTH, NORTH_EAST, EAST.",
+          "remedy": "Align living seating towards North or East during conversations.",
+          "points_deducted": 2.5
+        }
+      ],
+      "total_rules_evaluated": 4,
+      "passed_rules_count": 5,
+      "failed_rules_count": 4,
+      "room_sectors": {
+        "room-garage-atelier": {
+          "id": "room-garage-atelier",
+          "name": "Garage / Atelier",
+          "type": "garage",
+          "sector": "EAST",
+          "sector_display": "East (Purva / Indra)",
+          "centroid": [
+            7.6,
+            7.2
+          ],
+          "polygon": [
+            [
+              6,
+              6
+            ],
+            [
+              10,
+              6
+            ],
+            [
+              10,
+              9
+            ],
+            [
+              6,
+              9
+            ],
+            [
+              6,
+              6
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": false
+        },
+        "room-hall": {
+          "id": "room-hall",
+          "name": "Hall",
+          "type": "hallway",
+          "sector": "NORTH_WEST",
+          "sector_display": "North-West (Vayavya / Vayu)",
+          "centroid": [
+            3.2,
+            10.68
+          ],
+          "polygon": [
+            [
+              0,
+              9
+            ],
+            [
+              8,
+              9
+            ],
+            [
+              8,
+              13.2
+            ],
+            [
+              0,
+              13.2
+            ],
+            [
+              0,
+              9
+            ]
+          ],
+          "overlaps_brahmasthan": false,
+          "occupies_exact_center": false
+        },
+        "room-cellier": {
+          "id": "room-cellier",
+          "name": "Cellier",
+          "type": "store_room",
+          "sector": "WEST",
+          "sector_display": "West (Pashchima / Varuna)",
+          "centroid": [
+            2.2,
+            6.8
+          ],
+          "polygon": [
+            [
+              1,
+              6
+            ],
+            [
+              4,
+              6
+            ],
+            [
+              4,
+              8
+            ],
+            [
+              1,
+              8
+            ],
+            [
+              1,
+              6
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": false
+        },
+        "room-wc": {
+          "id": "room-wc",
+          "name": "WC",
+          "type": "toilet",
+          "sector": "WEST",
+          "sector_display": "West (Pashchima / Varuna)",
+          "centroid": [
+            1.8,
+            8.4
+          ],
+          "polygon": [
+            [
+              1,
+              8
+            ],
+            [
+              3,
+              8
+            ],
+            [
+              3,
+              9
+            ],
+            [
+              1,
+              9
+            ],
+            [
+              1,
+              8
+            ]
+          ],
+          "overlaps_brahmasthan": false,
+          "occupies_exact_center": false
+        },
+        "room-kitchen": {
+          "id": "room-kitchen",
+          "name": "Cuisine (Kitchen)",
+          "type": "kitchen",
+          "sector": "SOUTH_WEST",
+          "sector_display": "South-West (Nairutya / Nirrithi)",
+          "centroid": [
+            3.02,
+            2.24
+          ],
+          "polygon": [
+            [
+              0.9,
+              0
+            ],
+            [
+              6.2,
+              0
+            ],
+            [
+              6.2,
+              5.6
+            ],
+            [
+              0.9,
+              5.6
+            ],
+            [
+              0.9,
+              0
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": false
+        },
+        "room-living-dining": {
+          "id": "room-living-dining",
+          "name": "S\u00e9jour / Repas (Living / Dining)",
+          "type": "living_room",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "centroid": [
+            4.8,
+            6.16
+          ],
+          "polygon": [
+            [
+              4,
+              5.6
+            ],
+            [
+              6,
+              5.6
+            ],
+            [
+              6,
+              7
+            ],
+            [
+              4,
+              7
+            ],
+            [
+              4,
+              5.6
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": true
+        }
+      },
+      "brahmasthan": {
+        "status": "OBSTRUCTED",
+        "exact_center": [
+          5.0,
+          6.6
+        ],
+        "tolerance": 0.05,
+        "obstructing_objects": [
+          "S\u00e9jour / Repas (Living / Dining)"
+        ],
+        "obstructing_rooms": [
+          "S\u00e9jour / Repas (Living / Dining)"
+        ]
+      },
+      "dwara_sthana": {
+        "house_type": "Vittada",
+        "classification": "GOOD",
+        "directions": [
+          "EAST",
+          "NORTH",
+          "SOUTH"
+        ],
+        "traditional_result": "Wealth and money"
+      },
+      "main_entrance": {
+        "identified": true,
+        "door_id": "door-main-living",
+        "sector": "NORTH_WEST",
+        "classification": "UNSUITABLE"
+      },
+      "bounding_box": {
+        "min_x": 0,
+        "max_x": 10,
+        "min_y": 0,
+        "max_y": 13.2,
+        "width": 10,
+        "height": 13.2,
+        "area_sqft": 132.0
+      },
+      "rule_details": {
+        "vsai.brahmasthan.exact_center": {
+          "status": "FAIL",
+          "exact_center": [
+            5.0,
+            6.6
+          ],
+          "tolerance": 0.05,
+          "obstructing_objects_count": 1,
+          "obstructing_objects": [
+            {
+              "id": "room-living-dining",
+              "name": "S\u00e9jour / Repas (Living / Dining)",
+              "type": "room"
+            }
+          ]
+        },
+        "vsai.dwara_sthana.combination": {
+          "house_type": "Vittada",
+          "classification": "GOOD",
+          "directions": [
+            "EAST",
+            "NORTH",
+            "SOUTH"
+          ],
+          "traditional_result": "Wealth and money",
+          "doors_count": 3,
+          "door_details": [
+            {
+              "id": "door-main-living",
+              "name": "Main Entrance",
+              "cardinal_direction": "SOUTH",
+              "sector": "NORTH_WEST",
+              "is_main_entrance": true
+            },
+            {
+              "id": "door-kitchen-terrace",
+              "name": "Kitchen / Terrace Door",
+              "cardinal_direction": "EAST",
+              "sector": "EAST",
+              "is_main_entrance": false
+            },
+            {
+              "id": "door-hall-garage",
+              "name": "Hall / Garage Door",
+              "cardinal_direction": "NORTH",
+              "sector": "CENTER",
+              "is_main_entrance": false
+            }
+          ]
+        },
+        "vsai.main_entrance.direction": {
+          "identified": true,
+          "door_id": "door-main-living",
+          "door_name": "Main Entrance",
+          "sector": "NORTH_WEST",
+          "classification": "UNSUITABLE"
+        },
+        "vsai.room.direction": {
+          "evaluated_rooms_count": 6
+        }
+      }
+    }
+  },
+  "interior_layout": {},
+  "exterior_landscape": {},
+  "processing": {
+    "gab_gen": {
+      "status": "pending"
+    },
+    "vsai_rectifier": {
+      "status": "completed"
+    },
+    "esai_engine": {
+      "status": "pending"
+    },
+    "elia_engine": {
+      "status": "pending"
+    }
+  },
+  "test_metadata": {
+    "source_image": "User-uploaded ground-floor plan",
+    "purpose": "Approximate test input for the four current Vastu rule groups",
+    "limitations": [
+      "Room polygons and dimensions are approximated from the image, not extracted from CAD.",
+      "The image does not show a clear north arrow; North=top is assumed for testing only.",
+      "Door locations and directions should be confirmed before interpreting the results as accurate.",
+      "This JSON is for software testing, not construction."
+    ]
+  }
+}

@@ -1,0 +1,461 @@
+{
+  "project_id": "PRJ-071-001",
+  "project_name": "Ground Floor Architectural Plan 71",
+  "schema_version": "1.0",
+  "land_info": {
+    "orientation": null,
+    "road_facing": null,
+    "area_sqft": null
+  },
+  "floor_plan": {
+    "id": "FP-071-001",
+    "name": "Ground Floor Plan",
+    "units": "mm",
+    "coordinate_system": {
+      "origin": "top_left",
+      "x_axis": "right",
+      "y_axis": "down"
+    },
+    "dimensions": {
+      "width": 10550,
+      "height": 15900
+    },
+    "boundary": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          0,
+          0
+        ],
+        [
+          10550,
+          0
+        ],
+        [
+          10550,
+          15900
+        ],
+        [
+          3276,
+          15900
+        ],
+        [
+          3276,
+          10289
+        ],
+        [
+          2761,
+          10289
+        ],
+        [
+          2761,
+          7329
+        ],
+        [
+          0,
+          7329
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    "rooms": [
+      {
+        "id": "room-01",
+        "name": "Garage",
+        "type": "garage",
+        "polygon": [
+          [
+            206,
+            248
+          ],
+          [
+            5811,
+            248
+          ],
+          [
+            5811,
+            3147
+          ],
+          [
+            206,
+            3147
+          ]
+        ],
+        "dimensions": {
+          "width": 5605,
+          "height": 2899
+        },
+        "area_sqm": 17.23
+      },
+      {
+        "id": "room-02",
+        "name": "Bedroom 2",
+        "type": "bedroom",
+        "polygon": [
+          [
+            6099,
+            248
+          ],
+          [
+            10262,
+            248
+          ],
+          [
+            10262,
+            3064
+          ],
+          [
+            6965,
+            3064
+          ],
+          [
+            6965,
+            3333
+          ],
+          [
+            6099,
+            3333
+          ]
+        ],
+        "dimensions": {
+          "width": 4163,
+          "height": 3085
+        },
+        "area_sqm": 11.36
+      },
+      {
+        "id": "room-03",
+        "name": "Bedroom 3",
+        "type": "bedroom",
+        "polygon": [
+          [
+            227,
+            3416
+          ],
+          [
+            4925,
+            3416
+          ],
+          [
+            4925,
+            6211
+          ],
+          [
+            3565,
+            6211
+          ],
+          [
+            3565,
+            6894
+          ],
+          [
+            227,
+            6894
+          ]
+        ],
+        "dimensions": {
+          "width": 4698,
+          "height": 3478
+        },
+        "area_sqm": 15.05
+      },
+      {
+        "id": "room-04",
+        "name": "Bathroom",
+        "type": "bathroom",
+        "polygon": [
+          [
+            7006,
+            3126
+          ],
+          [
+            10262,
+            3126
+          ],
+          [
+            10262,
+            4865
+          ],
+          [
+            7006,
+            4865
+          ]
+        ],
+        "dimensions": {
+          "width": 3256,
+          "height": 1739
+        },
+        "area_sqm": 6.09
+      },
+      {
+        "id": "room-05",
+        "name": "Bedroom 1",
+        "type": "bedroom",
+        "polygon": [
+          [
+            5934,
+            4948
+          ],
+          [
+            10262,
+            4948
+          ],
+          [
+            10262,
+            7722
+          ],
+          [
+            5934,
+            7722
+          ]
+        ],
+        "dimensions": {
+          "width": 4328,
+          "height": 2774
+        },
+        "area_sqm": 12.28
+      },
+      {
+        "id": "room-06",
+        "name": "WC",
+        "type": "toilet",
+        "polygon": [
+          [
+            3606,
+            6273
+          ],
+          [
+            4945,
+            6273
+          ],
+          [
+            4945,
+            8198
+          ],
+          [
+            4121,
+            8198
+          ],
+          [
+            4121,
+            7288
+          ],
+          [
+            3606,
+            7288
+          ]
+        ],
+        "dimensions": {
+          "width": 1339,
+          "height": 1925
+        },
+        "area_sqm": 1.9
+      },
+      {
+        "id": "room-07",
+        "name": "Hall / Passage",
+        "type": "hallway",
+        "polygon": [
+          [
+            5007,
+            3375
+          ],
+          [
+            6944,
+            3375
+          ],
+          [
+            6944,
+            4410
+          ],
+          [
+            5914,
+            4410
+          ],
+          [
+            5914,
+            7743
+          ],
+          [
+            6553,
+            7743
+          ],
+          [
+            6553,
+            9544
+          ],
+          [
+            5873,
+            9544
+          ],
+          [
+            5873,
+            9565
+          ],
+          [
+            4100,
+            9565
+          ],
+          [
+            4100,
+            8240
+          ],
+          [
+            4987,
+            8240
+          ],
+          [
+            4987,
+            3375
+          ]
+        ],
+        "dimensions": {
+          "width": 2844,
+          "height": 6190
+        },
+        "area_sqm": 8.89
+      },
+      {
+        "id": "room-08",
+        "name": "Porch",
+        "type": "porch",
+        "polygon": [
+          [
+            2782,
+            7432
+          ],
+          [
+            3276,
+            7432
+          ],
+          [
+            3276,
+            9772
+          ],
+          [
+            2782,
+            9772
+          ]
+        ],
+        "dimensions": {
+          "width": 494,
+          "height": 2340
+        },
+        "area_sqm": 1.2
+      },
+      {
+        "id": "room-09",
+        "name": "Storage Closet",
+        "type": "closet",
+        "polygon": [
+          [
+            4142,
+            9586
+          ],
+          [
+            5852,
+            9586
+          ],
+          [
+            5852,
+            10289
+          ],
+          [
+            4142,
+            10289
+          ]
+        ],
+        "dimensions": {
+          "width": 1710,
+          "height": 703
+        }
+      },
+      {
+        "id": "room-10",
+        "name": "Kitchen",
+        "type": "kitchen",
+        "polygon": [
+          [
+            3606,
+            10352
+          ],
+          [
+            6470,
+            10352
+          ],
+          [
+            6470,
+            15589
+          ],
+          [
+            3606,
+            15589
+          ]
+        ],
+        "dimensions": {
+          "width": 2864,
+          "height": 5237
+        },
+        "area_sqm": 14.96
+      },
+      {
+        "id": "room-11",
+        "name": "Dining / Living Room",
+        "type": "living_dining",
+        "polygon": [
+          [
+            6553,
+            7764
+          ],
+          [
+            10241,
+            7764
+          ],
+          [
+            10241,
+            15589
+          ],
+          [
+            6553,
+            15589
+          ]
+        ],
+        "dimensions": {
+          "width": 3688,
+          "height": 7825
+        },
+        "area_sqm": 30.41
+      }
+    ],
+    "structural_elements": [
+      {
+        "id": "col-01",
+        "type": "column",
+        "polygon": [
+          [
+            7233,
+            7764
+          ],
+          [
+            7624,
+            7764
+          ],
+          [
+            7624,
+            8198
+          ],
+          [
+            7233,
+            8198
+          ]
+        ]
+      }
+    ],
+    "geometry_accuracy": "approximate_from_image",
+    "area_note": "area_sqm values are copied from labels on the drawing, except Storage Closet (no area stated). Dimensions and polygons are visual estimates, not CAD survey measurements.",
+    "source_plan_scale": "1:100"
+  }
+}

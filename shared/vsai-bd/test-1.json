@@ -1,0 +1,420 @@
+{
+  "project_id": "test-1",
+  "project_name": "Test Project",
+  "schema_version": "1.0",
+  "land_info": {
+    "orientation": "north"
+  },
+  "buildable_footprint": {},
+  "floor_plan": {
+    "rooms": [
+      {
+        "id": "r1",
+        "name": "Kitchen",
+        "type": "kitchen",
+        "polygon": [
+          [
+            5.0,
+            5.0
+          ],
+          [
+            25.0,
+            5.0
+          ],
+          [
+            25.0,
+            25.0
+          ],
+          [
+            5.0,
+            25.0
+          ]
+        ]
+      },
+      {
+        "id": "r2",
+        "name": "Living",
+        "type": "living",
+        "polygon": [
+          [
+            25.0,
+            5.0
+          ],
+          [
+            55.0,
+            5.0
+          ],
+          [
+            55.0,
+            25.0
+          ],
+          [
+            25.0,
+            25.0
+          ]
+        ]
+      }
+    ]
+  },
+  "structural_rectification": {
+    "status": "completed",
+    "baseline_score": 58,
+    "rectified_score": 58,
+    "score_delta": 0,
+    "baseline_floor_plan": {
+      "rooms": [
+        {
+          "id": "r1",
+          "name": "Kitchen",
+          "type": "kitchen",
+          "polygon": [
+            [
+              5.0,
+              5.0
+            ],
+            [
+              25.0,
+              5.0
+            ],
+            [
+              25.0,
+              25.0
+            ],
+            [
+              5.0,
+              25.0
+            ]
+          ]
+        },
+        {
+          "id": "r2",
+          "name": "Living",
+          "type": "living",
+          "polygon": [
+            [
+              25.0,
+              5.0
+            ],
+            [
+              55.0,
+              5.0
+            ],
+            [
+              55.0,
+              25.0
+            ],
+            [
+              25.0,
+              25.0
+            ]
+          ]
+        }
+      ]
+    },
+    "rectified_floor_plan": {
+      "rooms": [
+        {
+          "id": "r1",
+          "name": "Kitchen",
+          "type": "kitchen",
+          "polygon": [
+            [
+              5.0,
+              5.0
+            ],
+            [
+              25.0,
+              5.0
+            ],
+            [
+              25.0,
+              25.0
+            ],
+            [
+              5.0,
+              25.0
+            ]
+          ]
+        },
+        {
+          "id": "r2",
+          "name": "Living",
+          "type": "living",
+          "polygon": [
+            [
+              25.0,
+              5.0
+            ],
+            [
+              55.0,
+              5.0
+            ],
+            [
+              55.0,
+              25.0
+            ],
+            [
+              25.0,
+              25.0
+            ]
+          ]
+        }
+      ],
+      "structural_elements": []
+    },
+    "modifications": [],
+    "applied_modifications_count": 0,
+    "post_rectification_analysis": {
+      "score": 58,
+      "grade": "B",
+      "grade_description": "Moderate Vastu Harmony: Key elemental or directional rectifications needed.",
+      "good_aspects": [
+        {
+          "rule_id": "vsai.dwara_sthana.combination",
+          "title": "Dwara Sthana: Dhruva Combination (VERY_GOOD)",
+          "room_id": null,
+          "room_name": "Doors",
+          "sector": "CENTER",
+          "sector_display": "Global House Doors",
+          "polygon": null,
+          "description": "House has no door representations detected. Traditional Dwara Sthana classification: Dhruva (VERY_GOOD) \u2014 Wealth, grain and prosperity.",
+          "points_earned": 25
+        },
+        {
+          "rule_id": "vsai.main_entrance.direction",
+          "title": "Main Entrance: Pending Designation",
+          "room_id": null,
+          "room_name": "Main Entrance",
+          "sector": "NORTH",
+          "sector_display": "Entrance Sector Pending",
+          "polygon": null,
+          "description": "No doors are represented in the floor plan to evaluate main entrance direction. Stage 1 analysis requires explicit door representations.",
+          "points_earned": 15
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Living - Auspicious Sector (East (Purva / Indra))",
+          "room_id": "r2",
+          "room_name": "Living",
+          "sector": "EAST",
+          "sector_display": "East (Purva / Indra)",
+          "polygon": [
+            [
+              25.0,
+              5.0
+            ],
+            [
+              55.0,
+              5.0
+            ],
+            [
+              55.0,
+              25.0
+            ],
+            [
+              25.0,
+              25.0
+            ]
+          ],
+          "description": "Living is ideally positioned in East (Purva / Indra), which is the primary auspicious sector for Living Room in Vastu Shastra.",
+          "points_earned": 12.5
+        }
+      ],
+      "defects": [
+        {
+          "rule_id": "vsai.brahmasthan.exact_center",
+          "title": "Brahmasthan Exact Center Point Obstructed",
+          "severity": "CRITICAL",
+          "room_id": null,
+          "room_name": "Room 'Living'",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "polygon": null,
+          "description": "The exact Brahmasthan center point (30.00, 15.00) is occupied or intersected by 1 represented spatial object(s): Room 'Living'.",
+          "remedy": "Ensure the exact plan center point (Brahmasthan core) is left completely free and open. Relocate load-bearing walls, structural columns, pillars, staircases, and enclosed partitions away from the center coordinate.",
+          "points_deducted": 25
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Kitchen Sub-Optimal Placement (West (Pashchima / Varuna))",
+          "severity": "MEDIUM",
+          "room_id": "r1",
+          "room_name": "Kitchen",
+          "sector": "WEST",
+          "sector_display": "West (Pashchima / Varuna)",
+          "polygon": [
+            [
+              5.0,
+              5.0
+            ],
+            [
+              25.0,
+              5.0
+            ],
+            [
+              25.0,
+              25.0
+            ],
+            [
+              5.0,
+              25.0
+            ]
+          ],
+          "description": "Kitchen is located in West (Pashchima / Varuna). Recommended preferred directions are SOUTH_EAST.",
+          "remedy": "Relocate cooking stove towards South-East (Agneya) or North-West (Vayavya).",
+          "points_deducted": 7.5
+        }
+      ],
+      "total_rules_evaluated": 4,
+      "passed_rules_count": 3,
+      "failed_rules_count": 2,
+      "room_sectors": {
+        "r1": {
+          "id": "r1",
+          "name": "Kitchen",
+          "type": "kitchen",
+          "sector": "WEST",
+          "sector_display": "West (Pashchima / Varuna)",
+          "centroid": [
+            15.0,
+            15.0
+          ],
+          "polygon": [
+            [
+              5.0,
+              5.0
+            ],
+            [
+              25.0,
+              5.0
+            ],
+            [
+              25.0,
+              25.0
+            ],
+            [
+              5.0,
+              25.0
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": false
+        },
+        "r2": {
+          "id": "r2",
+          "name": "Living",
+          "type": "living",
+          "sector": "EAST",
+          "sector_display": "East (Purva / Indra)",
+          "centroid": [
+            40.0,
+            15.0
+          ],
+          "polygon": [
+            [
+              25.0,
+              5.0
+            ],
+            [
+              55.0,
+              5.0
+            ],
+            [
+              55.0,
+              25.0
+            ],
+            [
+              25.0,
+              25.0
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": true
+        }
+      },
+      "brahmasthan": {
+        "status": "OBSTRUCTED",
+        "exact_center": [
+          30.0,
+          15.0
+        ],
+        "tolerance": 0.05,
+        "obstructing_objects": [
+          "Living"
+        ],
+        "obstructing_rooms": [
+          "Living"
+        ]
+      },
+      "dwara_sthana": {
+        "house_type": "Dhruva",
+        "classification": "VERY_GOOD",
+        "directions": [],
+        "traditional_result": "Wealth, grain and prosperity"
+      },
+      "main_entrance": {
+        "identified": false,
+        "door_id": null,
+        "sector": null,
+        "classification": null
+      },
+      "bounding_box": {
+        "min_x": 5.0,
+        "max_x": 55.0,
+        "min_y": 5.0,
+        "max_y": 25.0,
+        "width": 50.0,
+        "height": 20.0,
+        "area_sqft": 1000.0
+      },
+      "rule_details": {
+        "vsai.brahmasthan.exact_center": {
+          "status": "FAIL",
+          "exact_center": [
+            30.0,
+            15.0
+          ],
+          "tolerance": 0.05,
+          "obstructing_objects_count": 1,
+          "obstructing_objects": [
+            {
+              "id": "r2",
+              "name": "Living",
+              "type": "room"
+            }
+          ]
+        },
+        "vsai.dwara_sthana.combination": {
+          "house_type": "Dhruva",
+          "classification": "VERY_GOOD",
+          "directions": [],
+          "traditional_result": "Wealth, grain and prosperity",
+          "doors_count": 0
+        },
+        "vsai.main_entrance.direction": {
+          "identified": false,
+          "reason": "No door representations present."
+        },
+        "vsai.room.direction": {
+          "evaluated_rooms_count": 2
+        }
+      }
+    }
+  },
+  "interior_layout": {},
+  "exterior_landscape": {},
+  "processing": {
+    "gab_gen": {
+      "status": "pending"
+    },
+    "vsai_rectifier": {
+      "status": "completed"
+    },
+    "esai_engine": {
+      "status": "pending"
+    },
+    "elia_engine": {
+      "status": "pending"
+    }
+  }
+}

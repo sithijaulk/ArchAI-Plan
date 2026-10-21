@@ -1,0 +1,1 @@
+{"project_id": "test-offline-1", "project_name": "Offline House", "floor_plan": {"rooms": [{"id": "r1", "polygon": [[0, 0], [1, 0], [1, 1], [0, 1]]}]}}
