@@ -46,6 +46,8 @@ class Settings(BaseSettings):
                 self.database_url = self.database_url.replace("postgres://", "postgresql+psycopg2://", 1)
             elif self.database_url.startswith("postgresql://") and not self.database_url.startswith("postgresql+"):
                 self.database_url = self.database_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+            elif self.database_url.startswith("mysql+pymysql://"):
+                pass
         return self
 
 
