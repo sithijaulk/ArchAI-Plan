@@ -1,5 +1,6 @@
 "use client"
-import React, { useRef, useState } from 'react'
+
+import React, { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useProjectStore } from '@/store/projectStore'
 import { projectsApi } from '@/lib/api/projects'
@@ -8,7 +9,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card'
 import { ArrowRight, Upload, CheckCircle2, Compass, Home, Sparkles, Loader2, FileJson } from 'lucide-react'
-
 import { SpatialSummary } from '@/types/project'
 
 interface UploadResult {
@@ -22,6 +22,7 @@ export default function StartProjectPage() {
   const { createProject, loadProject } = useProjectStore()
   const [projectName, setProjectName] = useState('')
   const [description, setDescription] = useState('')
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [isUploading, setIsUploading] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
@@ -30,13 +31,16 @@ export default function StartProjectPage() {
 
   const handleCreateNew = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!projectName.trim()) return
+    if (!projectName.trim() || loading) return
     setError('')
+    setLoading(true)
     try {
-      await createProject(projectName, description)
+      await createProject(projectName.trim(), description.trim() || undefined)
       router.push('/features/gab-gen')
     } catch {
       setError('Unable to create the project. Check the API connection and try again.')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -97,9 +101,13 @@ export default function StartProjectPage() {
 
   return (
     <div className="container px-4 py-16 min-h-[85vh] flex flex-col items-center justify-center">
-      <div className="text-center mb-10">
-        <h1 className="text-4xl font-bold mb-3">Start a Project</h1>
-        <p className="text-muted-foreground max-w-xl mx-auto">
+      <div className="text-center mb-10 max-w-xl">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-xs font-medium text-primary mb-4">
+          <Sparkles className="w-3.5 h-3.5" />
+          Multi-Agent Spatial AI Workflow
+        </div>
+        <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-3">Start a Project</h1>
+        <p className="text-muted-foreground text-base leading-relaxed">
           Begin a new spatial analysis workflow from scratch or continue from an existing Master JSON file.
         </p>
       </div>
@@ -144,7 +152,7 @@ export default function StartProjectPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="p-3 rounded-lg bg-muted/40 border border-border/40">
                 <div className="text-xs text-muted-foreground flex items-center gap-1.5 mb-1">
-                  <Compass className="w-4 h-4 text-primary" /> Orientation & Road
+                  <Compass className="w-4 h-4 text-primary" /> Orientation &amp; Road
                 </div>
                 <div className="font-medium text-sm">
                   {uploadResult.spatial_summary.orientation}
@@ -220,28 +228,51 @@ export default function StartProjectPage() {
           <form onSubmit={handleCreateNew}>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="projectName">Project Name</Label>
+                <Label htmlFor="projectName" className="text-sm font-medium">
+                  Project Name <span className="text-primary">*</span>
+                </Label>
                 <Input 
                   id="projectName" 
                   placeholder="e.g. Villa Nova Phase 1" 
                   value={projectName}
                   onChange={(e) => setProjectName(e.target.value)}
+                  disabled={loading}
                   required
+                  autoFocus
+                  className="bg-background/50"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="description">Description (Optional)</Label>
+                <Label htmlFor="description" className="text-sm font-medium">
+                  Description <span className="text-xs text-muted-foreground">(Optional)</span>
+                </Label>
                 <Input 
                   id="description" 
                   placeholder="Brief description of the project"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
+                  disabled={loading}
+                  className="bg-background/50"
                 />
               </div>
             </CardContent>
-            <CardFooter>
-              <Button type="submit" className="w-full electric-glow" disabled={!projectName.trim()}>
-                Create & Continue to GAB-Gen <ArrowRight className="w-4 h-4 ml-2" />
+            <CardFooter className="pt-2 pb-6">
+              <Button 
+                type="submit" 
+                className="w-full electric-glow text-base py-5"
+                disabled={!projectName.trim() || loading}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Initializing GAB-Gen...
+                  </>
+                ) : (
+                  <>
+                    Create &amp; Continue to GAB-Gen
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </>
+                )}
               </Button>
             </CardFooter>
           </form>
