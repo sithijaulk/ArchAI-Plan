@@ -6,8 +6,8 @@ from .config import settings
 logger = logging.getLogger(__name__)
 
 # Validate PostgreSQL connection string
-if not (settings.database_url.startswith("postgresql://") or settings.database_url.startswith("postgresql+psycopg2://")):
-    raise RuntimeError("DATABASE_URL must use the PostgreSQL psycopg2 driver (e.g. postgresql+psycopg2://...)")
+if not (settings.database_url.startswith("postgresql://") or settings.database_url.startswith("postgresql+")):
+    raise RuntimeError("DATABASE_URL must use PostgreSQL (e.g. postgresql+psycopg2://...)")
 
 engine = create_engine(
     settings.database_url,
