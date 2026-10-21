@@ -51,6 +51,14 @@ export const RequirementsForm: React.FC<RequirementsFormProps> = ({
     });
   };
 
+  const updateRegulatoryBatch = (updates: Partial<RegulatoryContext>) => {
+    const reg = requirements.regulatory_context || { jurisdiction_id: 'sri_lanka_uda_standard' };
+    onChange({
+      ...requirements,
+      regulatory_context: { ...reg, ...updates }
+    });
+  };
+
   const addRoom = (type: string = 'bedroom') => {
     const option = COMMON_ROOM_OPTIONS.find(o => o.type === type);
     const newRoom: RoomRequirement = {
@@ -130,12 +138,15 @@ export const RequirementsForm: React.FC<RequirementsFormProps> = ({
             <select
               value={requirements.regulatory_context?.province || ''}
               onChange={(e) => {
-                updateRegulatory('province', e.target.value);
-                updateRegulatory('district', '');
-                updateRegulatory('local_authority_name', '');
-                updateRegulatory('local_authority_type', '');
+                const newProv = e.target.value;
+                updateRegulatoryBatch({
+                  province: newProv,
+                  district: '',
+                  local_authority_name: '',
+                  local_authority_type: ''
+                });
               }}
-              className="w-full px-2 py-1.5 text-xs bg-background border border-border rounded text-foreground"
+              className="w-full px-2 py-1.5 text-xs bg-background border border-border rounded text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary"
             >
               <option value="">Select Province</option>
               <option value="Western">Western (47 Verified Councils)</option>
@@ -149,11 +160,15 @@ export const RequirementsForm: React.FC<RequirementsFormProps> = ({
             <select
               value={requirements.regulatory_context?.district || ''}
               onChange={(e) => {
-                updateRegulatory('district', e.target.value);
-                updateRegulatory('local_authority_name', '');
-                updateRegulatory('local_authority_type', '');
+                const newDist = e.target.value;
+                updateRegulatoryBatch({
+                  district: newDist,
+                  local_authority_name: '',
+                  local_authority_type: ''
+                });
               }}
-              className="w-full px-2 py-1.5 text-xs bg-background border border-border rounded text-foreground"
+              disabled={!requirements.regulatory_context?.province}
+              className="w-full px-2 py-1.5 text-xs bg-background border border-border rounded text-foreground cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-1 focus:ring-primary"
             >
               <option value="">Select District</option>
               {requirements.regulatory_context?.province && SRI_LANKA_ADMIN_DATA[requirements.regulatory_context.province] &&
@@ -173,12 +188,13 @@ export const RequirementsForm: React.FC<RequirementsFormProps> = ({
                 const prov = requirements.regulatory_context?.province || 'Western';
                 const dist = requirements.regulatory_context?.district || '';
                 const authObj = SRI_LANKA_ADMIN_DATA[prov]?.districts[dist]?.authorities.find(a => a.name === selectedName);
-                updateRegulatory('local_authority_name', selectedName);
-                if (authObj) {
-                  updateRegulatory('local_authority_type', authObj.type);
-                }
+                updateRegulatoryBatch({
+                  local_authority_name: selectedName,
+                  local_authority_type: authObj?.type || ''
+                });
               }}
-              className="w-full px-2 py-1.5 text-xs bg-background border border-border rounded text-foreground"
+              disabled={!requirements.regulatory_context?.district}
+              className="w-full px-2 py-1.5 text-xs bg-background border border-border rounded text-foreground cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-1 focus:ring-primary"
             >
               <option value="">Select Authority</option>
               {requirements.regulatory_context?.province && requirements.regulatory_context?.district &&
@@ -653,11 +669,11 @@ export const RequirementsForm: React.FC<RequirementsFormProps> = ({
             </div>
           </div>
         ) : (
-          <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
+          <div className="space-y-2 max-h-[380px] overflow-y-auto overflow-x-hidden pr-1">
             {requirements.rooms.map((room) => (
               <div
                 key={room.id}
-                className="flex items-center gap-2 p-2.5 rounded-lg bg-card border border-border text-xs"
+                className="flex flex-wrap sm:flex-nowrap items-center gap-2 p-2.5 rounded-lg bg-card border border-border text-xs"
               >
                 <select
                   value={room.type}
@@ -669,7 +685,7 @@ export const RequirementsForm: React.FC<RequirementsFormProps> = ({
                       preferred_min_area: opt?.defaultArea || 10
                     });
                   }}
-                  className="bg-background border border-border rounded px-2 py-1 text-foreground max-w-[130px]"
+                  className="bg-background border border-border rounded px-2 py-1 text-foreground min-w-[120px] max-w-[140px] shrink-0"
                 >
                   {COMMON_ROOM_OPTIONS.map((opt) => (
                     <option key={opt.type} value={opt.type}>
@@ -678,7 +694,7 @@ export const RequirementsForm: React.FC<RequirementsFormProps> = ({
                   ))}
                 </select>
 
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 shrink-0">
                   <span className="text-[10px] text-muted-foreground">Qty:</span>
                   <input
                     type="number"
@@ -690,7 +706,7 @@ export const RequirementsForm: React.FC<RequirementsFormProps> = ({
                   />
                 </div>
 
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 shrink-0">
                   <span className="text-[10px] text-muted-foreground">Min:</span>
                   <input
                     type="number"
@@ -707,7 +723,7 @@ export const RequirementsForm: React.FC<RequirementsFormProps> = ({
                   <select
                     value={String(room.floor_preference)}
                     onChange={(e) => updateRoom(room.id, { floor_preference: e.target.value })}
-                    className="bg-background border border-border rounded px-2 py-1 text-foreground text-[11px]"
+                    className="bg-background border border-border rounded px-2 py-1 text-foreground text-[11px] shrink-0"
                   >
                     <option value="auto">Auto Floor</option>
                     {Array.from({ length: requirements.storey_count }).map((_, fIdx) => (
@@ -718,11 +734,11 @@ export const RequirementsForm: React.FC<RequirementsFormProps> = ({
                   </select>
                 )}
 
-                <div className="ml-auto flex items-center gap-1">
+                <div className="ml-auto flex items-center gap-1.5 shrink-0">
                   <button
                     type="button"
                     onClick={() => updateRoom(room.id, { required: !room.required })}
-                    className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                    className={`px-2 py-1 rounded text-[10px] font-medium transition-colors ${
                       room.required ? "bg-primary/20 text-primary border border-primary/30" : "bg-muted text-muted-foreground"
                     }`}
                   >
@@ -733,7 +749,7 @@ export const RequirementsForm: React.FC<RequirementsFormProps> = ({
                     variant="ghost"
                     size="sm"
                     onClick={() => removeRoom(room.id)}
-                    className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                    className="h-7 w-7 p-0 shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </Button>
@@ -819,7 +835,7 @@ export const RequirementsForm: React.FC<RequirementsFormProps> = ({
         ) : (
           <div className="space-y-2">
             {requirements.adjacencies.map((adj, aIdx) => (
-              <div key={adj.adjacency_id} className="flex flex-wrap items-center gap-2 p-2.5 rounded-lg bg-card/60 border border-border/80 text-xs">
+              <div key={adj.adjacency_id || aIdx} className="flex flex-wrap sm:flex-nowrap items-center gap-2 p-2.5 rounded-lg bg-card/60 border border-border/80 text-xs">
                 {/* Source Room */}
                 <select
                   value={adj.source_room_id}
@@ -828,7 +844,7 @@ export const RequirementsForm: React.FC<RequirementsFormProps> = ({
                     updated[aIdx] = { ...updated[aIdx], source_room_id: e.target.value };
                     onChange({ ...requirements, adjacencies: updated });
                   }}
-                  className="bg-background border border-border rounded px-2 py-1 text-foreground text-[11px]"
+                  className="bg-background border border-border rounded px-2 py-1 text-foreground text-[11px] shrink-0"
                 >
                   {requirements.rooms.map((r) => (
                     <option key={r.id} value={r.id}>
@@ -837,7 +853,7 @@ export const RequirementsForm: React.FC<RequirementsFormProps> = ({
                   ))}
                 </select>
 
-                <span className="text-muted-foreground text-[10px]">should be</span>
+                <span className="text-muted-foreground text-[10px] shrink-0">should be</span>
 
                 {/* Relationship */}
                 <select
@@ -847,7 +863,7 @@ export const RequirementsForm: React.FC<RequirementsFormProps> = ({
                     updated[aIdx] = { ...updated[aIdx], relationship: e.target.value as any };
                     onChange({ ...requirements, adjacencies: updated });
                   }}
-                  className="bg-background border border-border rounded px-2 py-1 text-foreground text-[11px] font-medium"
+                  className="bg-background border border-border rounded px-2 py-1 text-foreground text-[11px] font-medium shrink-0"
                 >
                   <option value="direct_access">Direct Door Access</option>
                   <option value="shared_boundary">Shared Wall Boundary</option>
@@ -857,7 +873,7 @@ export const RequirementsForm: React.FC<RequirementsFormProps> = ({
                   <option value="must_not_directly_connect">Must Not Directly Connect</option>
                 </select>
 
-                <span className="text-muted-foreground text-[10px]">to</span>
+                <span className="text-muted-foreground text-[10px] shrink-0">to</span>
 
                 {/* Target Room */}
                 <select
@@ -867,7 +883,7 @@ export const RequirementsForm: React.FC<RequirementsFormProps> = ({
                     updated[aIdx] = { ...updated[aIdx], target_room_id: e.target.value };
                     onChange({ ...requirements, adjacencies: updated });
                   }}
-                  className="bg-background border border-border rounded px-2 py-1 text-foreground text-[11px]"
+                  className="bg-background border border-border rounded px-2 py-1 text-foreground text-[11px] shrink-0"
                 >
                   {requirements.rooms.map((r) => (
                     <option key={r.id} value={r.id}>
@@ -876,35 +892,37 @@ export const RequirementsForm: React.FC<RequirementsFormProps> = ({
                   ))}
                 </select>
 
-                {/* Mandatory / Soft Toggle */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const updated = [...(requirements.adjacencies || [])];
-                    updated[aIdx] = { ...updated[aIdx], is_hard_constraint: !updated[aIdx].is_hard_constraint };
-                    onChange({ ...requirements, adjacencies: updated });
-                  }}
-                  className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ml-auto ${
-                    adj.is_hard_constraint ? "bg-amber-500/20 text-amber-500 border border-amber-500/30" : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {adj.is_hard_constraint ? 'Hard Constraint' : 'Soft Preference'}
-                </button>
+                <div className="ml-auto flex items-center gap-1.5 shrink-0">
+                  {/* Mandatory / Soft Toggle */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const updated = [...(requirements.adjacencies || [])];
+                      updated[aIdx] = { ...updated[aIdx], is_hard_constraint: !updated[aIdx].is_hard_constraint };
+                      onChange({ ...requirements, adjacencies: updated });
+                    }}
+                    className={`px-2 py-1 rounded text-[10px] font-medium transition-colors ${
+                      adj.is_hard_constraint ? "bg-amber-500/20 text-amber-500 border border-amber-500/30" : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {adj.is_hard_constraint ? 'Hard Constraint' : 'Soft Preference'}
+                  </button>
 
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    onChange({
-                      ...requirements,
-                      adjacencies: (requirements.adjacencies || []).filter((_, idx) => idx !== aIdx)
-                    });
-                  }}
-                  className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      onChange({
+                        ...requirements,
+                        adjacencies: (requirements.adjacencies || []).filter((_, idx) => idx !== aIdx)
+                      });
+                    }}
+                    className="h-7 w-7 p-0 shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
               </div>
             ))}
           </div>

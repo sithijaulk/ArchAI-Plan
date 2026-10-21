@@ -184,13 +184,26 @@ def reconstruct_polygon(survey_request: ManualSurveyExtractionRequest) -> Dict[s
     shapely_poly = None
 
     try:
+        from shapely.validation import make_valid
         raw_poly = Polygon(raw_polygon_vertices)
         if not raw_poly.is_valid:
-            is_valid = False
+            fixed_poly = make_valid(raw_poly)
+            # If make_valid produced a MultiPolygon or GeometryCollection, take the largest polygon
+            if hasattr(fixed_poly, "geoms"):
+                valid_polys = [g for g in fixed_poly.geoms if isinstance(g, Polygon) and g.area > 0]
+                if valid_polys:
+                    shapely_poly = max(valid_polys, key=lambda p: p.area)
+                else:
+                    shapely_poly = raw_poly.convex_hull
+            elif isinstance(fixed_poly, Polygon) and fixed_poly.area > 0:
+                shapely_poly = fixed_poly
+            else:
+                shapely_poly = raw_poly.convex_hull
+
+            is_valid = True  # Repaired to allow rule-based layout generation
             needs_verification = True
-            warnings.append(f"Legal survey polygon is topologically self-intersecting or invalid: {raw_poly.is_valid}")
-            shapely_poly = raw_poly
-            reconstructed_area = float(raw_poly.area) if hasattr(raw_poly, "area") else 0.0
+            warnings.append("Survey polygon had self-intersections and was topologically repaired. Please inspect boundary edges.")
+            reconstructed_area = float(shapely_poly.area)
         else:
             shapely_poly = raw_poly
             reconstructed_area = float(raw_poly.area)

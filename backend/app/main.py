@@ -9,6 +9,16 @@ from .config import settings
 from .database import Base, engine
 from .routers import auth, gallery, admin_gallery, contact, projects, admin, about, settings as settings_router, elia, gab_gen, vsai_rectifier
 
+import ssl
+try:
+    import certifi
+    ca_bundle = certifi.where()
+    os.environ.setdefault("SSL_CERT_FILE", ca_bundle)
+    os.environ.setdefault("REQUESTS_CA_BUNDLE", ca_bundle)
+    ssl._create_default_https_context = lambda: ssl.create_default_context(cafile=ca_bundle)
+except Exception:
+    pass
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,

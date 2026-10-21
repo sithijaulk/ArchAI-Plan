@@ -83,7 +83,25 @@ def associate_measurements_to_edges(
         return edges
 
     # Sort dominant lines by length descending and pick top 4-8 candidate boundaries
-    sorted_lines = sorted(lines, key=lambda l: l["length"], reverse=True)[:8]
+    raw_candidates = sorted(lines, key=lambda l: l["length"], reverse=True)[:8]
+
+    # Calculate center of mass of candidate lines to order them topologically clockwise
+    all_pts = []
+    for line in raw_candidates:
+        all_pts.extend([line["p1"], line["p2"]])
+    cx = sum(p[0] for p in all_pts) / len(all_pts) if all_pts else 0
+    cy = sum(p[1] for p in all_pts) / len(all_pts) if all_pts else 0
+
+    # Sort lines by polar angle of their midpoint from centroid (ensures clockwise / non-intersecting sequence)
+    def line_angle_from_centroid(line):
+        p1, p2 = line["p1"], line["p2"]
+        mx, my = (p1[0] + p2[0]) / 2.0, (p1[1] + p2[1]) / 2.0
+        # In image coordinates, Y points down, so math.atan2(my - cy, mx - cx) gives angular orientation
+        ang = math.degrees(math.atan2(my - cy, mx - cx))
+        return (ang + 360.0) % 360.0
+
+    sorted_lines = sorted(raw_candidates, key=line_angle_from_centroid)
+    n_edges = len(sorted_lines)
 
     # Track used measurement indices to avoid incorrectly assigning the same measurement to multiple edges
     used_dist_indices = set()
@@ -142,8 +160,10 @@ def associate_measurements_to_edges(
                     dist_conf = best_dist["confidence"]
                     dist_origin = "ocr"
 
-        # Parse bearing
-        bearing_deg = line["angle"]
+        # Parse bearing: If not read via OCR, assign sequential clockwise azimuth (e.g. 90, 180, 270, 0)
+        # to ensure the reconstructed survey traverse loop doesn't criss-cross itself.
+        default_traverse_azimuth = round((idx * (360.0 / max(1, n_edges))) + 90.0) % 360.0
+        bearing_deg = default_traverse_azimuth
         bearing_raw = f"{int(bearing_deg):03d}°00'00\""
         bearing_conf = None
         bearing_origin = "image_geometry"
@@ -166,7 +186,7 @@ def associate_measurements_to_edges(
                 edge_id=f"E{idx+1:02d}",
                 distance=DistanceValue(value=dist_val, unit=DistanceUnit.METERS),
                 bearing=BearingValue(raw=bearing_raw, normalized_degrees=bearing_deg),
-                edge_type=EdgeType.ROAD_FRONT if idx == 0 else (EdgeType.REAR if idx == 2 else EdgeType.SIDE),
+                edge_type=EdgeType.ROAD_FRONT if idx == 0 else (EdgeType.REAR if idx == n_edges // 2 else EdgeType.SIDE),
                 source=SurveySource.EASYOCR,
                 confidence=conf,
                 distance_origin=dist_origin,

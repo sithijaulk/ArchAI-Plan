@@ -28,7 +28,7 @@ export const BlueprintViewer: React.FC<BlueprintViewerProps> = ({
   const [selectedFloor, setSelectedFloor] = useState<number | 'all'>('all');
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [exploded3D, setExploded3D] = useState(false);
-  const [activeTab, setActiveTab] = useState<'2d' | '3d' | 'json'>('2d');
+  const [activeTab, setActiveTab] = useState<'2d' | '3d'>('2d');
   const [editMessage, setEditMessage] = useState<string | null>(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isSelectingCand, setIsSelectingCand] = useState(false);
@@ -269,10 +269,6 @@ export const BlueprintViewer: React.FC<BlueprintViewerProps> = ({
             targetId="gab-2d-canvas"
             disabled={!data}
           />
-          <DownloadJsonButton
-            filename={`${projectName || 'gab'}-master-json.json`}
-            data={data}
-          />
         </div>
       </div>
 
@@ -346,8 +342,6 @@ export const BlueprintViewer: React.FC<BlueprintViewerProps> = ({
         </div>
       )}
 
-
-
       {/* Floor Selector Bar (for Multi-Storey) */}
       {floors.length > 1 && (
         <div className="flex items-center gap-2 bg-card p-1.5 rounded-lg border border-border w-fit text-xs">
@@ -376,18 +370,15 @@ export const BlueprintViewer: React.FC<BlueprintViewerProps> = ({
         </div>
       )}
 
-      {/* Main Preview Tabs: 2D, 3D, and Master JSON Inspector */}
+      {/* Main Preview Tabs: 2D and 3D Viewport */}
       <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="w-full">
         <div className="flex items-center justify-between mb-3">
-          <TabsList className="grid w-64 grid-cols-3">
+          <TabsList className="grid w-48 grid-cols-2">
             <TabsTrigger value="2d" className="text-xs">
               2D Vector
             </TabsTrigger>
             <TabsTrigger value="3d" className="text-xs">
               3D View
-            </TabsTrigger>
-            <TabsTrigger value="json" className="text-xs">
-              Master JSON
             </TabsTrigger>
           </TabsList>
 
@@ -513,14 +504,6 @@ export const BlueprintViewer: React.FC<BlueprintViewerProps> = ({
             selectedFloorIndex={selectedFloor}
             explodedMode={exploded3D}
           />
-        )}
-
-        {activeTab === 'json' && (
-          <div className="bg-card/70 border border-border p-4 rounded-xl min-h-[480px] max-h-[520px] overflow-auto">
-            <pre className="text-xs text-primary-foreground/90 font-mono">
-              {data ? JSON.stringify(data, null, 2) : 'No component output is available yet.'}
-            </pre>
-          </div>
         )}
       </Tabs>
     </div>

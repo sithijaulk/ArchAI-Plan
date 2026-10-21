@@ -1,0 +1,157 @@
+{
+  "project_title": "ArchAI-Plan / GAB-Gen (Geo-Spatial AI Blueprint Generator)",
+  "branch": "feature/gab-gen",
+  "model_information": {
+    "model_name": "CubiCasa5K Experimental XGBoost Regressor (Leakage-Safe Phase 10.6)",
+    "model_version": "1.2.0_leakage_safe",
+    "algorithm": "XGBoost (Extreme Gradient Boosting Regressor)",
+    "model_type": "Regression (NOT Classification)",
+    "training_timestamp": "2026-10-21T07:44:50Z",
+    "target_variable": "ai_proxy_quality_score",
+    "target_origin": "AI_PROXY_NOT_HUMAN_EXPERT",
+    "target_definition": "Deterministic composite architectural geometric heuristic score normalized to [0, 1]",
+    "reproducibility_seed": 42
+  },
+  "performance_criterion_80_percent": {
+    "criterion_metric": "Coefficient of Determination (R²) on strictly held-out test set",
+    "required_threshold": 0.80,
+    "actual_test_r2": 0.97856,
+    "delta_above_threshold": 0.17856,
+    "threshold_status": "PASS",
+    "classification_accuracy_applicable": false,
+    "clarification": "The model is an XGBoost REGRESSOR predicting continuous proxy scores. R² = 0.97856 signifies that 97.86% of the variance in proxy scores is explained by the 24 extracted features. It must NEVER be described as 97.86% classification accuracy or proof of human architectural quality."
+  },
+  "dataset_provenance_and_partitions": {
+    "source_dataset": "CubiCasa5K Architectural Benchmark",
+    "total_samples": 4992,
+    "partition_strategy": "Grouped Split by duplicate_family_id (Zero Family Cross-Split Contamination)",
+    "splits": {
+      "training_set": {
+        "samples": 4203,
+        "percentage": 84.19,
+        "r2_score": 0.99530,
+        "mae": 0.00397,
+        "rmse": 0.00513
+      },
+      "validation_set": {
+        "samples": 395,
+        "percentage": 7.91,
+        "r2_score": 0.99613,
+        "mae": 0.00379,
+        "rmse": 0.00473
+      },
+      "held_out_test_set": {
+        "samples": 394,
+        "percentage": 7.89,
+        "r2_score": 0.97856,
+        "mae": 0.00746,
+        "rmse": 0.01054
+      }
+    },
+    "leakage_audit": {
+      "cross_split_leakage_samples": 0,
+      "cross_split_leakage_families": 0,
+      "status": "VERIFIED_LEAKAGE_FREE"
+    }
+  },
+  "hyperparameters": {
+    "objective": "reg:squarederror",
+    "n_estimators": 200,
+    "max_depth": 5,
+    "learning_rate": 0.05,
+    "subsample": 0.85,
+    "colsample_bytree": 0.85,
+    "random_state": 42,
+    "n_jobs": 2
+  },
+  "baseline_model_comparison": {
+    "xgboost_regressor": {
+      "r2_score": 0.97856,
+      "mae": 0.00746,
+      "rmse": 0.01054
+    },
+    "ridge_regression": {
+      "r2_score": 0.72203,
+      "mae": 0.03091,
+      "rmse": 0.03795
+    },
+    "mean_predictor": {
+      "r2_score": -0.00879,
+      "mae": 0.05599,
+      "rmse": 0.07229
+    },
+    "deterministic_rubric_ground_truth": {
+      "r2_score": 1.0,
+      "mae": 0.0,
+      "rmse": 0.0,
+      "nature": "Exact deterministic generating function (Oracle Reference)"
+    }
+  },
+  "per_category_test_performance": {
+    "high_quality": {
+      "samples": 61,
+      "r2_score": 0.97951,
+      "mae": 0.00747,
+      "rmse": 0.01182
+    },
+    "high_quality_architectural": {
+      "samples": 266,
+      "r2_score": 0.97480,
+      "mae": 0.00755,
+      "rmse": 0.01052
+    },
+    "colorful": {
+      "samples": 67,
+      "r2_score": 0.98688,
+      "mae": 0.00710,
+      "rmse": 0.00932
+    }
+  },
+  "per_complexity_test_performance": {
+    "low_complexity_lt_8_rooms": {
+      "samples": 94,
+      "r2_score": 0.96418,
+      "mae": 0.01014,
+      "rmse": 0.01463
+    },
+    "moderate_complexity_8_15_rooms": {
+      "samples": 182,
+      "r2_score": 0.98210,
+      "mae": 0.00714,
+      "rmse": 0.00975
+    },
+    "high_complexity_gt_15_rooms": {
+      "samples": 118,
+      "r2_score": 0.98701,
+      "mae": 0.00582,
+      "rmse": 0.00733
+    }
+  },
+  "feature_importance_top10": [
+    { "rank": 1, "feature": "room_type_entropy", "gain_importance": 0.41598 },
+    { "rank": 2, "feature": "max_room_aspect_ratio", "gain_importance": 0.14076 },
+    { "rank": 3, "feature": "mean_room_aspect_ratio", "gain_importance": 0.09814 },
+    { "rank": 4, "feature": "living_area_ratio", "gain_importance": 0.05999 },
+    { "rank": 5, "feature": "fenestration_proxy_ratio", "gain_importance": 0.05949 },
+    { "rank": 6, "feature": "bedroom_area_ratio", "gain_importance": 0.04725 },
+    { "rank": 7, "feature": "public_private_separation_proxy", "gain_importance": 0.04623 },
+    { "rank": 8, "feature": "circulation_area_ratio", "gain_importance": 0.01973 },
+    { "rank": 9, "feature": "service_clustering_proxy", "gain_importance": 0.01861 },
+    { "rank": 10, "feature": "room_door_connectivity_ratio", "gain_importance": 0.01604 }
+  ],
+  "domain_transfer_gab_gen": {
+    "pilot_packages_count": 4,
+    "mean_absolute_error": 0.0159,
+    "root_mean_squared_error": 0.0175,
+    "packages": [
+      { "package_id": "PKG-00D23EBC9727", "candidate_id": "cand_01", "strategy": "default", "target": 0.5182, "pred": 0.5339, "diff": 0.0157 },
+      { "package_id": "PKG-37EDA8BFC73F", "candidate_id": "cand_01", "strategy": "default", "target": 0.5759, "pred": 0.5622, "diff": -0.0137 },
+      { "package_id": "PKG-8A8AB44ABC61", "candidate_id": "cand_01", "strategy": "default", "target": 0.5529, "pred": 0.5623, "diff": 0.0094 },
+      { "package_id": "PKG-69A4FC65B75A", "candidate_id": "cand_01", "strategy": "default", "target": 0.4840, "pred": 0.5087, "diff": 0.0247 }
+    ]
+  },
+  "scientific_validity_boundaries": {
+    "claim_supported": "The XGBoost Regressor reliably emulates the 24-dimensional geometric proxy scoring formula with R² = 0.9786 (exceeding the R² >= 0.80 benchmark).",
+    "claim_prohibited": "This high R² score DOES NOT establish human architect approval, aesthetic superiority, or local regulatory compliance."
+  }
+}

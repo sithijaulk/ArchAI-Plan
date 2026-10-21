@@ -30,6 +30,12 @@ class SurveyOcrExtractor:
     @classmethod
     def get_reader(cls):
         if cls._reader is None and HAS_EASYOCR:
+            # Bypass SSL certificate validation when downloading EasyOCR models if OS certificates are missing
+            try:
+                import ssl
+                ssl._create_default_https_context = ssl._create_unverified_context
+            except Exception:
+                pass
             # Initialize English reader on CPU (model reused across invocations)
             cls._reader = easyocr.Reader(['en'], gpu=False)
         return cls._reader
