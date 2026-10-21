@@ -5,13 +5,17 @@ client requirement persistence, saved configs CRUD, and deterministic validation
 Preserves controlled 501 Not Implemented on the /run optimization endpoint.
 """
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.dependencies import require_admin
+from app.dependencies import require_admin, require_project_access
 from app.models.project import Project
 from app.components.esai_engine.service import EsaiEngineService
+from app.components.esai_engine.reporting import (
+    PdfReportRequest,
+    ReportOptionsResponse,
+)
 from app.components.esai_engine.contracts import (
     RoomRequirementsDTO,
     ValidationResultDTO,
@@ -69,7 +73,7 @@ from app.components.esai_engine.exceptions import (
 project_router = APIRouter(
     prefix="/api/projects/{project_id}/esai-engine",
     tags=["ESAI-Engine"],
-    dependencies=[Depends(require_admin)]
+    dependencies=[Depends(require_project_access)]
 )
 
 # Global ESAI knowledge endpoints (catalog, standards, room-profiles)
@@ -1086,6 +1090,66 @@ def regenerate_unlocked_assets(
             status_code=status.HTTP_409_CONFLICT,
             detail={"code": e.code, "message": e.message, "details": e.details},
         )
+
+
+# ==============================================================================
+# Phase 8: Professional Interior Design PDF Reports & Final Project Export
+# ==============================================================================
+
+@project_router.get("/reports/options", response_model=ReportOptionsResponse)
+def get_report_options(
+    project_id: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Returns supported report scopes, sections, available floors, rooms, and staleness info.
+    """
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    return service.get_report_options(project)
+
+
+@project_router.post("/reports/pdf")
+def generate_pdf_report(
+    project_id: str,
+    payload: Optional[PdfReportRequest] = None,
+    db: Session = Depends(get_db),
+):
+    """
+    Generates a professional architectural interior design PDF report from actual saved designs.
+    Enforces strict staleness validation in 'final' mode and allows draft watermark in 'draft' mode.
+    """
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    req = payload or PdfReportRequest()
+
+    pdf_bytes, filename = service.generate_pdf_report(project, req)
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Length": str(len(pdf_bytes)),
+        },
+    )
+
+
+@project_router.post("/reports/export-data")
+def export_report_data(
+    project_id: str,
+    payload: Optional[PdfReportRequest] = None,
+    db: Session = Depends(get_db),
+):
+    """
+    Exports structured JSON of ESAI-owned design data (rooms, schedules, finishes, MEP, validation).
+    Does NOT alter or replace the authoritative Master JSON.
+    """
+    project = _get_project_or_404(project_id, db)
+    service = EsaiEngineService(db)
+    req = payload or PdfReportRequest()
+    return service.get_export_data(project, req)
+
 
 
 
