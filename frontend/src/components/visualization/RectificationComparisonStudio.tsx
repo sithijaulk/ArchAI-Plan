@@ -155,43 +155,31 @@ export function RectificationComparisonStudio({
           // 2. Draw SVG image onto canvas
           ctx.drawImage(img, 0, 0, exportWidth, exportHeight)
 
-          // 3. Trigger download as high-quality JPG
+          // 3. Trigger direct download as high-quality JPG via Data URL
+          // Using Data URL ensures Chrome does not fall back to UUID blob identifiers
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
           const filename = cadPlanSelection === 'baseline'
-            ? `ArchAI_Baseline_Plan_${Date.now()}.jpg`
+            ? `ArchAI_Baseline_Plan_${timestamp}.jpg`
             : activeViewMode === 'diff'
-            ? `ArchAI_Spatial_Diff_Plan_${Date.now()}.jpg`
-            : `ArchAI_Rectified_Architectural_Plan_${Date.now()}.jpg`
+            ? `ArchAI_Spatial_Diff_Plan_${timestamp}.jpg`
+            : `ArchAI_Rectified_Plan_${timestamp}.jpg`
 
-          if (canvas.toBlob) {
-            canvas.toBlob(
-              (blob) => {
-                if (blob) {
-                  const jpgUrl = URLObj.createObjectURL(blob)
-                  const a = document.createElement('a')
-                  a.href = jpgUrl
-                  a.download = filename
-                  document.body.appendChild(a)
-                  a.click()
-                  document.body.removeChild(a)
-                  setTimeout(() => URLObj.revokeObjectURL(jpgUrl), 1000)
-                }
-                URLObj.revokeObjectURL(svgUrl)
-                setIsExportingJpg(false)
-              },
-              'image/jpeg',
-              0.96
-            )
-          } else {
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.96)
-            const a = document.createElement('a')
-            a.href = dataUrl
-            a.download = filename
-            document.body.appendChild(a)
-            a.click()
-            document.body.removeChild(a)
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.95)
+          const link = document.createElement('a')
+          link.href = dataUrl
+          link.download = filename
+          link.setAttribute('download', filename)
+          link.style.display = 'none'
+          document.body.appendChild(link)
+          link.click()
+
+          setTimeout(() => {
+            if (link.parentNode) {
+              document.body.removeChild(link)
+            }
             URLObj.revokeObjectURL(svgUrl)
             setIsExportingJpg(false)
-          }
+          }, 400)
         } catch (err) {
           console.error('Canvas export error:', err)
           URLObj.revokeObjectURL(svgUrl)
