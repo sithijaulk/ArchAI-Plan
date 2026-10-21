@@ -1,0 +1,902 @@
+{
+  "version": "1.0.0",
+  "province": "Western",
+  "verification_date": "2026-10-20",
+  "source_document": "Ministry of Public Administration, Home Affairs, Provincial Councils and Local Government - Official List of Local Authorities in Sri Lanka; UDA Law No. 41 of 1978 Declarations (2024)",
+  "total_authorities": 47,
+  "authorities": [
+    {
+      "authority_id": "LK-11-CMC",
+      "name": "Colombo Municipal Council",
+      "district": "Colombo",
+      "province": "Western",
+      "authority_type": "MC",
+      "aliases": ["CMC", "Colombo MC", "Municipal Council of Colombo"],
+      "uda_declared_area": true,
+      "governing_planning_document": "City of Colombo Development Plan 1999 (Amended by Gaz. 2105/24)",
+      "applicable_ruleset_id": "colombo_municipal_council",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "City of Colombo Development Plan (Amendment) Gazette Extraordinary No. 2105/24",
+        "issuing_body": "Urban Development Authority / Minister of Megapolis and Western Development",
+        "publication_date": "2019-01-09",
+        "url": "http://www.documents.gov.lk/files/egz/2019/1/2105-24_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-11-DMMC",
+      "name": "Dehiwala-Mount Lavinia Municipal Council",
+      "district": "Colombo",
+      "province": "Western",
+      "authority_type": "MC",
+      "aliases": ["DMMC", "Dehiwala Mount Lavinia MC", "Dehiwala-Mt Lavinia MC"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Greater Colombo Urban Development Plan / Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Urban Development Authority Planning and Development Regulations 2021 (Gazette 2235/54)",
+        "issuing_body": "Minister of Urban Development and Housing",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-11-SJKMC",
+      "name": "Sri Jayawardenepura Kotte Municipal Council",
+      "district": "Colombo",
+      "province": "Western",
+      "authority_type": "MC",
+      "aliases": ["Kotte MC", "SJKMC", "Sri Jayawardenapura Kotte MC"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Sri Jayawardenepura Kotte Development Plan / Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Urban Development Authority Planning and Development Regulations 2021 (Gazette 2235/54)",
+        "issuing_body": "Minister of Urban Development and Housing",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-11-KMC",
+      "name": "Kaduwela Municipal Council",
+      "district": "Colombo",
+      "province": "Western",
+      "authority_type": "MC",
+      "aliases": ["Kaduwela MC"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Kaduwela Development Plan / Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Urban Development Authority Planning and Development Regulations 2021 (Gazette 2235/54)",
+        "issuing_body": "Minister of Urban Development and Housing",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-11-MMC",
+      "name": "Moratuwa Municipal Council",
+      "district": "Colombo",
+      "province": "Western",
+      "authority_type": "MC",
+      "aliases": ["Moratuwa MC"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Moratuwa Development Plan / Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Urban Development Authority Planning and Development Regulations 2021 (Gazette 2235/54)",
+        "issuing_body": "Minister of Urban Development and Housing",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-11-KOUC",
+      "name": "Kolonnawa Urban Council",
+      "district": "Colombo",
+      "province": "Western",
+      "authority_type": "UC",
+      "aliases": ["Kolonnawa UC"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-11-SEUC",
+      "name": "Seethawaka Urban Council",
+      "district": "Colombo",
+      "province": "Western",
+      "authority_type": "UC",
+      "aliases": ["Seethawaka UC", "Avissawella UC", "Seethawaka (Avissawella) Urban Council"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-11-KEUC",
+      "name": "Kesbewa Urban Council",
+      "district": "Colombo",
+      "province": "Western",
+      "authority_type": "UC",
+      "aliases": ["Kesbewa UC"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Kesbewa Development Plan / Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-11-MAUC",
+      "name": "Maharagama Urban Council",
+      "district": "Colombo",
+      "province": "Western",
+      "authority_type": "UC",
+      "aliases": ["Maharagama UC"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Maharagama Development Plan / Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-11-BOUC",
+      "name": "Boralesgamuwa Urban Council",
+      "district": "Colombo",
+      "province": "Western",
+      "authority_type": "UC",
+      "aliases": ["Boralesgamuwa UC"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Boralesgamuwa Development Plan / Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-11-KMPS",
+      "name": "Kotikawatta Mulleriyawa Pradeshiya Sabha",
+      "district": "Colombo",
+      "province": "Western",
+      "authority_type": "PS",
+      "aliases": ["Kotikawatta Mulleriyawa PS", "Kotikawatta-Mulleriyawa PS"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-11-HOPS",
+      "name": "Homagama Pradeshiya Sabha",
+      "district": "Colombo",
+      "province": "Western",
+      "authority_type": "PS",
+      "aliases": ["Homagama PS"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Homagama Development Plan / Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-11-SEPS",
+      "name": "Seethawaka Pradeshiya Sabha",
+      "district": "Colombo",
+      "province": "Western",
+      "authority_type": "PS",
+      "aliases": ["Seethawaka PS"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-12-NMC",
+      "name": "Negombo Municipal Council",
+      "district": "Gampaha",
+      "province": "Western",
+      "authority_type": "MC",
+      "aliases": ["Negombo MC"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Negombo Development Plan / Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-12-GMC",
+      "name": "Gampaha Municipal Council",
+      "district": "Gampaha",
+      "province": "Western",
+      "authority_type": "MC",
+      "aliases": ["Gampaha MC"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Gampaha Development Plan / Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-12-WMUC",
+      "name": "Wattala-Mabole Urban Council",
+      "district": "Gampaha",
+      "province": "Western",
+      "authority_type": "UC",
+      "aliases": ["Wattala Mabole UC", "Wattala-Mabole UC", "Wattala UC"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Wattala Development Plan / Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-12-JEUC",
+      "name": "Ja-Ela Urban Council",
+      "district": "Gampaha",
+      "province": "Western",
+      "authority_type": "UC",
+      "aliases": ["Ja-Ela UC", "Ja Ela UC"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Ja-Ela Development Plan / Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-12-PEUC",
+      "name": "Peliyagoda Urban Council",
+      "district": "Gampaha",
+      "province": "Western",
+      "authority_type": "UC",
+      "aliases": ["Peliyagoda UC"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Peliyagoda Development Plan / Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-12-KSUC",
+      "name": "Katunayake Seeduwa Urban Council",
+      "district": "Gampaha",
+      "province": "Western",
+      "authority_type": "UC",
+      "aliases": ["Katunayake Seeduwa UC", "Katunayake-Seeduwa UC"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Katunayake EPZ & UDA Area / Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-12-MIUC",
+      "name": "Minuwangoda Urban Council",
+      "district": "Gampaha",
+      "province": "Western",
+      "authority_type": "UC",
+      "aliases": ["Minuwangoda UC"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Minuwangoda Development Plan / Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-12-KEPS",
+      "name": "Kelaniya Pradeshiya Sabha",
+      "district": "Gampaha",
+      "province": "Western",
+      "authority_type": "PS",
+      "aliases": ["Kelaniya PS"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-12-WAPS",
+      "name": "Wattala Pradeshiya Sabha",
+      "district": "Gampaha",
+      "province": "Western",
+      "authority_type": "PS",
+      "aliases": ["Wattala PS"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-12-JEPS",
+      "name": "Ja-Ela Pradeshiya Sabha",
+      "district": "Gampaha",
+      "province": "Western",
+      "authority_type": "PS",
+      "aliases": ["Ja-Ela PS", "Ja Ela PS"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-12-GAPS",
+      "name": "Gampaha Pradeshiya Sabha",
+      "district": "Gampaha",
+      "province": "Western",
+      "authority_type": "PS",
+      "aliases": ["Gampaha PS"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-12-BIPS",
+      "name": "Biyagama Pradeshiya Sabha",
+      "district": "Gampaha",
+      "province": "Western",
+      "authority_type": "PS",
+      "aliases": ["Biyagama PS"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Biyagama EPZ & UDA Area / Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-12-MAPS",
+      "name": "Mahara Pradeshiya Sabha",
+      "district": "Gampaha",
+      "province": "Western",
+      "authority_type": "PS",
+      "aliases": ["Mahara PS"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-12-DOPS",
+      "name": "Dompe Pradeshiya Sabha",
+      "district": "Gampaha",
+      "province": "Western",
+      "authority_type": "PS",
+      "aliases": ["Dompe PS"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-12-MIPS",
+      "name": "Mirigama Pradeshiya Sabha",
+      "district": "Gampaha",
+      "province": "Western",
+      "authority_type": "PS",
+      "aliases": ["Mirigama PS"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-12-MNPS",
+      "name": "Minuwangoda Pradeshiya Sabha",
+      "district": "Gampaha",
+      "province": "Western",
+      "authority_type": "PS",
+      "aliases": ["Minuwangoda PS"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-12-DIPS",
+      "name": "Divulapitiya Pradeshiya Sabha",
+      "district": "Gampaha",
+      "province": "Western",
+      "authority_type": "PS",
+      "aliases": ["Divulapitiya PS"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-12-KAPS",
+      "name": "Katana Pradeshiya Sabha",
+      "district": "Gampaha",
+      "province": "Western",
+      "authority_type": "PS",
+      "aliases": ["Katana PS"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-13-KLUC",
+      "name": "Kalutara Urban Council",
+      "district": "Kalutara",
+      "province": "Western",
+      "authority_type": "UC",
+      "aliases": ["Kalutara UC"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Kalutara Development Plan / Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-13-PAUC",
+      "name": "Panadura Urban Council",
+      "district": "Kalutara",
+      "province": "Western",
+      "authority_type": "UC",
+      "aliases": ["Panadura UC"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Panadura Development Plan / Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-13-HOUC",
+      "name": "Horana Urban Council",
+      "district": "Kalutara",
+      "province": "Western",
+      "authority_type": "UC",
+      "aliases": ["Horana UC"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Horana Development Plan / Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-13-BEUC",
+      "name": "Beruwala Urban Council",
+      "district": "Kalutara",
+      "province": "Western",
+      "authority_type": "UC",
+      "aliases": ["Beruwala UC"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Beruwala Development Plan / Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-13-PAPS",
+      "name": "Panadura Pradeshiya Sabha",
+      "district": "Kalutara",
+      "province": "Western",
+      "authority_type": "PS",
+      "aliases": ["Panadura PS"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-13-KLPS",
+      "name": "Kalutara Pradeshiya Sabha",
+      "district": "Kalutara",
+      "province": "Western",
+      "authority_type": "PS",
+      "aliases": ["Kalutara PS"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-13-HOPS",
+      "name": "Horana Pradeshiya Sabha",
+      "district": "Kalutara",
+      "province": "Western",
+      "authority_type": "PS",
+      "aliases": ["Horana PS"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-13-BEPS",
+      "name": "Beruwala Pradeshiya Sabha",
+      "district": "Kalutara",
+      "province": "Western",
+      "authority_type": "PS",
+      "aliases": ["Beruwala PS"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-13-BAPS",
+      "name": "Bandaragama Pradeshiya Sabha",
+      "district": "Kalutara",
+      "province": "Western",
+      "authority_type": "PS",
+      "aliases": ["Bandaragama PS"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-13-MAPS",
+      "name": "Matugama Pradeshiya Sabha",
+      "district": "Kalutara",
+      "province": "Western",
+      "authority_type": "PS",
+      "aliases": ["Matugama PS", "Mathugama PS"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-13-BUPS",
+      "name": "Bulathsinhala Pradeshiya Sabha",
+      "district": "Kalutara",
+      "province": "Western",
+      "authority_type": "PS",
+      "aliases": ["Bulathsinhala PS"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-13-DOPS",
+      "name": "Dodangoda Pradeshiya Sabha",
+      "district": "Kalutara",
+      "province": "Western",
+      "authority_type": "PS",
+      "aliases": ["Dodangoda PS"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-13-MDPS",
+      "name": "Madurawala Pradeshiya Sabha",
+      "district": "Kalutara",
+      "province": "Western",
+      "authority_type": "PS",
+      "aliases": ["Madurawala PS"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-13-PLPS",
+      "name": "Palindanuwara Pradeshiya Sabha",
+      "district": "Kalutara",
+      "province": "Western",
+      "authority_type": "PS",
+      "aliases": ["Palindanuwara PS"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-13-WLPS",
+      "name": "Walallawita Pradeshiya Sabha",
+      "district": "Kalutara",
+      "province": "Western",
+      "authority_type": "PS",
+      "aliases": ["Walallawita PS"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    },
+    {
+      "authority_id": "LK-13-AGPS",
+      "name": "Agalawatta Pradeshiya Sabha",
+      "district": "Kalutara",
+      "province": "Western",
+      "authority_type": "PS",
+      "aliases": ["Agalawatta PS"],
+      "uda_declared_area": true,
+      "governing_planning_document": "Gazette 2235/54",
+      "applicable_ruleset_id": "sri_lanka_uda_standard",
+      "status": "verified",
+      "source_reference": {
+        "document_title": "Gazette 2235/54",
+        "issuing_body": "UDA",
+        "publication_date": "2021-07-08",
+        "url": "http://www.documents.gov.lk/files/egz/2021/7/2235-54_E.pdf",
+        "accessed_date": "2026-10-20"
+      }
+    }
+  ]
+}

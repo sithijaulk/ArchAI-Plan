@@ -23,11 +23,84 @@ from ..schemas import (
     ClientRequirementsInput,
     FloorPlanDefinition,
     ValidationResult,
-    RegulatoryRule
+    RegulatoryRule,
+    FloorPlanCandidate
 )
 
-SCHEMA_VERSION = "2.0.0"
-GAB_GEN_VERSION = "1.0.0"
+SCHEMA_VERSION = "2.1.0"
+GAB_GEN_VERSION = "1.5.0"
+SUPPORTED_SCHEMA_VERSIONS = {"1.0.0", "1.1.0", "2.0.0", "2.1.0"}
+
+
+def migrate_master_json_schema(master_json: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Validates and deterministically migrates Master JSON to current SCHEMA_VERSION (2.1.0).
+    Non-destructive: preserves all existing namespaces (e.g. elia, esai, vsai) byte-equivalently.
+    Raises ValueError if master_json has an incompatible future version.
+    """
+    if not isinstance(master_json, dict):
+        raise ValueError("Master JSON must be a dictionary.")
+
+    mj = copy.deepcopy(master_json)
+    raw_version = mj.get("schema_version", "1.0.0")
+
+    # Semantic major version check
+    try:
+        major = int(str(raw_version).split(".")[0])
+    except Exception:
+        major = 1
+
+    current_major = int(SCHEMA_VERSION.split(".")[0])
+    if major > current_major:
+        raise ValueError(f"Unsupported future Master JSON schema version '{raw_version}'. Current major version is {current_major}.")
+
+    # Migration 1: Default top-level properties
+    if "units" not in mj:
+        mj["units"] = "meters"
+    if "edit_history" not in mj:
+        mj["edit_history"] = []
+
+    # Migration 2: Candidate Generation section
+    if "candidate_generation" not in mj and "floor_plan" in mj and mj["floor_plan"].get("floors"):
+        # Backfill candidate_generation from existing single layout
+        cand_id = "FP_CANDIDATE_001"
+        mj["candidate_generation"] = {
+            "generation_run_id": f"RUN_LEGACY_{mj.get('project_id', '000')[:8]}",
+            "generator_version": GAB_GEN_VERSION,
+            "feature_schema_version": "1.0.0",
+            "ranking_method": "legacy_preserved",
+            "requested_candidate_count": 1,
+            "feasible_candidate_count": 1,
+            "rejected_candidate_count": 0,
+            "selected_candidate_id": cand_id,
+            "candidates": [
+                {
+                    "candidate_id": cand_id,
+                    "rank": 1,
+                    "composite_score": 100.0,
+                    "feasibility_status": "feasible",
+                    "footprint_variant": "legacy",
+                    "building_footprint_polygon": mj.get("building_footprint", {}).get("polygon", []),
+                    "building_footprint_area_sqm": mj.get("building_footprint", {}).get("area", 0.0),
+                    "floors": mj.get("floor_plan", {}).get("floors", []),
+                    "roof_geometry": mj.get("roof_geometry")
+                }
+            ]
+        }
+
+    # Migration 3: Survey provenance & scale origin defaults
+    survey = mj.get("survey_extraction")
+    if isinstance(survey, dict):
+        if "georeference_status" not in survey:
+            survey["georeference_status"] = "unreferenced_local"
+        if "selected_page_number" not in survey:
+            survey["selected_page_number"] = 1
+        if "total_pages" not in survey:
+            survey["total_pages"] = 1
+
+    # Upgrade to current schema version
+    mj["schema_version"] = SCHEMA_VERSION
+    return mj
 
 
 def build_gab_master_json(
@@ -42,7 +115,10 @@ def build_gab_master_json(
     floors: List[FloorPlanDefinition],
     validation: ValidationResult,
     file_metadata: Optional[Dict[str, Any]] = None,
-    existing_master_json: Optional[Dict[str, Any]] = None
+    existing_master_json: Optional[Dict[str, Any]] = None,
+    candidates: Optional[List[FloorPlanCandidate]] = None,
+    selected_candidate_id: Optional[str] = None,
+    generation_metadata: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
     Constructs or non-destructively merges GAB-Gen results into Centralized Master JSON.
@@ -72,19 +148,33 @@ def build_gab_master_json(
     mj["input_metadata"] = input_meta
 
     # GAB-owned domain sections
+    survey_dict = survey_request.model_dump()
     mj["survey_extraction"] = {
         "provider": survey_request.source.value if hasattr(survey_request.source, "value") else str(survey_request.source),
         "north_angle": survey_request.north_angle,
+        "north_angle_origin": survey_request.north_angle_origin,
         "reference_edge": survey_request.reference_edge,
+        "verification_status": survey_request.verification_status.value if hasattr(survey_request.verification_status, "value") else str(survey_request.verification_status),
+        "verified_by_user": survey_request.verified_by_user,
+        "verified_at": survey_request.verified_at,
+        "drawing_scale": survey_request.drawing_scale,
+        "drawing_scale_origin": survey_request.drawing_scale_origin,
+        "selected_page_number": survey_request.selected_page_number,
+        "total_pages": survey_request.total_pages,
+        "georeference_status": survey_request.georeference_status.value if hasattr(survey_request.georeference_status, "value") else str(survey_request.georeference_status),
+        "crs_identifier": survey_request.crs_identifier,
         "edges": [e.model_dump() for e in survey_request.edges]
     }
 
     mj["land_info"] = {
         "source_land_polygon": reconstructed_data.get("vertices", []),
+        "bowditch_adjusted_polygon": reconstructed_data.get("bowditch_adjusted_vertices", []),
+        "traverse_adjustment_method": reconstructed_data.get("traverse_adjustment_method", "none"),
         "reconstructed_area": reconstructed_data.get("reconstructed_area", 0.0),
         "declared_area": validation.declared_area_sqm or 0.0,
         "area_difference_percent": validation.area_difference_percent or 0.0,
-        "perimeter": reconstructed_data.get("perimeter", 0.0)
+        "perimeter": reconstructed_data.get("perimeter", 0.0),
+        "coordinate_origin": reconstructed_data.get("coordinate_origin", "P0 local")
     }
 
     mj["geometry_validation"] = {
@@ -94,15 +184,27 @@ def build_gab_master_json(
         "warnings": reconstructed_data.get("warnings", [])
     }
 
+    # Enhanced Regulatory Provenance in Master JSON
+    reg_res_dict = validation.regulatory_resolution.model_dump() if validation.regulatory_resolution else None
     mj["regulatory_rules"] = {
         "jurisdiction": rules[0].jurisdiction_id if rules else "none",
+        "regulatory_resolution": reg_res_dict,
+        "source_registry_version": "1.0.0",
+        "authority_registry_version": "1.0.0",
+        "compliance_verdict": validation.compliance_verdict.value if hasattr(validation.compliance_verdict, "value") else str(validation.compliance_verdict),
+        "unresolved_requirements": validation.unresolved_requirements,
+        "conflicting_requirements": validation.conflicting_requirements,
+        "site_restriction_summary": validation.site_restriction_summary,
         "applied_rules": [r.model_dump() for r in rules]
     }
 
     mj["buildable_footprint"] = {
         "polygon": buildable_data.get("polygon", []),
         "area": buildable_data.get("area", 0.0),
-        "valid": buildable_data.get("valid", False)
+        "valid": buildable_data.get("valid", False),
+        "provisional": buildable_data.get("provisional", False),
+        "provisional_reasons": buildable_data.get("provisional_reasons", []),
+        "preview_label": buildable_data.get("preview_label", "BUILDABLE ENVELOPE")
     }
 
     mj["client_requirements"] = requirements.model_dump()
@@ -115,11 +217,57 @@ def build_gab_master_json(
         "floors": allocation_data.get("floors", [])
     }
 
+    # Active / Selected Floor Plan Definition (Directly consumed by 2D/3D Viewer and Editor)
     mj["floor_plan"] = {
         "floors": [fl.model_dump() for fl in floors]
     }
 
+    # Roof Geometry (Vectorized Canonical P0 coordinates)
+    from ..blueprint.roof_generator import generate_roof_geometry
+    from shapely.geometry import Polygon
+    shapely_buildable = buildable_data.get("shapely_polygon")
+    if shapely_buildable is None and buildable_data.get("polygon"):
+        pts = []
+        for p in buildable_data.get("polygon", []):
+            if isinstance(p, dict):
+                pts.append((p.get("x", 0.0), p.get("y", 0.0)))
+            elif isinstance(p, (list, tuple)) and len(p) >= 2:
+                pts.append((p[0], p[1]))
+        if len(pts) >= 3:
+            shapely_buildable = Polygon(pts)
+
+    roof_geom = generate_roof_geometry(
+        building_footprint_poly=shapely_buildable,
+        roof_pref=requirements.roof_preference
+    )
+    mj["roof_geometry"] = roof_geom.model_dump()
+
+    # Active Building Footprint
+    mj["building_footprint"] = {
+        "candidate_id": selected_candidate_id or "FP_CANDIDATE_001",
+        "shape_type": "conformal_offset",
+        "polygon": buildable_data.get("polygon", []),
+        "area": buildable_data.get("area", 0.0)
+    }
+
+    # Phase 5: Multi-Candidate Floor Plan Options & Selection Pool
+    cands_list = [c.model_dump() for c in (candidates or [])]
+    mj["candidate_generation"] = {
+        "generation_run_id": (generation_metadata or {}).get("generation_run_id", f"RUN_{project_id[:8]}"),
+        "generator_version": GAB_GEN_VERSION,
+        "feature_schema_version": "1.0.0",
+        "ranking_method": (generation_metadata or {}).get("ranking_method", "heuristic_v1"),
+        "requested_candidate_count": (generation_metadata or {}).get("requested_candidate_count", len(cands_list)),
+        "feasible_candidate_count": len(cands_list),
+        "rejected_candidate_count": (generation_metadata or {}).get("rejected_candidate_count", 0),
+        "selected_candidate_id": selected_candidate_id or (cands_list[0]["candidate_id"] if cands_list else None),
+        "candidates": cands_list
+    }
+
     mj["gab_gen_validation"] = validation.model_dump()
+
+    # Preserve or initialize edit history
+    mj["edit_history"] = mj.get("edit_history", [])
 
     # Update processing state under GAB key without modifying other components
     processing = mj.get("processing", {})
@@ -128,8 +276,11 @@ def build_gab_master_json(
         "stage": "stage_1",
         "gab_gen_version": GAB_GEN_VERSION,
         "survey_provider": survey_request.source.value if hasattr(survey_request.source, "value") else str(survey_request.source),
-        "allocation_provider": allocation_data.get("provider", "rule_based_baseline")
+        "allocation_provider": allocation_data.get("provider", "rule_based_baseline"),
+        "candidate_count": len(cands_list),
+        "selected_candidate_id": selected_candidate_id or (cands_list[0]["candidate_id"] if cands_list else None)
     }
     mj["processing"] = processing
 
     return mj
+

@@ -1,0 +1,57 @@
+{
+  "layers": [
+    {
+      "name": "conv1",
+      "in_channels": 9,
+      "out_channels": 16,
+      "kernel_size": 3,
+      "padding": 1
+    },
+    {
+      "name": "maxpool1",
+      "kernel_size": 2,
+      "stride": 2
+    },
+    {
+      "name": "conv2",
+      "in_channels": 16,
+      "out_channels": 32,
+      "kernel_size": 3,
+      "padding": 1
+    },
+    {
+      "name": "maxpool2",
+      "kernel_size": 2,
+      "stride": 2
+    },
+    {
+      "name": "conv3_bottleneck",
+      "in_channels": 32,
+      "out_channels": 32,
+      "kernel_size": 3,
+      "padding": 1
+    },
+    {
+      "name": "upsample1",
+      "factor": 2
+    },
+    {
+      "name": "conv4",
+      "in_channels": 32,
+      "out_channels": 16,
+      "kernel_size": 3,
+      "padding": 1
+    },
+    {
+      "name": "upsample2",
+      "factor": 2
+    },
+    {
+      "name": "conv5_out",
+      "in_channels": 16,
+      "out_channels": 4,
+      "kernel_size": 3,
+      "padding": 1
+    }
+  ]
+}

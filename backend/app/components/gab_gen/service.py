@@ -50,12 +50,12 @@ class GabGenService:
         existing_master_json: Optional[Dict[str, Any]] = None,
         allow_research_test: bool = False
     ) -> GabGenRunOutput:
-        # Determine jurisdiction from requirements or parameter
-        jurisdiction_id = (
-            jurisdiction
-            or (requirements.regulatory_context.jurisdiction_id if requirements.regulatory_context else None)
-            or "sri_lanka_uda_standard"
+        # Step 0: Resolve full deterministic regulatory context
+        reg_resolution = RegulatoryEngine.resolve_full_regulatory_context(
+            reg_context=requirements.regulatory_context,
+            allow_research_test=allow_research_test
         )
+        jurisdiction_id = jurisdiction or reg_resolution.planning_jurisdiction_id
 
         # Step 1: Mathematical Vector Reconstruction in Canonical P0 Coordinates
         reconstructed = reconstruct_polygon(survey_request)
@@ -119,7 +119,8 @@ class GabGenService:
         buildable_res = compute_buildable_footprint(
             shapely_poly=shapely_land,
             edges=reconstructed.get("edges", []),
-            rules=rules
+            rules=rules,
+            regulatory_context=reg_resolution
         )
         shapely_buildable = buildable_res.get("shapely_polygon")
         buildable_area = buildable_res.get("area", 0.0)
@@ -133,7 +134,8 @@ class GabGenService:
                 reconstructed_area_sqm=area_check.get("reconstructed_area_sqm"),
                 area_difference_percent=area_check.get("area_difference_percent"),
                 violations=[buildable_res.get("error", "Buildable footprint computation failed or collapsed site.")],
-                warnings=reconstructed.get("warnings", [])
+                warnings=reconstructed.get("warnings", []),
+                regulatory_resolution=reg_resolution
             )
             master_json = build_gab_master_json(
                 project_id=project_id,
@@ -173,7 +175,8 @@ class GabGenService:
                 reconstructed_area_sqm=area_check.get("reconstructed_area_sqm"),
                 area_difference_percent=area_check.get("area_difference_percent"),
                 violations=[allocation_res.get("details", "Client programme exceeds buildable footprint capacity.")],
-                warnings=reconstructed.get("warnings", [])
+                warnings=reconstructed.get("warnings", []),
+                regulatory_resolution=reg_resolution
             )
             master_json = build_gab_master_json(
                 project_id=project_id,
@@ -198,28 +201,79 @@ class GabGenService:
                 warnings=val_res.warnings
             )
 
-        # Step 7: Blueprint Generation (Floors, Rooms, Walls)
-        floors = generate_blueprint_floors(
-            buildable_poly=shapely_buildable,
-            floor_allocations=allocation_res.get("floors", [])
+        # Step 7: Multi-Candidate Blueprint Generation & Ranking (Phase 5)
+        from .blueprint.multi_candidate_service import generate_multi_candidates
+        from .schemas import CandidateGenerationConfig
+
+        candidate_cfg = CandidateGenerationConfig(
+            requested_candidate_count=3,
+            max_generation_attempts=20,
+            deterministic_seed=42
         )
 
-        # Step 8: Complete Validation
-        validation = validate_gab_geometry(
-            land_poly=shapely_land,
-            buildable_poly=shapely_buildable,
+        feasible_candidates, rejected_candidates = generate_multi_candidates(
+            shapely_land=shapely_land,
+            shapely_buildable=shapely_buildable,
+            survey_request=survey_request,
+            requirements=requirements,
+            rules=rules,
+            allocation_res=allocation_res,
             closure_error=closure_error,
             area_check=area_check,
-            floors=floors,
-            expected_storey_count=requirements.storey_count,
-            rules=rules
+            reg_resolution=reg_resolution,
+            config=candidate_cfg
         )
+
+        # If candidates were generated, select the top-ranked candidate as primary
+        if feasible_candidates:
+            primary_candidate = feasible_candidates[0]
+            floors = primary_candidate.floors
+            validation = primary_candidate.validation
+            selected_cand_id = primary_candidate.candidate_id
+        else:
+            # Fallback to single primary generation for failure/infeasibility diagnostics
+            floors = generate_blueprint_floors(
+                buildable_poly=shapely_buildable,
+                floor_allocations=allocation_res.get("floors", [])
+            )
+            site_restrictions = requirements.regulatory_context.site_restrictions if requirements.regulatory_context else []
+            validation = validate_gab_geometry(
+                land_poly=shapely_land,
+                buildable_poly=shapely_buildable,
+                closure_error=closure_error,
+                area_check=area_check,
+                floors=floors,
+                expected_storey_count=requirements.storey_count,
+                rules=rules,
+                regulatory_resolution=reg_resolution,
+                site_restrictions=site_restrictions
+            )
+            from .validation.preference_evaluator import evaluate_architectural_preferences
+            from .schemas import PreferenceEvaluationStatus
+            pref_results = evaluate_architectural_preferences(
+                requirements=requirements,
+                floors=floors,
+                survey_request=survey_request,
+                buildable_poly=shapely_buildable
+            )
+            validation.preference_evaluations = pref_results
+
+            failed_hard_prefs = [
+                p for p in pref_results
+                if p.is_hard_constraint and p.status in (PreferenceEvaluationStatus.NOT_SATISFIED, PreferenceEvaluationStatus.NOT_EVALUABLE)
+            ]
+            if failed_hard_prefs:
+                for hp in failed_hard_prefs:
+                    validation.violations.append(f"Hard architectural constraint failed ({hp.preference_id}): {hp.explanation}")
+                validation.valid = False
+                validation.status = "infeasible"
+            selected_cand_id = None
 
         # If reconstruction flagged needs_verification, ensure overall status reflects it
         if reconstructed.get("needs_verification") and validation.status == "completed":
             validation.status = "needs_verification"
 
-        # Step 9: Synthesize Centralized Master JSON Non-Destructively
+        # Step 8: Synthesize Centralized Master JSON Non-Destructively
         master_json = build_gab_master_json(
             project_id=project_id,
             project_name=project_name,
@@ -232,7 +286,15 @@ class GabGenService:
             floors=floors,
             validation=validation,
             file_metadata=file_metadata,
-            existing_master_json=existing_master_json
+            existing_master_json=existing_master_json,
+            candidates=feasible_candidates,
+            selected_candidate_id=selected_cand_id,
+            generation_metadata={
+                "generation_run_id": f"RUN_{project_id[:8]}",
+                "ranking_method": candidate_cfg.ranking_method,
+                "requested_candidate_count": candidate_cfg.requested_candidate_count,
+                "rejected_candidate_count": len(rejected_candidates)
+            }
         )
 
         return GabGenRunOutput(
@@ -241,5 +303,8 @@ class GabGenService:
             status=validation.status,
             master_json=master_json,
             validation=validation,
-            warnings=validation.warnings
+            warnings=validation.warnings,
+            candidates=feasible_candidates,
+            selected_candidate_id=selected_cand_id
         )
+

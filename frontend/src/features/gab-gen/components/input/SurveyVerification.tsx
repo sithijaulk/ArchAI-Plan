@@ -86,7 +86,8 @@ export const SurveyVerification: React.FC<SurveyVerificationProps> = ({
     setIsExtractingOcr(true);
     setPreviewError(null);
     try {
-      const res = await gabGenExtendedApi.extractSurvey(projectId);
+      const pageToExtract = surveyData.selected_page_number || 1;
+      const res = await gabGenExtendedApi.extractSurvey(projectId, pageToExtract);
       if (res.survey_extraction) {
         onChange(res.survey_extraction);
       }
@@ -130,34 +131,70 @@ export const SurveyVerification: React.FC<SurveyVerificationProps> = ({
       </div>
 
 
-      <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-card border border-border">
-        <div>
-          <Label className="text-xs font-semibold mb-1 block">Plan North Angle (Metadata)</Label>
-          <div className="flex items-center gap-2">
-            <Compass className="w-4 h-4 text-primary" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-3 rounded-xl bg-card border border-border">
+        <div className="min-w-0">
+          <Label className="text-xs font-semibold mb-1 block">Plan North Angle</Label>
+          <div className="flex items-center gap-1.5">
+            <Compass className="w-4 h-4 text-primary shrink-0" />
             <Input
               type="number"
               min="0"
               max="359.9"
               value={surveyData.north_angle}
-              onChange={(e) => onChange({ ...surveyData, north_angle: parseFloat(e.target.value) || 0 })}
-              className="text-xs"
+              onChange={(e) => onChange({ ...surveyData, north_angle: parseFloat(e.target.value) || 0, north_angle_origin: 'user' })}
+              className="text-xs h-8 flex-1 min-w-0"
             />
-            <span className="text-xs text-muted-foreground">deg</span>
+            <span className="text-[10px] text-muted-foreground shrink-0">deg</span>
+          </div>
+          <span className="text-[9px] text-muted-foreground block mt-1 truncate">
+            Origin: {surveyData.north_angle_origin || 'default_unknown'}
+          </span>
+        </div>
+
+        <div className="min-w-0">
+          <Label className="text-xs font-semibold mb-1 block">Drawing Scale</Label>
+          <Input
+            type="text"
+            placeholder="e.g. 1:100, 1:200"
+            value={surveyData.drawing_scale || ''}
+            onChange={(e) => onChange({ ...surveyData, drawing_scale: e.target.value, drawing_scale_origin: 'user' })}
+            className="text-xs h-8 w-full"
+          />
+          <span className="text-[9px] text-muted-foreground block mt-1 truncate">
+            Origin: {surveyData.drawing_scale_origin || 'unknown'}
+          </span>
+        </div>
+
+        <div className="min-w-0">
+          <Label className="text-xs font-semibold mb-1 block">Selected Page</Label>
+          <div className="flex items-center gap-1.5">
+            <Input
+              type="number"
+              min="1"
+              max={surveyData.total_pages || 1}
+              value={surveyData.selected_page_number || 1}
+              onChange={(e) => onChange({ ...surveyData, selected_page_number: parseInt(e.target.value) || 1 })}
+              className="text-xs h-8 w-20"
+            />
+            <span className="text-[10px] text-muted-foreground shrink-0">of {surveyData.total_pages || 1}</span>
           </div>
         </div>
 
-        <div>
-          <Label className="text-xs font-semibold mb-1 block">Extraction Provenance</Label>
-          <div className="p-2 bg-muted/30 rounded border border-border/50 text-xs">
-            <span className="font-semibold uppercase text-primary">{surveyData.source}</span>
-            {surveyData.source === 'fixture' && ' (DEV TEST ONLY)'}
+        <div className="min-w-0">
+          <Label className="text-xs font-semibold mb-1 block">Status & Origin</Label>
+          <div className="min-h-8 px-2 py-1 bg-muted/30 rounded-lg border border-border/50 text-[10px] flex items-center justify-between gap-1 flex-wrap">
+            <span className="font-semibold uppercase text-primary text-[10px] truncate max-w-[80px]">
+              {surveyData.source}
+            </span>
+            <span className="text-[9px] px-1.5 py-0.5 rounded bg-background font-mono text-muted-foreground border border-border/40 whitespace-nowrap">
+              {surveyData.verification_status || 'unverified'}
+            </span>
           </div>
         </div>
       </div>
 
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <Label className="text-xs font-semibold">Boundary Edges ({surveyData.edges.length})</Label>
           <div className="flex gap-2">
             <Button
@@ -188,20 +225,22 @@ export const SurveyVerification: React.FC<SurveyVerificationProps> = ({
             No survey boundaries entered. Add boundary edges above or load development fixture.
           </div>
         ) : (
-          <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
+          <div className="space-y-2 max-h-[340px] overflow-y-auto overflow-x-auto pr-1 pb-1">
             {surveyData.edges.map((edge, idx) => (
               <div
                 key={edge.edge_id || idx}
-                className="flex items-center gap-2 p-2 rounded-lg bg-card border border-border text-xs"
+                className="flex items-center gap-2 p-2 rounded-lg bg-card border border-border text-xs min-w-[460px] sm:min-w-0"
               >
-                <input
-                  type="text"
-                  value={edge.edge_id}
-                  onChange={(e) => updateEdge(idx, { edge_id: e.target.value })}
-                  className="w-12 px-1.5 py-1 text-xs font-bold text-primary bg-background border border-border rounded"
-                />
+                <div className="flex items-center gap-1 shrink-0">
+                  <input
+                    type="text"
+                    value={edge.edge_id}
+                    onChange={(e) => updateEdge(idx, { edge_id: e.target.value })}
+                    className="w-12 px-1.5 py-1 text-xs font-bold text-primary bg-background border border-border rounded text-center"
+                  />
+                </div>
 
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 shrink-0">
                   <span className="text-[10px] text-muted-foreground">Dist:</span>
                   <input
                     type="number"
@@ -222,14 +261,14 @@ export const SurveyVerification: React.FC<SurveyVerificationProps> = ({
                         distance: { ...edge.distance, unit: e.target.value as any }
                       })
                     }
-                    className="text-[10px] bg-background border border-border rounded px-1 py-0.5"
+                    className="text-[10px] bg-background border border-border rounded px-1 py-1"
                   >
                     <option value="m">m</option>
                     <option value="ft">ft</option>
                   </select>
                 </div>
 
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 shrink-0">
                   <span className="text-[10px] text-muted-foreground">Bearing:</span>
                   <input
                     type="text"
@@ -247,27 +286,29 @@ export const SurveyVerification: React.FC<SurveyVerificationProps> = ({
                   />
                 </div>
 
-                <select
-                  value={edge.edge_type || 'side'}
-                  onChange={(e) => updateEdge(idx, { edge_type: e.target.value as any })}
-                  className="bg-background border border-border rounded px-2 py-1 text-foreground text-[11px] ml-auto"
-                >
-                  <option value="road_front">Road Front</option>
-                  <option value="rear">Rear</option>
-                  <option value="side">Side</option>
-                  <option value="side_left">Side (Left)</option>
-                  <option value="side_right">Side (Right)</option>
-                </select>
+                <div className="ml-auto flex items-center gap-2 shrink-0">
+                  <select
+                    value={edge.edge_type || 'side'}
+                    onChange={(e) => updateEdge(idx, { edge_type: e.target.value as any })}
+                    className="bg-background border border-border rounded px-2 py-1 text-foreground text-[11px]"
+                  >
+                    <option value="road_front">Road Front</option>
+                    <option value="rear">Rear</option>
+                    <option value="side">Side</option>
+                    <option value="side_left">Side (Left)</option>
+                    <option value="side_right">Side (Right)</option>
+                  </select>
 
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeEdge(idx)}
-                  className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeEdge(idx)}
+                    className="h-7 w-7 p-0 shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
               </div>
             ))}
           </div>

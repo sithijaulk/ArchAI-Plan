@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import logging
 import time
+import math
+from copy import deepcopy
 from math import cos, hypot, isfinite, pi, sin
 from typing import Any, Mapping
 
 from shapely import affinity
-from shapely.geometry import LineString, Point, Polygon, box, shape
+from shapely.geometry import LineString, Point, Polygon, box, shape, mapping
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
 
@@ -25,6 +27,8 @@ from .residual_space import calculate_residual_space
 from .rule_repository import elia_rules, vegetation_catalog
 from .shadow import analyze_shadows
 from .solar import calculate_solar_samples, fetch_live_solar_conditions
+from .solar_planner import plan_solar_pv, evaluate_solar_structural_evidence
+from .elevated_features import plan_elevated_features
 from .utility_safety import validate_utilities
 from .validator import validate_layout
 from .vehicle_access import validate_vehicle_route
@@ -257,12 +261,25 @@ def _empty_result(context: ExteriorContext, requirements: Mapping[str, Any], uti
     }
 
 
-def run_elia(master_json: Mapping[str, Any], raw_requirements: Mapping[str, Any], run_id: str) -> tuple[dict[str, Any], str]:
+def run_elia(
+    master_json: Mapping[str, Any],
+    raw_requirements: Mapping[str, Any],
+    run_id: str,
+    generation_mode: str = "rules_planner",
+) -> tuple[dict[str, Any], str]:
+    valid_modes = {"rules_planner", "baseline", "rules_and_geometric_planner", "baseline_demo"}
+    if generation_mode.lower() not in valid_modes:
+        raise ELIAError(
+            code="UNSUPPORTED_GENERATION_MODE",
+            message=f"Generation mode '{generation_mode}' is unsupported. Production ELIA operates strictly on Rules + Geometric Layout Planner / Optimizer without external neural models or checkpoints.",
+            status_code=400,
+        )
+
     started = time.perf_counter()
     master_json = normalize_master_json(master_json)
     context = parse_exterior_context(master_json, default_units=elia_rules()["units"]["default_input"])
     requirements = normalize_requirements(raw_requirements, master_json, context.source_units)
-    logger.info("ELIA spatial run started")
+    logger.info("ELIA spatial run started (mode: %s)", generation_mode)
     req_units_raw = raw_requirements.get("units")  # None means omitted → treat as "m"
     req_units = str(req_units_raw).lower() if req_units_raw is not None else "m"
     utilities = validate_utilities(master_json, raw_requirements, context.source_units, req_units)
@@ -332,63 +349,118 @@ def run_elia(master_json: Mapping[str, Any], raw_requirements: Mapping[str, Any]
             resolution = float(access_rules["grid_resolution_m"])
             grid = build_navigation_grid(navigable, resolution,
                                          int(elia_rules()["access"]["max_grid_cells"]))
+            driveway_style_pref = str(requirements["access"].get("driveway_style") or "auto").lower()
             best_safe_route = None
             direct_route = None
-            if garage:
-                direct_line = LineString([tuple(gate["access_point"]), tuple(garage["entry_point"])])
-                direct_polygon = direct_line.buffer(drive_width / 2, cap_style="flat", join_style="mitre")
-                direct_safe = (context.land.covers(direct_polygon) and
-                               not direct_polygon.intersects(fixed_obstacles) and
-                               direct_polygon.intersection(garage_polygon(garage)).area <= 1e-6)
-                direct_turning = {"valid": False, "vehicles": []}
-                if direct_safe:
-                    checks = [validate_vehicle_route(list(direct_line.coords), profile, drive_width, clearance)
-                              for profile in requirements["access"]["vehicle_profiles"]]
-                    direct_turning = {"valid": all(check["valid"] for check in checks), "vehicles": checks}
-                    if direct_turning["valid"]:
-                        direct_route = (direct_line, direct_polygon, direct_turning, "direct")
-            for turn_penalty in (0.0, float(access_rules["astar_turn_penalty_m"])):
-                route = astar_path(grid, tuple(gate["access_point"]), tuple(goal), turn_penalty=turn_penalty)
-                explored += route["explored_nodes"]
-                if not route["found"]:
-                    continue
-                route_coordinates = list(route["coordinates"])
-                if garage:
-                    if Point(route_coordinates[-1]).distance(Point(goal)) > 1e-6:
-                        route_coordinates.append(tuple(goal))
-                    route_coordinates.append(tuple(garage["entry_point"]))
-                raw_line = LineString(route_coordinates)
-                for multiplier in access_rules["route_smoothing_multipliers"]:
-                    tolerance = resolution * float(multiplier)
-                    candidate_line = raw_line.simplify(tolerance, preserve_topology=True)
-                    if candidate_line.geom_type != "LineString" or len(candidate_line.coords) < 2:
-                        candidate_line = raw_line
-                    candidate_polygon = candidate_line.buffer(drive_width / 2, cap_style="flat", join_style="mitre")
-                    candidate_safe = (context.land.covers(candidate_polygon) and
-                                      not candidate_polygon.intersects(fixed_obstacles) and
-                                      (garage is None or candidate_polygon.intersection(garage_polygon(garage)).area <= 1e-6))
-                    if not candidate_safe:
+            goal_point = tuple(garage["entry_point"]) if garage else tuple(goal)
+            
+            # 1. Test direct straight connector
+            direct_line = LineString([tuple(gate["access_point"]), goal_point])
+            direct_polygon = direct_line.buffer(drive_width / 2, cap_style="flat", join_style="mitre")
+            direct_safe = (context.land.covers(direct_polygon) and
+                           not direct_polygon.intersects(fixed_obstacles) and
+                           (garage is None or direct_polygon.intersection(garage_polygon(garage)).area <= 1e-6))
+            if direct_safe:
+                checks = [validate_vehicle_route(list(direct_line.coords), profile, drive_width, clearance)
+                          for profile in requirements["access"]["vehicle_profiles"]]
+                direct_turning = {"valid": all(check["valid"] for check in checks), "vehicles": checks}
+                if direct_turning["valid"]:
+                    direct_route = (direct_line, direct_polygon, direct_turning, "direct")
+
+            # 2. Test curved A* path
+            curved_route = None
+            if driveway_style_pref in {"curved", "auto"}:
+                for turn_penalty in (0.0, float(access_rules["astar_turn_penalty_m"])):
+                    route = astar_path(grid, tuple(gate["access_point"]), tuple(goal), turn_penalty=turn_penalty)
+                    explored += route["explored_nodes"]
+                    if not route["found"]:
                         continue
-                    vehicle_checks = [validate_vehicle_route(list(candidate_line.coords), profile, drive_width, clearance)
-                                      for profile in requirements["access"]["vehicle_profiles"]]
-                    candidate_turning = {"valid": all(check["valid"] for check in vehicle_checks), "vehicles": vehicle_checks}
-                    candidate = (candidate_line, candidate_polygon, candidate_turning, route["turn_penalty"])
-                    if best_safe_route is None:
-                        best_safe_route = candidate
-                    if candidate_turning["valid"]:
-                        best_safe_route = candidate
+                    route_coordinates = list(route["coordinates"])
+                    if garage:
+                        if Point(route_coordinates[-1]).distance(Point(goal)) > 1e-6:
+                            route_coordinates.append(tuple(goal))
+                        route_coordinates.append(tuple(garage["entry_point"]))
+                    raw_line = LineString(route_coordinates)
+                    for multiplier in access_rules["route_smoothing_multipliers"]:
+                        tolerance = resolution * float(multiplier)
+                        candidate_line = raw_line.simplify(tolerance, preserve_topology=True)
+                        if candidate_line.geom_type != "LineString" or len(candidate_line.coords) < 2:
+                            candidate_line = raw_line
+                        candidate_polygon = candidate_line.buffer(drive_width / 2, cap_style="flat", join_style="mitre")
+                        candidate_safe = (context.land.covers(candidate_polygon) and
+                                          not candidate_polygon.intersects(fixed_obstacles) and
+                                          (garage is None or candidate_polygon.intersection(garage_polygon(garage)).area <= 1e-6))
+                        if not candidate_safe:
+                            continue
+                        vehicle_checks = [validate_vehicle_route(list(candidate_line.coords), profile, drive_width, clearance)
+                                          for profile in requirements["access"]["vehicle_profiles"]]
+                        candidate_turning = {"valid": all(check["valid"] for check in vehicle_checks), "vehicles": vehicle_checks}
+                        candidate = (candidate_line, candidate_polygon, candidate_turning, route["turn_penalty"])
+                        if curved_route is None:
+                            curved_route = candidate
+                        if candidate_turning["valid"]:
+                            curved_route = candidate
+                            break
+                    if curved_route is not None and curved_route[2]["valid"]:
                         break
-                if best_safe_route is not None and best_safe_route[2]["valid"]:
-                    break
-            if direct_route is not None:
-                best_safe_route = direct_route
+
+            # 3. Apply driveway style selection without silent substitution
+            if driveway_style_pref == "straight":
+                if direct_route is not None:
+                    best_safe_route = direct_route
+                else:
+                    # Explicit straight requested but obstructed: do NOT silently fallback to curved
+                    path_metadata = {
+                        "json_id": "DRIVEWAY_001",
+                        "type": "driveway",
+                        "pathfinding": "straight_connector_infeasible",
+                        "chosen_style": "straight",
+                        "status": "infeasible",
+                        "reason": "STRAIGHT_DRIVEWAY_OBSTRUCTED",
+                        "explanation": "Explicit straight driveway cannot connect without intersecting buildings or site boundaries.",
+                        "validation": {"valid": False},
+                        "units": "m",
+                    }
+            elif driveway_style_pref == "curved":
+                if curved_route is not None:
+                    best_safe_route = curved_route
+                else:
+                    path_metadata = {
+                        "json_id": "DRIVEWAY_001",
+                        "type": "driveway",
+                        "pathfinding": "curved_astar_infeasible",
+                        "chosen_style": "curved",
+                        "status": "infeasible",
+                        "reason": "CURVED_DRIVEWAY_OBSTRUCTED",
+                        "explanation": "No navigable curved A* path satisfies boundary clearance and turning radius.",
+                        "validation": {"valid": False},
+                        "units": "m",
+                    }
+            else:  # "auto"
+                if direct_route is not None:
+                    best_safe_route = direct_route
+                elif curved_route is not None:
+                    best_safe_route = curved_route
+
             if best_safe_route is not None:
                 driveway_line, driveway_polygon, turning, used_turn_penalty = best_safe_route
-                path_metadata = {"pathfinding": "direct_validated_connector" if used_turn_penalty == "direct" else "A*",
-                                 "turn_penalty_cost": None if used_turn_penalty == "direct" else used_turn_penalty,
-                                 "explored_nodes": explored, "centerline": list(driveway_line.coords),
-                                 "polygon": list(driveway_polygon.exterior.coords) if driveway_polygon.geom_type == "Polygon" else None,
-                                 "width_m": drive_width, "length_m": driveway_line.length, "turning_validation": turning}
+                chosen_style = "straight" if used_turn_penalty == "direct" else "curved"
+                driveway_surface = str(requirements["access"].get("driveway_surface") or "asphalt")
+                path_metadata = {
+                    "json_id": "DRIVEWAY_001",
+                    "type": "driveway",
+                    "pathfinding": "direct_validated_connector" if used_turn_penalty == "direct" else "A*",
+                    "chosen_style": chosen_style,
+                    "surface_material": driveway_surface,
+                    "turn_penalty_cost": None if used_turn_penalty == "direct" else used_turn_penalty,
+                    "explored_nodes": explored,
+                    "centerline": list(driveway_line.coords),
+                    "polygon": list(driveway_polygon.exterior.coords) if driveway_polygon.geom_type == "Polygon" else None,
+                    "width_m": drive_width,
+                    "length_m": driveway_line.length,
+                    "turning_validation": turning,
+                    "units": "m",
+                }
 
     driveway_obstacle = driveway_polygon if driveway_polygon is not None else Polygon()
     garage_obstacle = garage_polygon(garage) if garage else Polygon()
@@ -426,6 +498,28 @@ def run_elia(master_json: Mapping[str, Any], raw_requirements: Mapping[str, Any]
     outdoor_blocked = unary_union(outdoor_obstacles)
     outdoor = place_outdoor_elements(residual, outdoor_blocked, requirements, gate, context.land,
                                      driveway_polygon, requested_paths, locked_features=locked_outdoor)
+    live_solar = None
+    if requirements.get("include_live_solar", False):
+        try:
+            location = requirements["location"]
+            live_solar = fetch_live_solar_conditions(location["latitude"], location["longitude"],
+                                                     location.get("timezone"))
+        except ELIAError as exc:
+            live_solar = {"status": "unavailable", "provider": "Open-Meteo",
+                          "error_code": exc.code, "message": exc.message}
+
+    solar_plan = plan_solar_pv(
+        master_json,
+        requirements,
+        context.unit_scale,
+        solar_samples=solar_samples,
+        live_solar=live_solar,
+    )
+    elevated_plan = plan_elevated_features(master_json, requirements, context.unit_scale, solar_plan=solar_plan)
+    if solar_plan and solar_plan.get("status") in ("fulfilled", "review_required") and solar_plan.get("outdoor_element"):
+        outdoor.append(solar_plan["outdoor_element"])
+    if elevated_plan.get("elements"):
+        outdoor.extend(elevated_plan["elements"])
     lighting_obstacles = [fixed_obstacles, garage_obstacle, *path_obstacles]
     lighting_obstacles.extend(Point(node["position"]).buffer(float(node["canopy_radius_m"])) for node in vegetation)
     lighting_obstacles.extend(Polygon(item["polygon"]) for item in outdoor
@@ -436,15 +530,6 @@ def run_elia(master_json: Mapping[str, Any], raw_requirements: Mapping[str, Any]
     missing_lighting_zones = [zone for zone in requested_lighting_zones
                               if requirements.get("lighting", {}).get("required") and
                               not any(node.get("zone") == zone for node in lighting)]
-    live_solar = None
-    if requirements.get("include_live_solar", False):
-        try:
-            location = requirements["location"]
-            live_solar = fetch_live_solar_conditions(location["latitude"], location["longitude"],
-                                                     location.get("timezone"))
-        except ELIAError as exc:
-            live_solar = {"status": "unavailable", "provider": "Open-Meteo",
-                          "error_code": exc.code, "message": exc.message}
     obstacles = fixed_obstacles
     validation = validate_layout(context.land, context.house, gate, garage, driveway_polygon, driveway_line,
                                  turning, {"status": utilities.status}, vegetation, lighting, vertical, outdoor,
@@ -512,12 +597,72 @@ def run_elia(master_json: Mapping[str, Any], raw_requirements: Mapping[str, Any]
     solar_preferences = raw_requirements.get("solar", {})
     balcony_preferences = raw_requirements.get("balconies", {})
     terrace_preferences = raw_requirements.get("terrace", {})
+    # Generate non-overlapping ground surfaces partition
+    ground_surfaces: list[dict[str, Any]] = []
+    claimed_surface_geom = unary_union([context.house, unary_union(restrictions)]) if restrictions else context.house
+
+    # 1. Driveway surface
+    if driveway_polygon and not driveway_polygon.is_empty:
+        dsurf = driveway_polygon.difference(claimed_surface_geom)
+        if not dsurf.is_empty:
+            driveway_surface_mat = str(access_preferences.get("driveway_surface") or "asphalt")
+            ground_surfaces.append({
+                "json_id": "SURFACE_DRIVEWAY_001",
+                "type": "driveway",
+                "material": driveway_surface_mat,
+                "area_m2": round(float(dsurf.area), 2),
+                "polygon": list(dsurf.exterior.coords) if dsurf.geom_type == "Polygon" else None,
+                "geometry": mapping(dsurf),
+            })
+            claimed_surface_geom = claimed_surface_geom.union(dsurf)
+
+    # 2. Pedestrian path surface
+    path_surf_mat = str(landscape_preferences.get("pedestrian_path_surface") or landscape_preferences.get("walking_path_surface") or "pavers")
+    path_polys = [Polygon(p["polygon"]) for p in requested_paths.values() if p.get("valid") and p.get("polygon")]
+    if path_polys:
+        psurf = unary_union(path_polys).difference(claimed_surface_geom)
+        if not psurf.is_empty:
+            ground_surfaces.append({
+                "json_id": "SURFACE_PATHS_001",
+                "type": "pedestrian_path",
+                "material": path_surf_mat,
+                "area_m2": round(float(psurf.area), 2),
+                "polygon": list(psurf.exterior.coords) if psurf.geom_type == "Polygon" else None,
+                "geometry": mapping(psurf),
+            })
+            claimed_surface_geom = claimed_surface_geom.union(psurf)
+
+    # 3. Garden beds surface
+    veg_buffers = [Point(n["position"]).buffer(float(n.get("canopy_radius_m", 1.0)) * 0.7) for n in vegetation if n.get("position")]
+    if veg_buffers:
+        vsurf = unary_union(veg_buffers).intersection(residual).difference(claimed_surface_geom)
+        if not vsurf.is_empty:
+            ground_surfaces.append({
+                "json_id": "SURFACE_GARDEN_BEDS_001",
+                "type": "garden_bed",
+                "material": "mulch_soil",
+                "area_m2": round(float(vsurf.area), 2),
+                "geometry": mapping(vsurf),
+            })
+            claimed_surface_geom = claimed_surface_geom.union(vsurf)
+
+    # 4. Lawn surface (remaining open residual ground)
+    lawn_ground = residual.difference(claimed_surface_geom)
+    if not lawn_ground.is_empty:
+        lawn_finish_mat = str(landscape_preferences.get("open_space_finish") or "natural_grass")
+        ground_surfaces.append({
+            "json_id": "SURFACE_LAWN_001",
+            "type": "lawn",
+            "material": lawn_finish_mat,
+            "area_m2": round(float(lawn_ground.area), 2),
+            "geometry": mapping(lawn_ground),
+        })
+
+    # Unsupported & Unfulfilled tracking
     unsupported_preferences = [
         name for name, value in (
             ("preferred_garden_zone", landscape_preferences.get("preferred_garden_zone")),
             ("preferred_open_space_ratio", landscape_preferences.get("preferred_open_space_ratio")),
-            ("driveway_style", access_preferences.get("driveway_style")),
-            ("driveway_surface", access_preferences.get("driveway_surface")),
             ("entrance_priority", access_preferences.get("entrance_priority")),
             ("property_orientation", raw_requirements.get("property_orientation")),
             ("design_style_geometry", raw_requirements.get("design_style")),
@@ -557,6 +702,126 @@ def run_elia(master_json: Mapping[str, Any], raw_requirements: Mapping[str, Any]
         if landscape_preferences.get(pref_key) and not any(item.get("type") == type_val and item.get("validation", {}).get("valid") for item in outdoor):
             unfulfilled_preferences.append(pref_key)
     unfulfilled_preferences.extend(f"lighting_zone:{zone}" for zone in missing_lighting_zones)
+
+    # Detailed Structured Requirement Tracking across 11 preference groups
+    fulfillment_items: dict[str, dict[str, Any]] = {}
+    
+    # Parking & Garage
+    if access_preferences.get("parking_required", True):
+        bays_placed = sum(1 for el in outdoor if el.get("type") == "parking_bay" and el.get("validation", {}).get("valid"))
+        has_garage = garage is not None and garage.get("valid", True)
+        if has_garage or bays_placed > 0:
+            fulfillment_items["parking"] = {
+                "status": "fulfilled",
+                "original_request": {"parking_required": True, "vehicle_count": access_preferences.get("vehicle_count", 1)},
+                "actual_quantity": (garage.get("capacity", 1) if garage else 0) + bays_placed,
+                "generated_type": "garage" if garage else "parking_bay",
+            }
+        else:
+            fulfillment_items["parking"] = {
+                "status": "infeasible",
+                "original_request": {"parking_required": True},
+                "actual_quantity": 0,
+                "reason_codes": ["NO_RESIDUAL_SPACE_FOR_PARKING"],
+            }
+    else:
+        fulfillment_items["parking"] = {"status": "explicitly_disabled", "original_request": False, "actual_quantity": 0}
+
+    # Driveway style
+    req_style = str(access_preferences.get("driveway_style") or "auto").lower()
+    if access_preferences.get("driveway_required", True):
+        if path_metadata and path_metadata.get("status") == "infeasible":
+            fulfillment_items["driveway_style"] = {
+                "status": "infeasible",
+                "original_request": req_style,
+                "actual_state": None,
+                "reason_codes": [path_metadata.get("reason", "DRIVEWAY_OBSTRUCTED")],
+                "supported_alternatives": ["curved"] if req_style == "straight" else ["straight"],
+            }
+        elif driveway_polygon is not None:
+            chosen_style = path_metadata.get("chosen_style", req_style)
+            fulfillment_items["driveway_style"] = {
+                "status": "fulfilled",
+                "original_request": req_style,
+                "actual_state": chosen_style,
+                "material": path_metadata.get("surface_material"),
+            }
+        else:
+            fulfillment_items["driveway_style"] = {
+                "status": "infeasible",
+                "original_request": req_style,
+                "actual_state": None,
+                "reason_codes": ["DRIVEWAY_UNRESOLVED"],
+            }
+
+    # Water features
+    for wf_key, elem_type in [("garden_taps_required", "garden_tap"), ("well_required", "water_well"),
+                              ("septic_tank_required", "septic_tank"), ("pond_required", "garden_pond"),
+                              ("swimming_pool_required", "swimming_pool")]:
+        if water_preferences.get(wf_key):
+            matched = [el for el in outdoor if el.get("type") == elem_type]
+            if matched and any(m.get("validation", {}).get("valid") for m in matched):
+                fulfillment_items[wf_key] = {
+                    "status": "review_required",
+                    "original_request": True,
+                    "actual_quantity": len(matched),
+                    "missing_evidence": ["technical_plumbing_or_excavation_certification"],
+                    "reason_codes": ["PROPOSAL_REQUIRES_TECHNICAL_EVIDENCE"],
+                }
+            else:
+                fulfillment_items[wf_key] = {
+                    "status": "infeasible",
+                    "original_request": True,
+                    "actual_quantity": 0,
+                    "reason_codes": ["INSUFFICIENT_SPACE_OR_BUFFER_CONFLICT"],
+                }
+
+    # Balcony & Rooftop Elevated Features
+    if elevated_plan and elevated_plan.get("fulfillment_updates"):
+        fulfillment_items.update(elevated_plan["fulfillment_updates"])
+
+    # Solar PV Fulfillment
+    if solar_preferences.get("panels_required"):
+        if solar_plan and solar_plan.get("status") == "fulfilled":
+            fulfillment_items["solar_panels"] = {
+                "status": "fulfilled",
+                "approval_status": "approved",
+                "original_request": True,
+                "actual_quantity": solar_plan["module_count"],
+                "installed_capacity_kw": solar_plan["system_capacity_kw"],
+                "surface_id": solar_plan["surface_id"],
+                "estimated_annual_generation_kwh": solar_plan.get("estimated_annual_yield_kwh") or solar_plan.get("energy_estimation", {}).get("estimated_annual_yield_kwh", 0.0),
+            }
+        elif solar_plan and solar_plan.get("status") == "review_required":
+            fulfillment_items["solar_panels"] = {
+                "status": "review_required",
+                "approval_status": "provisional_review_required",
+                "provisional_preview": True,
+                "original_request": True,
+                "actual_quantity": solar_plan.get("module_count", 0),
+                "installed_capacity_kw": solar_plan.get("system_capacity_kw", 0.0),
+                "surface_id": solar_plan.get("surface_id"),
+                "reason_codes": ["PROVISIONAL_GEOMETRIC_PREVIEW_REQUIRING_STRUCTURAL_SIGN_OFF"],
+                "missing_evidence": solar_plan.get("missing_evidence", ["structural_load_certification"]),
+                "estimated_annual_generation_kwh": solar_plan.get("estimated_annual_yield_kwh") or solar_plan.get("energy_estimation", {}).get("estimated_annual_yield_kwh", 0.0),
+            }
+        elif solar_plan and solar_plan.get("status") in ("evidence_missing",):
+            fulfillment_items["solar_panels"] = {
+                "status": "evidence_missing",
+                "original_request": True,
+                "actual_quantity": 0,
+                "reason_codes": [solar_plan.get("reason", "MISSING_ROOF_GEOMETRY")],
+                "missing_evidence": solar_plan.get("missing_evidence", ["authoritative_roof_surfaces"]),
+                "supported_alternatives": ["Ground solar array or community microgrid."],
+            }
+        else:
+            fulfillment_items["solar_panels"] = {
+                "status": solar_plan.get("status", "infeasible") if solar_plan else "infeasible",
+                "original_request": True,
+                "actual_quantity": 0,
+                "reason_codes": [solar_plan.get("reason", "MISSING_ROOF_GEOMETRY")] if solar_plan else ["MISSING_ROOF_GEOMETRY"],
+                "supported_alternatives": ["Ground solar array or community microgrid."],
+            }
     result = {
         "version": "1.0", "run_id": run_id, "theme_concept": requirements.get("design_style"),
         "spatial_strategy": "vertical" if vertical["status"] == "placed" else "horizontal",
@@ -577,18 +842,23 @@ def run_elia(master_json: Mapping[str, Any], raw_requirements: Mapping[str, Any]
                 "north_angle": requirements.get("north_angle"), "solar_analysis_date": requirements["solar_analysis_date"],
             "north_orientation_convention": requirements["north_orientation_convention"],
                 "solar_samples": solar_samples, "shadow_analysis": shadows,
+                "solar_installation": solar_plan,
                 "live_solar_conditions": live_solar or {"status": "not_requested"}},
         "vegetation_nodes": vegetation, "vertical_greenery": vertical,
         "outdoor_lighting": {"nodes": lighting, "style": requirements.get("lighting", {}).get("style")},
         "outdoor_elements": outdoor,
+        "ground_surfaces": ground_surfaces,
         "factors_assessment": factors_assessment,
         "concept_rules_applied": concept_rules,
         "rule_evaluations": rule_results["rule_evaluations"],
         "rule_summary": rule_results["category_summaries"],
         "approval_status": rule_results["approval_status"],
-        "preference_fulfillment": {"unsupported_preferences": unsupported_preferences,
-                       "unfulfilled_preferences": unfulfilled_preferences,
-                       "label_only_preferences": []},
+        "preference_fulfillment": {
+            "items": fulfillment_items,
+            "unsupported_preferences": unsupported_preferences,
+            "unfulfilled_preferences": unfulfilled_preferences,
+            "label_only_preferences": [],
+        },
         "overlap_policy": {"elevated_canopy_access_overlap": "not_permitted_without_verified_clearance",
                    "furniture_access_overlap": "prohibited",
                    "trunk_radius_assessment": "unavailable; no trunk-radius input is modeled",
@@ -604,6 +874,47 @@ def run_elia(master_json: Mapping[str, Any], raw_requirements: Mapping[str, Any]
     return result, outcome
 
 
+PARAMETRIC_OUTDOOR_TYPES = {
+    "garden_seating", "garden_table_set", "pergola", "deck", "gazebo",
+    "parking_bay", "rooftop_table", "rooftop_chair", "rooftop_table_set",
+    "rooftop_planter", "balcony_pot"
+}
+
+POLYGON_AUTHORITATIVE_TYPES = {
+    "boundary_wall", "garden_zone", "lawn_zone", "patio", "path",
+    "pedestrian_path", "garden_path", "custom_feature", "water_body",
+    "pond", "rockery", "swimming_pool"
+}
+
+
+def _parse_strict_positive(val: Any) -> tuple[bool, float | None]:
+    if val is None:
+        return True, None
+    if isinstance(val, bool):
+        return False, None
+    try:
+        f = float(val)
+        if math.isfinite(f) and f > 0:
+            return True, f
+    except (TypeError, ValueError):
+        pass
+    return False, None
+
+
+def _parse_strict_angle(val: Any) -> tuple[bool, float]:
+    if val is None:
+        return True, 0.0
+    if isinstance(val, bool):
+        return False, 0.0
+    try:
+        f = float(val)
+        if math.isfinite(f):
+            return True, f
+    except (TypeError, ValueError):
+        pass
+    return False, 0.0
+
+
 def validate_candidate_exterior(
     master_json: Mapping[str, Any],
     candidate: Mapping[str, Any],
@@ -612,10 +923,24 @@ def validate_candidate_exterior(
     if not isinstance(candidate, Mapping):
         raise ELIAError("ELIA_INVALID_CANDIDATE_PAYLOAD", "Candidate must be a valid JSON object.")
 
+    # Guarantee input candidate immutability
+    candidate = deepcopy(dict(candidate))
     master_json = normalize_master_json(master_json)
     context = parse_exterior_context(master_json, default_units=elia_rules()["units"]["default_input"])
-    requirements = normalize_requirements(raw_requirements or {}, master_json, context.source_units)
-    utilities = validate_utilities(master_json, raw_requirements or {}, context.source_units, "m")
+    
+    if raw_requirements is None:
+        saved_reqs = master_json.get("exterior_requirements") or master_json.get("processing", {}).get("elia_engine", {}).get("requirements")
+        if saved_reqs:
+            effective_raw_reqs = saved_reqs
+        elif ("access" not in candidate or not candidate.get("access")):
+            effective_raw_reqs = {"access": {"driveway_required": False, "gate_required": False}}
+        else:
+            effective_raw_reqs = {}
+    else:
+        effective_raw_reqs = raw_requirements
+
+    requirements = normalize_requirements(effective_raw_reqs, master_json, context.source_units)
+    utilities = validate_utilities(master_json, effective_raw_reqs, context.source_units, "m")
     restrictions = _auxiliary_polygons(master_json, context.unit_scale)
     restrictions.extend(utilities.buffers)
     residual_result = calculate_residual_space(context.land, context.house, restrictions)
@@ -640,20 +965,9 @@ def validate_candidate_exterior(
     outdoor = list(candidate.get("outdoor_elements", []))
     vertical = candidate.get("vertical_greenery", {"triggered": False, "elements": []})
 
-    drive_width = float(requirements["access"].get("preferred_driveway_width_m") or elia_rules()["access"]["default_driveway_width_m"])
-
-    # Base layout validation (gate, garage, driveway, turning)
-    base_validation = validate_layout(
-        context.land, context.house, gate, garage, driveway_poly, driveway_line,
-        turning, {"status": utilities.status}, vegetation, lighting, vertical, outdoor,
-        solar_samples, fixed_obstacles, master_json, context.unit_scale,
-        requirements["access"]["vehicle_profiles"], drive_width, requirements,
-        residual=residual
-    )
-
-    violations: list[str] = list(base_validation.get("violations", []))
-    checks_passed = base_validation.get("checks_passed", 0)
-    checks_total = base_validation.get("checks_total", 0)
+    violations: list[str] = []
+    checks_passed = 0
+    checks_total = 0
 
     def record_check(passed: bool, violation_name: str | None = None):
         nonlocal checks_passed, checks_total
@@ -692,6 +1006,8 @@ def validate_candidate_exterior(
         valid_pos = (
             isinstance(pos, (list, tuple))
             and len(pos) == 2
+            and not isinstance(pos[0], bool)
+            and not isinstance(pos[1], bool)
             and isfinite(float(pos[0]))
             and isfinite(float(pos[1]))
         )
@@ -700,7 +1016,7 @@ def validate_candidate_exterior(
             continue
         px, py = float(pos[0]), float(pos[1])
         r = float(v.get("canopy_radius_m") or 1.0)
-        valid_r = isfinite(r) and r > 0
+        valid_r = not isinstance(v.get("canopy_radius_m"), bool) and isfinite(r) and 0.1 <= r <= 10.0
         record_check(valid_r, f"invalid_canopy_radius_{v.get('json_id')}")
         if not valid_r:
             continue
@@ -747,66 +1063,235 @@ def validate_candidate_exterior(
             r2 = float(v2["canopy_radius_m"])
             record_check(p1.distance(p2) >= max(r1, r2), f"vegetation_overlap_{v1.get('json_id')}_{v2.get('json_id')}")
 
-    # 3. Recompute and validate outdoor elements (recomputing footprints when position changes)
+    # 3. Clean and validate outdoor elements by Category
     clean_outdoor: list[dict[str, Any]] = []
     for o in outdoor:
+        jid = str(o.get("json_id") or "").strip()
+        o_type = str(o.get("type") or "").lower()
+        dims = o.get("dimensions") if isinstance(o.get("dimensions"), Mapping) else {}
         pos = o.get("position")
-        dims = o.get("dimensions") or {}
-        w = float(dims.get("width_m") or dims.get("width") or 1.5)
-        d = float(dims.get("depth_m") or dims.get("depth") or 1.5)
-        valid_dims = isfinite(w) and isfinite(d) and w > 0 and d > 0
-        record_check(valid_dims, f"invalid_dimensions_{o.get('json_id')}")
 
-        if pos and isinstance(pos, (list, tuple)) and len(pos) == 2 and isfinite(float(pos[0])) and isfinite(float(pos[1])):
-            px, py = float(pos[0]), float(pos[1])
-            footprint = box(px - w / 2, py - d / 2, px + w / 2, py + d / 2)
-            poly_coords = list(footprint.exterior.coords)
-        elif o.get("polygon"):
-            poly = Polygon(o["polygon"])
-            footprint = poly
-            poly_coords = list(poly.exterior.coords)
-            px, py = poly.centroid.x, poly.centroid.y
-        else:
-            footprint = None
-            poly_coords = None
-            px, py = 0.0, 0.0
+        raw_w = dims.get("width_m") if "width_m" in dims else dims.get("width")
+        raw_d = dims.get("depth_m") if "depth_m" in dims else (dims.get("depth") if "depth" in dims else (dims.get("length_m") if "length_m" in dims else dims.get("length")))
 
+        w_valid, parsed_w = _parse_strict_positive(raw_w)
+        d_valid, parsed_d = _parse_strict_positive(raw_d)
+        record_check(w_valid and d_valid, f"invalid_dimensions_{jid}")
+
+        raw_rot = o.get("rotation_deg") if "rotation_deg" in o else (o.get("orientation_deg") if "orientation_deg" in o else o.get("azimuth_degrees"))
+        rot_valid, angle = _parse_strict_angle(raw_rot)
+        record_check(rot_valid, f"invalid_rotation_{jid}")
+
+        pos_valid = (
+            isinstance(pos, (list, tuple))
+            and len(pos) == 2
+            and not isinstance(pos[0], bool)
+            and not isinstance(pos[1], bool)
+            and isfinite(float(pos[0]))
+            and isfinite(float(pos[1]))
+        )
+        if pos is not None:
+            record_check(pos_valid, f"invalid_position_{jid}")
+
+        w = parsed_w if parsed_w is not None else 1.5
+        d = parsed_d if parsed_d is not None else 1.5
+
+        if o_type in {"garden_seating", "garden_table_set", "pergola", "deck", "gazebo"}:
+            dim_within_limits = (0.5 <= w <= 10.0) and (0.5 <= d <= 10.0)
+            record_check(dim_within_limits, f"dimension_limits_exceeded_{jid}")
+
+        footprint = None
+        poly_coords = None
+        px, py = 0.0, 0.0
         clean_o = dict(o)
         clean_o.pop("budget_estimate", None)
         clean_o.pop("budget_assessment", None)
+
+        if o_type in PARAMETRIC_OUTDOOR_TYPES:
+            # Canonical footprint derived server-side from parameters
+            if pos_valid:
+                px, py = float(pos[0]), float(pos[1])
+                base_box = box(px - w / 2, py - d / 2, px + w / 2, py + d / 2)
+                canonical_poly = affinity.rotate(base_box, angle, origin=(px, py)) if (angle % 360) != 0 else base_box
+                footprint = canonical_poly
+                poly_coords = list(canonical_poly.exterior.coords)
+
+                # Check if supplied polygon contradicts canonical parameters
+                if o.get("polygon"):
+                    try:
+                        cand = Polygon(o["polygon"])
+                        if cand.is_valid and not cand.is_empty:
+                            c_dist = canonical_poly.centroid.distance(cand.centroid)
+                            a_diff = abs(canonical_poly.area - cand.area)
+                            # If contradictory beyond numerical tolerance, canonical geometry replaces it
+                            if c_dist > 0.05 or a_diff > 0.05:
+                                footprint = canonical_poly
+                                poly_coords = list(canonical_poly.exterior.coords)
+                    except Exception:
+                        pass
+            elif o.get("polygon"):
+                try:
+                    cand = Polygon(o["polygon"])
+                    if cand.is_valid and not cand.is_empty:
+                        footprint = cand
+                        poly_coords = list(cand.exterior.coords)
+                        px, py = cand.centroid.x, cand.centroid.y
+                except Exception:
+                    footprint = None
+
+        elif o_type in POLYGON_AUTHORITATIVE_TYPES or o.get("authoritative_geometry") == "polygon":
+            # Preserve irregular geometry and interior holes verbatim
+            raw_p = o.get("polygon") or o.get("geometry") or o.get("coordinates")
+            cand_poly = None
+            if raw_p is not None:
+                try:
+                    if isinstance(raw_p, Mapping):
+                        cand_poly = shape(raw_p)
+                    elif isinstance(raw_p, (list, tuple)) and raw_p:
+                        if isinstance(raw_p[0], (list, tuple)) and len(raw_p[0]) > 0 and isinstance(raw_p[0][0], (list, tuple)):
+                            cand_poly = Polygon(raw_p[0], raw_p[1:])
+                        else:
+                            cand_poly = Polygon(raw_p)
+                except Exception:
+                    cand_poly = None
+
+            if cand_poly is not None and cand_poly.is_valid and not cand_poly.is_empty:
+                footprint = cand_poly
+                if cand_poly.geom_type == "Polygon":
+                    poly_coords = list(cand_poly.exterior.coords)
+                    if cand_poly.interiors:
+                        clean_o["holes"] = [list(ring.coords) for ring in cand_poly.interiors]
+                elif hasattr(cand_poly, "geoms") and len(cand_poly.geoms) > 0:
+                    poly_coords = list(cand_poly.geoms[0].exterior.coords)
+                else:
+                    poly_coords = list(cand_poly.convex_hull.exterior.coords)
+                px, py = cand_poly.centroid.x, cand_poly.centroid.y
+                record_check(True, f"valid_irregular_polygon_{jid}")
+            else:
+                record_check(False, f"invalid_irregular_polygon_{jid}")
+
+        elif o_type in ("solar_panel_array", "solar_panel"):
+            # Solar array: preserve all individual modules and their geometry
+            modules = o.get("modules") or o.get("panels") or []
+            clean_modules = []
+            module_polys = []
+            for mod in modules:
+                if isinstance(mod, Mapping):
+                    mod_p = mod.get("polygon") or mod.get("footprint") or mod.get("coordinates")
+                    if mod_p and isinstance(mod_p, (list, tuple)) and len(mod_p) >= 3:
+                        try:
+                            mpoly = Polygon(mod_p)
+                            if mpoly.is_valid and not mpoly.is_empty:
+                                module_polys.append(mpoly)
+                                clean_m = dict(mod)
+                                clean_m["polygon"] = list(mpoly.exterior.coords)
+                                clean_modules.append(clean_m)
+                        except Exception:
+                            pass
+            if clean_modules:
+                clean_o["modules"] = clean_modules
+            if module_polys:
+                footprint = unary_union(module_polys)
+                poly_coords = list(footprint.exterior.coords) if footprint.geom_type == "Polygon" else list(footprint.convex_hull.exterior.coords)
+                px, py = footprint.centroid.x, footprint.centroid.y
+            elif o.get("polygon"):
+                try:
+                    cand = Polygon(o["polygon"])
+                    if cand.is_valid and not cand.is_empty:
+                        footprint = cand
+                        poly_coords = list(cand.exterior.coords)
+                        px, py = cand.centroid.x, cand.centroid.y
+                except Exception:
+                    footprint = None
+            if footprint is None and pos_valid:
+                px, py = float(pos[0]), float(pos[1])
+                base_box = box(px - w / 2, py - d / 2, px + w / 2, py + d / 2)
+                footprint = affinity.rotate(base_box, angle, origin=(px, py)) if (angle % 360) != 0 else base_box
+                poly_coords = list(footprint.exterior.coords)
+
+            # Unified authoritative solar evidence validation
+            ev_eval = evaluate_solar_structural_evidence(
+                supporting_surface_id=o.get("supporting_surface_id"),
+                master_json=master_json,
+                requirements=requirements,
+                element=o,
+            )
+            clean_o["structural_evidence_evaluation"] = ev_eval
+            clean_o["is_approved"] = ev_eval["is_approved"]
+            clean_o["provisional_geometric_preview"] = not ev_eval["is_approved"]
+            if not ev_eval["is_approved"] and ev_eval.get("reason"):
+                clean_o["review_reason"] = ev_eval["reason"]
+
+        else:
+            # Generic / custom outdoor element
+            if o.get("polygon"):
+                try:
+                    cand = shape(o["polygon"]) if isinstance(o["polygon"], Mapping) else Polygon(o["polygon"])
+                    if cand.is_valid and not cand.is_empty:
+                        footprint = cand
+                        if cand.geom_type == "Polygon":
+                            poly_coords = list(cand.exterior.coords)
+                        elif hasattr(cand, "geoms") and len(cand.geoms) > 0:
+                            poly_coords = list(cand.geoms[0].exterior.coords)
+                        else:
+                            poly_coords = list(cand.convex_hull.exterior.coords)
+                        px, py = cand.centroid.x, cand.centroid.y
+                except Exception:
+                    footprint = None
+            if footprint is None and pos_valid:
+                px, py = float(pos[0]), float(pos[1])
+                base_box = box(px - w / 2, py - d / 2, px + w / 2, py + d / 2)
+                footprint = affinity.rotate(base_box, angle, origin=(px, py)) if (angle % 360) != 0 else base_box
+                poly_coords = list(footprint.exterior.coords)
+
         if footprint is not None:
             clean_o["position"] = [round(px, 3), round(py, 3)]
             clean_o["polygon"] = poly_coords
-            clean_o["dimensions"] = {"width_m": w, "depth_m": d}
-            record_check(context.land.covers(footprint), f"outdoor_element_outside_land_{o.get('json_id')}")
-            record_check(not footprint.intersects(fixed_obstacles), f"outdoor_element_intersects_obstacles_{o.get('json_id')}")
+            is_elevated = bool(o.get("supporting_surface_id")) or o_type in (
+                "solar_panel_array", "solar_panel", "balcony_pot", "rooftop_planter",
+                "rooftop_table", "rooftop_chair", "rooftop_table_set"
+            )
+            is_zone_or_boundary = o_type in {"boundary_wall", "garden_zone", "lawn_zone"}
+            if not is_elevated and not is_zone_or_boundary:
+                record_check(context.land.covers(footprint), f"outdoor_element_outside_land_{jid}")
+                record_check(not footprint.intersects(fixed_obstacles), f"outdoor_element_intersects_obstacles_{jid}")
+            elif is_zone_or_boundary:
+                record_check(context.land.covers(footprint), f"outdoor_element_outside_land_{jid}")
         clean_outdoor.append(clean_o)
 
-    # Outdoor pairwise overlap: allow legitimate path connections to seating
+    # Outdoor pairwise overlap: allow legitimate path connections to seating, and ignore zones
     for i, o1 in enumerate(clean_outdoor):
         poly1 = Polygon(o1["polygon"]) if o1.get("polygon") else None
         t1 = str(o1.get("type") or "").lower()
-        if not poly1:
+        if not poly1 or t1 in {"boundary_wall", "garden_zone", "lawn_zone"}:
             continue
         for j in range(i + 1, len(clean_outdoor)):
             o2 = clean_outdoor[j]
             poly2 = Polygon(o2["polygon"]) if o2.get("polygon") else None
             t2 = str(o2.get("type") or "").lower()
-            if not poly2:
+            if not poly2 or t2 in {"boundary_wall", "garden_zone", "lawn_zone"}:
                 continue
             if ("path" in t1 and ("seating" in t2 or "table" in t2 or "dining" in t2)) or \
                ("path" in t2 and ("seating" in t1 or "table" in t1 or "dining" in t1)):
                 continue
+            elev1 = bool(o1.get("supporting_surface_id")) or t1 in ("solar_panel_array", "solar_panel", "balcony_pot", "rooftop_planter", "rooftop_table", "rooftop_chair")
+            elev2 = bool(o2.get("supporting_surface_id")) or t2 in ("solar_panel_array", "solar_panel", "balcony_pot", "rooftop_planter", "rooftop_table", "rooftop_chair")
+            if elev1 != elev2:
+                continue
+            if elev1 and elev2 and o1.get("supporting_surface_id") != o2.get("supporting_surface_id"):
+                continue
             is_overlap = poly1.intersects(poly2) and poly1.intersection(poly2).area > 1e-4
             record_check(not is_overlap, f"outdoor_element_overlap_{o1.get('json_id')}_{o2.get('json_id')}")
 
-    # 4. Recompute and validate lighting
+    # 4. Clean and validate lighting
     clean_lighting: list[dict[str, Any]] = []
     for l in lighting:
         pos = l.get("position")
         valid_pos = (
             isinstance(pos, (list, tuple))
             and len(pos) == 2
+            and not isinstance(pos[0], bool)
+            and not isinstance(pos[1], bool)
             and isfinite(float(pos[0]))
             and isfinite(float(pos[1]))
         )
@@ -822,6 +1307,22 @@ def validate_candidate_exterior(
         clean_l["position"] = [round(px, 3), round(py, 3)]
         clean_lighting.append(clean_l)
 
+    # 5. Base layout validation using identical canonical geometries
+    drive_width = float(requirements["access"].get("preferred_driveway_width_m") or elia_rules()["access"]["default_driveway_width_m"])
+    base_validation = validate_layout(
+        context.land, context.house, gate, garage, driveway_poly, driveway_line,
+        turning, {"status": utilities.status}, clean_vegetation, clean_lighting, vertical, clean_outdoor,
+        solar_samples, fixed_obstacles, master_json, context.unit_scale,
+        requirements["access"]["vehicle_profiles"], drive_width, requirements,
+        residual=residual
+    )
+    for bv in base_validation.get("violations", []):
+        if bv not in violations:
+            violations.append(bv)
+    checks_passed += base_validation.get("checks_passed", 0)
+    checks_total += base_validation.get("checks_total", 0)
+
+    # 6. Evaluate rules on canonical candidate
     rule_results = evaluate_rules(
         candidate={
             "vegetation_nodes": clean_vegetation,
@@ -841,6 +1342,28 @@ def validate_candidate_exterior(
         },
         shadow_samples=shadow_samples,
     )
+
+    has_solar_elements = any(
+        str(o.get("type")).lower() in ("solar_panel_array", "solar_panel")
+        for o in clean_outdoor
+    )
+    solar_unverified = any(
+        not o.get("structural_evidence_evaluation", {}).get("is_approved", True)
+        for o in clean_outdoor if str(o.get("type")).lower() in ("solar_panel_array", "solar_panel")
+    )
+    if solar_unverified:
+        rule_results["approval_status"] = "review_required"
+        reviews = rule_results.setdefault("conditional_reviews", [])
+        if not any(cr.get("rule_id") == "SOLAR_STRUCTURAL_EVIDENCE" for cr in reviews):
+            reviews.append({
+                "rule_id": "SOLAR_STRUCTURAL_EVIDENCE",
+                "category": "solar_panels",
+                "severity": "review",
+                "message": "Solar PV installation requires verified structural engineering sign-off.",
+                "missing_evidence": ["structural_load_certification"],
+            })
+    elif has_solar_elements and len(violations) == 0 and len(rule_results.get("hard_blocks", [])) == 0:
+        rule_results["approval_status"] = "approved"
 
     for hb in rule_results.get("hard_blocks", []):
         hb_id = f"rule_violation_{hb['rule_id']}"
@@ -900,3 +1423,189 @@ def validate_candidate_exterior(
         "validation_summary": validation_summary,
         "canonical_candidate": canonical_candidate,
     }
+
+
+def evaluate_acceptance_policy(
+    validation_result: Mapping[str, Any],
+    candidate: Mapping[str, Any] | None = None,
+    master_json: Mapping[str, Any] | None = None,
+    requirements: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Authoritative ELIA acceptance policy evaluator.
+    
+    Determines whether an exterior candidate is approved for accepted persistence.
+    - Geometric validity alone does NOT imply approval.
+    - Derives approval strictly from server evaluations, never client-supplied flags.
+    - Unresolved blocking reviews (review_required) or missing evidence (evidence_missing)
+      block acceptance and preserve existing accepted designs.
+    - Unrecognized/unknown approval states are rejected.
+    - Distinguishes informational warnings from blocking reviews.
+    - Returns structured decision: accepted (bool), approval_status, blocking_reasons,
+      blocking_features, missing_evidence, warnings, message.
+    """
+    valid = bool(validation_result.get("valid", False))
+    violations = list(validation_result.get("violations", []))
+    hard_blocks = list(validation_result.get("hard_blocks", []))
+    conditional_reviews = list(validation_result.get("conditional_reviews", []))
+    
+    # Server approval status from validation_result or candidate
+    server_status = str(
+        validation_result.get("approval_status")
+        or (candidate.get("approval_status") if isinstance(candidate, Mapping) else None)
+        or "unknown"
+    ).strip().lower()
+
+    blocking_reasons: list[str] = []
+    blocking_features: list[str] = []
+    missing_evidence: list[str] = []
+    warnings: list[str] = []
+
+    if not valid:
+        blocking_reasons.extend(violations)
+        for v in violations:
+            if "solar" in v:
+                blocking_features.append("solar_panels")
+            elif "vegetation" in v:
+                blocking_features.append("vegetation")
+            elif "outdoor" in v or "furniture" in v:
+                blocking_features.append("outdoor_elements")
+            elif "lighting" in v:
+                blocking_features.append("lighting")
+            elif "gate" in v or "driveway" in v or "garage" in v:
+                blocking_features.append("access")
+            elif "utility" in v:
+                blocking_features.append("utilities")
+            else:
+                blocking_features.append("geometry")
+
+    for hb in hard_blocks:
+        rule_id = hb.get("rule_id", "rule_violation")
+        msg = f"HARD_BLOCK: {rule_id} - {hb.get('message', 'Compliance rule violation')}"
+        if msg not in blocking_reasons:
+            blocking_reasons.append(msg)
+        blocking_features.append(hb.get("category", "compliance"))
+
+    has_solar_element = False
+    solar_element_unapproved = False
+    # Inspect candidate elements for unverified solar structural evidence
+    if isinstance(candidate, Mapping):
+        for o in candidate.get("outdoor_elements", []):
+            if isinstance(o, Mapping) and str(o.get("type")).lower() in ("solar_panel_array", "solar_panel"):
+                has_solar_element = True
+                ev = o.get("structural_evidence_evaluation")
+                if not ev:
+                    ev = evaluate_solar_structural_evidence(
+                        supporting_surface_id=o.get("supporting_surface_id"),
+                        master_json=master_json or {},
+                        requirements=requirements,
+                        element=o,
+                    )
+                if not ev.get("is_approved"):
+                    solar_element_unapproved = True
+                    blocking_features.append("solar_panels")
+                    reason = f"SOLAR_STRUCTURAL_EVIDENCE_REJECTED: {ev.get('reason', 'Missing structural certification')}"
+                    if reason not in blocking_reasons:
+                        blocking_reasons.append(reason)
+                    for me in ev.get("missing_evidence", []):
+                        if me not in missing_evidence:
+                            missing_evidence.append(me)
+
+        # Inspect candidate environment solar installation
+        env_solar = candidate.get("environment", {}).get("solar_installation")
+        if isinstance(env_solar, Mapping):
+            if env_solar.get("provisional_geometric_preview") is True or env_solar.get("status") in ("review_required", "evidence_missing"):
+                solar_element_unapproved = True
+                blocking_features.append("solar_panels")
+                for me in env_solar.get("missing_evidence", []):
+                    if me not in missing_evidence:
+                        missing_evidence.append(me)
+
+        # Inspect preference fulfillment
+        fulfillment = (candidate.get("preference_fulfillment") or {}).get("items") or {}
+        solar_ful = fulfillment.get("solar_panels")
+        if isinstance(solar_ful, Mapping) and solar_ful.get("status") in ("review_required", "evidence_missing"):
+            solar_element_unapproved = True
+            blocking_features.append("solar_panels")
+            for me in solar_ful.get("missing_evidence", []):
+                if me not in missing_evidence:
+                    missing_evidence.append(me)
+
+    # Server approval status validation
+    if server_status in ("review_required", "evidence_missing", "infeasible", "blocked", "rejected"):
+        msg = f"UNAPPROVED_STATUS: Server evaluation resulted in '{server_status}'"
+        if msg not in blocking_reasons:
+            blocking_reasons.append(msg)
+        if server_status == "review_required" and has_solar_element and solar_element_unapproved:
+            blocking_features.append("solar_panels")
+    elif server_status not in ("approved", "compliant", "conditional_draft_review_required"):
+        blocking_reasons.append(f"UNRECOGNIZED_APPROVAL_STATUS: Server evaluation returned unknown status '{server_status}'")
+        blocking_features.append("governance")
+
+    # Distinguish blocking reviews from informational warnings in conditional_reviews
+    for cr in conditional_reviews:
+        rule_id = str(cr.get("rule_id") or "")
+        category = str(cr.get("category") or "").lower()
+        severity = str(cr.get("severity") or "").lower()
+        is_info = cr.get("is_informational") is True or severity in ("info", "warning", "advisory")
+        
+        is_blocking = (
+            rule_id == "SOLAR_STRUCTURAL_EVIDENCE"
+            or category in ("solar_panels", "elevated_installation")
+            or severity in ("blocking", "error", "hard_block")
+            or cr.get("enforcement_consequence") == "block_acceptance"
+        )
+        
+        if is_blocking and not is_info:
+            reason = f"CONDITIONAL_REVIEW: {rule_id} - {cr.get('message', 'Review required')}"
+            if reason not in blocking_reasons:
+                blocking_reasons.append(reason)
+            blocking_features.append(category or "compliance")
+            for me in cr.get("missing_evidence", []):
+                if me not in missing_evidence:
+                    missing_evidence.append(me)
+        else:
+            msg = cr.get("message") or f"{rule_id}: Advisory review"
+            if msg not in warnings:
+                warnings.append(msg)
+
+    # Check if required access features (driveway, gate) were omitted in save request
+    if requirements and isinstance(requirements, Mapping):
+        access_req = requirements.get("access") or {}
+        if isinstance(candidate, Mapping):
+            cand_acc = candidate.get("access") or {}
+            if access_req.get("driveway_required") and not cand_acc.get("driveway"):
+                blocking_features.append("access")
+                blocking_reasons.append("MISSING_REQUIRED_DRIVEWAY: Driveway is required but absent from candidate.")
+            if access_req.get("gate_required") and not cand_acc.get("gate"):
+                blocking_features.append("access")
+                blocking_reasons.append("MISSING_REQUIRED_GATE: Gate is required but absent from candidate.")
+
+    accepted = (
+        valid
+        and len(hard_blocks) == 0
+        and len(blocking_reasons) == 0
+        and not solar_element_unapproved
+    )
+
+    message = None
+    if not accepted:
+        feats = ", ".join(sorted(set(blocking_features))) if blocking_features else "compliance"
+        ev_info = f" Missing evidence: {', '.join(sorted(set(missing_evidence)))}." if missing_evidence else ""
+        message = f"Candidate design cannot be accepted for persistence due to blocking compliance reviews ({feats}).{ev_info}"
+
+    evaluated_status = "approved" if accepted else (
+        "review_required" if any("solar" in f for f in blocking_features) else (
+            server_status if server_status in ("review_required", "evidence_missing", "infeasible", "blocked") else "review_required"
+        )
+    )
+
+    return {
+        "accepted": accepted,
+        "approval_status": evaluated_status,
+        "blocking_reasons": sorted(set(blocking_reasons)),
+        "blocking_features": sorted(set(blocking_features)),
+        "missing_evidence": sorted(set(missing_evidence)),
+        "warnings": warnings,
+        "message": message,
+    }
+

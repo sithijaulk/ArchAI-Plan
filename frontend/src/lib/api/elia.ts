@@ -11,6 +11,11 @@ import type {
   CandidateSaveRequest,
   CandidateSaveResponse,
   ProjectFeasibilityResponse,
+  PlantCatalogueResponse,
+  PlantSuitabilityRequest,
+  PlantSuitabilityResponse,
+  PlantAlternativeAction,
+  AcceptedPlantAlternative,
 } from '@/types/elia';
 
 export interface SriLankaLocation {
@@ -153,6 +158,53 @@ export const eliaApi = {
     options?: { signal?: AbortSignal }
   ): Promise<ProjectFeasibilityResponse> => {
     const response = await apiClient.post(`/projects/${projectId}/elia-engine/feasibility`, payload, {
+      signal: options?.signal,
+    });
+    return response.data;
+  },
+
+  getPlantCatalogue: async (
+    projectId: string,
+    params?: {
+      placement_type?: string;
+      category?: string;
+      sun_requirement?: string;
+      maintenance_level?: string;
+      climate_zone?: string;
+      query?: string;
+      verified_only?: boolean;
+    },
+    options?: { signal?: AbortSignal }
+  ): Promise<PlantCatalogueResponse> => {
+    const response = await apiClient.get(`/projects/${projectId}/elia-engine/plant-catalogue`, {
+      params,
+      signal: options?.signal,
+    });
+    return response.data;
+  },
+
+  evaluatePlantSuitability: async (
+    projectId: string,
+    payload: PlantSuitabilityRequest,
+    options?: { signal?: AbortSignal }
+  ): Promise<PlantSuitabilityResponse> => {
+    const response = await apiClient.post(`/projects/${projectId}/elia-engine/plants/evaluate-suitability`, payload, {
+      signal: options?.signal,
+    });
+    return response.data;
+  },
+
+  updatePlantAlternatives: async (
+    projectId: string,
+    actions: PlantAlternativeAction[],
+    options?: { signal?: AbortSignal }
+  ): Promise<{
+    project_id: string;
+    source_revision: number;
+    validated_accepted: AcceptedPlantAlternative[];
+    rejected_plant_ids: string[];
+  }> => {
+    const response = await apiClient.post(`/projects/${projectId}/elia-engine/plants/alternatives`, actions, {
       signal: options?.signal,
     });
     return response.data;

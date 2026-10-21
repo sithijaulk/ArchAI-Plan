@@ -19,9 +19,9 @@
  *   - Displays clear missing-geometry / revision-mismatch states when input is unavailable.
  *   - Clear distinction between surveyed building heights and display-only approximations.
  */
-import React, { useMemo, Suspense } from 'react'
-import { Canvas } from '@react-three/fiber'
-import { OrbitControls, Grid } from '@react-three/drei'
+import React, { useMemo, useState, useRef, useEffect, Suspense } from 'react'
+import { Canvas, useThree } from '@react-three/fiber'
+import { OrbitControls, Grid, OrthographicCamera, PerspectiveCamera, TransformControls } from '@react-three/drei'
 import * as THREE from 'three'
 import { WebGLErrorBoundary } from '@/components/visualization/WebGLErrorBoundary'
 import type {
@@ -29,9 +29,11 @@ import type {
   ExteriorLandscape,
   EliaViewModel,
   GeoJsonPolygon,
+  GroundSurface,
 } from '@/types/elia'
 import {
   sourceToScene,
+  sceneToSource,
   polygonToBufferGeometry,
   polygonToLineLoops,
   polygonBBox,
@@ -66,6 +68,20 @@ const COLORS = {
   vertical: '#0d9488',
   outdoor: '#6b7280',
   north: '#ef4444',
+  pool: '#0284c7',
+  pond: '#0e7490',
+  well: '#64748b',
+  tap: '#94a3b8',
+  boundaryWall: '#475569',
+  parkingBay: '#1e293b',
+  lawnSurface: '#166534',
+  gardenBedSurface: '#78350f',
+  pathSurface: '#94a3b8',
+  solarPanel: '#1e3a8a',
+  solarFrame: '#94a3b8',
+  balconyPot: '#c2410c',
+  rooftopPlanter: '#78350f',
+  rooftopFurniture: '#d97706',
 } as const
 
 interface SceneTransformProps {
@@ -340,6 +356,43 @@ function LightingNodesMesh({
 // ---------------------------------------------------------------------------
 // 7. Outdoor Elements & Vertical Greenery
 // ---------------------------------------------------------------------------
+function GroundSurfacesMesh({
+  surfaces,
+  scale,
+  offset,
+}: {
+  surfaces?: GroundSurface[] | null
+} & SceneTransformProps) {
+  if (!surfaces || surfaces.length === 0) return null
+
+  return (
+    <>
+      {surfaces.map((s) => {
+        const coords = s.polygon ? [s.polygon] : normalizePolygonCoordinates(s.geometry)
+        if (!coords || coords.length === 0) return null
+        const geom = polygonToBufferGeometry(coords, 0, offset, scale)
+        if (!geom) return null
+        const color =
+          s.type === 'lawn'
+            ? COLORS.lawnSurface
+            : s.type === 'garden_bed'
+            ? COLORS.gardenBedSurface
+            : s.type === 'pedestrian_path'
+            ? COLORS.pathSurface
+            : COLORS.driveway
+        const yOffset = s.type === 'lawn' ? -0.005 : s.type === 'garden_bed' ? 0.002 : 0.004
+
+        return (
+          <mesh key={s.json_id} rotation={[-Math.PI / 2, 0, 0]} position={[0, yOffset, 0]}>
+            <primitive object={geom} attach="geometry" />
+            <meshStandardMaterial color={color} roughness={0.8} />
+          </mesh>
+        )
+      })}
+    </>
+  )
+}
+
 function OutdoorElementsMesh({
   elements,
   scale,
@@ -354,14 +407,158 @@ function OutdoorElementsMesh({
       {elements.map((el) => {
         const c = featureCenter(el)
         if (!c) return null
-        const [x, , z] = sourceToScene(c[0], c[1], 0, offset, scale)
+        const elev = typeof el.elevation_m === 'number' ? el.elevation_m : 0
+        const [x, y, z] = sourceToScene(c[0], c[1], elev, offset, scale)
         const dims = el.dimensions ?? {}
         const w = (dims.width_m ?? dims.width ?? 1) * scale
         const h = (dims.height_m ?? dims.height ?? 0.5) * scale
-        const d = (dims.depth_m ?? dims.depth ?? w) * scale
+        const d = (dims.length_m ?? dims.depth_m ?? dims.depth ?? w) * scale
+
+        if (el.type === 'solar_panel_array' || el.type === 'solar_panel') {
+          // If el.modules contains individual panel placements, render each faithfully
+          const modules = Array.isArray((el as any).modules) ? (el as any).modules : []
+          if (modules.length > 0) {
+            return (
+              <group key={el.json_id}>
+                {modules.map((mod: any, mIdx: number) => {
+                  const modCenter = mod.center || [0, 0]
+                  const modElev = typeof mod.elevation_m === 'number' ? mod.elevation_m : elev
+                  const [mx, my, mz] = sourceToScene(modCenter[0], modCenter[1], modElev, offset, scale)
+                  const modDims = mod.dimensions || {}
+                  const mw = (modDims.width_m ?? 1.1) * scale
+                  const ml = (modDims.length_m ?? modDims.depth_m ?? 1.8) * scale
+                  const mh = (modDims.height_m ?? 0.04) * scale
+                  const tiltDeg = typeof mod.tilt_degrees === 'number' ? mod.tilt_degrees : (typeof el.tilt_degrees === 'number' ? el.tilt_degrees : 15)
+                  const azDeg = typeof mod.azimuth_degrees === 'number' ? mod.azimuth_degrees : (typeof el.azimuth_degrees === 'number' ? el.azimuth_degrees : 180)
+                  const tiltRad = (tiltDeg * Math.PI) / 180
+                  const azRad = ((azDeg - 180) * Math.PI) / 180
+
+                  return (
+                    <group key={mod.id ?? `${el.json_id}-mod-${mIdx}`} position={[mx, my + 0.02 * scale, mz]}>
+                      <mesh rotation={[-tiltRad, -azRad, 0]}>
+                        <boxGeometry args={[mw, mh, ml]} />
+                        <meshStandardMaterial color={COLORS.solarPanel} roughness={0.2} metalness={0.7} />
+                      </mesh>
+                    </group>
+                  )
+                })}
+              </group>
+            )
+          }
+
+          // Fallback legacy bounding box: read length_m directly, do not substitute width
+          const tiltDeg = typeof el.tilt_degrees === 'number' ? el.tilt_degrees : 15
+          const tiltRad = (tiltDeg * Math.PI) / 180
+          const azDeg = typeof el.azimuth_degrees === 'number' ? el.azimuth_degrees : (typeof el.rotation_degrees === 'number' ? el.rotation_degrees : 180)
+          const azRad = ((azDeg - 180) * Math.PI) / 180
+          return (
+            <group key={el.json_id} position={[x, y + 0.05 * scale, z]}>
+              <mesh rotation={[-tiltRad, -azRad, 0]}>
+                <boxGeometry args={[w, 0.04 * scale, d]} />
+                <meshStandardMaterial color={COLORS.solarPanel} roughness={0.2} metalness={0.7} />
+              </mesh>
+            </group>
+          )
+        }
+        if (el.type === 'balcony_pot') {
+          return (
+            <group key={el.json_id} position={[x, y, z]}>
+              <mesh position={[0, h / 2, 0]}>
+                <cylinderGeometry args={[w / 2, (w / 2) * 0.7, h, 8]} />
+                <meshStandardMaterial color={COLORS.balconyPot} roughness={0.7} />
+              </mesh>
+              <mesh position={[0, h * 0.9, 0]}>
+                <sphereGeometry args={[w * 0.5, 6, 6]} />
+                <meshStandardMaterial color={COLORS.vegetationCanopy} roughness={0.8} />
+              </mesh>
+            </group>
+          )
+        }
+        if (el.type === 'rooftop_planter') {
+          return (
+            <group key={el.json_id} position={[x, y, z]}>
+              <mesh position={[0, h / 2, 0]}>
+                <boxGeometry args={[w, h, d]} />
+                <meshStandardMaterial color={COLORS.rooftopPlanter} roughness={0.8} />
+              </mesh>
+              <mesh position={[0, h + 0.08 * scale, 0]}>
+                <boxGeometry args={[w * 0.9, 0.16 * scale, d * 0.9]} />
+                <meshStandardMaterial color={COLORS.vegetationCanopy} roughness={0.85} />
+              </mesh>
+            </group>
+          )
+        }
+        if (el.type === 'rooftop_table_set' || el.type === 'balcony_seating') {
+          return (
+            <mesh key={el.json_id} position={[x, y + h / 2, z]}>
+              <boxGeometry args={[w, h, d]} />
+              <meshStandardMaterial color={COLORS.rooftopFurniture} roughness={0.6} />
+            </mesh>
+          )
+        }
+        if (el.type === 'swimming_pool') {
+          return (
+            <mesh key={el.json_id} position={[x, 0.02, z]}>
+              <boxGeometry args={[w, 0.04, d]} />
+              <meshStandardMaterial color={COLORS.pool} roughness={0.15} metalness={0.1} />
+            </mesh>
+          )
+        }
+        if (el.type === 'garden_pond') {
+          return (
+            <mesh key={el.json_id} position={[x, 0.02, z]}>
+              <boxGeometry args={[w, 0.04, d]} />
+              <meshStandardMaterial color={COLORS.pond} roughness={0.2} metalness={0.2} />
+            </mesh>
+          )
+        }
+        if (el.type === 'water_well') {
+          const r = (w / 2) || 0.8 * scale
+          return (
+            <group key={el.json_id} position={[x, 0, z]}>
+              <mesh position={[0, 0.4 * scale, 0]}>
+                <cylinderGeometry args={[r, r, 0.8 * scale, 12]} />
+                <meshStandardMaterial color={COLORS.well} roughness={0.9} />
+              </mesh>
+            </group>
+          )
+        }
+        if (el.type === 'garden_tap') {
+          return (
+            <group key={el.json_id} position={[x, 0, z]}>
+              <mesh position={[0, 0.45 * scale, 0]}>
+                <cylinderGeometry args={[0.04 * scale, 0.04 * scale, 0.9 * scale, 6]} />
+                <meshStandardMaterial color={COLORS.tap} metalness={0.8} roughness={0.3} />
+              </mesh>
+            </group>
+          )
+        }
+        if (el.type === 'parking_bay') {
+          return (
+            <mesh key={el.json_id} position={[x, 0.01, z]}>
+              <boxGeometry args={[w, 0.02, d]} />
+              <meshStandardMaterial color={COLORS.parkingBay} roughness={0.9} />
+            </mesh>
+          )
+        }
+        if (el.type === 'boundary_wall') {
+          const coords = featurePolygonCoordinates(el)
+          if (coords) {
+            const wallH = (el.height_m ?? 1.8) * scale
+            const geom = polygonToBufferGeometry(coords, wallH, offset, scale)
+            if (geom) {
+              return (
+                <mesh key={el.json_id} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
+                  <primitive object={geom} attach="geometry" />
+                  <meshStandardMaterial color={COLORS.boundaryWall} roughness={0.9} />
+                </mesh>
+              )
+            }
+          }
+        }
 
         return (
-          <mesh key={el.json_id} position={[x, h / 2, z]}>
+          <mesh key={el.json_id} position={[x, y + h / 2, z]}>
             <boxGeometry args={[w, h, d]} />
             <meshStandardMaterial color={COLORS.outdoor} roughness={0.8} />
           </mesh>
@@ -438,20 +635,247 @@ function NorthIndicator({
 }
 
 // ---------------------------------------------------------------------------
-// 9. Scene Assembler
+// 9. Interactive 3D Candidate Gizmo
 // ---------------------------------------------------------------------------
+function SelectedFeatureGizmo({
+  featureId,
+  landscape,
+  scale,
+  offset,
+  controlsRef,
+  gizmoMode = 'translate',
+  onFeatureMoved,
+  onFeatureRotated,
+  onFeatureScaled,
+}: {
+  featureId: string
+  landscape: ExteriorLandscape
+  scale: number
+  offset: [number, number]
+  controlsRef: React.MutableRefObject<any>
+  gizmoMode?: 'translate' | 'rotate' | 'scale'
+  onFeatureMoved?: (id: string, pos: [number, number]) => void
+  onFeatureRotated?: (id: string, angleDeg: number) => void
+  onFeatureScaled?: (id: string, factor: number) => void
+}) {
+  const targetGroupRef = useRef<THREE.Group>(null)
+  const transformRef = useRef<any>(null)
+
+  // Find candidate feature
+  const feature = useMemo(() => {
+    for (const v of landscape.vegetation_nodes ?? []) {
+      if (v.json_id === featureId) {
+        const pos = Array.isArray(v.position) ? v.position : [(v.position as any)?.x, (v.position as any)?.y]
+        return { id: v.json_id, type: 'vegetation', pos, elev: (v as any).elevation_m ?? 0 }
+      }
+    }
+    for (const l of landscape.outdoor_lighting?.nodes ?? []) {
+      if (l.json_id === featureId) {
+        const pos = Array.isArray(l.position) ? l.position : [(l.position as any)?.x, (l.position as any)?.y]
+        return { id: l.json_id, type: 'lighting', pos, elev: (l as any).elevation_m ?? 0 }
+      }
+    }
+    for (const o of landscape.outdoor_elements ?? []) {
+      if (o.json_id === featureId) {
+        const c = featureCenter(o)
+        return { id: o.json_id, type: o.type, pos: c, elev: typeof o.elevation_m === 'number' ? o.elevation_m : 0 }
+      }
+    }
+    return null
+  }, [featureId, landscape])
+
+  // Sync position when selection changes
+  useEffect(() => {
+    if (targetGroupRef.current && feature?.pos) {
+      const [sx, sy, sz] = sourceToScene(feature.pos[0], feature.pos[1], feature.elev, offset, scale)
+      targetGroupRef.current.position.set(sx, sy, sz)
+      targetGroupRef.current.rotation.set(0, 0, 0)
+      targetGroupRef.current.scale.set(1, 1, 1)
+    }
+  }, [feature, offset, scale])
+
+  useEffect(() => {
+    const controls = transformRef.current
+    if (!controls) return
+
+    const handleDraggingChanged = (event: any) => {
+      if (controlsRef.current) {
+        controlsRef.current.enabled = !event.value
+      }
+      if (!event.value && targetGroupRef.current && feature) {
+        if (gizmoMode === 'translate' && onFeatureMoved) {
+          const { sourceX, sourceY } = sceneToSource(
+            targetGroupRef.current.position.x,
+            targetGroupRef.current.position.y,
+            targetGroupRef.current.position.z,
+            offset,
+            scale
+          )
+          onFeatureMoved(feature.id, [
+            Math.round(sourceX * 100) / 100,
+            Math.round(sourceY * 100) / 100,
+          ])
+        } else if (gizmoMode === 'rotate' && onFeatureRotated) {
+          const angleDeg = Math.round((-targetGroupRef.current.rotation.y * 180 / Math.PI) % 360)
+          const normalizedAngle = (angleDeg + 360) % 360
+          onFeatureRotated(feature.id, normalizedAngle)
+          targetGroupRef.current.rotation.set(0, 0, 0)
+        } else if (gizmoMode === 'scale' && onFeatureScaled) {
+          const factor = (targetGroupRef.current.scale.x + targetGroupRef.current.scale.z) / 2
+          onFeatureScaled(feature.id, Math.round(factor * 100) / 100)
+          targetGroupRef.current.scale.set(1, 1, 1)
+        }
+      }
+    }
+
+    controls.addEventListener('dragging-changed', handleDraggingChanged)
+    return () => {
+      controls.removeEventListener('dragging-changed', handleDraggingChanged)
+    }
+  }, [controlsRef, onFeatureMoved, onFeatureRotated, onFeatureScaled, gizmoMode, feature, offset, scale])
+
+  if (!feature || !feature.pos) return null
+
+  const [initialX, initialY, initialZ] = sourceToScene(
+    feature.pos[0],
+    feature.pos[1],
+    feature.elev,
+    offset,
+    scale
+  )
+
+  return (
+    <TransformControls
+      ref={transformRef}
+      mode={gizmoMode}
+      showX={gizmoMode !== 'rotate'}
+      showZ={gizmoMode !== 'rotate'}
+      showY={gizmoMode === 'rotate'}
+      size={0.65}
+    >
+      <group ref={targetGroupRef} position={[initialX, initialY, initialZ]}>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
+          <ringGeometry args={[0.35 * scale, 0.45 * scale, 16]} />
+          <meshBasicMaterial color="#3b82f6" side={THREE.DoubleSide} />
+        </mesh>
+      </group>
+    </TransformControls>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// 10. Camera Controller (True Orthographic Presets & Repeated Reset)
+// ---------------------------------------------------------------------------
+export type CameraPreset = 'perspective' | 'top' | 'front' | 'back' | 'left' | 'right'
+
+function CameraController({
+  preset,
+  sceneRadius,
+  resetCount,
+  controlsRef,
+  orthoZoom,
+}: {
+  preset: CameraPreset
+  sceneRadius: number
+  resetCount: number
+  controlsRef: React.MutableRefObject<any>
+  orthoZoom: number
+}) {
+  const { camera } = useThree()
+
+  useEffect(() => {
+    const dist = Math.max(16, sceneRadius * 1.8)
+    const target = new THREE.Vector3(0, 0, 0)
+
+    if (controlsRef.current) {
+      controlsRef.current.target.copy(target)
+    }
+
+    if (preset === 'perspective') {
+      camera.position.set(dist * 0.7, dist * 0.85, dist * 0.7)
+      camera.up.set(0, 1, 0)
+      camera.lookAt(target)
+    } else {
+      // Orthographic Presets
+      if ('zoom' in camera) {
+        (camera as THREE.OrthographicCamera).zoom = orthoZoom
+        camera.updateProjectionMatrix()
+      }
+      if (preset === 'top') {
+        // True Top Plan View (North Up) looking down -Y
+        camera.position.set(0, 120, 0)
+        camera.up.set(0, 0, -1)
+        camera.lookAt(target)
+      } else if (preset === 'front') {
+        // Front Elevation (South looking North along -Z)
+        camera.position.set(0, 0, 120)
+        camera.up.set(0, 1, 0)
+        camera.lookAt(target)
+      } else if (preset === 'back') {
+        // Back Elevation (North looking South along +Z)
+        camera.position.set(0, 0, -120)
+        camera.up.set(0, 1, 0)
+        camera.lookAt(target)
+      } else if (preset === 'left') {
+        // Left Elevation (West looking East along +X)
+        camera.position.set(-120, 0, 0)
+        camera.up.set(0, 1, 0)
+        camera.lookAt(target)
+      } else if (preset === 'right') {
+        // Right Elevation (East looking West along -X)
+        camera.position.set(120, 0, 0)
+        camera.up.set(0, 1, 0)
+        camera.lookAt(target)
+      }
+    }
+
+    if (controlsRef.current) {
+      controlsRef.current.update()
+    }
+  }, [preset, sceneRadius, resetCount, camera, controlsRef, orthoZoom])
+
+  return null
+}
+
 interface ViewerProps {
   viewModel?: EliaViewModel | null
   landscape?: ExteriorLandscape | null
+  selectedFeatureId?: string | null
+  gizmoMode?: 'translate' | 'rotate' | 'scale'
+  onGizmoModeChange?: (mode: 'translate' | 'rotate' | 'scale') => void
+  onFeatureMoved?: (id: string, pos: [number, number]) => void
+  onFeatureRotated?: (id: string, angleDeg: number) => void
+  onFeatureScaled?: (id: string, factor: number) => void
+  lockedFeatureIds?: string[]
 }
 
 function MainScene({
   viewModel,
   landscape,
+  cameraPreset,
+  resetCount,
+  controlsRef,
+  selectedFeatureId,
+  gizmoMode = 'translate',
+  onFeatureMoved,
+  onFeatureRotated,
+  onFeatureScaled,
+  lockedFeatureIds,
 }: {
   viewModel: EliaViewModel | null
   landscape: ExteriorLandscape | null
+  cameraPreset: CameraPreset
+  resetCount: number
+  controlsRef: React.MutableRefObject<any>
+  selectedFeatureId?: string | null
+  gizmoMode?: 'translate' | 'rotate' | 'scale'
+  onFeatureMoved?: (id: string, pos: [number, number]) => void
+  onFeatureRotated?: (id: string, angleDeg: number) => void
+  onFeatureScaled?: (id: string, factor: number) => void
+  lockedFeatureIds?: string[]
 }) {
+  const { size } = useThree()
+
   // Determine land coordinates: prefer viewModel authoritative geometry
   const landCoords = useMemo(() => {
     if (viewModel?.landPolygon?.coordinates) {
@@ -467,20 +891,50 @@ function MainScene({
   const buildingHeightM = viewModel?.buildingHeightM ?? 3.0
 
   // Calculate bounding box and scale from authoritative land boundary
-  const { scale, offset } = useMemo(() => {
+  const { scale, offset, sceneRadius } = useMemo(() => {
     if (landCoords && landCoords.length > 0) {
       const bbox = polygonBBox(landCoords)
       const s = normScale(bbox, 22)
-      return { scale: s, offset: [bbox.cx, bbox.cy] as [number, number] }
+      const radius = (Math.max(bbox.width, bbox.height) / 2) * s
+      return { scale: s, offset: [bbox.cx, bbox.cy] as [number, number], sceneRadius: radius }
     }
-    return { scale: 1, offset: [0, 0] as [number, number] }
+    return { scale: 1, offset: [0, 0] as [number, number], sceneRadius: 15 }
   }, [landCoords])
 
   const northAngle = landscape?.environment?.north_angle ?? 0
   const transformProps: SceneTransformProps = { scale, offset }
 
+  // Orthographic zoom calibrated to canvas viewport dimensions and scene bounds
+  const orthoZoom = useMemo(() => {
+    const minDim = Math.min(size.width, size.height)
+    return Math.max(1, (minDim * 0.85) / Math.max(1, sceneRadius * 2.2))
+  }, [size.width, size.height, sceneRadius])
+
+  const isEditable = selectedFeatureId && !lockedFeatureIds?.includes(selectedFeatureId)
+
   return (
     <>
+      <PerspectiveCamera
+        makeDefault={cameraPreset === 'perspective'}
+        fov={45}
+        near={0.1}
+        far={600}
+      />
+      <OrthographicCamera
+        makeDefault={cameraPreset !== 'perspective'}
+        near={-300}
+        far={600}
+        zoom={orthoZoom}
+      />
+
+      <CameraController
+        preset={cameraPreset}
+        sceneRadius={sceneRadius}
+        resetCount={resetCount}
+        controlsRef={controlsRef}
+        orthoZoom={orthoZoom}
+      />
+
       <ambientLight intensity={0.65} />
       <directionalLight position={[12, 22, 10]} intensity={1.3} castShadow />
       <directionalLight position={[-10, 16, -10]} intensity={0.35} color="#85929e" />
@@ -494,13 +948,14 @@ function MainScene({
         position={[0, -0.015, 0]}
       />
 
-      {/* Upstream Base Geometry */}
+      {/* Upstream Base Geometry (Read-only) */}
       <LandPolygonMesh polygon={viewModel?.landPolygon ?? (landCoords ? { type: 'Polygon', coordinates: landCoords } : null)} {...transformProps} />
       <HouseBlockMesh polygon={housePolygon} buildingHeightM={buildingHeightM} {...transformProps} />
 
       {/* ELIA Proposed Exterior Features */}
       {landscape && (
         <>
+          <GroundSurfacesMesh surfaces={landscape.ground_surfaces} {...transformProps} />
           <DrivewayMesh feature={landscape.access?.driveway} {...transformProps} />
           <GarageMesh feature={landscape.access?.garage} {...transformProps} />
           <GatesMesh access={landscape.access} {...transformProps} />
@@ -511,29 +966,60 @@ function MainScene({
         </>
       )}
 
+      {/* 3D Transform Gizmo for active candidate editing */}
+      {landscape && isEditable && (
+        <SelectedFeatureGizmo
+          featureId={selectedFeatureId}
+          landscape={landscape}
+          scale={scale}
+          offset={offset}
+          controlsRef={controlsRef}
+          gizmoMode={gizmoMode}
+          onFeatureMoved={onFeatureMoved}
+          onFeatureRotated={onFeatureRotated}
+          onFeatureScaled={onFeatureScaled}
+        />
+      )}
+
       {/* True North Orientation */}
       <NorthIndicator northAngle={northAngle} />
 
       <OrbitControls
+        ref={controlsRef}
         target={[0, 0, 0]}
         enableZoom
         enablePan
-        maxPolarAngle={Math.PI / 2 - 0.05}
+        enableRotate={cameraPreset === 'perspective'}
+        maxPolarAngle={cameraPreset === 'top' ? Math.PI : Math.PI / 2 - 0.02}
         minDistance={2}
-        maxDistance={65}
+        maxDistance={250}
       />
     </>
   )
 }
 
 // ---------------------------------------------------------------------------
-// 10. Public Component Export
+// 11. Public Component Export
 // ---------------------------------------------------------------------------
 export default function ExteriorSceneViewer({
   viewModel,
   landscape: directLandscape,
+  selectedFeatureId,
+  gizmoMode: externalGizmoMode,
+  onGizmoModeChange,
+  onFeatureMoved,
+  onFeatureRotated,
+  onFeatureScaled,
+  lockedFeatureIds,
 }: ViewerProps) {
   const landscape = viewModel?.landscape ?? directLandscape ?? null
+  const [cameraPreset, setCameraPreset] = useState<CameraPreset>('perspective')
+  const [internalGizmoMode, setInternalGizmoMode] = useState<'translate' | 'rotate' | 'scale'>('translate')
+  const [resetCount, setResetCount] = useState<number>(0)
+  const controlsRef = useRef<any>(null)
+
+  const activeGizmoMode = externalGizmoMode ?? internalGizmoMode
+  const handleGizmoMode = onGizmoModeChange ?? setInternalGizmoMode
 
   // Check geometry state
   const isMissingGeometry =
@@ -544,6 +1030,101 @@ export default function ExteriorSceneViewer({
 
   return (
     <div className="w-full h-full min-h-[480px] relative rounded-lg overflow-hidden bg-[#0a140a]">
+      {/* 3D Camera Controls Toolbar */}
+      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1 bg-black/70 backdrop-blur-md p-1 rounded-lg border border-white/10 text-[11px] font-mono text-white/80">
+        <button
+          type="button"
+          onClick={() => setCameraPreset('perspective')}
+          className={`px-2 py-0.5 rounded transition-colors ${cameraPreset === 'perspective' ? 'bg-primary text-primary-foreground font-semibold' : 'hover:bg-white/10'}`}
+          title="3D Perspective Orbit Mode"
+        >
+          3D Orbit
+        </button>
+        <button
+          type="button"
+          onClick={() => setCameraPreset('top')}
+          className={`px-2 py-0.5 rounded transition-colors ${cameraPreset === 'top' ? 'bg-primary text-primary-foreground font-semibold' : 'hover:bg-white/10'}`}
+          title="Top Plan Orthographic View (North Up)"
+        >
+          Top Plan
+        </button>
+        <button
+          type="button"
+          onClick={() => setCameraPreset('front')}
+          className={`px-2 py-0.5 rounded transition-colors ${cameraPreset === 'front' ? 'bg-primary text-primary-foreground font-semibold' : 'hover:bg-white/10'}`}
+          title="Front Orthographic Elevation (South Looking North)"
+        >
+          Front (S)
+        </button>
+        <button
+          type="button"
+          onClick={() => setCameraPreset('back')}
+          className={`px-2 py-0.5 rounded transition-colors ${cameraPreset === 'back' ? 'bg-primary text-primary-foreground font-semibold' : 'hover:bg-white/10'}`}
+          title="Back Orthographic Elevation (North Looking South)"
+        >
+          Back (N)
+        </button>
+        <button
+          type="button"
+          onClick={() => setCameraPreset('left')}
+          className={`px-2 py-0.5 rounded transition-colors ${cameraPreset === 'left' ? 'bg-primary text-primary-foreground font-semibold' : 'hover:bg-white/10'}`}
+          title="Left Orthographic Elevation (West Looking East)"
+        >
+          Left (W)
+        </button>
+        <button
+          type="button"
+          onClick={() => setCameraPreset('right')}
+          className={`px-2 py-0.5 rounded transition-colors ${cameraPreset === 'right' ? 'bg-primary text-primary-foreground font-semibold' : 'hover:bg-white/10'}`}
+          title="Right Orthographic Elevation (East Looking West)"
+        >
+          Right (E)
+        </button>
+        <div className="w-[1px] h-3 bg-white/20 mx-0.5" />
+        <button
+          type="button"
+          onClick={() => {
+            setResetCount((c) => c + 1)
+          }}
+          className="px-2 py-0.5 rounded hover:bg-white/10 text-muted-foreground hover:text-white transition-colors"
+          title="Reset Camera Framing (Works repeatedly)"
+        >
+          Fit / Reset
+        </button>
+
+        {/* Gizmo Transform Mode Selector when an item is selected */}
+        {selectedFeatureId && (
+          <>
+            <div className="w-[1px] h-3 bg-white/20 mx-0.5" />
+            <span className="text-[10px] text-white/50 pl-0.5">Gizmo:</span>
+            <button
+              type="button"
+              onClick={() => handleGizmoMode('translate')}
+              className={`px-2 py-0.5 rounded transition-colors ${activeGizmoMode === 'translate' ? 'bg-blue-600 text-white font-semibold' : 'hover:bg-white/10 text-white/70'}`}
+              title="Translate / Move Object (X/Z plane)"
+            >
+              Move
+            </button>
+            <button
+              type="button"
+              onClick={() => handleGizmoMode('rotate')}
+              className={`px-2 py-0.5 rounded transition-colors ${activeGizmoMode === 'rotate' ? 'bg-blue-600 text-white font-semibold' : 'hover:bg-white/10 text-white/70'}`}
+              title="Rotate Object (Azimuth Yaw around Y)"
+            >
+              Rotate
+            </button>
+            <button
+              type="button"
+              onClick={() => handleGizmoMode('scale')}
+              className={`px-2 py-0.5 rounded transition-colors ${activeGizmoMode === 'scale' ? 'bg-blue-600 text-white font-semibold' : 'hover:bg-white/10 text-white/70'}`}
+              title="Scale / Resize Dimensions"
+            >
+              Scale
+            </button>
+          </>
+        )}
+      </div>
+
       {/* Legend */}
       <div className="absolute top-3 left-3 z-10 flex flex-col gap-1.5 text-[10px] font-mono bg-black/60 rounded-lg p-2.5 backdrop-blur-sm border border-white/10">
         {[
@@ -555,6 +1136,7 @@ export default function ExteriorSceneViewer({
           { color: COLORS.vegetationCanopy, label: 'Vegetation' },
           { color: COLORS.lighting, label: 'Lighting' },
           { color: COLORS.vertical, label: 'Vertical greenery' },
+          { color: COLORS.solarPanel, label: 'Solar PV modules' },
         ].map(({ color, label }) => (
           <div key={label} className="flex items-center gap-1.5">
             <div className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: color }} />
@@ -603,7 +1185,6 @@ export default function ExteriorSceneViewer({
           </div>
         </div>
       )}
-
       <WebGLErrorBoundary title="ELIA 3D Exterior Viewport Unavailable">
         <Canvas
           camera={{ position: [14, 20, 14], fov: 45, near: 0.1, far: 600 }}
@@ -619,7 +1200,19 @@ export default function ExteriorSceneViewer({
           }}
         >
           <Suspense fallback={null}>
-            <MainScene viewModel={viewModel ?? null} landscape={landscape} />
+            <MainScene
+              viewModel={viewModel ?? null}
+              landscape={landscape}
+              cameraPreset={cameraPreset}
+              resetCount={resetCount}
+              controlsRef={controlsRef}
+              selectedFeatureId={selectedFeatureId}
+              gizmoMode={activeGizmoMode}
+              onFeatureMoved={onFeatureMoved}
+              onFeatureRotated={onFeatureRotated}
+              onFeatureScaled={onFeatureScaled}
+              lockedFeatureIds={lockedFeatureIds}
+            />
           </Suspense>
         </Canvas>
       </WebGLErrorBoundary>

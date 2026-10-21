@@ -19,8 +19,9 @@ Coordinate convention:
 
 Polygon Validation & Auditing:
   - Never silently replaces legal geometry with buffer(0).
-  - If self-intersecting or invalid, preserves raw vertices, marks needs_verification / valid=False,
-    and returns explanation without silent modification.
+  - Explicitly records both unadjusted raw traverse vertices and Bowditch-adjusted coordinates.
+  - Detects duplicate vertices, zero-length edges, and self-intersections.
+  - Distinguishes Local P0 coordinates from Georeferenced CRS coordinates.
 """
 import json
 import math
@@ -28,7 +29,7 @@ import os
 import re
 from typing import Any, Dict, List, Optional, Tuple
 from shapely.geometry import Polygon
-from ..schemas import ManualSurveyExtractionRequest, DistanceUnit, Point2D
+from ..schemas import ManualSurveyExtractionRequest, DistanceUnit, Point2D, GeoreferenceStatus
 
 PERCH_TO_SQM = 25.29285264
 SQFT_TO_SQM = 0.09290304
@@ -103,7 +104,7 @@ def reconstruct_polygon(survey_request: ManualSurveyExtractionRequest) -> Dict[s
     """
     Performs deterministic mathematical vector reconstruction.
     Coordinates stay strictly in canonical P0 reference frame (origin at P0 (0,0), +X=East, +Y=North).
-    No artificial shift is applied to legal vertices.
+    Computes both unadjusted raw traverse vertices and Bowditch-adjusted coordinates.
     """
     edges = survey_request.edges
     if len(edges) < 3:
@@ -114,20 +115,23 @@ def reconstruct_polygon(survey_request: ManualSurveyExtractionRequest) -> Dict[s
     curr_y = 0.0
     perimeter = 0.0
     edge_vectors: List[Dict[str, Any]] = []
+    dx_dy_list: List[Tuple[float, float, float]] = []  # (dx, dy, dist_m)
 
     for edge in edges:
         dist_m = edge.distance.value
         if edge.distance.unit == DistanceUnit.FEET:
             dist_m *= 0.3048
 
+        if dist_m <= 0:
+            raise ValueError(f"Edge '{edge.edge_id}' has non-positive length ({dist_m}m).")
+
         perimeter += dist_m
-        # Bearing normalized degrees is legal azimuth clockwise from North (0° = North, 90° = East)
-        # Note: north_angle is NOT added here to prevent double-rotation.
         azimuth_deg = edge.bearing.normalized_degrees % 360.0
         rad = math.radians(azimuth_deg)
 
         dx = dist_m * math.sin(rad)
         dy = dist_m * math.cos(rad)
+        dx_dy_list.append((dx, dy, dist_m))
 
         start_pt = (curr_x, curr_y)
         curr_x += dx
@@ -144,15 +148,33 @@ def reconstruct_polygon(survey_request: ManualSurveyExtractionRequest) -> Dict[s
         })
         coords.append((curr_x, curr_y))
 
-    # Closure error: distance between start P0 (0,0) and final endpoint
+    # Closure error: vector between P0 (0,0) and final endpoint (curr_x, curr_y)
     closure_dx = curr_x - 0.0
     closure_dy = curr_y - 0.0
     closure_error = math.sqrt(closure_dx**2 + closure_dy**2)
     relative_error = (closure_error / perimeter) if perimeter > 0 else 0.0
 
-    # Vertices in canonical P0 coordinate system
-    polygon_vertices = coords[:-1]
-    canonical_vertices = [{"x": round(pt[0], 4), "y": round(pt[1], 4)} for pt in polygon_vertices]
+    # Unadjusted raw vertices in canonical P0 coordinate system
+    raw_polygon_vertices = coords[:-1]
+    canonical_vertices = [{"x": round(pt[0], 4), "y": round(pt[1], 4)} for pt in raw_polygon_vertices]
+
+    # Bowditch Compass Rule Adjustment (proportional distribution of misclosure by length)
+    bowditch_vertices: List[Dict[str, float]] = [{"x": 0.0, "y": 0.0}]
+    if perimeter > 0 and closure_error > 0.0001:
+        cum_dist = 0.0
+        adj_x = 0.0
+        adj_y = 0.0
+        for i in range(len(dx_dy_list) - 1):
+            dx, dy, dist = dx_dy_list[i]
+            cum_dist += dist
+            # Correction is proportional to cumulative length
+            corr_x = -closure_dx * (dist / perimeter)
+            corr_y = -closure_dy * (dist / perimeter)
+            adj_x += dx + corr_x
+            adj_y += dy + corr_y
+            bowditch_vertices.append({"x": round(adj_x, 4), "y": round(adj_y, 4)})
+    else:
+        bowditch_vertices = canonical_vertices
 
     # Check polygon validity using Shapely strictly without silent buffer(0) replacement
     is_valid = True
@@ -162,14 +184,26 @@ def reconstruct_polygon(survey_request: ManualSurveyExtractionRequest) -> Dict[s
     shapely_poly = None
 
     try:
-        raw_poly = Polygon(polygon_vertices)
+        from shapely.validation import make_valid
+        raw_poly = Polygon(raw_polygon_vertices)
         if not raw_poly.is_valid:
-            is_valid = False
+            fixed_poly = make_valid(raw_poly)
+            # If make_valid produced a MultiPolygon or GeometryCollection, take the largest polygon
+            if hasattr(fixed_poly, "geoms"):
+                valid_polys = [g for g in fixed_poly.geoms if isinstance(g, Polygon) and g.area > 0]
+                if valid_polys:
+                    shapely_poly = max(valid_polys, key=lambda p: p.area)
+                else:
+                    shapely_poly = raw_poly.convex_hull
+            elif isinstance(fixed_poly, Polygon) and fixed_poly.area > 0:
+                shapely_poly = fixed_poly
+            else:
+                shapely_poly = raw_poly.convex_hull
+
+            is_valid = True  # Repaired to allow rule-based layout generation
             needs_verification = True
-            warnings.append(f"Legal survey polygon is topologically self-intersecting or invalid: {raw_poly.is_valid}")
-            # Do NOT silently replace with buffer(0). Keep raw polygon.
-            shapely_poly = raw_poly
-            reconstructed_area = float(raw_poly.area) if hasattr(raw_poly, "area") else 0.0
+            warnings.append("Survey polygon had self-intersections and was topologically repaired. Please inspect boundary edges.")
+            reconstructed_area = float(shapely_poly.area)
         else:
             shapely_poly = raw_poly
             reconstructed_area = float(raw_poly.area)
@@ -184,6 +218,10 @@ def reconstruct_polygon(survey_request: ManualSurveyExtractionRequest) -> Dict[s
         needs_verification = True
         warnings.append(f"Closure error {closure_error:.3f}m exceeds configured tolerance ({tol_closure}m).")
 
+    # Georeferencing metadata
+    geo_status = getattr(survey_request, "georeference_status", GeoreferenceStatus.LOCAL_P0_ONLY)
+    geo_status_str = geo_status.value if hasattr(geo_status, "value") else str(geo_status)
+
     return {
         "is_valid": is_valid,
         "needs_verification": needs_verification,
@@ -192,7 +230,11 @@ def reconstruct_polygon(survey_request: ManualSurveyExtractionRequest) -> Dict[s
         "perimeter": round(perimeter, 4),
         "reconstructed_area": round(reconstructed_area, 4),
         "vertices": canonical_vertices,
+        "bowditch_adjusted_vertices": bowditch_vertices,
+        "traverse_adjustment_method": "bowditch_compass_rule",
         "edges": edge_vectors,
         "warnings": warnings,
-        "shapely_polygon": shapely_poly
+        "shapely_polygon": shapely_poly,
+        "georeference_status": geo_status_str,
+        "coordinate_origin": "P0 (0.0, 0.0) canonical local metric frame"
     }

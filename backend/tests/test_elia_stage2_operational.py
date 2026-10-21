@@ -321,17 +321,17 @@ def test_model_unavailable_returns_503_without_silent_fallback(tmp_path):
 
     try:
         with TestClient(app) as client:
-            # Default generation_mode is trained_model
+            # Explicit rejection of trained_model generation_mode
             req = {
+                "generation_mode": "trained_model",
                 "requirements": {
                     "access": {"road_side": "south", "garage_required": False, "driveway_required": False}
                 }
             }
             resp = client.post(f"/api/projects/{proj_id}/elia-engine/run", json=req)
-            assert resp.status_code == 503
+            assert resp.status_code == 400
             detail = resp.json()["detail"]
-            assert detail["code"] == "ELIA_MODEL_UNAVAILABLE"
-            assert detail["generation_status"] == "model_unavailable"
+            assert "ELIA_UNSUPPORTED_GENERATION_MODE" in detail["code"]
 
             # Check that project accepted exterior was not destroyed
             check_session = session_factory()

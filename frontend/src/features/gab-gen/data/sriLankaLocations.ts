@@ -21,11 +21,16 @@ export const SRI_LANKA_ADMIN_DATA: Record<string, ProvinceOption> = {
           { type: "Municipal Council", name: "Colombo Municipal Council" },
           { type: "Municipal Council", name: "Dehiwala-Mount Lavinia Municipal Council" },
           { type: "Municipal Council", name: "Sri Jayawardenepura Kotte Municipal Council" },
+          { type: "Municipal Council", name: "Kaduwela Municipal Council" },
           { type: "Municipal Council", name: "Moratuwa Municipal Council" },
           { type: "Urban Council", name: "Kolonnawa Urban Council" },
           { type: "Urban Council", name: "Seethawaka Urban Council" },
+          { type: "Urban Council", name: "Kesbewa Urban Council" },
+          { type: "Urban Council", name: "Maharagama Urban Council" },
+          { type: "Urban Council", name: "Boralesgamuwa Urban Council" },
           { type: "Pradeshiya Sabha", name: "Kotikawatta Mulleriyawa Pradeshiya Sabha" },
-          { type: "Pradeshiya Sabha", name: "Homagama Pradeshiya Sabha" }
+          { type: "Pradeshiya Sabha", name: "Homagama Pradeshiya Sabha" },
+          { type: "Pradeshiya Sabha", name: "Seethawaka Pradeshiya Sabha" }
         ]
       },
       "Gampaha": {
@@ -35,7 +40,20 @@ export const SRI_LANKA_ADMIN_DATA: Record<string, ProvinceOption> = {
           { type: "Municipal Council", name: "Gampaha Municipal Council" },
           { type: "Urban Council", name: "Wattala-Mabole Urban Council" },
           { type: "Urban Council", name: "Ja-Ela Urban Council" },
-          { type: "Pradeshiya Sabha", name: "Kelaniya Pradeshiya Sabha" }
+          { type: "Urban Council", name: "Peliyagoda Urban Council" },
+          { type: "Urban Council", name: "Katunayake Seeduwa Urban Council" },
+          { type: "Urban Council", name: "Minuwangoda Urban Council" },
+          { type: "Pradeshiya Sabha", name: "Kelaniya Pradeshiya Sabha" },
+          { type: "Pradeshiya Sabha", name: "Wattala Pradeshiya Sabha" },
+          { type: "Pradeshiya Sabha", name: "Ja-Ela Pradeshiya Sabha" },
+          { type: "Pradeshiya Sabha", name: "Gampaha Pradeshiya Sabha" },
+          { type: "Pradeshiya Sabha", name: "Biyagama Pradeshiya Sabha" },
+          { type: "Pradeshiya Sabha", name: "Mahara Pradeshiya Sabha" },
+          { type: "Pradeshiya Sabha", name: "Dompe Pradeshiya Sabha" },
+          { type: "Pradeshiya Sabha", name: "Mirigama Pradeshiya Sabha" },
+          { type: "Pradeshiya Sabha", name: "Minuwangoda Pradeshiya Sabha" },
+          { type: "Pradeshiya Sabha", name: "Divulapitiya Pradeshiya Sabha" },
+          { type: "Pradeshiya Sabha", name: "Katana Pradeshiya Sabha" }
         ]
       },
       "Kalutara": {
@@ -44,7 +62,19 @@ export const SRI_LANKA_ADMIN_DATA: Record<string, ProvinceOption> = {
           { type: "Urban Council", name: "Kalutara Urban Council" },
           { type: "Urban Council", name: "Panadura Urban Council" },
           { type: "Urban Council", name: "Horana Urban Council" },
-          { type: "Pradeshiya Sabha", name: "Panadura Pradeshiya Sabha" }
+          { type: "Urban Council", name: "Beruwala Urban Council" },
+          { type: "Pradeshiya Sabha", name: "Panadura Pradeshiya Sabha" },
+          { type: "Pradeshiya Sabha", name: "Kalutara Pradeshiya Sabha" },
+          { type: "Pradeshiya Sabha", name: "Horana Pradeshiya Sabha" },
+          { type: "Pradeshiya Sabha", name: "Beruwala Pradeshiya Sabha" },
+          { type: "Pradeshiya Sabha", name: "Bandaragama Pradeshiya Sabha" },
+          { type: "Pradeshiya Sabha", name: "Matugama Pradeshiya Sabha" },
+          { type: "Pradeshiya Sabha", name: "Bulathsinhala Pradeshiya Sabha" },
+          { type: "Pradeshiya Sabha", name: "Dodangoda Pradeshiya Sabha" },
+          { type: "Pradeshiya Sabha", name: "Madurawala Pradeshiya Sabha" },
+          { type: "Pradeshiya Sabha", name: "Palindanuwara Pradeshiya Sabha" },
+          { type: "Pradeshiya Sabha", name: "Walallawita Pradeshiya Sabha" },
+          { type: "Pradeshiya Sabha", name: "Agalawatta Pradeshiya Sabha" }
         ]
       }
     }

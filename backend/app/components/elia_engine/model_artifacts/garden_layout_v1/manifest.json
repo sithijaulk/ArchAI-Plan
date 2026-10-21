@@ -1,0 +1,59 @@
+{
+  "model_name": "elia_garden_layout_unet",
+  "model_version": "elia-garden-layout-v1.0",
+  "input_tensor": {
+    "shape": [
+      9,
+      96,
+      96
+    ],
+    "dtype": "float32",
+    "channels": [
+      "land_mask",
+      "house_mask",
+      "road_access_mask",
+      "entrance_mask",
+      "utility_restriction_mask",
+      "shadow_aspect_mask",
+      "preference_density_weight",
+      "preference_style_greeny",
+      "preference_style_minimal"
+    ],
+    "coordinate_convention": "local Cartesian meters mapped to [0, 96] uniform scale with aspect preservation"
+  },
+  "output_tensor": {
+    "shape": [
+      4,
+      96,
+      96
+    ],
+    "dtype": "float32",
+    "channels": [
+      "tree_heatmap",
+      "seating_heatmap",
+      "lighting_heatmap",
+      "path_guidance_heatmap"
+    ],
+    "activation": "sigmoid",
+    "value_range": [
+      0.0,
+      1.0
+    ]
+  },
+  "architecture": "Convolutional UNet (Encoder-Bottleneck-Decoder)",
+  "weights_sha256": "f96e15976963a06960d76f836f86aa85d4986c1634fcacbc7fb3bd849c2fe79b",
+  "training_metadata": {
+    "split": "237 train / 46 val / 49 test records",
+    "epochs": 17,
+    "loss_function": "BCEWithLogitsLoss + Focal Penalty",
+    "optimizer": "AdamW (lr=1e-3, cosine decay)",
+    "provenance": "ELIA Garden Layout Dataset v1.0 (synthesized & surveyed residential plots)"
+  },
+  "decoder_defaults": {
+    "peak_threshold": 0.15,
+    "nms_radius_cells": 3,
+    "min_tree_separation_m": 2.5,
+    "min_seating_separation_m": 2.0,
+    "min_lighting_separation_m": 3.0
+  }
+}

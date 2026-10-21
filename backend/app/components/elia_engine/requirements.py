@@ -276,8 +276,14 @@ def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str,
             landscape["lawn_required"] = True
 
     # Inactive dependent omission for landscape
+    if "tree_count" in landscape and "tree_quantity" not in landscape:
+        landscape["tree_quantity"] = landscape["tree_count"]
+    if (landscape.get("tree_quantity", 0) or landscape.get("tree_count", 0)) and landscape.get("trees_required") is None:
+        landscape["trees_required"] = True
+
     if landscape.get("trees_required") is False:
         landscape.pop("tree_quantity", None)
+        landscape.pop("tree_count", None)
         landscape.pop("compact_trees_preference", None)
         landscape.pop("shade_tree_preference", None)
     if landscape.get("shrubs_required") is False:
@@ -349,6 +355,36 @@ def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str,
     normalized["preferred_plant_ids"] = landscape["preferred_plant_ids"]
     normalized["plant_ids_to_avoid"] = landscape["plant_ids_to_avoid"]
 
+    # 6b. Accepted and rejected Greeny plant alternatives
+    raw_accepted = list(landscape.get("accepted_plant_alternatives") or requirements.get("accepted_plant_alternatives") or [])
+    raw_rejected = list(landscape.get("rejected_plant_alternatives") or requirements.get("rejected_plant_alternatives") or [])
+    normalized_accepted = []
+    for item in raw_accepted:
+        if isinstance(item, Mapping):
+            item_dict = dict(item)
+            alt_id = str(item_dict.get("alternative_plant_id") or "").strip()
+            if alt_id and (not valid_veg_ids or alt_id in valid_veg_ids):
+                normalized_accepted.append({
+                    "original_request": str(item_dict.get("original_request") or "user_preference"),
+                    "alternative_plant_id": alt_id,
+                    "alternative_display_name": str(item_dict.get("alternative_display_name") or alt_id),
+                    "placement_type": str(item_dict.get("placement_type") or "ground").lower(),
+                    "surface_id": str(item_dict["surface_id"]).strip() if item_dict.get("surface_id") else None,
+                    "quantity": max(1, int(item_dict.get("quantity") or 1)),
+                    "source_revision": item_dict.get("source_revision"),
+                    "catalogue_version": str(item_dict.get("catalogue_version") or "2.1"),
+                    "acceptance_status": str(item_dict.get("acceptance_status") or "accepted"),
+                })
+        elif hasattr(item, "model_dump"):
+            d = item.model_dump()
+            if not valid_veg_ids or d.get("alternative_plant_id") in valid_veg_ids:
+                normalized_accepted.append(d)
+
+    landscape["accepted_plant_alternatives"] = normalized_accepted
+    landscape["rejected_plant_alternatives"] = [str(r) for r in raw_rejected]
+    normalized["accepted_plant_alternatives"] = normalized_accepted
+    normalized["rejected_plant_alternatives"] = landscape["rejected_plant_alternatives"]
+
     # 7. Locked features
     raw_locked = requirements.get("locked_features") or []
     locked_features = []
@@ -376,12 +412,13 @@ def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str,
 
     # Lighting normalization
     lighting = dict(requirements.get("lighting") or {})
-    if not lighting.get("required"):
+    if lighting.get("required") is False:
         # When lighting is disabled, dependent zones/spacing are inactive
         lighting["zones"] = []
         lighting.pop("style", None)
         lighting.pop("desired_fixture_count", None)
         lighting.pop("preferred_spacing_m", None)
+        lighting.pop("preferred_spacing", None)
         lighting.pop("garden_lighting", None)
         lighting.pop("pathway_lighting", None)
         lighting.pop("seating_lighting", None)
@@ -420,6 +457,8 @@ def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str,
         if (lighting.get("preferred_spacing_m") is not None and
                 lighting["preferred_spacing_m"] < float(lighting_config["minimum_spacing_m"])):
             raise ELIAError("ELIA_INVALID_LIGHTING_SPACING", "Preferred light spacing must meet the configured minimum.")
+
+    normalized["lighting"] = lighting
 
     # Vertical Greenery
     vertical_req = dict(requirements.get("vertical_greenery") or {})
