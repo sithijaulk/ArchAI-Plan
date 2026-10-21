@@ -1,10 +1,7 @@
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, Integer, Text
-try:
-    from .database import Base
-except (ImportError, ValueError):
-    from app.database import Base
+from ..database import Base
 
 
 class TeamMember(Base):

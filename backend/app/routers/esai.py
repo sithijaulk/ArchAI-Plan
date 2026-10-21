@@ -259,8 +259,13 @@ def list_standards(enforceable_only: bool = False, db: Session = Depends(get_db)
     rules = service.get_standards(enforceable_only=enforceable_only)
     return StandardsListResponse(total=len(rules), rules=rules)
 
-
 @global_router.get("/room-profiles")
 def get_room_profiles(db: Session = Depends(get_db)):
     service = EsaiEngineService(db)
     return {"profiles": service.get_room_profiles()}
+
+
+# Backward compatibility alias
+router = project_router
+
+
