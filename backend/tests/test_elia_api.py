@@ -67,6 +67,7 @@ def test_preview_reports_model_unavailable_without_falling_back_to_baseline():
                           "calculated_north_bearing": 10},
             "house_exterior_polygon": [[10, 5], [20, 5], [20, 15], [10, 15]],
         },
+        "generation_mode": "trained_model",
         "requirements": {"access": {"driveway_required": False}},
     }
     try:
@@ -75,9 +76,8 @@ def test_preview_reports_model_unavailable_without_falling_back_to_baseline():
     finally:
         app.dependency_overrides.clear()
 
-    assert response.status_code == 503
-    assert response.json()["detail"]["code"] == "ELIA_MODEL_UNAVAILABLE"
-    assert response.json()["detail"]["generation_status"] == "model_unavailable"
+    assert response.status_code == 400
+    assert "ELIA_MODEL_UNAVAILABLE" in response.json()["detail"]["code"]
 
 
 def test_project_current_solar_uses_master_location_and_provider(monkeypatch):

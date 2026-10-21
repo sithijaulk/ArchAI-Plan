@@ -15,6 +15,8 @@ from .geometry import feet_to_meters, point_xy
 from .gate_garage import garage_polygon, _count_fitting_bays, _road_side
 from .parser import UNIT_TO_METERS, parse_exterior_context
 from .rule_repository import elia_rules, vehicle_profiles, vegetation_catalog
+from .grid import build_navigation_grid
+from .pathfinding import astar_path
 from .schemas import (
     FeatureFeasibilityAssessment,
     CombinedConflictResult,
@@ -155,8 +157,14 @@ def extract_canonical_geometry(
 
     # Utilities
     utils = master_json.get("utilities", {}) if isinstance(master_json.get("utilities"), Mapping) else {}
-    well_raw = utils.get("well") or master_json.get("well")
-    septic_raw = utils.get("septic_tank") or master_json.get("septic_tank")
+    if not utils:
+        fp = master_json.get("floor_plan")
+        if isinstance(fp, Mapping):
+            gf = fp.get("ground_floor")
+            if isinstance(gf, Mapping):
+                utils = gf.get("utilities", {}) if isinstance(gf.get("utilities"), Mapping) else {}
+    well_raw = utils.get("well") or utils.get("water_well") or master_json.get("well") or master_json.get("water_well")
+    septic_raw = utils.get("septic_tank") or utils.get("septic") or master_json.get("septic_tank") or master_json.get("septic")
 
     def _parse_pt(val: Any) -> Point | None:
         if isinstance(val, Mapping):
@@ -1113,18 +1121,176 @@ def assess_water_and_sanitation(
 
     # 2. SEPTIC TANK
     if geom.existing_septic:
-        # Check maintenance access: distance from road or driveway
-        results["septic_tank"] = FeatureFeasibilityAssessment(
-            feature_id="septic_tank",
-            requested_state="existing_preserved",
-            feasibility_status="feasible",
-            reason_codes=["EXISTING_SEPTIC_PRESERVED"],
-            explanation="Authoritative Master JSON contains an existing septic tank which is preserved.",
-            affected_object_ids=["EXISTING_SEPTIC"],
-            applicable_rule_ids=["W01"],
-            assessment_scope=san_scope,
-            source_revision=geom.source_revision,
-        )
+        # Maintenance access: screening distance and obstacle routing
+        if geom.has_road_access and geom.road_line:
+            # Operational equipment limit: default ~25m standard vacuum tanker suction hose reach without auxiliary booster
+            # (e.g. BS 6297 / municipal desludging practices; configurable operational assumption, not a statutory universal regulation)
+            raw_reach = (
+                requirements.get("water_features", {}).get("max_vacuum_hose_reach_m")
+                if isinstance(requirements.get("water_features"), Mapping)
+                else None
+            )
+            if raw_reach is None:
+                raw_reach = requirements.get("max_vacuum_hose_reach_m") or requirements.get("max_hose_reach_m")
+
+            if raw_reach is not None:
+                try:
+                    reach_val = float(raw_reach)
+                    if not math.isfinite(reach_val) or reach_val <= 0:
+                        raise ELIAError(
+                            "ELIA_INVALID_REQUIREMENT",
+                            f"Configured vacuum hose reach must be a positive finite number (got {raw_reach!r})."
+                        )
+                    max_hose_reach_m = reach_val
+                    hose_reach_provenance = "user_configured_equipment_limit"
+                except (TypeError, ValueError) as exc:
+                    raise ELIAError(
+                        "ELIA_INVALID_REQUIREMENT",
+                        f"Configured vacuum hose reach must be numeric (got {raw_reach!r})."
+                    ) from exc
+            else:
+                max_hose_reach_m = 25.0
+                hose_reach_provenance = "standard_equipment_assumption_25m"
+            road_proj = geom.road_line.interpolate(geom.road_line.project(geom.existing_septic))
+            hose_line = LineString([geom.existing_septic, road_proj])
+            dist_to_road = float(hose_line.length)
+            is_line_obstructed = hose_line.intersects(geom.house)
+
+            if not is_line_obstructed:
+                if dist_to_road <= max_hose_reach_m:
+                    results["septic_tank"] = FeatureFeasibilityAssessment(
+                        feature_id="septic_tank",
+                        requested_state="existing_preserved",
+                        feasibility_status="feasible",
+                        reason_codes=["EXISTING_SEPTIC_PRESERVED"],
+                        explanation=(
+                            f"Existing septic tank ({dist_to_road:.1f}m from road access) has an unobstructed 2D line of service. "
+                            f"Vacuum tanker vehicle parking position and property perimeter gate clearance must be verified on site."
+                        ),
+                        affected_object_ids=["EXISTING_SEPTIC"],
+                        applicable_rule_ids=["W05"],
+                        assessment_scope=san_scope,
+                        source_revision=geom.source_revision,
+                    )
+                else:
+                    results["septic_tank"] = FeatureFeasibilityAssessment(
+                        feature_id="septic_tank",
+                        requested_state="existing_preserved",
+                        feasibility_status="review_required",
+                        reason_codes=["SEPTIC_ACCESS_DISTANCE_HIGH"],
+                        explanation=(
+                            f"Existing septic tank is {dist_to_road:.1f}m from road access (exceeds typical {max_hose_reach_m:.0f}m vacuum tanker service hose reach). "
+                            "Service corridor or auxiliary pumping station must be confirmed."
+                        ),
+                        affected_object_ids=["EXISTING_SEPTIC"],
+                        applicable_rule_ids=["W05"],
+                        missing_evidence=["vacuum_tanker_parking_position", "auxiliary_pumping_access"],
+                        assessment_scope=san_scope,
+                        source_revision=geom.source_revision,
+                    )
+            else:
+                # Direct line intersects house; check if an unobstructed exterior side corridor around the house exists
+                alt_route_found = False
+                alt_route_dist: float | None = None
+                search_exhausted = False
+                try:
+                    house_buf = geom.house.buffer(0.35)
+                    navigable = geom.land.difference(house_buf)
+                    if geom.other_buildings:
+                        navigable = navigable.difference(unary_union([b.buffer(0.35) for b in geom.other_buildings]))
+                    
+                    if navigable.covers(geom.existing_septic) and navigable.covers(road_proj):
+                        grid = build_navigation_grid(navigable, resolution=0.5, max_cells=40000)
+                        path_res = astar_path(grid, (geom.existing_septic.x, geom.existing_septic.y), (road_proj.x, road_proj.y))
+                        if path_res.get("found"):
+                            coords = path_res.get("coordinates", [])
+                            if len(coords) >= 2:
+                                alt_route_dist = round(float(LineString(coords).length), 1)
+                                alt_route_found = True
+                except ELIAError as exc:
+                    if exc.code in ("ELIA_PLANNING_LIMIT_EXCEEDED", "ELIA_GRID_LIMIT_EXCEEDED"):
+                        search_exhausted = True
+                except Exception:
+                    pass
+
+                if search_exhausted:
+                    results["septic_tank"] = FeatureFeasibilityAssessment(
+                        feature_id="septic_tank",
+                        requested_state="existing_preserved",
+                        feasibility_status="review_required",
+                        reason_codes=["SEPTIC_ACCESS_ROUTING_SEARCH_EXHAUSTED", "SEPTIC_HOSE_CORRIDOR_OBSTRUCTED_BY_STRUCTURE"],
+                        explanation=(
+                            "Pathfinding search budget was exhausted while checking exterior side corridors around the structure. "
+                            "Infeasibility is not proven; on-site geometric survey of side passageway dimensions is required."
+                        ),
+                        affected_object_ids=["EXISTING_SEPTIC"],
+                        applicable_rule_ids=["W05"],
+                        missing_evidence=["detailed_site_survey", "exterior_corridor_dimensions"],
+                        assessment_scope=san_scope,
+                        source_revision=geom.source_revision,
+                    )
+                elif alt_route_found and alt_route_dist is not None and alt_route_dist <= max_hose_reach_m:
+                    results["septic_tank"] = FeatureFeasibilityAssessment(
+                        feature_id="septic_tank",
+                        requested_state="existing_preserved",
+                        feasibility_status="feasible",
+                        reason_codes=["SEPTIC_SIDE_CORRIDOR_ACCESSIBLE"],
+                        explanation=(
+                            f"Direct line to road is obstructed by house, but an unobstructed exterior side passageway "
+                            f"route ({alt_route_dist:.1f}m <= {max_hose_reach_m:.0f}m reach) is available around the structure. "
+                            f"Tanker vehicle standing location and perimeter gate passage must be confirmed during on-site survey."
+                        ),
+                        affected_object_ids=["EXISTING_SEPTIC"],
+                        applicable_rule_ids=["W05"],
+                        assessment_scope=san_scope,
+                        source_revision=geom.source_revision,
+                    )
+                elif alt_route_found and alt_route_dist is not None and alt_route_dist > max_hose_reach_m:
+                    results["septic_tank"] = FeatureFeasibilityAssessment(
+                        feature_id="septic_tank",
+                        requested_state="existing_preserved",
+                        feasibility_status="review_required",
+                        reason_codes=["SEPTIC_HOSE_CORRIDOR_OBSTRUCTED_BY_STRUCTURE", "SEPTIC_ROUTE_EXCEEDS_REACH"],
+                        explanation=(
+                            f"Direct line to road is obstructed by house. An exterior side passageway exists around the house, "
+                            f"but its route length ({alt_route_dist:.1f}m) exceeds the configured {max_hose_reach_m:.0f}m hose reach limit. "
+                            f"Tanker parking closer to tank or auxiliary booster pumping required."
+                        ),
+                        affected_object_ids=["EXISTING_SEPTIC"],
+                        applicable_rule_ids=["W05"],
+                        missing_evidence=["auxiliary_pumping_access", "vacuum_tanker_parking_position"],
+                        assessment_scope=san_scope,
+                        source_revision=geom.source_revision,
+                    )
+                else:
+                    results["septic_tank"] = FeatureFeasibilityAssessment(
+                        feature_id="septic_tank",
+                        requested_state="existing_preserved",
+                        feasibility_status="review_required",
+                        reason_codes=["SEPTIC_HOSE_CORRIDOR_OBSTRUCTED_BY_STRUCTURE"],
+                        explanation=(
+                            f"Direct line to road access ({dist_to_road:.1f}m) intersects the house structure, and no continuous "
+                            f"exterior side passageway exists within parcel boundaries. Suction hose cannot pass through building interior."
+                        ),
+                        affected_object_ids=["EXISTING_SEPTIC"],
+                        applicable_rule_ids=["W05"],
+                        missing_evidence=["exterior_side_passage_clearance", "vacuum_tanker_parking_position"],
+                        assessment_scope=san_scope,
+                        source_revision=geom.source_revision,
+                    )
+        else:
+            results["septic_tank"] = FeatureFeasibilityAssessment(
+                feature_id="septic_tank",
+                requested_state="existing_preserved",
+                feasibility_status="review_required",
+                reason_codes=["SEPTIC_MAINTENANCE_ACCESS_EVIDENCE_MISSING"],
+                explanation="Existing septic tank is recorded, but site road access line is missing. Vacuum tanker maintenance reach cannot be verified.",
+                affected_object_ids=["EXISTING_SEPTIC"],
+                applicable_rule_ids=["W05"],
+                missing_evidence=["road_access_line", "maintenance_corridor"],
+                assessment_scope=san_scope,
+                source_revision=geom.source_revision,
+            )
     elif not septic_req:
         results["septic_tank"] = FeatureFeasibilityAssessment(
             feature_id="septic_tank",
@@ -1206,6 +1372,7 @@ def assess_water_and_sanitation(
                 source_revision=geom.source_revision,
                 suggested_alternatives=["Consider a compact plunge pool, swim spa, or water wall feature."],
             )
+    results["pool"] = results["swimming_pool"]
 
     # 4. POND & WATER FEATURE
     if not pond_req:

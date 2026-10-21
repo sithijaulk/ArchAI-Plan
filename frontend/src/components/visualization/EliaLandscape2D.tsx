@@ -10,7 +10,7 @@
  *   - Stable gate deduplication.
  *   - Clear missing-geometry and revision-conflict alerts.
  */
-import React, { useMemo } from 'react'
+import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react'
 import type {
   ExteriorLandscape,
   EliaViewModel,
@@ -58,6 +58,10 @@ export default function EliaLandscape2D({
 }: Props) {
   const landscape = viewModel?.landscape ?? directLandscape ?? null
 
+  // Interactive Pan and Zoom State
+  const [zoom, setZoom] = useState(1.0)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+
   // Extract authoritative land & house coordinates
   const landCoords = useMemo(() => {
     if (viewModel?.landPolygon?.coordinates) {
@@ -98,27 +102,99 @@ export default function EliaLandscape2D({
   }, [landscape])
 
   // Compute viewBox in standard Cartesian meters (+X right, +Y up)
-  const { viewBox, bbox, pad, cartesianTransform } = useMemo(() => {
+  const { baseViewBox, bbox, pad, cartesianTransform, dynamicViewBox } = useMemo(() => {
     const coords = landCoords && landCoords.length > 0 ? landCoords : [[[0, 0], [30, 0], [30, 20], [0, 20]]]
     const b = polygonBBox(coords)
     const p = Math.max(b.width, b.height) * 0.08
-    const vbMinX = b.minX - p
-    const vbMinY = b.minY - p
-    const vbWidth = b.width + p * 2
-    const vbHeight = b.height + p * 2
+    const baseW = b.width + p * 2
+    const baseH = b.height + p * 2
+    const baseMinX = b.minX - p
+    const baseMinY = b.minY - p
 
-    // In SVG, Y increases downward. To orient +Y upward while keeping text readable:
-    // We map Cartesian Y to SVG Y: svgY = (vbMinY + vbHeight) - (cartY - vbMinY) = 2*vbMinY + vbHeight - cartY
-    // Or we use a group transform: translate(0, 2*b.cy) scale(1, -1)
-    const transform = `translate(0, ${vbMinY * 2 + vbHeight}) scale(1, -1)`
+    // Apply zoom & pan: center stays anchored as zoom changes
+    const curW = baseW / zoom
+    const curH = baseH / zoom
+    const curMinX = baseMinX + (baseW - curW) / 2 - pan.x
+    const curMinY = baseMinY + (baseH - curH) / 2 - pan.y
+
+    const transform = `translate(0, ${baseMinY * 2 + baseH}) scale(1, -1)`
 
     return {
-      viewBox: `${vbMinX.toFixed(2)} ${vbMinY.toFixed(2)} ${vbWidth.toFixed(2)} ${vbHeight.toFixed(2)}`,
+      baseViewBox: `${baseMinX.toFixed(2)} ${baseMinY.toFixed(2)} ${baseW.toFixed(2)} ${baseH.toFixed(2)}`,
+      dynamicViewBox: `${curMinX.toFixed(2)} ${curMinY.toFixed(2)} ${curW.toFixed(2)} ${curH.toFixed(2)}`,
       bbox: b,
       pad: p,
       cartesianTransform: transform,
     }
-  }, [landCoords])
+  }, [landCoords, zoom, pan])
+
+  const svgRef = useRef<SVGSVGElement | null>(null)
+  const isDraggingRef = useRef(false)
+  const hasDraggedRef = useRef(false)
+  const dragStartRef = useRef({ x: 0, y: 0 })
+  const lastMousePosRef = useRef({ x: 0, y: 0 })
+
+  // Non-passive wheel event listener to prevent unintended page scroll while zooming
+  useEffect(() => {
+    const el = svgRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const factor = e.deltaY < 0 ? 1.15 : 0.85
+      setZoom((z) => Math.min(Math.max(z * factor, 0.4), 6.0))
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
+
+  // Robust pointer drag-to-pan with pointer capture
+  const handlePointerDown = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
+    if (e.button !== 0) return // Left click only
+    isDraggingRef.current = true
+    hasDraggedRef.current = false
+    dragStartRef.current = { x: e.clientX, y: e.clientY }
+    lastMousePosRef.current = { x: e.clientX, y: e.clientY }
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId)
+    } catch {
+      // Ignore if pointer capture unsupported
+    }
+  }, [])
+
+  const handlePointerMove = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
+    if (!isDraggingRef.current) return
+    const dx = e.clientX - lastMousePosRef.current.x
+    const dy = e.clientY - lastMousePosRef.current.y
+    lastMousePosRef.current = { x: e.clientX, y: e.clientY }
+
+    if (Math.hypot(e.clientX - dragStartRef.current.x, e.clientY - dragStartRef.current.y) > 3) {
+      hasDraggedRef.current = true
+    }
+
+    const rect = e.currentTarget.getBoundingClientRect()
+    if (rect.width > 0 && rect.height > 0) {
+      const scaleX = (bbox.width / zoom) / rect.width
+      const scaleY = (bbox.height / zoom) / rect.height
+      setPan((prev) => ({
+        x: prev.x + dx * scaleX,
+        y: prev.y + dy * scaleY,
+      }))
+    }
+  }, [bbox.width, bbox.height, zoom])
+
+  const handlePointerUp = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
+    isDraggingRef.current = false
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    } catch {
+      // Ignore
+    }
+  }, [])
+
+  const handleResetZoom = useCallback(() => {
+    setZoom(1.0)
+    setPan({ x: 0, y: 0 })
+  }, [])
 
   const gates = useMemo(() => deduplicateGates(landscape?.access), [landscape])
   const validation = landscape?.validation_summary
@@ -141,7 +217,7 @@ export default function EliaLandscape2D({
   return (
     <div className="w-full h-full min-h-[480px] flex flex-col">
       {/* Header validation & metadata banner */}
-      <div className="flex items-center gap-3 mb-3 flex-wrap">
+      <div className="flex items-center gap-3 mb-2 flex-wrap">
         {validation && (
           <>
             <span
@@ -162,48 +238,80 @@ export default function EliaLandscape2D({
             Height ~{viewModel.buildingHeightM?.toFixed(1)}m (est)
           </span>
         )}
-        <span className="text-xs text-muted-foreground ml-auto font-mono">
-          2D plan view · meters (+Y Up)
-        </span>
+        
+        {/* Interactive Pan/Zoom Controls Bar */}
+        <div className="flex items-center gap-1.5 ml-auto text-xs font-mono">
+          <button
+            type="button"
+            onClick={() => setZoom((z) => Math.min(z * 1.25, 6.0))}
+            className="px-2 py-0.5 rounded bg-muted/60 hover:bg-muted text-foreground border border-border/60 transition-colors"
+            title="Zoom In"
+          >
+            +
+          </button>
+          <button
+            type="button"
+            onClick={() => setZoom((z) => Math.max(z / 1.25, 0.4))}
+            className="px-2 py-0.5 rounded bg-muted/60 hover:bg-muted text-foreground border border-border/60 transition-colors"
+            title="Zoom Out"
+          >
+            -
+          </button>
+          <button
+            type="button"
+            onClick={handleResetZoom}
+            className="px-2 py-0.5 rounded bg-muted/60 hover:bg-muted text-foreground border border-border/60 transition-colors text-[11px]"
+            title="Reset Pan &amp; Zoom"
+          >
+            Fit (100%)
+          </button>
+          <span className="text-muted-foreground ml-2 text-[11px]">
+            {Math.round(zoom * 100)}% · Drag to pan
+          </span>
+        </div>
       </div>
-
-      {/* Violations */}
-      {Array.isArray(validation?.violations) && validation.violations.length > 0 && (
-        <ul className="text-xs text-red-400 mb-2 space-y-0.5 max-h-20 overflow-y-auto">
-          {validation.violations.map((v, i) => (
-            <li key={i} className="pl-2 border-l border-red-800">
-              ⚠ {String(v)}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {/* SVG Canvas */}
-      <div className="flex-1 bg-[#0a140a] rounded-lg overflow-hidden border border-border relative">
-        {isMissingGeometry && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/75 backdrop-blur-sm p-6 text-center">
-            <div className="max-w-md space-y-2">
-              <div className="text-amber-400 font-semibold text-sm">
-                {viewModel?.geometryState === 'revision_mismatch'
-                  ? 'Source Revision Conflict'
-                  : 'Upstream Site Geometry Required'}
-              </div>
-              <p className="text-xs text-white/80 leading-relaxed">
-                {viewModel?.geometryMessage}
-              </p>
-            </div>
-          </div>
+        {/* Violations */}
+        {Array.isArray(validation?.violations) && validation.violations.length > 0 && (
+          <ul className="text-xs text-red-400 mb-2 space-y-0.5 max-h-20 overflow-y-auto">
+            {validation.violations.map((v, i) => (
+              <li key={i} className="pl-2 border-l border-red-800">
+                ⚠ {String(v)}
+              </li>
+            ))}
+          </ul>
         )}
 
-        <svg
-          width="100%"
-          height="100%"
-          viewBox={viewBox}
-          preserveAspectRatio="xMidYMid meet"
-          role="img"
-          aria-label="ELIA exterior landscape 2D plan view"
-          style={{ background: '#0a140a' }}
-        >
+        {/* SVG Canvas */}
+        <div className="flex-1 bg-[#0a140a] rounded-lg overflow-hidden border border-border relative select-none">
+          {isMissingGeometry && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/75 backdrop-blur-sm p-6 text-center">
+              <div className="max-w-md space-y-2">
+                <div className="text-amber-400 font-semibold text-sm">
+                  {viewModel?.geometryState === 'revision_mismatch'
+                    ? 'Source Revision Conflict'
+                    : 'Upstream Site Geometry Required'}
+                </div>
+                <p className="text-xs text-white/80 leading-relaxed">
+                  {viewModel?.geometryMessage}
+                </p>
+              </div>
+            </div>
+          )}
+
+          <svg
+            ref={svgRef}
+            width="100%"
+            height="100%"
+            viewBox={dynamicViewBox}
+            preserveAspectRatio="xMidYMid meet"
+            role="img"
+            aria-label="ELIA exterior landscape 2D plan view"
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
+            style={{ background: '#0a140a', cursor: 'grab', touchAction: 'none' }}
+          >
           <defs>
             <marker id="arrow-north-head" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
               <path d="M0,0 L6,3 L0,6 Z" fill="#ef4444" />
@@ -269,7 +377,9 @@ export default function EliaLandscape2D({
               return (
                 <g
                   key={el.json_id}
-                  onClick={() => onSelectFeature?.(el.json_id)}
+                  onClick={() => {
+                    if (!hasDraggedRef.current) onSelectFeature?.(el.json_id)
+                  }}
                   style={{ cursor: onSelectFeature ? 'pointer' : 'default' }}
                 >
                   <rect
@@ -298,7 +408,9 @@ export default function EliaLandscape2D({
               return (
                 <g
                   key={node.json_id}
-                  onClick={() => onSelectFeature?.(node.json_id)}
+                  onClick={() => {
+                    if (!hasDraggedRef.current) onSelectFeature?.(node.json_id)
+                  }}
                   style={{ cursor: onSelectFeature ? 'pointer' : 'default' }}
                 >
                   <circle
@@ -353,7 +465,9 @@ export default function EliaLandscape2D({
               return (
                 <g
                   key={node.json_id}
-                  onClick={() => onSelectFeature?.(node.json_id)}
+                  onClick={() => {
+                    if (!hasDraggedRef.current) onSelectFeature?.(node.json_id)
+                  }}
                   style={{ cursor: onSelectFeature ? 'pointer' : 'default' }}
                 >
                   <path

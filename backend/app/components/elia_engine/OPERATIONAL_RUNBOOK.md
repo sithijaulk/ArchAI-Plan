@@ -12,7 +12,7 @@ This runbook documents operational procedures for backend startup, regression te
 ### Windows (PowerShell)
 ```powershell
 # Navigate to backend directory
-cd C:\Users\MY\OneDrive\Desktop\research\ArchAI-Plan\backend
+cd backend
 
 # Activate the dedicated virtual environment
 .\.venv\Scripts\Activate.ps1
@@ -117,6 +117,6 @@ To verify the live flow against an active backend process with a real upstream p
 To verify frontend coordinate mappings, hole preservation, vegetation dimensions, and view model extraction:
 
 ```powershell
-cd C:\Users\MY\OneDrive\Desktop\research\ArchAI-Plan\frontend
+cd frontend
 npx tsx src/lib/test_elia_geometry.mjs
 ```

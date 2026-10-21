@@ -15,6 +15,7 @@ class ResearchDocumentUpdate(ResearchDocumentBase):
 class TeamMemberBase(BaseModel):
     name: str
     role: str
+    category: str = "member"
     bio: Optional[str] = None
     sort_order: int = 0
 
@@ -22,6 +23,7 @@ class TeamMemberBase(BaseModel):
 class TeamMemberUpdate(BaseModel):
     name: Optional[str] = None
     role: Optional[str] = None
+    category: Optional[str] = None
     bio: Optional[str] = None
     sort_order: Optional[int] = None
 

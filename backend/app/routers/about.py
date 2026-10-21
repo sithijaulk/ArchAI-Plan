@@ -27,19 +27,23 @@ def document_response(document: ResearchDocument) -> dict:
 
 
 def member_response(member: TeamMember) -> dict:
-    return {
-        **{column.name: getattr(member, column.name) for column in member.__table__.columns},
-        "image_url": f"{settings.backend_url.rstrip('/')}/uploads/{member.image_path}" if member.image_path else None,
-    }
+    data = {column.name: getattr(member, column.name) for column in member.__table__.columns}
+    data["category"] = getattr(member, "category", "member") or "member"
+    data["image_url"] = f"{settings.backend_url.rstrip('/')}/uploads/{member.image_path}" if member.image_path else None
+    return data
 
 
 @router.get("/content")
 def get_about_content(db: Session = Depends(get_db)):
     documents = db.query(ResearchDocument).order_by(ResearchDocument.created_at.desc()).all()
     members = db.query(TeamMember).order_by(TeamMember.sort_order.asc(), TeamMember.created_at.asc()).all()
+    all_members = [member_response(member) for member in members]
     return {
         "documents": [document_response(document) for document in documents],
-        "members": [member_response(member) for member in members],
+        "members": all_members,
+        "supervisors": [m for m in all_members if m.get("category") == "supervisor"],
+        "co_supervisors": [m for m in all_members if m.get("category") == "co_supervisor"],
+        "team_members": [m for m in all_members if m.get("category") in ("member", None, "")],
     }
 
 
@@ -108,14 +112,27 @@ def list_members(db: Session = Depends(get_db), admin: User = Depends(require_ad
 
 @admin_router.post("/members", response_model=TeamMemberResponse, status_code=status.HTTP_201_CREATED)
 async def create_member(
-    name: str = Form(...), role: str = Form(...), bio: Optional[str] = Form(None), sort_order: int = Form(0),
-    image: Optional[UploadFile] = File(None), db: Session = Depends(get_db), admin: User = Depends(require_admin),
+    name: str = Form(...),
+    role: str = Form(...),
+    category: str = Form("member"),
+    bio: Optional[str] = Form(None),
+    sort_order: int = Form(0),
+    image: Optional[UploadFile] = File(None),
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
 ):
     image_path = None
     if image and image.filename:
         validate_image(image)
         image_path = await save_upload(image, "team", settings.upload_dir)
-    member = TeamMember(name=name.strip(), role=role.strip(), bio=bio, sort_order=sort_order, image_path=image_path)
+    member = TeamMember(
+        name=name.strip(),
+        role=role.strip(),
+        category=category.strip().lower() if category else "member",
+        bio=bio,
+        sort_order=sort_order,
+        image_path=image_path,
+    )
     db.add(member)
     db.commit()
     db.refresh(member)
@@ -124,14 +141,22 @@ async def create_member(
 
 @admin_router.put("/members/{member_id}", response_model=TeamMemberResponse)
 async def update_member(
-    member_id: str, name: Optional[str] = Form(None), role: Optional[str] = Form(None), bio: Optional[str] = Form(None), sort_order: Optional[int] = Form(None),
-    image: Optional[UploadFile] = File(None), db: Session = Depends(get_db), admin: User = Depends(require_admin),
+    member_id: str,
+    name: Optional[str] = Form(None),
+    role: Optional[str] = Form(None),
+    category: Optional[str] = Form(None),
+    bio: Optional[str] = Form(None),
+    sort_order: Optional[int] = Form(None),
+    image: Optional[UploadFile] = File(None),
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
 ):
     member = db.query(TeamMember).filter(TeamMember.id == member_id).first()
     if not member:
         raise HTTPException(status_code=404, detail="Team member not found")
     if name is not None: member.name = name.strip()
     if role is not None: member.role = role.strip()
+    if category is not None: member.category = category.strip().lower()
     if bio is not None: member.bio = bio
     if sort_order is not None: member.sort_order = sort_order
     if image and image.filename:
