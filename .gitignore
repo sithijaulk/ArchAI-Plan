@@ -33,6 +33,8 @@ Thumbs.db
 training/**/runs/
 training/**/cache/
 datasets/
+cubicasa5k/
+data/
 *.zip
 *.pt
 *.pth

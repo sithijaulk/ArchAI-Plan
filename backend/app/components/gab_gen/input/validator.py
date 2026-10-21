@@ -58,8 +58,26 @@ def reconcile_and_validate_requirements(req: ClientRequirementsInput) -> Dict[st
     if req.storey_count < 1 or req.storey_count > 4:
         errors.append(f"Storey count ({req.storey_count}) must be between 1 and 4.")
 
-    # 4. Check floor preferences against storey count
+    # 4. Room IDs uniqueness and dimension checks
+    seen_room_ids = set()
     for r in req.rooms:
+        if r.id in seen_room_ids:
+            errors.append(f"Duplicate room requirement ID '{r.id}' detected. Each room entry must have a unique stable ID.")
+        seen_room_ids.add(r.id)
+
+        # Dimension checks
+        if r.minimum_width_m is not None and r.preferred_width_m is not None:
+            if r.minimum_width_m > r.preferred_width_m:
+                errors.append(
+                    f"Room '{r.custom_name or r.type}' has minimum width ({r.minimum_width_m}m) greater than preferred width ({r.preferred_width_m}m)."
+                )
+        if r.preferred_min_area is not None and r.preferred_area_sqm is not None:
+            if r.preferred_min_area > r.preferred_area_sqm:
+                errors.append(
+                    f"Room '{r.custom_name or r.type}' has minimum preferred area ({r.preferred_min_area}m²) greater than target preferred area ({r.preferred_area_sqm}m²)."
+                )
+
+        # Floor preferences against storey count
         if r.floor_preference not in ("auto", "any"):
             try:
                 fl_idx = int(r.floor_preference)
@@ -71,7 +89,22 @@ def reconcile_and_validate_requirements(req: ClientRequirementsInput) -> Dict[st
             except ValueError:
                 pass
 
-    # 5. Build normalized list of rooms (synthesizing from counts if rooms list is partial/empty)
+    # 5. Adjacency consistency checks
+    seen_adj_ids = set()
+    for adj in req.adjacencies:
+        if adj.adjacency_id in seen_adj_ids:
+            errors.append(f"Duplicate adjacency requirement ID '{adj.adjacency_id}' detected.")
+        seen_adj_ids.add(adj.adjacency_id)
+
+        # Reference checks
+        if adj.source_room_id not in seen_room_ids:
+            errors.append(f"Adjacency '{adj.adjacency_id}' references unknown source room ID '{adj.source_room_id}'.")
+        if adj.target_room_id not in seen_room_ids:
+            errors.append(f"Adjacency '{adj.adjacency_id}' references unknown target room ID '{adj.target_room_id}'.")
+        if adj.source_room_id == adj.target_room_id:
+            errors.append(f"Adjacency '{adj.adjacency_id}' specifies self-adjacency on room '{adj.source_room_id}'.")
+
+    # 6. Build normalized list of rooms (synthesizing from counts if rooms list is partial/empty)
     normalized_rooms: List[RoomRequirement] = list(req.rooms)
     existing_types = {r.type for r in normalized_rooms}
 

@@ -67,6 +67,21 @@ def validate_room_edit(
 
     area = round(float(room_poly.area), 2) if room_poly.is_valid else 0.0
 
+    # Statutory minimum room size check (UDA Gazette 2235/54 Sched. 7)
+    target_room = None
+    if target_floor:
+        target_room = next((r for r in target_floor.rooms if r.room_id == room_id), None)
+    if target_room:
+        rt = target_room.type.lower()
+        if "master_bedroom" in rt and area < 9.3:
+            violations.append(f"Master bedroom area ({area:.2f} m²) violates statutory minimum (9.5 m²) under Gazette 2235/54 Schedule 7.")
+        elif "bedroom" in rt and area < 8.3:
+            violations.append(f"Bedroom area ({area:.2f} m²) violates statutory minimum (8.5 m²) under Gazette 2235/54 Schedule 7.")
+        elif "kitchen" in rt and area < 5.3:
+            violations.append(f"Kitchen area ({area:.2f} m²) violates statutory minimum (5.5 m²) under Gazette 2235/54 Schedule 7.")
+        elif ("bathroom" in rt or "toilet" in rt) and area < 1.6:
+            violations.append(f"Bathroom area ({area:.2f} m²) violates statutory minimum (1.7 m²) under Gazette 2235/54 Schedule 7.")
+
     return {
         "valid": len(violations) == 0,
         "violations": violations,
@@ -98,12 +113,17 @@ def apply_room_edit(
     c_pt = poly.centroid
 
     updated_floors: List[FloorPlanDefinition] = []
-    for fl in floors:
-        fl_rooms = []
-        for rm in fl.rooms:
-            if rm.room_id == room_id:
-                # Update room geometry
-                updated_rm = rm.model_copy(
+    # If the room changed floors, remove it from old floor and place in target_floor
+    source_floor = next((f for f in floors if any(r.room_id == room_id for r in f.rooms)), None)
+    target_rm = next((r for f in floors for r in f.rooms if r.room_id == room_id), None)
+    
+    if target_rm and source_floor and source_floor.floor_id != target_floor_id:
+        # Cross-floor transfer
+        for fl in floors:
+            if fl.floor_id == source_floor.floor_id:
+                fl_rooms = [r for r in fl.rooms if r.room_id != room_id]
+            elif fl.floor_id == target_floor_id:
+                updated_rm = target_rm.model_copy(
                     update={
                         "polygon": new_polygon,
                         "area": round(float(poly.area), 2),
@@ -112,10 +132,77 @@ def apply_room_edit(
                         "floor_id": target_floor_id
                     }
                 )
-                fl_rooms.append(updated_rm)
+                fl_rooms = list(fl.rooms) + [updated_rm]
             else:
-                fl_rooms.append(rm)
+                fl_rooms = list(fl.rooms)
+            new_walls = derive_wall_segments(fl.floor_id, buildable_poly, fl_rooms)
+            updated_floors.append(
+                fl.model_copy(
+                    update={
+                        "rooms": fl_rooms,
+                        "walls": new_walls,
+                        "target_allocated_area": round(sum(r.area for r in fl_rooms), 2)
+                    }
+                )
+            )
+    else:
+        # Same floor update
+        for fl in floors:
+            fl_rooms = []
+            for rm in fl.rooms:
+                if rm.room_id == room_id:
+                    # Update room geometry and calculate width / length
+                    xs = [p.x for p in new_polygon]
+                    ys = [p.y for p in new_polygon]
+                    w_m = round(max(xs) - min(xs), 2)
+                    l_m = round(max(ys) - min(ys), 2)
+                    updated_rm = rm.model_copy(
+                        update={
+                            "polygon": new_polygon,
+                            "area": round(float(poly.area), 2),
+                            "center": Point2D(x=round(c_pt.x, 3), y=round(c_pt.y, 3)),
+                            "width_m": w_m,
+                            "length_m": l_m,
+                            "geometry_origin": "edited",
+                            "floor_id": target_floor_id
+                        }
+                    )
+                    fl_rooms.append(updated_rm)
+                else:
+                    fl_rooms.append(rm)
 
+            new_walls = derive_wall_segments(fl.floor_id, buildable_poly, fl_rooms)
+            updated_fl = fl.model_copy(
+                update={
+                    "rooms": fl_rooms,
+                    "walls": new_walls,
+                    "target_allocated_area": round(sum(r.area for r in fl_rooms), 2)
+                }
+            )
+            updated_floors.append(updated_fl)
+
+    return {
+        "success": True,
+        "violations": [],
+        "floors": updated_floors
+    }
+
+
+def remove_room_from_blueprint(
+    room_id: str,
+    floors: List[FloorPlanDefinition],
+    buildable_poly: Polygon
+) -> Dict[str, Any]:
+    """Removes a room from the floor plan and recalculates floor walls and area."""
+    target_rm = next((r for f in floors for r in f.rooms if r.room_id == room_id), None)
+    if not target_rm:
+        return {"success": False, "violations": [f"Room '{room_id}' not found."], "floors": floors}
+    if target_rm.is_structural_stair:
+        return {"success": False, "violations": ["Cannot remove structural staircase core."], "floors": floors}
+
+    updated_floors = []
+    for fl in floors:
+        fl_rooms = [r for r in fl.rooms if r.room_id != room_id]
         new_walls = derive_wall_segments(fl.floor_id, buildable_poly, fl_rooms)
         updated_fl = fl.model_copy(
             update={
@@ -126,8 +213,181 @@ def apply_room_edit(
         )
         updated_floors.append(updated_fl)
 
+    return {"success": True, "violations": [], "floors": updated_floors}
+
+
+def add_room_to_blueprint(
+    target_floor_id: str,
+    room_data: Dict[str, Any],
+    floors: List[FloorPlanDefinition],
+    buildable_poly: Polygon
+) -> Dict[str, Any]:
+    """Adds a newly requested room to a specified floor with boundary containment and overlap validation."""
+    polygon_raw = room_data.get("polygon", [])
+    if len(polygon_raw) < 3:
+        return {"success": False, "violations": ["Room polygon must have at least 3 vertices."], "floors": floors}
+
+    pts = [Point2D(x=p["x"], y=p["y"]) for p in polygon_raw]
+    room_id = room_data.get("room_id") or f"{target_floor_id}_CUSTOM_{len(floors[0].rooms)+1}"
+
+    check = validate_room_edit(room_id, target_floor_id, pts, floors, buildable_poly)
+    if not check["valid"]:
+        return {"success": False, "violations": check["violations"], "floors": floors}
+
+    poly = Polygon([(p.x, p.y) for p in pts])
+    c_pt = poly.centroid
+    xs = [p.x for p in pts]
+    ys = [p.y for p in pts]
+
+    new_rm = RoomPolygon(
+        room_id=room_id,
+        name=room_data.get("name", "Custom Room"),
+        type=room_data.get("type", "other"),
+        floor_id=target_floor_id,
+        area=round(float(poly.area), 2),
+        target_area=round(room_data.get("target_area", float(poly.area)), 2),
+        polygon=pts,
+        center=Point2D(x=round(c_pt.x, 3), y=round(c_pt.y, 3)),
+        width_m=round(max(xs) - min(xs), 2),
+        length_m=round(max(ys) - min(ys), 2),
+        is_structural_stair=False,
+        geometry_origin="user_added"
+    )
+
+    updated_floors = []
+    for fl in floors:
+        fl_rooms = list(fl.rooms)
+        if fl.floor_id == target_floor_id:
+            fl_rooms.append(new_rm)
+        new_walls = derive_wall_segments(fl.floor_id, buildable_poly, fl_rooms)
+        updated_fl = fl.model_copy(
+            update={
+                "rooms": fl_rooms,
+                "walls": new_walls,
+                "target_allocated_area": round(sum(r.area for r in fl_rooms), 2)
+            }
+        )
+        updated_floors.append(updated_fl)
+
+    return {"success": True, "violations": [], "floors": updated_floors, "created_room_id": room_id}
+
+
+def edit_door_in_blueprint(
+    door_id: str,
+    target_floor_id: str,
+    new_position: Point2D,
+    new_width_m: float,
+    floors: List[FloorPlanDefinition]
+) -> Dict[str, Any]:
+    """
+    Edits a door's position and width.
+    Enforces positive width > 0.50m and valid floor association.
+    """
+    if new_width_m <= 0.50:
+        return {"success": False, "violations": [f"Door width ({new_width_m}m) must be > 0.50m for usability."]}
+
+    updated_floors: List[FloorPlanDefinition] = []
+    found = False
+    for fl in floors:
+        if fl.floor_id == target_floor_id:
+            updated_doors = []
+            for d in fl.doors:
+                if d.door_id == door_id:
+                    found = True
+                    updated_doors.append(
+                        d.model_copy(
+                            update={
+                                "position": new_position,
+                                "width_m": round(new_width_m, 2),
+                                "verification_status": "GEOMETRY_VERIFIED"
+                            }
+                        )
+                    )
+                else:
+                    updated_doors.append(d)
+            updated_floors.append(fl.model_copy(update={"doors": updated_doors}))
+        else:
+            updated_floors.append(fl)
+
+    if not found:
+        return {"success": False, "violations": [f"Door '{door_id}' not found on floor '{target_floor_id}'."]}
+
+    return {"success": True, "violations": [], "floors": updated_floors}
+
+
+def edit_window_in_blueprint(
+    window_id: str,
+    target_floor_id: str,
+    new_position: Point2D,
+    new_width_m: float,
+    new_height_m: float,
+    floors: List[FloorPlanDefinition]
+) -> Dict[str, Any]:
+    """
+    Edits an exterior window's position and dimensions.
+    """
+    if new_width_m <= 0.40 or new_height_m <= 0.40:
+        return {"success": False, "violations": ["Window dimensions must be at least 0.40m x 0.40m."]}
+
+    updated_floors: List[FloorPlanDefinition] = []
+    found = False
+    for fl in floors:
+        if fl.floor_id == target_floor_id:
+            updated_windows = []
+            for w in fl.windows:
+                if w.window_id == window_id:
+                    found = True
+                    updated_windows.append(
+                        w.model_copy(
+                            update={
+                                "position": new_position,
+                                "width_m": round(new_width_m, 2),
+                                "height_m": round(new_height_m, 2),
+                                "verification_status": "GEOMETRY_VERIFIED"
+                            }
+                        )
+                    )
+                else:
+                    updated_windows.append(w)
+            updated_floors.append(fl.model_copy(update={"windows": updated_windows}))
+        else:
+            updated_floors.append(fl)
+
+    if not found:
+        return {"success": False, "violations": [f"Window '{window_id}' not found on floor '{target_floor_id}'."]}
+
+    return {"success": True, "violations": [], "floors": updated_floors}
+
+
+def change_blueprint_roof(
+    building_footprint_poly: Polygon,
+    new_roof_type: str,
+    pitch_deg: Optional[float] = None
+) -> Dict[str, Any]:
+    """
+    Recalculates roof geometry for a selected building footprint with the specified roof type.
+    """
+    from ..schemas import RoofPreference, RoofType
+    from .roof_generator import generate_roof_geometry, validate_roof_geometry
+
+    valid_types = [t.value for t in RoofType]
+    if new_roof_type not in valid_types:
+        return {"success": False, "violations": [f"Unsupported roof type '{new_roof_type}'. Must be one of: {valid_types}"]}
+
+    roof_pref = RoofPreference(
+        roof_type=RoofType(new_roof_type),
+        pitch_angle_deg=pitch_deg if pitch_deg is not None else (30.0 if new_roof_type in ("gable", "hip") else (15.0 if new_roof_type == "mono_pitch" else 0.0))
+    )
+    roof_geom = generate_roof_geometry(building_footprint_poly, roof_pref)
+    val = validate_roof_geometry(roof_geom, building_footprint_poly)
+    if not val["valid"]:
+        return {"success": False, "violations": val["violations"], "warnings": val["warnings"]}
+
     return {
         "success": True,
         "violations": [],
-        "floors": updated_floors
+        "warnings": val["warnings"],
+        "roof_geometry": roof_geom
     }
+
+

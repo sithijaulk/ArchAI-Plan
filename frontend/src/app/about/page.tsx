@@ -99,12 +99,25 @@ export default function AboutPage() {
                 key={person.id}
                 className="bg-card/40 border border-border/50 rounded-xl p-5 flex gap-4 transition-colors hover:border-primary/40"
               >
-                <div className="w-20 h-20 shrink-0 rounded-full overflow-hidden bg-muted border border-border/50 flex items-center justify-center">
+                <div className="w-20 h-20 shrink-0 rounded-full overflow-hidden bg-muted border border-border/50 flex items-center justify-center relative">
                   {person.image_url ? (
-                    <img src={person.image_url} alt={person.name} className="w-full h-full object-cover" />
-                  ) : (
+                    <img 
+                      src={person.image_url} 
+                      alt={person.name} 
+                      className="w-full h-full object-cover" 
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                        const parent = (e.target as HTMLElement).parentElement;
+                        if (parent) {
+                          const icon = parent.querySelector('.fallback-icon');
+                          if (icon) (icon as HTMLElement).style.display = 'block';
+                        }
+                      }}
+                    />
+                  ) : null}
+                  <div className="fallback-icon" style={{ display: person.image_url ? 'none' : 'block' }}>
                     <GraduationCap className="text-muted-foreground w-8 h-8" />
-                  )}
+                  </div>
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -135,12 +148,25 @@ export default function AboutPage() {
                 key={member.id}
                 className="bg-card/40 border border-border/50 rounded-xl p-5 flex gap-4 transition-colors hover:border-primary/40"
               >
-                <div className="w-20 h-20 shrink-0 rounded-full overflow-hidden bg-muted border border-border/50 flex items-center justify-center">
+                <div className="w-20 h-20 shrink-0 rounded-full overflow-hidden bg-muted border border-border/50 flex items-center justify-center relative">
                   {member.image_url ? (
-                    <img src={member.image_url} alt={member.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <Users className="text-muted-foreground" />
-                  )}
+                    <img 
+                      src={member.image_url} 
+                      alt={member.name} 
+                      className="w-full h-full object-cover" 
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                        const parent = (e.target as HTMLElement).parentElement;
+                        if (parent) {
+                          const icon = parent.querySelector('.fallback-icon');
+                          if (icon) (icon as HTMLElement).style.display = 'block';
+                        }
+                      }}
+                    />
+                  ) : null}
+                  <div className="fallback-icon" style={{ display: member.image_url ? 'none' : 'block' }}>
+                    <Users className="text-muted-foreground w-8 h-8" />
+                  </div>
                 </div>
                 <div className="min-w-0 flex-1">
                   <h3 className="font-semibold text-lg">{member.name}</h3>

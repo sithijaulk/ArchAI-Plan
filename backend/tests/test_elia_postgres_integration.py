@@ -14,11 +14,11 @@ from app.routers.elia import run_project_elia
 
 
 def test_postgres_run_persists_same_master_and_component_history():
-    database_url = os.getenv("ELIA_TEST_POSTGRES_URL")
+    database_url = os.getenv("ELIA_TEST_POSTGRES_URL") or os.getenv("ELIA_TEST_DB_URL") or os.getenv("POSTGRES_TEST_URL")
     if not database_url:
         pytest.skip("Set ELIA_TEST_POSTGRES_URL to a disposable PostgreSQL test database to run persistence integration.")
-    if not database_url.startswith("postgresql+psycopg2://"):
-        pytest.fail("ELIA_TEST_POSTGRES_URL must use the PostgreSQL psycopg2 driver (postgresql+psycopg2://).")
+    if not (database_url.startswith("postgresql://") or database_url.startswith("postgresql+")):
+        pytest.fail("ELIA_TEST_POSTGRES_URL must use the PostgreSQL driver (postgresql+psycopg2:// or postgresql://).")
 
     engine = create_engine(database_url, pool_pre_ping=True)
     Base.metadata.create_all(engine)
