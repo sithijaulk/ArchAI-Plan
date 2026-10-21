@@ -47,4 +47,38 @@ export const vsaiApi = {
     const response = await apiClient.post(url, payload);
     return response.data;
   },
+
+  segmentFloorPlan: async (
+    file: File,
+    scaleFt?: number,
+    projectId?: string
+  ): Promise<{
+    master_json: any;
+    validation: any;
+    vastu_analysis: VastuAnalysis | null;
+    segmentation: {
+      source: string;
+      rooms_detected: number;
+      doors_detected: number;
+      windows_detected: number;
+      average_confidence: number;
+      original_image_size: [number, number];
+      scale_factor_ft_per_px: number;
+    };
+  }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (scaleFt) {
+      formData.append('scale_ft', scaleFt.toString());
+    }
+
+    const url = projectId ? `/projects/${projectId}/vsai-rectifier/segment` : '/projects/vsai-rectifier/segment';
+    const response = await apiClient.post(url, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
 };
+

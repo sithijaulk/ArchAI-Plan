@@ -32,7 +32,9 @@ import {
   Grid3X3,
   Check,
   Maximize2,
-  X
+  X,
+  Download,
+  Image as ImageIcon
 } from 'lucide-react'
 
 // --- DEFAULT ARCHITECTURAL CAD FLOOR PLAN (MATCHING USER SCREENSHOT) ---
@@ -68,6 +70,29 @@ const DEFAULT_CAD_FLOOR_PLAN = {
       { id: "col-2", type: "column", polygon: [[14.0, 0.0], [15.0, 0.0], [15.0, 1.0], [14.0, 1.0]] },
       { id: "col-3", type: "column", polygon: [[26.0, 0.0], [27.0, 0.0], [27.0, 1.0], [26.0, 1.0]] },
       { id: "col-4", type: "column", polygon: [[41.0, 0.0], [42.0, 0.0], [42.0, 1.0], [41.0, 1.0]] }
+    ],
+    doors: [
+      { id: "door-main", name: "MAIN ENTRANCE", type: "single_swing", center: [17.0, 31.0], width: 3.5, is_main_entrance: true },
+      { id: "door-verandah", name: "VERANDAH TO LIVING", type: "single_swing", center: [17.0, 23.0], width: 3.0 },
+      { id: "door-bed-1", name: "BEDROOM 1 DOOR", type: "single_swing", center: [14.0, 10.0], width: 3.0 },
+      { id: "door-toilet-1", name: "TOILET DOOR", type: "single_swing", center: [14.0, 4.0], width: 2.5 },
+      { id: "door-kitchen-1", name: "KITCHEN DOOR", type: "single_swing", center: [26.0, 8.0], width: 2.8 },
+      { id: "door-bed-2", name: "BEDROOM 2 DOOR", type: "single_swing", center: [26.0, 18.0], width: 3.0 },
+      { id: "door-bath-2", name: "BATHROOM 2 DOOR", type: "single_swing", center: [34.0, 24.0], width: 2.5 },
+      { id: "door-pooja", name: "POOJA DOOR", type: "single_swing", center: [20.0, 27.0], width: 2.5 },
+      { id: "door-dining", name: "DINING DOOR", type: "single_swing", center: [14.0, 26.0], width: 3.0 }
+    ],
+    windows: [
+      { id: "win-bed-1-s", name: "BEDROOM 1 WINDOW", center: [7.0, 0.0], width: 4.0 },
+      { id: "win-toilet-1", name: "TOILET WINDOW", center: [17.0, 0.0], width: 2.5 },
+      { id: "win-kitchen-1-s", name: "KITCHEN S WINDOW", center: [34.0, 0.0], width: 4.0 },
+      { id: "win-kitchen-1-e", name: "KITCHEN E WINDOW", center: [42.0, 5.5], width: 4.0 },
+      { id: "win-bed-2-e", name: "BEDROOM 2 WINDOW", center: [42.0, 17.5], width: 4.5 },
+      { id: "win-bath-2-n", name: "BATHROOM WINDOW", center: [34.0, 36.0], width: 3.0 },
+      { id: "win-dining-n", name: "DINING N WINDOW", center: [7.0, 36.0], width: 4.5 },
+      { id: "win-dining-w", name: "DINING W WINDOW", center: [0.0, 30.0], width: 4.0 },
+      { id: "win-kitchen-2-w", name: "KITCHEN W WINDOW", center: [0.0, 18.0], width: 4.0 },
+      { id: "win-bed-1-w", name: "BEDROOM 1 W WINDOW", center: [0.0, 6.0], width: 4.0 }
     ]
   },
   structural_rectification: {},
@@ -210,6 +235,7 @@ export default function VsaiRectifierPage() {
     projectName, 
     masterJson, 
     loadProject,
+    resetProject,
     setComponentStatus, 
     setOutput, 
     skipComponent 
@@ -218,9 +244,14 @@ export default function VsaiRectifierPage() {
   // 4-Step Workflow State
   const [currentStep, setCurrentStep] = useState<WorkflowStep>(1)
   const [activeUploadTab, setActiveUploadTab] = useState<'upload' | 'generated'>('upload')
-  const [uploadedFileName, setUploadedFileName] = useState<string>('house-plan.png')
-  const [uploadedFileSize, setUploadedFileSize] = useState<string>('2.45 MB')
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
+  const [uploadedFileSize, setUploadedFileSize] = useState<string | null>(null)
   const [isFullscreenPlan, setIsFullscreenPlan] = useState<boolean>(false)
+  const [uploadedImageSrc, setUploadedImageSrc] = useState<string | null>(null)
+  const [planViewMode, setPlanViewMode] = useState<'cad' | 'image' | 'overlay'>('cad')
+  const [segmentationMeta, setSegmentationMeta] = useState<any>(null)
+
+
 
   // Core Processing States
   const [isProcessing, setIsProcessing] = useState(false)
@@ -243,13 +274,14 @@ export default function VsaiRectifierPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Use active plan from store or fall back to default CAD plan
+  // Use active plan from store or user uploaded/selected plan
   const activePlan = useMemo(() => {
     if (masterJson?.floor_plan && (masterJson.floor_plan as any).rooms?.length > 0) {
       return masterJson
     }
-    return DEFAULT_CAD_FLOOR_PLAN
+    return null
   }, [masterJson])
+
 
   // Direct Vastu Evaluator function
   const evaluateVastu = useCallback(async (contractJson: any) => {
@@ -352,20 +384,48 @@ export default function VsaiRectifierPage() {
       if (response.vastu_analysis) {
         setVastuAnalysis(response.vastu_analysis)
       }
+
+      // Seamlessly take the user back to Step 2 to inspect their updated Vastu score & results
+      setCurrentStep(2)
     } catch (err: any) {
-      setUploadError(err?.response?.data?.detail || err?.message || 'Failed to confirm plan details')
+      setUploadError(err?.response?.data?.detail || err?.message || 'Failed to update plan and re-evaluate Vastu')
     } finally {
       setIsSubmittingMissingInfo(false)
     }
   }
 
+
+  const handleResetPlan = useCallback(() => {
+    resetProject()
+    setUploadedFileName(null)
+    setUploadedFileSize(null)
+    setUploadedImageSrc(null)
+    setSegmentationMeta(null)
+    setValidationResult(null)
+    setMissingInfoReport(null)
+    setVastuAnalysis(null)
+    setRectifiedData(null)
+    setUploadError(null)
+    setIsReviewDismissed(false)
+    setPlanViewMode('cad')
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }, [resetProject])
+
   const handleFileProcess = async (file: File) => {
     if (!file) return
+
+    // Cleanly purge all previous state before starting new upload
+    resetProject()
     setUploadError(null)
     setValidationResult(null)
     setMissingInfoReport(null)
     setIsReviewDismissed(false)
     setVastuAnalysis(null)
+    setSegmentationMeta(null)
+    setUploadedImageSrc(null)
+    setPlanViewMode('cad')
     setIsUploading(true)
 
     setUploadedFileName(file.name)
@@ -384,15 +444,30 @@ export default function VsaiRectifierPage() {
           }
         }
       } else {
-        const syntheticProject = {
-          ...DEFAULT_CAD_FLOOR_PLAN,
-          project_name: file.name.replace(/\.[^/.]+$/, ""),
+        // Floor plan image (PNG, JPG, etc.) -> Process with CubiCasa5K AI segmentation
+        const reader = new FileReader()
+        reader.onload = (e) => {
+          setUploadedImageSrc(e.target?.result as string)
         }
-        loadProject({
-          id: `proj-upload-${Date.now()}`,
-          project_name: file.name,
-          master_json: syntheticProject as any
-        })
+        reader.readAsDataURL(file)
+
+        // Always invoke standalone segment to guarantee fresh plan extraction
+        const segResponse = await vsaiApi.segmentFloorPlan(file)
+        if (segResponse.master_json) {
+          loadProject({
+            id: segResponse.master_json.project_id || `proj-upload-${Date.now()}`,
+            project_name: segResponse.master_json.project_name || file.name.replace(/\.[^/.]+$/, ""),
+            master_json: segResponse.master_json,
+          })
+          setSegmentationMeta(segResponse.segmentation || segResponse.master_json.segmentation_meta || null)
+          if (segResponse.validation) {
+            setValidationResult(segResponse.validation)
+            setMissingInfoReport(segResponse.validation.missing_info_report || null)
+          }
+          if (segResponse.vastu_analysis) {
+            setVastuAnalysis(segResponse.vastu_analysis)
+          }
+        }
       }
     } catch (err: any) {
       const detail = err?.response?.data?.detail
@@ -404,12 +479,13 @@ export default function VsaiRectifierPage() {
         }
         setUploadError(detail.message || 'Validation failed — see details below.')
       } else {
-        setUploadError(detail || err?.message || 'Failed to upload plan')
+        setUploadError(detail || err?.message || 'Failed to upload and segment plan image')
       }
     } finally {
       setIsUploading(false)
     }
   }
+
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -607,7 +683,7 @@ export default function VsaiRectifierPage() {
         {/* --- TOP HEADER ROW & 4-STEP STEPPER --- */}
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 pb-6 border-b border-border/50">
           <div>
-            <div className="text-[11px] font-bold uppercase tracking-widest text-[#ff6b00] flex items-center gap-1.5 mb-1.5">
+            <div className="text-[11px] font-bold uppercase tracking-widest text-blue-500 flex items-center gap-1.5 mb-1.5">
               <Compass className="w-3.5 h-3.5" />
               {currentStep === 1 ? 'VASTU PLAN CHECKER' : currentStep === 2 ? 'VASTU ANALYSIS RESULTS' : currentStep === 3 ? 'VASTU ISSUES & CORRECTIONS' : 'AI RECTIFICATION STUDIO'}
             </div>
@@ -655,9 +731,9 @@ export default function VsaiRectifierPage() {
                     <div
                       className={`w-7 h-7 rounded-full flex items-center justify-center font-mono text-xs font-bold transition-all ${
                         isActive
-                          ? 'bg-[#ff6b00] text-white shadow-lg shadow-[#ff6b00]/30 ring-2 ring-[#ff6b00]/40'
+                          ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30 ring-2 ring-blue-500/40'
                           : isCompleted
-                          ? 'bg-[#ff6b00] text-white shadow-md'
+                          ? 'bg-blue-600 text-white shadow-md'
                           : 'bg-muted/40 text-muted-foreground border border-border/60'
                       }`}
                     >
@@ -666,7 +742,7 @@ export default function VsaiRectifierPage() {
                     <span
                       className={`text-[11px] font-medium tracking-tight pb-0.5 whitespace-nowrap ${
                         isActive
-                          ? 'text-foreground font-bold border-b-2 border-[#ff6b00]'
+                          ? 'text-foreground font-bold border-b-2 border-blue-500'
                           : 'text-muted-foreground group-hover:text-foreground'
                       }`}
                     >
@@ -695,7 +771,7 @@ export default function VsaiRectifierPage() {
             <Card className="bg-card/40 border-border/70 rounded-2xl p-6 md:p-8 flex flex-col justify-between backdrop-blur shadow-xl">
               <div>
                 <div className="flex items-start gap-4 mb-6">
-                  <div className="w-12 h-12 rounded-2xl bg-[#ff6b00]/10 border border-[#ff6b00]/25 flex items-center justify-center text-[#ff6b00] shrink-0 shadow-inner">
+                  <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/25 flex items-center justify-center text-blue-500 shrink-0 shadow-inner">
                     <Upload className="w-6 h-6" />
                   </div>
                   <div>
@@ -712,7 +788,7 @@ export default function VsaiRectifierPage() {
                     onClick={() => setActiveUploadTab('upload')}
                     className={`pb-2.5 font-semibold transition-all relative ${
                       activeUploadTab === 'upload'
-                        ? 'text-[#ff6b00] border-b-2 border-[#ff6b00]'
+                        ? 'text-blue-500 border-b-2 border-blue-500'
                         : 'text-muted-foreground hover:text-foreground'
                     }`}
                   >
@@ -723,7 +799,7 @@ export default function VsaiRectifierPage() {
                     onClick={() => setActiveUploadTab('generated')}
                     className={`pb-2.5 font-semibold transition-all relative ${
                       activeUploadTab === 'generated'
-                        ? 'text-[#ff6b00] border-b-2 border-[#ff6b00]'
+                        ? 'text-blue-500 border-b-2 border-blue-500'
                         : 'text-muted-foreground hover:text-foreground'
                     }`}
                   >
@@ -735,8 +811,8 @@ export default function VsaiRectifierPage() {
                   <div
                     className={`p-8 border-2 border-dashed rounded-2xl text-center flex flex-col items-center justify-center transition-all bg-card/30 ${
                       isDragging 
-                        ? 'border-[#ff6b00] ring-4 ring-[#ff6b00]/20 bg-[#ff6b00]/5 scale-[1.01]' 
-                        : 'border-border/70 hover:border-[#ff6b00]/50'
+                        ? 'border-blue-500 ring-4 ring-blue-500/20 bg-blue-500/5 scale-[1.01]' 
+                        : 'border-border/70 hover:border-blue-500/50'
                     }`}
                     onDragOver={handleDragOver}
                     onDragLeave={handleDragLeave}
@@ -753,7 +829,7 @@ export default function VsaiRectifierPage() {
                       type="button"
                       onClick={openFilePicker}
                       disabled={isUploading}
-                      className="bg-[#ff6b00] hover:bg-[#e05e00] text-white font-medium text-xs px-6 py-2.5 rounded-lg shadow-md transition-all mb-5 cursor-pointer"
+                      className="bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs px-6 py-2.5 rounded-lg shadow-md shadow-blue-500/20 transition-all mb-5 cursor-pointer"
                     >
                       {isUploading ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : null}
                       Browse Files
@@ -778,13 +854,13 @@ export default function VsaiRectifierPage() {
                       <div
                         key={plan.id}
                         onClick={() => handleSelectPresetPlan(plan)}
-                        className="p-3.5 rounded-xl bg-card/60 hover:bg-[#ff6b00]/10 border border-border/60 hover:border-[#ff6b00]/40 cursor-pointer transition-all flex items-center justify-between"
+                        className="p-3.5 rounded-xl bg-card/60 hover:bg-blue-500/10 border border-border/60 hover:border-blue-500/40 cursor-pointer transition-all flex items-center justify-between"
                       >
                         <div>
                           <div className="text-xs font-bold text-foreground">{plan.name}</div>
                           <div className="text-[11px] text-muted-foreground mt-0.5">{plan.description}</div>
                         </div>
-                        <Badge variant="outline" className="text-[10px] font-mono text-[#ff6b00] border-[#ff6b00]/30 shrink-0">
+                        <Badge variant="outline" className="text-[10px] font-mono text-blue-400 border-blue-500/30 shrink-0">
                           {plan.badge}
                         </Badge>
                       </div>
@@ -803,72 +879,233 @@ export default function VsaiRectifierPage() {
               </div>
             </Card>
 
-            {/* RIGHT COLUMN: PLAN UPLOADED PREVIEW & ANALYZE CARD */}
-            <Card className="bg-card/40 border-border/70 rounded-2xl p-6 md:p-8 flex flex-col justify-between backdrop-blur shadow-xl">
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0 shadow-inner">
-                      <CheckCircle2 className="w-5 h-5" />
+            {/* RIGHT COLUMN: EMPTY STATE OR PLAN PREVIEW CARD */}
+            {activePlan ? (
+              <Card className="bg-card/40 border-border/70 rounded-2xl p-6 md:p-8 flex flex-col justify-between backdrop-blur shadow-xl">
+                <div>
+                  <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0 shadow-inner">
+                        <CheckCircle2 className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
+                          Plan Uploaded Successfully!
+                          {segmentationMeta && (
+                            <Badge variant="outline" className="text-[10px] bg-blue-500/10 border-blue-500/40 text-blue-400 px-2 py-0">
+                              AI Detected ({segmentationMeta.rooms_detected} rooms)
+                            </Badge>
+                          )}
+                        </h4>
+                        <p className="text-xs text-muted-foreground font-mono mt-0.5">
+                          {uploadedFileName || 'Custom Floor Plan'} {uploadedFileSize ? `• ${uploadedFileSize}` : ''}
+                          {segmentationMeta?.average_confidence && (
+                            <span className="ml-2 text-emerald-400 font-sans font-medium">
+                              • Confidence {Math.round(segmentationMeta.average_confidence * 100)}%
+                            </span>
+                          )}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-foreground">Plan Uploaded Successfully!</h4>
-                      <p className="text-xs text-muted-foreground font-mono mt-0.5">
-                        {uploadedFileName} • {uploadedFileSize}
-                      </p>
+                    <div className="flex items-center gap-2">
+                      {/* Download Master JSON */}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const blob = new Blob([JSON.stringify(activePlan, null, 2)], { type: 'application/json' })
+                          const url = URL.createObjectURL(blob)
+                          const a = document.createElement('a')
+                          a.href = url
+                          a.download = `${activePlan.project_name || 'floor-plan'}-master.json`
+                          a.click()
+                          URL.revokeObjectURL(url)
+                        }}
+                        className="text-xs h-8 gap-1.5 border-border/80 text-muted-foreground hover:text-foreground hover:border-blue-500/50"
+                        title="Download Master JSON"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        JSON
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          handleResetPlan()
+                          openFilePicker()
+                        }}
+                        className="text-xs h-8 gap-1.5 border-border/80 text-muted-foreground hover:text-foreground hover:border-blue-500/50"
+                        title="Upload another plan"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        Replace
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleResetPlan}
+                        className="text-xs h-8 gap-1.5 border-red-500/30 text-red-400 hover:text-red-300 hover:bg-red-500/10 hover:border-red-500/50"
+                        title="Clear plan and return to empty upload state"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        Reset
+                      </Button>
                     </div>
                   </div>
+
+
+                  {/* View Mode Switcher if uploaded image exists */}
+                  {uploadedImageSrc && (
+                    <div className="flex items-center justify-between mb-2 px-1">
+                      <span className="text-[11px] text-muted-foreground font-medium">Preview View:</span>
+                      <div className="inline-flex rounded-lg bg-card/80 p-0.5 border border-border/60 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => setPlanViewMode('cad')}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                            planViewMode === 'cad'
+                              ? 'bg-blue-600 text-white shadow-sm'
+                              : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          CAD Vector
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPlanViewMode('image')}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                            planViewMode === 'image'
+                              ? 'bg-blue-600 text-white shadow-sm'
+                              : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          Original Image
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPlanViewMode('overlay')}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                            planViewMode === 'overlay'
+                              ? 'bg-blue-600 text-white shadow-sm'
+                              : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          Overlay
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="relative w-full h-[460px] sm:h-[480px] rounded-xl overflow-hidden border border-slate-300 bg-white mb-6 shadow-md flex flex-col">
+                    {planViewMode === 'image' && uploadedImageSrc ? (
+                      <div className="w-full h-full flex items-center justify-center bg-slate-50 p-4">
+                        <img
+                          src={uploadedImageSrc}
+                          alt="Original floor plan"
+                          className="max-h-full max-w-full object-contain rounded"
+                        />
+                      </div>
+                    ) : planViewMode === 'overlay' && uploadedImageSrc ? (
+                      <div className="relative w-full h-full">
+                        <img
+                          src={uploadedImageSrc}
+                          alt="Original floor plan background"
+                          className="absolute inset-0 w-full h-full object-contain opacity-35 filter grayscale"
+                        />
+                        <div className="relative z-10 w-full h-full">
+                          <FloorPlan2DViewer
+                            key={`overlay-${activePlan.project_id || uploadedFileName || 'active-plan'}`}
+                            floorPlan={activePlan.floor_plan as any}
+                            landInfo={activePlan.land_info as any}
+                            cadStyle={true}
+                            outerDimensions={{ top: "42'-0\"", right: "36'-0\"" }}
+                            hideLegend={true}
+                            hideTopBar={true}
+                            compassPosition="top-right"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <FloorPlan2DViewer
+                        key={`cad-${activePlan.project_id || uploadedFileName || 'active-plan'}`}
+                        floorPlan={activePlan.floor_plan as any}
+                        landInfo={activePlan.land_info as any}
+                        cadStyle={true}
+                        outerDimensions={{ top: "42'-0\"", right: "36'-0\"" }}
+                        hideLegend={true}
+                        hideTopBar={true}
+                        compassPosition="top-right"
+                      />
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2 pt-2">
                   <Button
                     type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={openFilePicker}
-                    className="text-xs h-8 gap-1.5 border-border/80 text-muted-foreground hover:text-foreground hover:border-[#ff6b00]/50"
+                    onClick={handleAnalyzeWithVastu}
+                    disabled={isEvaluatingVastu}
+                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm py-4 h-auto rounded-xl shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    Replace Plan
+                    {isEvaluatingVastu ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Analyzing Plan with Vastu AI...
+                      </>
+                    ) : (
+                      <>
+                        Analyze with Vastu
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
                   </Button>
+                  <p className="text-[11px] text-muted-foreground text-center flex items-center justify-center gap-1.5">
+                    <Sparkles className="w-3 h-3 text-blue-500" />
+                    Our AI will analyze your plan and check it against Vastu principles.
+                  </p>
                 </div>
-
-                <div className="w-full aspect-[4/3] rounded-xl overflow-hidden border border-border/60 bg-slate-950/80 mb-6 shadow-inner">
-                  <FloorPlan2DViewer
-                    floorPlan={activePlan.floor_plan as any}
-                    landInfo={activePlan.land_info as any}
-                    cadStyle={true}
-                    outerDimensions={{ top: "42'-0\"", right: "36'-0\"" }}
-                    hideLegend={true}
-                    compactTopBar={true}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2 pt-2">
-                <Button
-                  type="button"
-                  onClick={handleAnalyzeWithVastu}
-                  disabled={isEvaluatingVastu}
-                  className="w-full bg-[#ff6b00] hover:bg-[#e05e00] text-white font-bold text-sm py-4 h-auto rounded-xl shadow-lg shadow-[#ff6b00]/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  {isEvaluatingVastu ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Analyzing Plan with Vastu AI...
-                    </>
-                  ) : (
-                    <>
-                      Analyze with Vastu
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
-                </Button>
-                <p className="text-[11px] text-muted-foreground text-center flex items-center justify-center gap-1.5">
-                  <Sparkles className="w-3 h-3 text-[#ff6b00]" />
-                  Our AI will analyze your plan and check it against Vastu principles.
-                </p>
-              </div>
-            </Card>
+              </Card>
+            ) : (
+              <Card className="bg-card/30 border-dashed border-2 border-border/60 rounded-2xl p-8 flex flex-col items-center justify-center text-center min-h-[560px] relative overflow-hidden backdrop-blur">
+                {isUploading ? (
+                  <div className="flex flex-col items-center justify-center p-6 text-center">
+                    <div className="w-16 h-16 rounded-full bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-blue-500 mb-4 animate-pulse">
+                      <Sparkles className="w-8 h-8 animate-spin" />
+                    </div>
+                    <h4 className="text-base font-bold text-foreground">Detecting rooms with CubiCasa AI...</h4>
+                    <p className="text-xs text-muted-foreground mt-2 max-w-sm">
+                      Extracting room boundaries, walls, doors, and dimensional vectors from your floor plan image.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center max-w-sm">
+                    <div className="w-16 h-16 rounded-2xl bg-muted/30 border border-border/80 flex items-center justify-center text-muted-foreground mb-4 shadow-inner">
+                      <Layers className="w-8 h-8 text-muted-foreground/70" />
+                    </div>
+                    <h4 className="text-base font-bold text-foreground mb-1.5">
+                      No Plan Uploaded Yet
+                    </h4>
+                    <p className="text-xs text-muted-foreground leading-relaxed mb-6">
+                      Upload your architectural floor plan image (PNG, JPG) or Master JSON on the left to preview the CAD blueprint and run Vastu Shastra analysis.
+                    </p>
+                    <Button
+                      type="button"
+                      onClick={openFilePicker}
+                      className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-5 py-2.5 rounded-lg shadow-md shadow-blue-500/20 cursor-pointer transition-all"
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      Upload Plan Image
+                    </Button>
+                  </div>
+                )}
+              </Card>
+            )}
           </div>
         )}
+
 
         {/* ========================================================================= */}
         {/* STEP 2: VASTU RESULTS (MATCHING USER SCREENSHOT 2) */}
@@ -883,7 +1120,7 @@ export default function VsaiRectifierPage() {
                     {/* Header */}
                     <div className="flex items-center justify-between pb-3.5 border-b border-border/40 mb-4">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-lg bg-[#ff6b00]/10 border border-[#ff6b00]/20 flex items-center justify-center text-[#ff6b00] font-mono font-bold text-xs shadow-inner">
+                        <div className="w-7 h-7 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-500 font-mono font-bold text-xs shadow-inner">
                           #
                         </div>
                         <h3 className="text-sm font-bold text-foreground">Analyzed Floor Plan</h3>
@@ -892,7 +1129,7 @@ export default function VsaiRectifierPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => setIsFullscreenPlan(true)}
-                        className="text-xs h-7 gap-1 border-border/60 text-muted-foreground hover:text-foreground hover:border-[#ff6b00]/40"
+                        className="text-xs h-7 gap-1 border-border/60 text-muted-foreground hover:text-foreground hover:border-blue-500/40"
                       >
                         <Maximize2 className="w-3.5 h-3.5" />
                         View in Fullscreen
@@ -900,10 +1137,10 @@ export default function VsaiRectifierPage() {
                     </div>
 
                     {/* CAD Canvas with Issue Markers */}
-                    <div className="w-full aspect-[4/3] rounded-xl overflow-hidden border border-border/60 bg-slate-950/80 mb-4 shadow-inner">
+                    <div className="w-full h-[460px] sm:h-[480px] rounded-xl overflow-hidden border border-slate-300 bg-white mb-4 shadow-md flex flex-col">
                       <FloorPlan2DViewer
-                        floorPlan={activePlan.floor_plan as any}
-                        landInfo={activePlan.land_info as any}
+                        floorPlan={(activePlan?.floor_plan || DEFAULT_CAD_FLOOR_PLAN.floor_plan) as any}
+                        landInfo={(activePlan?.land_info || DEFAULT_CAD_FLOOR_PLAN.land_info) as any}
                         cadStyle={true}
                         hideLegend={true}
                         hideTopBar={true}
@@ -916,8 +1153,9 @@ export default function VsaiRectifierPage() {
                       />
                     </div>
 
+
                     {/* Bottom Status Legend */}
-                    <div className="p-3 rounded-xl bg-slate-950/60 border border-border/40 flex items-center justify-around text-xs select-none">
+                    <div className="p-3 rounded-xl bg-card border border-border flex items-center justify-around text-xs select-none">
                       <div className="flex items-center gap-2">
                         <span className="w-4 h-4 rounded-full border-2 border-emerald-400 bg-emerald-500/20 flex items-center justify-center">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
@@ -967,7 +1205,7 @@ export default function VsaiRectifierPage() {
                         VASTU COMPATIBILITY SCORE
                         <span className="cursor-help text-muted-foreground/60 text-[10px]">ⓘ</span>
                       </div>
-                      <div className="text-4xl md:text-5xl font-extrabold text-[#ff6b00] tracking-tight mt-2 font-mono">
+                      <div className="text-4xl md:text-5xl font-extrabold text-blue-500 tracking-tight mt-2 font-mono">
                         {compatibilityScore}%
                       </div>
                       <div className="text-xs text-muted-foreground mt-1">
@@ -1075,19 +1313,9 @@ export default function VsaiRectifierPage() {
             {/* BOTTOM NAVIGATION ACTION BAR */}
             <div className="flex items-center gap-4 pt-4 border-t border-border/50">
               <Button
-                variant="outline"
-                size="lg"
-                onClick={() => setCurrentStep(1)}
-                className="h-12 px-6 rounded-xl border-border/70 text-xs font-semibold gap-2 hover:bg-muted/40 cursor-pointer"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Back
-              </Button>
-
-              <Button
                 size="lg"
                 onClick={() => setCurrentStep(3)}
-                className="flex-1 h-12 rounded-xl bg-[#ff6b00] hover:bg-[#e05e00] text-white font-bold text-sm shadow-lg shadow-[#ff6b00]/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                className="flex-1 h-12 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 Review Issues & Corrections
                 <ArrowRight className="w-4 h-4" />
@@ -1113,19 +1341,10 @@ export default function VsaiRectifierPage() {
               </div>
               <div className="flex items-center gap-3">
                 <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentStep(2)}
-                  className="text-xs h-8 gap-1.5 cursor-pointer"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  Back to Results
-                </Button>
-                <Button
                   size="sm"
                   onClick={handleProcess}
                   disabled={isProcessing}
-                  className="text-xs h-8 gap-1.5 bg-[#ff6b00] hover:bg-[#e05e00] text-white font-semibold cursor-pointer"
+                  className="text-xs h-8 gap-1.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold cursor-pointer shadow-sm shadow-blue-500/20"
                 >
                   {isProcessing ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
                   Proceed to Rectification
@@ -1157,7 +1376,7 @@ export default function VsaiRectifierPage() {
                       <span>Detected Defects ({vastuAnalysis.defects.length})</span>
                     </div>
                     <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                      <Eye className="w-3 h-3 text-[#ff6b00]" /> Click to inspect on 2D map
+                      <Eye className="w-3 h-3 text-blue-400" /> Click to inspect on 2D map
                     </span>
                   </div>
 
@@ -1243,7 +1462,7 @@ export default function VsaiRectifierPage() {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-xl font-bold flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-[#ff6b00]" />
+                  <Sparkles className="w-5 h-5 text-blue-500" />
                   Corrected Plan & Export Studio
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
@@ -1252,18 +1471,9 @@ export default function VsaiRectifierPage() {
               </div>
               <div className="flex items-center gap-3">
                 <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentStep(3)}
-                  className="text-xs h-8 gap-1.5 cursor-pointer"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  Back to Issues
-                </Button>
-                <Button
                   size="sm"
                   onClick={() => router.push('/features/esai-engine')}
-                  className="text-xs h-8 gap-1.5 bg-[#ff6b00] hover:bg-[#e05e00] text-white font-semibold cursor-pointer"
+                  className="text-xs h-8 gap-1.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold cursor-pointer shadow-sm shadow-blue-500/20"
                 >
                   Continue to Component 03 (ESAI)
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -1315,10 +1525,10 @@ export default function VsaiRectifierPage() {
                   <X className="w-4 h-4" />
                 </Button>
               </div>
-              <div className="flex-1 p-6 overflow-hidden">
+              <div className="flex-1 p-6 overflow-hidden bg-slate-100 flex items-center justify-center">
                 <FloorPlan2DViewer
-                  floorPlan={activePlan.floor_plan as any}
-                  landInfo={activePlan.land_info as any}
+                  floorPlan={(activePlan?.floor_plan || DEFAULT_CAD_FLOOR_PLAN.floor_plan) as any}
+                  landInfo={(activePlan?.land_info || DEFAULT_CAD_FLOOR_PLAN.land_info) as any}
                   cadStyle={true}
                   outerDimensions={{ top: "42'-0\"", right: "36'-0\"" }}
                   markers={analysisMarkers}
@@ -1328,6 +1538,7 @@ export default function VsaiRectifierPage() {
                   }}
                 />
               </div>
+
             </div>
           </div>
         )}

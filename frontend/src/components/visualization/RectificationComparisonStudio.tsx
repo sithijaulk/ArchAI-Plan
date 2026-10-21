@@ -1,5 +1,6 @@
 "use client"
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
+import { FloorPlan2DViewer } from './FloorPlan2DViewer'
 import { FloorPlanDiffViewer, RoomModification } from './FloorPlanDiffViewer'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -9,11 +10,12 @@ import {
   CheckCircle2, 
   TrendingUp, 
   ShieldCheck, 
-  RotateCcw,
-  Compass,
-  Layers,
-  ArrowUpRight,
-  Eye
+  Layers, 
+  Download,
+  SplitSquareVertical,
+  Check,
+  ImageIcon,
+  Loader2
 } from 'lucide-react'
 
 interface RectificationComparisonStudioProps {
@@ -40,9 +42,175 @@ export function RectificationComparisonStudio({
   onContinueToNextStage,
 }: RectificationComparisonStudioProps) {
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null)
+  const [activeViewMode, setActiveViewMode] = useState<'cad' | 'diff'>('cad')
+  const [cadPlanSelection, setCadPlanSelection] = useState<'rectified' | 'baseline'>('rectified')
+  const [isExportingJpg, setIsExportingJpg] = useState(false)
+
   const activeModifications = modifications || []
   const scoreDelta = Math.max(0, rectifiedScore - baselineScore)
   const effectiveRectifiedPlan = rectifiedFloorPlan || baselineFloorPlan
+
+  const modifiedRoomIds = useMemo(() => {
+    return activeModifications.map(m => m.roomId)
+  }, [activeModifications])
+
+  const planDimensions = useMemo(() => {
+    const plan = effectiveRectifiedPlan || baselineFloorPlan
+    const w = plan?.dimensions?.width || 42
+    const h = plan?.dimensions?.height || 36
+    return { top: `${Math.round(w)}'-0"`, right: `${Math.round(h)}'-0"` }
+  }, [effectiveRectifiedPlan, baselineFloorPlan])
+
+  const handleDownloadCadJson = () => {
+    const dataToDownload = {
+      project_type: "ArchAI-Rectified-Floor-Plan",
+      rectified_score: rectifiedScore,
+      baseline_score: baselineScore,
+      land_info: landInfo,
+      floor_plan: effectiveRectifiedPlan,
+      modifications: activeModifications,
+      timestamp: new Date().toISOString(),
+    }
+    const blob = new Blob([JSON.stringify(dataToDownload, null, 2)], { type: "application/json" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `rectified_architectural_cad_plan_${Date.now()}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleDownloadJpg = () => {
+    setIsExportingJpg(true)
+    try {
+      // Look for active architectural plan SVG
+      const svgElement = (
+        document.getElementById('architectural-plan-svg') ||
+        document.getElementById('architectural-diff-svg') ||
+        document.querySelector('.min-h-\\[480px\\] svg') ||
+        document.querySelector('svg')
+      ) as SVGSVGElement | null
+
+      if (!svgElement) {
+        console.error('No architectural plan SVG found to export')
+        setIsExportingJpg(false)
+        return
+      }
+
+      // Clone SVG to isolate export from active DOM
+      const clonedSvg = svgElement.cloneNode(true) as SVGSVGElement
+      clonedSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+
+      // Inject clean font styling
+      const styleElem = document.createElementNS('http://www.w3.org/2000/svg', 'style')
+      styleElem.textContent = `
+        text { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+      `
+      clonedSvg.insertBefore(styleElem, clonedSvg.firstChild)
+
+      // Calculate high-resolution export dimensions (2800px width for CAD print fidelity)
+      const viewBoxAttr = clonedSvg.getAttribute('viewBox') || ''
+      let aspect = 0.75
+      if (viewBoxAttr) {
+        const parts = viewBoxAttr.split(/[\s,]+/).map(Number)
+        if (parts.length >= 4 && parts[2] > 0 && parts[3] > 0) {
+          aspect = parts[3] / parts[2]
+        }
+      } else {
+        const bbox = svgElement.getBoundingClientRect()
+        if (bbox.width > 0 && bbox.height > 0) {
+          aspect = bbox.height / bbox.width
+        }
+      }
+
+      const exportWidth = 2800
+      const exportHeight = Math.max(1400, Math.round(exportWidth * aspect))
+      clonedSvg.setAttribute('width', String(exportWidth))
+      clonedSvg.setAttribute('height', String(exportHeight))
+
+      // Serialize SVG
+      const serializer = new XMLSerializer()
+      const svgString = serializer.serializeToString(clonedSvg)
+      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
+      const URLObj = window.URL || window.webkitURL || window
+      const svgUrl = URLObj.createObjectURL(svgBlob)
+
+      const img = new Image()
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas')
+          canvas.width = exportWidth
+          canvas.height = exportHeight
+          const ctx = canvas.getContext('2d')
+          if (!ctx) {
+            URLObj.revokeObjectURL(svgUrl)
+            setIsExportingJpg(false)
+            return
+          }
+
+          // 1. Paint pure white architectural drafting paper background
+          ctx.fillStyle = '#ffffff'
+          ctx.fillRect(0, 0, exportWidth, exportHeight)
+
+          // 2. Draw SVG image onto canvas
+          ctx.drawImage(img, 0, 0, exportWidth, exportHeight)
+
+          // 3. Trigger download as high-quality JPG
+          const filename = cadPlanSelection === 'baseline'
+            ? `ArchAI_Baseline_Plan_${Date.now()}.jpg`
+            : activeViewMode === 'diff'
+            ? `ArchAI_Spatial_Diff_Plan_${Date.now()}.jpg`
+            : `ArchAI_Rectified_Architectural_Plan_${Date.now()}.jpg`
+
+          if (canvas.toBlob) {
+            canvas.toBlob(
+              (blob) => {
+                if (blob) {
+                  const jpgUrl = URLObj.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = jpgUrl
+                  a.download = filename
+                  document.body.appendChild(a)
+                  a.click()
+                  document.body.removeChild(a)
+                  setTimeout(() => URLObj.revokeObjectURL(jpgUrl), 1000)
+                }
+                URLObj.revokeObjectURL(svgUrl)
+                setIsExportingJpg(false)
+              },
+              'image/jpeg',
+              0.96
+            )
+          } else {
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.96)
+            const a = document.createElement('a')
+            a.href = dataUrl
+            a.download = filename
+            document.body.appendChild(a)
+            a.click()
+            document.body.removeChild(a)
+            URLObj.revokeObjectURL(svgUrl)
+            setIsExportingJpg(false)
+          }
+        } catch (err) {
+          console.error('Canvas export error:', err)
+          URLObj.revokeObjectURL(svgUrl)
+          setIsExportingJpg(false)
+        }
+      }
+
+      img.onerror = (err) => {
+        console.error('Image load error for SVG JPG export:', err)
+        URLObj.revokeObjectURL(svgUrl)
+        setIsExportingJpg(false)
+      }
+
+      img.src = svgUrl
+    } catch (err) {
+      console.error('handleDownloadJpg error:', err)
+      setIsExportingJpg(false)
+    }
+  }
 
   return (
     <div className="w-full space-y-6">
@@ -63,31 +231,39 @@ export function RectificationComparisonStudio({
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Review AI-rectified room geometry with real-time pulsating difference highlights.
+              Review authentic architectural CAD floor plan with doors, windows, dimensions, and Vastu-rectified zones.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 w-full sm:w-auto">
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            onClick={handleDownloadJpg}
+            disabled={isExportingJpg}
+            className="h-9 px-3.5 gap-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold cursor-pointer shadow-sm shadow-blue-500/20"
+          >
+            {isExportingJpg ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <ImageIcon className="w-3.5 h-3.5" />
+            )}
+            Download Plan (JPG)
+          </Button>
+
           <Button
             variant="outline"
             size="sm"
-            onClick={onBackToInspection}
-            className="text-xs h-9 gap-1.5"
+            onClick={handleDownloadCadJson}
+            className="h-9 px-3 gap-1.5 border-border/80 text-xs font-semibold hover:bg-muted/50 cursor-pointer"
           >
-            <RotateCcw className="w-3.5 h-3.5" /> Back to Inspection
-          </Button>
-          <Button
-            size="sm"
-            onClick={onContinueToNextStage}
-            className="electric-glow text-xs h-9 gap-1.5 px-4 font-semibold"
-          >
-            Continue to ESAI Engine <ArrowRight className="w-3.5 h-3.5" />
+            <Download className="w-3.5 h-3.5 text-primary" />
+            Download CAD (JSON)
           </Button>
         </div>
       </div>
 
-      {/* Main Studio Grid: Left Controls (1 col) + Right Diff Blueprint (2 cols) */}
+      {/* Main Studio Grid: Left Controls (5 cols) + Right Blueprint Studio (7 cols) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         {/* Left Side: Score Delta & Modifications List */}
@@ -208,18 +384,118 @@ export function RectificationComparisonStudio({
           </div>
         </div>
 
-        {/* Right Side: FloorPlanDiffViewer */}
-        <div className="lg:col-span-7">
-          <FloorPlanDiffViewer
-            baselineFloorPlan={baselineFloorPlan}
-            rectifiedFloorPlan={effectiveRectifiedPlan}
-            landInfo={landInfo}
-            modifications={activeModifications}
-            selectedRoomId={selectedRoomId}
-            baselineScore={baselineScore}
-            rectifiedScore={rectifiedScore}
-            onSelectRoom={(rId) => setSelectedRoomId(selectedRoomId === rId ? null : rId)}
-          />
+        {/* Right Side: Dual-Mode Architectural Blueprint Canvas */}
+        <div className="lg:col-span-7 flex flex-col space-y-3">
+          
+          {/* View Mode & Comparison Toggle Bar (Clean Architectural Style) */}
+          <div className="flex flex-wrap items-center justify-between gap-2.5 p-2 rounded-xl bg-white border border-slate-200 shadow-xs text-xs">
+            {/* Left: Mode Selection (CAD vs Diff) */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setActiveViewMode('cad')}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md font-semibold text-xs transition-all cursor-pointer ${
+                  activeViewMode === 'cad'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>Architectural CAD Blueprint</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveViewMode('diff')}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md font-semibold text-xs transition-all cursor-pointer ${
+                  activeViewMode === 'diff'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <SplitSquareVertical className="w-3.5 h-3.5" />
+                <span>Spatial Diff Overlay</span>
+              </button>
+            </div>
+
+            {/* Right: Sub-selection for CAD View (Rectified vs Baseline) + Export JPG */}
+            <div className="flex items-center gap-2">
+              {activeViewMode === 'cad' && (
+                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setCadPlanSelection('rectified')}
+                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer ${
+                      cadPlanSelection === 'rectified'
+                        ? 'bg-emerald-600 text-white font-bold shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Check className="w-3 h-3" />
+                    <span>Rectified ({rectifiedScore}%)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCadPlanSelection('baseline')}
+                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer ${
+                      cadPlanSelection === 'baseline'
+                        ? 'bg-rose-600 text-white font-bold shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <span>Baseline ({baselineScore}%)</span>
+                  </button>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleDownloadJpg}
+                disabled={isExportingJpg}
+                title="Download Architectural Plan as High-Res JPG"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-colors cursor-pointer shadow-xs disabled:opacity-50"
+              >
+                {isExportingJpg ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <ImageIcon className="w-3.5 h-3.5" />
+                )}
+                <span>Export JPG</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Active Canvas Rendering (Pure White Drawing Sheet) */}
+          <div className="w-full min-h-[480px] rounded-2xl overflow-hidden border border-slate-300 bg-white shadow-lg flex flex-col">
+            {activeViewMode === 'cad' ? (
+              <div className="w-full flex-1">
+                <FloorPlan2DViewer
+                  floorPlan={cadPlanSelection === 'rectified' ? effectiveRectifiedPlan : baselineFloorPlan}
+                  landInfo={landInfo}
+                  cadStyle={true}
+                  outerDimensions={planDimensions}
+                  rectifiedRoomIds={cadPlanSelection === 'rectified' ? modifiedRoomIds : []}
+                  highlightRoomId={selectedRoomId}
+                  hideLegend={true}
+                  onMarkerClick={(m) => {
+                    if (m.roomId) setSelectedRoomId(selectedRoomId === m.roomId ? null : m.roomId)
+                  }}
+                />
+              </div>
+            ) : (
+              <FloorPlanDiffViewer
+                baselineFloorPlan={baselineFloorPlan}
+                rectifiedFloorPlan={effectiveRectifiedPlan}
+                landInfo={landInfo}
+                modifications={activeModifications}
+                selectedRoomId={selectedRoomId}
+                baselineScore={baselineScore}
+                rectifiedScore={rectifiedScore}
+                onSelectRoom={(rId) => setSelectedRoomId(selectedRoomId === rId ? null : rId)}
+              />
+            )}
+          </div>
+
         </div>
 
       </div>
