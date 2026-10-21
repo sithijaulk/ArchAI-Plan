@@ -36,6 +36,9 @@ datasets/
 *.zip
 *.pt
 *.pth
+*.pkl
+backend/weights/
+CubicasaRoomSegmentation/
 
 # IDE
 .idea/

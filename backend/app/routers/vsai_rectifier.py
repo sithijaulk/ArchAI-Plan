@@ -8,7 +8,8 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from starlette.concurrency import run_in_threadpool
 from PIL import Image, UnidentifiedImageError
 from sqlalchemy.orm import Session
 
@@ -19,7 +20,15 @@ from ..models.project import Project
 from ..schemas.vsai_rectifier import VsaiRunRequest
 from ..services.master_json import merge_master_json
 from ..services.vastu_engine import evaluate_vastu_shastra, load_vastu_rules
-from ..services.vsai_rectifier import VsaiInputError, prepare_master_json, run_vsai_rectifier
+from ..services.vsai_rectifier import (
+    VsaiInputError,
+    prepare_master_json,
+    run_vsai_rectifier,
+)
+from ..services.vsai_validator import validate_master_json
+from ..ml.cubicasa import get_segmentor
+from ..services.cubicasa_to_master_json import convert_cubicasa_to_master_json
+
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/projects", tags=["VSAI-Rectifier"])
@@ -480,5 +489,139 @@ def rectify_project_floor_plan(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project Master JSON not found.")
 
     return rectify_floor_plan_direct({"master_json": master_json, "project_id": project_id}, db=db)
+
+
+def _run_cubicasa_segmentation(
+    content: bytes,
+    target_width_ft: float | None = None,
+    project_id: str = "project-segmented",
+    project_name: str = "AI Segmented Floor Plan",
+) -> dict[str, Any]:
+    """Worker function executed in thread pool for CubiCasa inference & conversion."""
+    image = Image.open(BytesIO(content)).convert("RGB")
+    width_px, height_px = image.size
+
+    try:
+        segmentor = get_segmentor()
+    except Exception as exc:
+        logger.exception("Failed to initialize CubiCasa segmentor: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"CubiCasa model could not be loaded: {exc}",
+        )
+
+    result = segmentor.predict(image)
+    master_json = convert_cubicasa_to_master_json(
+        result=result,
+        image_width_px=width_px,
+        image_height_px=height_px,
+        target_width_ft=target_width_ft,
+        project_id=project_id,
+        project_name=project_name,
+    )
+
+    # Validate and evaluate Vastu rules
+    validation = validate_master_json(master_json)
+    vastu_analysis = None
+    try:
+        vastu_analysis = evaluate_vastu_shastra(master_json)
+    except Exception as vastu_err:
+        logger.warning("Vastu analysis on segmented plan generated warning: %s", vastu_err)
+
+    return {
+        "master_json": master_json,
+        "validation": validation,
+        "vastu_analysis": vastu_analysis,
+        "segmentation": master_json.get("segmentation_meta", {}),
+    }
+
+
+@router.post(
+    "/{project_id}/vsai-rectifier/segment",
+    status_code=status.HTTP_200_OK,
+    summary="Segment an uploaded floor-plan image with CubiCasa5K AI model for a project",
+)
+async def segment_project_floor_plan(
+    project_id: str,
+    file: UploadFile = File(...),
+    scale_ft: float | None = Form(None),
+    db: Session = Depends(get_db),
+):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if project is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+
+    filename = file.filename or ""
+    extension = Path(filename).suffix.lower()
+    if extension not in SUPPORTED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unsupported image extension. Supported formats are PNG and JPEG.",
+        )
+
+    content = await file.read(settings.max_upload_mb * 1024 * 1024 + 1)
+    if len(content) > settings.max_upload_mb * 1024 * 1024:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Image exceeds size limit.")
+
+    try:
+        with Image.open(BytesIO(content)) as img:
+            img.verify()
+    except Exception as err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Uploaded file is not a valid image.") from err
+
+    # Run inference in worker thread pool
+    out = await run_in_threadpool(
+        _run_cubicasa_segmentation,
+        content=content,
+        target_width_ft=scale_ft,
+        project_id=project_id,
+        project_name=project.name,
+    )
+
+    # Update project master_json
+    try:
+        project.master_json = out["master_json"]
+        db.commit()
+    except Exception as persist_err:
+        logger.warning("Could not persist segmented master json for %s: %s", project_id, persist_err)
+
+    return out
+
+
+@router.post(
+    "/vsai-rectifier/segment",
+    status_code=status.HTTP_200_OK,
+    summary="Segment an uploaded floor-plan image with CubiCasa5K AI model (standalone demo)",
+)
+async def segment_floor_plan_direct(
+    file: UploadFile = File(...),
+    scale_ft: float | None = Form(None),
+):
+    filename = file.filename or ""
+    extension = Path(filename).suffix.lower()
+    if extension not in SUPPORTED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unsupported image extension. Supported formats are PNG and JPEG.",
+        )
+
+    content = await file.read(settings.max_upload_mb * 1024 * 1024 + 1)
+    if len(content) > settings.max_upload_mb * 1024 * 1024:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Image exceeds size limit.")
+
+    try:
+        with Image.open(BytesIO(content)) as img:
+            img.verify()
+    except Exception as err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Uploaded file is not a valid image.") from err
+
+    out = await run_in_threadpool(
+        _run_cubicasa_segmentation,
+        content=content,
+        target_width_ft=scale_ft,
+        project_id="sample-house-plan-01",
+        project_name="AI Detected Floor Plan",
+    )
+    return out
 
 

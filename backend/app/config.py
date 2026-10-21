@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     max_upload_mb: int = 10
     elia_model_artifact_path: str | None = None
     elia_model_service_url: str | None = None
+    cubicasa_weights_path: str = "C:/Users/IMAKA/Desktop/CubicasaRoomSegmentation/weights/cubicasa5k.pkl"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

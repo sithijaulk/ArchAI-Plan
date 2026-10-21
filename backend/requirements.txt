@@ -22,3 +22,7 @@ pygad
 scipy
 reportlab
 fpdf2
+# CubiCasa5K Floor Plan Room Segmentation
+scikit-image
+opencv-python-headless
+
