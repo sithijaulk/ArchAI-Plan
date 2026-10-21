@@ -1,6 +1,6 @@
 # ArchAI-Plan
 
-ArchAI-Plan is a research platform for transforming residential spatial information into structured architectural outputs. The shared `main` branch contains the public website, administrative CMS, MySQL persistence, authentication, project workflow, visualization infrastructure, and integration shells for four future research engines.
+ArchAI-Plan is a research platform for transforming residential spatial information into structured architectural outputs. The shared `main` branch contains the public website, administrative CMS, PostgreSQL persistence, authentication, project workflow, visualization infrastructure, and integration shells for four future research engines.
 
 The AI engines are intentionally not implemented in `main`. Their API routes return HTTP `501` until the corresponding feature branches provide the engine integrations.
 
@@ -9,13 +9,13 @@ The AI engines are intentionally not implemented in `main`. Their API routes ret
 ```
 ArchAI-Plan/
 ├── frontend/          # Next.js + React + TypeScript + Three.js
-├── backend/           # Python FastAPI + SQLAlchemy + MySQL
+├── backend/           # Python FastAPI + SQLAlchemy + PostgreSQL
 ├── shared/            # Master JSON schema contract
 ├── training/          # Future AI model training data
 └── docs/              # Project documentation
 ```
 
-The application is split into a Next.js frontend and a FastAPI backend. MySQL is the only runtime database. Zustand holds UI/cache state; permanent project and Master JSON state is stored through the backend.
+The application is split into a Next.js frontend and a FastAPI backend. PostgreSQL is the only runtime database. Zustand holds UI/cache state; permanent project and Master JSON state is stored through the backend.
 
 ## Technology Stack
 
@@ -30,16 +30,16 @@ The application is split into a Next.js frontend and a FastAPI backend. MySQL is
 ### Backend
 - **Python 3.11+**, FastAPI, Uvicorn
 - **SQLAlchemy 2.x** ORM, Alembic (migrations)
-- **MySQL** with utf8mb4 charset
+- **PostgreSQL** (psycopg2-binary driver)
 - **JWT** authentication via HttpOnly cookies
 - **Argon2** password hashing (via pwdlib)
 - **Pillow** (image processing), python-multipart (file uploads)
 
 ### Database
 
-- MySQL 8 with `utf8mb4` / `utf8mb4_unicode_ci`
+- PostgreSQL 14+ / 16+
 - SQLAlchemy 2.x and Alembic
-- PyMySQL driver
+- psycopg2-binary driver
 - No local database fallback
 
 ---
@@ -48,17 +48,15 @@ The application is split into a Next.js frontend and a FastAPI backend. MySQL is
 
 - Node.js 18+
 - Python 3.11+
-- MySQL 8.0+
+- PostgreSQL 14.0+
 
 ---
 
-## MySQL Setup
+## PostgreSQL Setup
 
 ```sql
--- In MySQL shell or Workbench
-CREATE DATABASE archai_plan
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_unicode_ci;
+-- In PostgreSQL psql shell or pgAdmin
+CREATE DATABASE archai_plan;
 ```
 
 ---
@@ -83,7 +81,7 @@ pip install -r requirements.txt
 # Configure environment
 copy .env.example .env             # Windows
 # cp .env.example .env             # macOS/Linux
-# Edit .env — set DATABASE_URL with your MySQL credentials and a strong JWT_SECRET_KEY
+# Edit .env — set DB_HOST, DB_USER, DB_PASSWORD with your PostgreSQL credentials
 
 # Run database migrations
 alembic upgrade head
@@ -270,11 +268,11 @@ Uploads are validated by extension, MIME type, size, and Pillow image verificati
 
 ## Environment Files
 
-Copy `backend/.env.example` to `backend/.env` and set a real MySQL password and long random JWT secret. Copy `frontend/.env.example` to `frontend/.env.local`. Database credentials must never be placed in frontend variables or committed files.
+Copy `backend/.env.example` to `backend/.env` and set your PostgreSQL credentials and a long random JWT secret. Copy `frontend/.env.example` to `frontend/.env.local`. Database credentials must never be placed in frontend variables or committed files.
 
 ## Master JSON Workflow
 
-Creating a project writes the initial Master JSON to MySQL. The frontend then loads the response into Zustand. Component skips update only the relevant processing status and preserve all other layers. JSON uploads are validated before being persisted as a new project.
+Creating a project writes the initial Master JSON to PostgreSQL. The frontend then loads the response into Zustand. Component skips update only the relevant processing status and preserve all other layers. JSON uploads are validated before being persisted as a new project.
 
 ## Branch Strategy
 
@@ -303,8 +301,8 @@ npx tsc --noEmit
 npm run build
 ```
 
-Run database-backed integration checks only after MySQL is available and `alembic upgrade head` has completed.
+Run database-backed integration checks only after PostgreSQL is available and `alembic upgrade head` has completed.
 
 ---
 
-*ArchAI-Plan Research Initiative — v2.0 (FastAPI + MySQL architecture)*
+*ArchAI-Plan Research Initiative — v2.0 (FastAPI + PostgreSQL architecture)*

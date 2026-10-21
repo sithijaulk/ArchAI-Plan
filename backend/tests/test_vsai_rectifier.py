@@ -6,7 +6,7 @@ from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 
-os.environ["DATABASE_URL"] = "mysql+pymysql://test:test@localhost/archai_test"
+os.environ["DATABASE_URL"] = "postgresql+psycopg2://test:test@localhost/archai_test"
 
 from fastapi.testclient import TestClient
 from PIL import Image

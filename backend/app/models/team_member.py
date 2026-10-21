@@ -1,10 +1,7 @@
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, Integer, Text
-try:
-    from .database import Base
-except (ImportError, ValueError):
-    from app.database import Base
+from ..database import Base
 
 
 class TeamMember(Base):
@@ -13,6 +10,7 @@ class TeamMember(Base):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String(255), nullable=False)
     role = Column(String(255), nullable=False)
+    category = Column(String(50), default="member", nullable=False)
     bio = Column(Text, nullable=True)
     image_path = Column(String(500), nullable=True)
     sort_order = Column(Integer, default=0, nullable=False)
