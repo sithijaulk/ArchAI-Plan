@@ -1364,7 +1364,9 @@
       ],
       "geometry_accuracy": "approximate_from_image",
       "area_note": "area_sqm values are copied from labels on the drawing, except Storage Closet (no area stated). Dimensions and polygons are visual estimates, not CAD survey measurements.",
-      "source_plan_scale": "1:100"
+      "source_plan_scale": "1:100",
+      "doors": [],
+      "windows": []
     },
     "modifications": [
       {
