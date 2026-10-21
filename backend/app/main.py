@@ -19,19 +19,29 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: ensure upload directories exist
-    logger.info(f"Starting {settings.app_name} backend...")
+    # Startup: ensure upload directories exist and create PostgreSQL tables
+    logger.info(f"Starting {settings.app_name} backend on PostgreSQL...")
     os.makedirs(os.path.join(settings.upload_dir, "gallery"), exist_ok=True)
     os.makedirs(os.path.join(settings.upload_dir, "research"), exist_ok=True)
     os.makedirs(os.path.join(settings.upload_dir, "team"), exist_ok=True)
     logger.info("Upload directories initialized.")
+
+    # Auto-create tables in PostgreSQL schema if database is reachable
+    try:
+        # Import all models to ensure they register with Base.metadata
+        from .models import user, project, component_run, gallery_image, gallery_project, contact_message, site_setting, research_document, team_member, esai
+        Base.metadata.create_all(bind=engine)
+        logger.info("PostgreSQL database tables verified and created successfully.")
+    except Exception as e:
+        logger.warning(f"Could not connect to PostgreSQL at startup ({e}). Continuing with app initialization.")
+
     yield
     logger.info("Shutting down.")
 
 
 app = FastAPI(
     title="ArchAI-Plan API",
-    description="Multi-Agent Spatial AI Architecture for Residential Design",
+    description="Multi-Agent Spatial AI Architecture for Residential Design (PostgreSQL Edition)",
     version="2.0.0",
     lifespan=lifespan,
     docs_url="/docs",
@@ -64,6 +74,10 @@ app.include_router(about.router, prefix="/api")
 app.include_router(about.admin_router, prefix="/api")
 app.include_router(gab_gen.router, prefix="/api")
 
+# Add CubiCasa5K Research Router
+from .routers import research_cubicasa
+app.include_router(research_cubicasa.router, prefix="/api")
+
 # Add ESAI Routers
 from .routers import esai
 app.include_router(esai.project_router)
@@ -72,4 +86,21 @@ app.include_router(esai.global_router)
 
 @app.get("/api/health")
 def health_check():
-    return {"status": "ok", "app": settings.app_name, "env": settings.app_env}
+    db_connected = False
+    try:
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        db_connected = True
+    except Exception:
+        db_connected = False
+
+    return {
+        "status": "ok",
+        "app": settings.app_name,
+        "env": settings.app_env,
+        "database": {
+            "configured_dialect": "postgresql",
+            "connected": db_connected
+        }
+    }

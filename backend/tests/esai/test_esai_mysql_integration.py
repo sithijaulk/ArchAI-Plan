@@ -1,11 +1,11 @@
 """
-Repeatable MySQL Integration Tests for ESAI-Engine Stage 1
-Validates real MySQL persistence against an explicitly configured disposable schema:
-- Schema migration / table structure with PyMySQL
-- Strict enforcement of MySQL driver (fails if non-MySQL)
-- Unique constraint enforcement on (project_id, room_id) in MySQL
+Repeatable PostgreSQL Integration Tests for ESAI-Engine Stage 1
+Validates real PostgreSQL persistence against an explicitly configured disposable schema:
+- Schema migration / table structure with psycopg2
+- Strict enforcement of PostgreSQL driver (fails if non-PostgreSQL)
+- Unique constraint enforcement on (project_id, room_id) in PostgreSQL
 - Transactional persistence of room requirements and Centralized Master JSON
-- Non-destructive preservation of Master JSON fields in MySQL JSON column
+- Non-destructive preservation of Master JSON fields in PostgreSQL JSON column
 """
 import os
 from copy import deepcopy
@@ -27,12 +27,12 @@ from app.components.esai_engine.service import EsaiEngineService
 from tests.esai.fixtures import BEDROOM_PROJECT_FIXTURE
 
 
-def _get_mysql_test_session():
-    database_url = os.getenv("ESAI_TEST_MYSQL_URL") or os.getenv("MYSQL_TEST_URL")
+def _get_postgres_test_session():
+    database_url = os.getenv("ESAI_TEST_DB_URL") or os.getenv("ESAI_TEST_MYSQL_URL")
     if not database_url:
-        pytest.skip("Set ESAI_TEST_MYSQL_URL to a disposable MySQL test schema to run persistence integration.")
-    if not database_url.startswith("mysql+pymysql://"):
-        pytest.fail("ESAI_TEST_MYSQL_URL must use the existing MySQL PyMySQL driver.")
+        pytest.skip("Set ESAI_TEST_DB_URL to a disposable PostgreSQL test schema to run persistence integration.")
+    if not (database_url.startswith("postgresql://") or database_url.startswith("postgresql+psycopg2://")):
+        pytest.fail("ESAI_TEST_DB_URL must use the PostgreSQL driver.")
 
     engine = create_engine(database_url, pool_pre_ping=True)
     Base.metadata.create_all(engine)
@@ -41,8 +41,8 @@ def _get_mysql_test_session():
     return engine, session
 
 
-def test_esai_mysql_transactional_persistence():
-    engine, session = _get_mysql_test_session()
+def test_esai_postgres_transactional_persistence():
+    engine, session = _get_postgres_test_session()
     project = Project(
         project_name="ESAI MySQL Integration Project",
         master_json=deepcopy(BEDROOM_PROJECT_FIXTURE)
@@ -93,8 +93,8 @@ def test_esai_mysql_transactional_persistence():
         engine.dispose()
 
 
-def test_esai_mysql_unique_constraint():
-    engine, session = _get_mysql_test_session()
+def test_esai_postgres_unique_constraint():
+    engine, session = _get_postgres_test_session()
     project = Project(
         project_name="ESAI MySQL Unique Constraint Test",
         master_json=deepcopy(BEDROOM_PROJECT_FIXTURE)

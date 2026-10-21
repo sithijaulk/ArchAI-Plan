@@ -1,15 +1,27 @@
 """
-Phase 9: Representative Cadastral Survey Benchmark Scenarios.
+Phase 10.1: Expanded Cadastral Survey Research Benchmark Scenarios.
 Realistic Sri Lankan land parcel topologies, coordinates, boundary lengths,
-and ground-truth metadata for empirical evaluation of GAB-Gen stages.
+and design program configurations across diverse site families:
+- Regular Suburban (6 to 12 Perches)
+- Narrow Urban Frontage (5 to 8 Perches)
+- Irregular / Splayed Polygon (8 to 15 Perches)
+- Corner Lot Dual Frontage (10 to 18 Perches)
+- Large Residential Estate (15 to 25 Perches)
+- Compact High-Density Infill (4 to 6 Perches)
+- Deep Elongated Parcel (8 to 14 Perches)
+- Triangular Splayed Parcel (7 to 10 Perches)
+- Multi-Storey 1-to-4 Floor Design Programs
+- Varied Roof Configurations (flat slab, gable, hip, mono-pitch)
 """
 from typing import Any, Dict, List
 from ..schemas import DistanceUnit, EdgeType
 
 
-SURVEY_BENCHMARK_SCENARIOS: List[Dict[str, Any]] = [
+EXPANDED_SURVEY_BENCHMARK_SCENARIOS: List[Dict[str, Any]] = [
+    # Family 1: Regular Suburban (Colombo District)
     {
         "site_id": "WP-COL-REG-01",
+        "site_family_id": "FAM_REGULAR_SUBURBAN",
         "name": "Maharagama Suburban Rectangular 10-Perch",
         "category": "regular_suburban",
         "description": "Standard rectangular parcel with 30ft access road frontage.",
@@ -19,16 +31,68 @@ SURVEY_BENCHMARK_SCENARIOS: List[Dict[str, Any]] = [
         "true_area_sqm": 252.93,
         "front_road_width_m": 6.0,
         "true_north_angle": 15.0,
+        "storey_count": 1,
+        "occupant_count": 4,
+        "parking_capacity": 1,
+        "roof_type": "flat_slab",
         "edges": [
             {"edge_id": "E1", "distance_m": 12.5, "bearing_deg": 90.0, "edge_type": EdgeType.ROAD_FRONT},
             {"edge_id": "E2", "distance_m": 20.23, "bearing_deg": 180.0, "edge_type": EdgeType.SIDE_RIGHT},
             {"edge_id": "E3", "distance_m": 12.5, "bearing_deg": 270.0, "edge_type": EdgeType.REAR},
             {"edge_id": "E4", "distance_m": 20.23, "bearing_deg": 0.0, "edge_type": EdgeType.SIDE_LEFT},
         ],
-        "expected_setbacks": {"front_m": 3.0, "rear_m": 2.3, "side_m": 1.0},
     },
     {
-        "site_id": "WP-GAM-NAR-02",
+        "site_id": "WP-COL-REG-02",
+        "site_family_id": "FAM_REGULAR_SUBURBAN",
+        "name": "Nugegoda Suburban 8-Perch Two-Storey",
+        "category": "regular_suburban",
+        "description": "Suburban rectangular lot configured for a 2-storey family residence.",
+        "district": "Colombo",
+        "local_authority": "Sri Jayawardenepura Kotte Municipal Council",
+        "extent_perches": 8.0,
+        "true_area_sqm": 202.34,
+        "front_road_width_m": 6.0,
+        "true_north_angle": 0.0,
+        "storey_count": 2,
+        "occupant_count": 5,
+        "parking_capacity": 1,
+        "roof_type": "gable",
+        "edges": [
+            {"edge_id": "E1", "distance_m": 11.0, "bearing_deg": 90.0, "edge_type": EdgeType.ROAD_FRONT},
+            {"edge_id": "E2", "distance_m": 18.39, "bearing_deg": 180.0, "edge_type": EdgeType.SIDE_RIGHT},
+            {"edge_id": "E3", "distance_m": 11.0, "bearing_deg": 270.0, "edge_type": EdgeType.REAR},
+            {"edge_id": "E4", "distance_m": 18.39, "bearing_deg": 0.0, "edge_type": EdgeType.SIDE_LEFT},
+        ],
+    },
+    {
+        "site_id": "WP-COL-REG-03",
+        "site_family_id": "FAM_REGULAR_SUBURBAN",
+        "name": "Pannipitiya Suburban 12-Perch Three-Storey",
+        "category": "regular_suburban",
+        "description": "Spacious suburban lot with 3-storey requirement and hip roof.",
+        "district": "Colombo",
+        "local_authority": "Maharagama Urban Council",
+        "extent_perches": 12.0,
+        "true_area_sqm": 303.51,
+        "front_road_width_m": 9.0,
+        "true_north_angle": 30.0,
+        "storey_count": 3,
+        "occupant_count": 6,
+        "parking_capacity": 2,
+        "roof_type": "hip",
+        "edges": [
+            {"edge_id": "E1", "distance_m": 14.0, "bearing_deg": 90.0, "edge_type": EdgeType.ROAD_FRONT},
+            {"edge_id": "E2", "distance_m": 21.68, "bearing_deg": 180.0, "edge_type": EdgeType.SIDE_RIGHT},
+            {"edge_id": "E3", "distance_m": 14.0, "bearing_deg": 270.0, "edge_type": EdgeType.REAR},
+            {"edge_id": "E4", "distance_m": 21.68, "bearing_deg": 0.0, "edge_type": EdgeType.SIDE_LEFT},
+        ],
+    },
+
+    # Family 2: Narrow Urban Frontage (Gampaha & Colombo)
+    {
+        "site_id": "WP-GAM-NAR-01",
+        "site_family_id": "FAM_NARROW_URBAN",
         "name": "Kelaniya Narrow Urban Frontage 8-Perch",
         "category": "narrow_urban",
         "description": "High-density elongated urban lot with constrained 9.5m frontage.",
@@ -38,16 +102,68 @@ SURVEY_BENCHMARK_SCENARIOS: List[Dict[str, Any]] = [
         "true_area_sqm": 202.34,
         "front_road_width_m": 4.5,
         "true_north_angle": 45.0,
+        "storey_count": 1,
+        "occupant_count": 4,
+        "parking_capacity": 1,
+        "roof_type": "flat_slab",
         "edges": [
             {"edge_id": "E1", "distance_m": 9.5, "bearing_deg": 45.0, "edge_type": EdgeType.ROAD_FRONT},
             {"edge_id": "E2", "distance_m": 21.3, "bearing_deg": 135.0, "edge_type": EdgeType.SIDE_RIGHT},
             {"edge_id": "E3", "distance_m": 9.5, "bearing_deg": 225.0, "edge_type": EdgeType.REAR},
             {"edge_id": "E4", "distance_m": 21.3, "bearing_deg": 315.0, "edge_type": EdgeType.SIDE_LEFT},
         ],
-        "expected_setbacks": {"front_m": 3.0, "rear_m": 2.3, "side_m": 1.0},
     },
     {
-        "site_id": "WP-KAL-IRR-03",
+        "site_id": "WP-COL-NAR-02",
+        "site_family_id": "FAM_NARROW_URBAN",
+        "name": "Kotahena Dense Urban Strip 6-Perch Two-Storey",
+        "category": "narrow_urban",
+        "description": "Constrained 7.5m frontage urban lot with 2 storeys.",
+        "district": "Colombo",
+        "local_authority": "Colombo Municipal Council",
+        "extent_perches": 6.0,
+        "true_area_sqm": 151.76,
+        "front_road_width_m": 6.0,
+        "true_north_angle": 0.0,
+        "storey_count": 2,
+        "occupant_count": 4,
+        "parking_capacity": 1,
+        "roof_type": "mono_pitch",
+        "edges": [
+            {"edge_id": "E1", "distance_m": 7.5, "bearing_deg": 90.0, "edge_type": EdgeType.ROAD_FRONT},
+            {"edge_id": "E2", "distance_m": 20.23, "bearing_deg": 180.0, "edge_type": EdgeType.SIDE_RIGHT},
+            {"edge_id": "E3", "distance_m": 7.5, "bearing_deg": 270.0, "edge_type": EdgeType.REAR},
+            {"edge_id": "E4", "distance_m": 20.23, "bearing_deg": 0.0, "edge_type": EdgeType.SIDE_LEFT},
+        ],
+    },
+    {
+        "site_id": "WP-COL-NAR-03",
+        "site_family_id": "FAM_NARROW_URBAN",
+        "name": "Kirulapone Elongated 7-Perch Three-Storey",
+        "category": "narrow_urban",
+        "description": "8m width elongated townhouse site requiring 3 vertical floors.",
+        "district": "Colombo",
+        "local_authority": "Colombo Municipal Council",
+        "extent_perches": 7.0,
+        "true_area_sqm": 177.05,
+        "front_road_width_m": 6.0,
+        "true_north_angle": 90.0,
+        "storey_count": 3,
+        "occupant_count": 5,
+        "parking_capacity": 1,
+        "roof_type": "flat_slab",
+        "edges": [
+            {"edge_id": "E1", "distance_m": 8.0, "bearing_deg": 90.0, "edge_type": EdgeType.ROAD_FRONT},
+            {"edge_id": "E2", "distance_m": 22.13, "bearing_deg": 180.0, "edge_type": EdgeType.SIDE_RIGHT},
+            {"edge_id": "E3", "distance_m": 8.0, "bearing_deg": 270.0, "edge_type": EdgeType.REAR},
+            {"edge_id": "E4", "distance_m": 22.13, "bearing_deg": 0.0, "edge_type": EdgeType.SIDE_LEFT},
+        ],
+    },
+
+    # Family 3: Irregular & Splayed Parcels (Kalutara & Colombo)
+    {
+        "site_id": "WP-KAL-IRR-01",
+        "site_family_id": "FAM_IRREGULAR",
         "name": "Panadura Irregular Splayed 12-Perch",
         "category": "irregular",
         "description": "Non-orthogonal 5-sided parcel with angled rear boundary.",
@@ -57,6 +173,10 @@ SURVEY_BENCHMARK_SCENARIOS: List[Dict[str, Any]] = [
         "true_area_sqm": 303.51,
         "front_road_width_m": 6.0,
         "true_north_angle": 0.0,
+        "storey_count": 1,
+        "occupant_count": 4,
+        "parking_capacity": 1,
+        "roof_type": "flat_slab",
         "edges": [
             {"edge_id": "E1", "distance_m": 14.0, "bearing_deg": 90.0, "edge_type": EdgeType.ROAD_FRONT},
             {"edge_id": "E2", "distance_m": 18.0, "bearing_deg": 170.0, "edge_type": EdgeType.SIDE_RIGHT},
@@ -64,10 +184,36 @@ SURVEY_BENCHMARK_SCENARIOS: List[Dict[str, Any]] = [
             {"edge_id": "E4", "distance_m": 8.0, "bearing_deg": 290.0, "edge_type": EdgeType.REAR},
             {"edge_id": "E5", "distance_m": 20.0, "bearing_deg": 355.0, "edge_type": EdgeType.SIDE_LEFT},
         ],
-        "expected_setbacks": {"front_m": 3.0, "rear_m": 2.3, "side_m": 1.0},
     },
     {
-        "site_id": "WP-COL-COR-04",
+        "site_id": "WP-KAL-IRR-02",
+        "site_family_id": "FAM_IRREGULAR",
+        "name": "Horana Angled Splayed 11.35-Perch Two-Storey",
+        "category": "irregular",
+        "description": "5-sided splayed lot with acute rear-left boundary.",
+        "district": "Kalutara",
+        "local_authority": "Horana Urban Council",
+        "extent_perches": 11.35,
+        "true_area_sqm": 287.16,
+        "front_road_width_m": 6.0,
+        "true_north_angle": 20.0,
+        "storey_count": 2,
+        "occupant_count": 5,
+        "parking_capacity": 1,
+        "roof_type": "gable",
+        "edges": [
+            {"edge_id": "E1", "distance_m": 13.0, "bearing_deg": 90.0, "edge_type": EdgeType.ROAD_FRONT},
+            {"edge_id": "E2", "distance_m": 16.5, "bearing_deg": 180.0, "edge_type": EdgeType.SIDE_RIGHT},
+            {"edge_id": "E3", "distance_m": 11.0, "bearing_deg": 250.0, "edge_type": EdgeType.REAR},
+            {"edge_id": "E4", "distance_m": 6.0, "bearing_deg": 300.0, "edge_type": EdgeType.SIDE_LEFT},
+            {"edge_id": "E5", "distance_m": 17.0, "bearing_deg": 0.0, "edge_type": EdgeType.SIDE_LEFT},
+        ],
+    },
+
+    # Family 4: Corner Lot Dual Frontage
+    {
+        "site_id": "WP-COL-COR-01",
+        "site_family_id": "FAM_CORNER_LOT",
         "name": "Dehiwala Corner Dual Frontage 15-Perch",
         "category": "corner_lot",
         "description": "Corner parcel bounded by two public roadways (front and right).",
@@ -77,17 +223,46 @@ SURVEY_BENCHMARK_SCENARIOS: List[Dict[str, Any]] = [
         "true_area_sqm": 379.39,
         "front_road_width_m": 9.0,
         "true_north_angle": 0.0,
+        "storey_count": 1,
+        "occupant_count": 4,
+        "parking_capacity": 2,
+        "roof_type": "flat_slab",
         "edges": [
             {"edge_id": "E1", "distance_m": 18.0, "bearing_deg": 90.0, "edge_type": EdgeType.ROAD_FRONT},
             {"edge_id": "E2", "distance_m": 21.08, "bearing_deg": 180.0, "edge_type": EdgeType.ROAD_FRONT},
             {"edge_id": "E3", "distance_m": 18.0, "bearing_deg": 270.0, "edge_type": EdgeType.REAR},
             {"edge_id": "E4", "distance_m": 21.08, "bearing_deg": 0.0, "edge_type": EdgeType.SIDE_LEFT},
         ],
-        "expected_setbacks": {"front_m": 3.0, "rear_m": 2.3, "side_m": 1.0},
     },
     {
-        "site_id": "WP-GAM-LRG-05",
-        "name": "Gampaha Large Estate 20-Perch",
+        "site_id": "WP-COL-COR-02",
+        "site_family_id": "FAM_CORNER_LOT",
+        "name": "Rajagiriya Corner 12-Perch Two-Storey",
+        "category": "corner_lot",
+        "description": "Dual road corner intersection lot with 2 storeys.",
+        "district": "Colombo",
+        "local_authority": "Sri Jayawardenepura Kotte Municipal Council",
+        "extent_perches": 12.0,
+        "true_area_sqm": 303.51,
+        "front_road_width_m": 9.0,
+        "true_north_angle": 15.0,
+        "storey_count": 2,
+        "occupant_count": 5,
+        "parking_capacity": 2,
+        "roof_type": "hip",
+        "edges": [
+            {"edge_id": "E1", "distance_m": 15.0, "bearing_deg": 90.0, "edge_type": EdgeType.ROAD_FRONT},
+            {"edge_id": "E2", "distance_m": 20.23, "bearing_deg": 180.0, "edge_type": EdgeType.ROAD_FRONT},
+            {"edge_id": "E3", "distance_m": 15.0, "bearing_deg": 270.0, "edge_type": EdgeType.REAR},
+            {"edge_id": "E4", "distance_m": 20.23, "bearing_deg": 0.0, "edge_type": EdgeType.SIDE_LEFT},
+        ],
+    },
+
+    # Family 5: Large Residential Estate (Gampaha)
+    {
+        "site_id": "WP-GAM-LRG-01",
+        "site_family_id": "FAM_LARGE_ESTATE",
+        "name": "Gampaha Large Estate 20-Perch Single-Storey",
         "category": "large_estate",
         "description": "Spacious residential lot allowing substantial footprint and private garden.",
         "district": "Gampaha",
@@ -96,12 +271,66 @@ SURVEY_BENCHMARK_SCENARIOS: List[Dict[str, Any]] = [
         "true_area_sqm": 505.86,
         "front_road_width_m": 9.0,
         "true_north_angle": 10.0,
+        "storey_count": 1,
+        "occupant_count": 4,
+        "parking_capacity": 2,
+        "roof_type": "hip",
         "edges": [
             {"edge_id": "E1", "distance_m": 22.0, "bearing_deg": 90.0, "edge_type": EdgeType.ROAD_FRONT},
             {"edge_id": "E2", "distance_m": 23.0, "bearing_deg": 180.0, "edge_type": EdgeType.SIDE_RIGHT},
             {"edge_id": "E3", "distance_m": 22.0, "bearing_deg": 270.0, "edge_type": EdgeType.REAR},
             {"edge_id": "E4", "distance_m": 23.0, "bearing_deg": 0.0, "edge_type": EdgeType.SIDE_LEFT},
         ],
-        "expected_setbacks": {"front_m": 3.0, "rear_m": 2.3, "side_m": 1.0},
+    },
+    {
+        "site_id": "WP-GAM-LRG-02",
+        "site_family_id": "FAM_LARGE_ESTATE",
+        "name": "Negombo Coastal Estate 24-Perch Two-Storey",
+        "category": "large_estate",
+        "description": "Generous coastal plot with substantial buildable envelope.",
+        "district": "Gampaha",
+        "local_authority": "Negombo Municipal Council",
+        "extent_perches": 24.0,
+        "true_area_sqm": 607.03,
+        "front_road_width_m": 12.0,
+        "true_north_angle": 0.0,
+        "storey_count": 2,
+        "occupant_count": 6,
+        "parking_capacity": 2,
+        "roof_type": "gable",
+        "edges": [
+            {"edge_id": "E1", "distance_m": 24.0, "bearing_deg": 90.0, "edge_type": EdgeType.ROAD_FRONT},
+            {"edge_id": "E2", "distance_m": 25.29, "bearing_deg": 180.0, "edge_type": EdgeType.SIDE_RIGHT},
+            {"edge_id": "E3", "distance_m": 24.0, "bearing_deg": 270.0, "edge_type": EdgeType.REAR},
+            {"edge_id": "E4", "distance_m": 25.29, "bearing_deg": 0.0, "edge_type": EdgeType.SIDE_LEFT},
+        ],
+    },
+
+    # Family 6: Four-Storey Vertical Urban Villa
+    {
+        "site_id": "WP-COL-VRT-01",
+        "site_family_id": "FAM_VERTICAL_VILLA",
+        "name": "Colombo 07 Vertical Urban Villa 10-Perch Four-Storey",
+        "category": "vertical_villa",
+        "description": "High-density vertical urban villa maximizing FAR with 4 storeys.",
+        "district": "Colombo",
+        "local_authority": "Colombo Municipal Council",
+        "extent_perches": 10.0,
+        "true_area_sqm": 252.93,
+        "front_road_width_m": 12.0,
+        "true_north_angle": 0.0,
+        "storey_count": 4,
+        "occupant_count": 7,
+        "parking_capacity": 2,
+        "roof_type": "flat_slab",
+        "edges": [
+            {"edge_id": "E1", "distance_m": 12.5, "bearing_deg": 90.0, "edge_type": EdgeType.ROAD_FRONT},
+            {"edge_id": "E2", "distance_m": 20.23, "bearing_deg": 180.0, "edge_type": EdgeType.SIDE_RIGHT},
+            {"edge_id": "E3", "distance_m": 12.5, "bearing_deg": 270.0, "edge_type": EdgeType.REAR},
+            {"edge_id": "E4", "distance_m": 20.23, "bearing_deg": 0.0, "edge_type": EdgeType.SIDE_LEFT},
+        ],
     },
 ]
+
+# Backward-compatibility alias
+SURVEY_BENCHMARK_SCENARIOS = EXPANDED_SURVEY_BENCHMARK_SCENARIOS
