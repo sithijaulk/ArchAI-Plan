@@ -74,7 +74,28 @@ export interface ExteriorEnvironment {
   [key: string]: unknown;
 }
 
+export interface GroundSurface {
+  json_id: string;
+  type: string;
+  material: string;
+  area_m2: number;
+  polygon?: number[][] | null;
+  geometry?: Record<string, unknown> | null;
+}
+
+export interface PreferenceFulfillmentItem {
+  status: string;
+  original_request: unknown;
+  actual_quantity?: number;
+  actual_state?: unknown;
+  reason_codes?: string[];
+  rule_id?: string;
+  missing_evidence?: string[];
+  supported_alternatives?: string[];
+}
+
 export interface PreferenceFulfillment {
+  items?: Record<string, PreferenceFulfillmentItem>;
   unsupported_preferences?: string[];
   unfulfilled_preferences?: string[];
   label_only_preferences?: string[];
@@ -93,6 +114,7 @@ export interface ExteriorLandscape {
   vertical_greenery: ExteriorVertical;
   outdoor_lighting: ExteriorLighting;
   outdoor_elements: ExteriorFeature[];
+  ground_surfaces?: GroundSurface[];
   validation_summary: ExteriorValidation;
   metrics: Record<string, unknown>;
   preference_fulfillment?: PreferenceFulfillment;
@@ -216,6 +238,8 @@ export interface EliaLandscapeRequirements {
   water_availability?: 'limited' | 'regular' | 'irrigation_available' | 'unknown';
   preferred_plant_ids?: string[];
   plant_ids_to_avoid?: string[];
+  accepted_plant_alternatives?: AcceptedPlantAlternative[];
+  rejected_plant_alternatives?: string[];
   climate_zone?: string | null;
   site_exposure?: string | null;
   pedestrian_path_required?: boolean;
@@ -382,6 +406,8 @@ export interface ELIARequirements {
   site_exposure?: 'sheltered' | 'moderate' | 'exposed' | 'coastal_wind' | 'unknown';
   preferred_plant_ids?: string[];
   plant_ids_to_avoid?: string[];
+  accepted_plant_alternatives?: AcceptedPlantAlternative[];
+  rejected_plant_alternatives?: string[];
   locked_features?: LockedExteriorFeature[];
   additional_requirements?: Record<string, unknown> | string;
 }
@@ -531,5 +557,115 @@ export interface EliaUnresolvedMutation {
   status: 'unresolved' | 'processing' | 'correlated_terminal';
   correlatedRunId?: string;
   reconciliationError?: string | null;
+}
+
+export interface PlantCatalogueEntry {
+  vegetation_id: string;
+  category: string;
+  display_name: string;
+  scientific_name?: string | null;
+  cultivar?: string | null;
+  climate_suitability?: string[];
+  sun_requirement?: string;
+  shade_tolerance?: string;
+  water_demand?: string;
+  maintenance_level?: string;
+  mature_height_m?: number | null;
+  canopy_radius_m?: number | null;
+  root_clearance_m?: number | null;
+  minimum_spacing_m?: number | null;
+  ground_suitability?: boolean;
+  container_suitability?: boolean;
+  balcony_suitability?: boolean | 'review_required' | 'excluded';
+  rooftop_suitability?: boolean | 'conditional' | 'excluded';
+  vertical_suitability?: boolean;
+  hanging_suitability?: boolean;
+  support_requirements?: string | null;
+  hazards?: string[];
+  render_asset_id?: string;
+  source_reference?: string | null;
+  verified_species_data?: boolean;
+  verification_status?: 'verified' | 'partially_documented' | 'unverified' | 'conflicting';
+  notes?: string;
+}
+
+export interface PlantAlternativeProposal {
+  proposal_id: string;
+  original_request: string;
+  reason: string;
+  alternative_plant_id: string;
+  alternative_display_name: string;
+  alternative_scientific_name?: string | null;
+  alternative_category: string;
+  proposed_placement_type: string;
+  proposed_surface_id?: string | null;
+  quantity: number;
+  remaining_evidence: string[];
+  suitability_explanation: string;
+  source_revision?: number | null;
+  catalogue_version?: string;
+  status: 'proposed' | 'accepted' | 'rejected';
+}
+
+export interface AcceptedPlantAlternative {
+  original_request: string;
+  alternative_plant_id: string;
+  alternative_display_name: string;
+  placement_type: string;
+  surface_id?: string | null;
+  quantity: number;
+  source_revision?: number | null;
+  catalogue_version?: string;
+  acceptance_status: 'accepted' | 'rejected' | 'unresolved';
+}
+
+export interface PlantAlternativeAction {
+  proposal_id?: string;
+  original_request: string;
+  alternative_plant_id: string;
+  placement_type?: string;
+  surface_id?: string | null;
+  quantity?: number;
+  decision: 'accept' | 'reject' | 'unresolved';
+  catalogue_version?: string;
+}
+
+export interface PlantSuitabilityAssessment {
+  plant_id: string;
+  display_name: string;
+  scientific_name?: string | null;
+  placement_type: string;
+  surface_id?: string | null;
+  overall_status: FeasibilityStatus;
+  plant_suitability: FeasibilityStatus;
+  spatial_fit: FeasibilityStatus;
+  surface_eligibility: FeasibilityStatus;
+  reason_codes: string[];
+  explanation: string;
+  missing_evidence: string[];
+  applicable_rule_ids: string[];
+  suggested_alternatives: PlantAlternativeProposal[];
+  source_revision?: number | null;
+  catalogue_version?: string;
+}
+
+export interface PlantSuitabilityRequest {
+  plant_id: string;
+  placement_type?: string;
+  surface_id?: string | null;
+  sunlight_score?: number | null;
+  climate_zone?: string | null;
+}
+
+export interface PlantSuitabilityResponse {
+  assessment: PlantSuitabilityAssessment;
+  alternatives: PlantAlternativeProposal[];
+}
+
+export interface PlantCatalogueResponse {
+  catalogue_version: string;
+  total_entries: number;
+  entries: PlantCatalogueEntry[];
+  sources: Record<string, string>;
 }
 

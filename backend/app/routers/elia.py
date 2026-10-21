@@ -25,13 +25,26 @@ from app.components.elia_engine.schemas import (
     CandidateValidationResponse,
     CandidateSaveRequest,
     ProjectFeasibilityResponse,
+    PlantSuitabilityRequest,
+    PlantSuitabilityResponse,
+    PlantCatalogueResponse,
+    PlantAlternativeAction,
+    AcceptedPlantAlternative,
+)
+from app.components.elia_engine.plants import (
+    get_plant_catalogue,
+    get_plant_entry,
+    filter_plant_catalogue,
+    evaluate_plant_suitability,
+    propose_plant_alternatives,
+    validate_accepted_alternatives,
 )
 from app.components.elia_engine.solar import extract_master_location, fetch_live_solar_conditions, search_sri_lanka_locations
 from app.components.elia_engine.generation import generate_exterior
-from app.components.elia_engine.service import validate_candidate_exterior
+from app.components.elia_engine.service import validate_candidate_exterior, evaluate_acceptance_policy
 from app.components.elia_engine.gate_garage import plan_gate
 from app.components.elia_engine.requirements import normalize_requirements
-from app.components.elia_engine.feasibility import assess_project_feasibility
+from app.components.elia_engine.feasibility import assess_project_feasibility, extract_canonical_geometry
 from app.components.elia_engine.output import build_processing_master, build_updated_master
 from app.database import get_db
 from app.dependencies import require_admin
@@ -159,6 +172,17 @@ def _record_stale_conflict(db: Session, run_id: str, project_id: str, source_rev
 @router.post("/projects/{project_id}/elia-engine/run", response_model=ELIAResponse)
 def run_project_elia(project_id: str, request: ELIARequest,
                      db: Session = Depends(get_db), _admin=Depends(require_admin)):
+    if request.generation_mode == "trained_model":
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "ELIA_UNSUPPORTED_GENERATION_MODE",
+                "message": (
+                    "Trained model mode is not supported. ELIA is a rule-based, "
+                    "preference-driven exterior planning system using geometric layout generation and optimization."
+                ),
+            },
+        )
     project = _project_or_404(db, project_id)
     db.refresh(project)
     source_revision = int(project.revision or 1)
@@ -262,15 +286,22 @@ def run_project_elia(project_id: str, request: ELIARequest,
         run.input_json = {**(run.input_json or {}), "model_version": exterior.get("model_version")}
         if should_persist:
             current_master = project.master_json or {}
+            ext_policy = evaluate_acceptance_policy(
+                validation_result=exterior.get("validation_summary", {}),
+                candidate=exterior,
+                master_json=current_master,
+                requirements=requirements,
+            )
+            persist_outcome = outcome if outcome != "valid" else ("valid" if ext_policy["accepted"] else "provisional")
             updated_master = build_updated_master(
-                current_master, exterior, run.id, outcome,
+                current_master, exterior, run.id, persist_outcome,
                 generation_mode=request.generation_mode,
                 source_revision=source_revision,
                 model_version=exterior.get("model_version"),
                 requirements=requirements,
             )
             values: dict[str, Any] = {"master_json": updated_master, "revision": expected_revision + 1}
-            if outcome == "valid":
+            if persist_outcome == "valid":
                 values["current_component"] = "elia_engine"
             changed = db.execute(update(Project).where(
                 Project.id == project_id, Project.revision == expected_revision
@@ -455,6 +486,91 @@ def search_elia_locations(name: str = Query(min_length=2, max_length=100), _admi
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
 
 
+@router.get("/projects/{project_id}/elia-engine/plant-catalogue")
+def get_project_plant_catalogue(
+    project_id: str,
+    placement_type: str | None = None,
+    category: str | None = None,
+    sun_requirement: str | None = None,
+    maintenance_level: str | None = None,
+    climate_zone: str | None = None,
+    query: str | None = None,
+    verified_only: bool = False,
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin),
+):
+    project = _project_or_404(db, project_id)
+    catalog = get_plant_catalogue()
+    entries = filter_plant_catalogue(
+        placement_type=placement_type,
+        category=category,
+        sun_requirement=sun_requirement,
+        maintenance_level=maintenance_level,
+        climate_zone=climate_zone,
+        query=query,
+        verified_only=verified_only,
+    )
+    return {
+        "catalogue_version": catalog.get("catalogue_version", "2.1"),
+        "total_entries": len(entries),
+        "entries": entries,
+        "sources": catalog.get("sources", {}),
+    }
+
+
+@router.post("/projects/{project_id}/elia-engine/plants/evaluate-suitability", response_model=PlantSuitabilityResponse)
+def evaluate_project_plant_suitability(
+    project_id: str,
+    request: PlantSuitabilityRequest,
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin),
+):
+    project = _project_or_404(db, project_id)
+    master = project.master_json or {}
+    try:
+        geom = extract_canonical_geometry(master, source_revision=project.revision)
+        assessment = evaluate_plant_suitability(
+            plant=request.plant_id,
+            geom=geom,
+            placement_type=request.placement_type,
+            surface_id=request.surface_id,
+            sunlight_score=request.sunlight_score,
+            climate_zone=request.climate_zone,
+        )
+        return PlantSuitabilityResponse(
+            assessment=assessment,
+            alternatives=assessment.suggested_alternatives,
+        )
+    except ELIAError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    except Exception as exc:
+        logger.exception("Failed evaluating plant suitability for project %s", project_id)
+        raise HTTPException(status_code=500, detail={"code": "ELIA_PLANT_EVALUATION_ERROR", "message": str(exc)}) from exc
+
+
+@router.post("/projects/{project_id}/elia-engine/plants/alternatives")
+def update_plant_alternatives(
+    project_id: str,
+    actions: list[PlantAlternativeAction],
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin),
+):
+    project = _project_or_404(db, project_id)
+    master = project.master_json or {}
+    geom = extract_canonical_geometry(master, source_revision=project.revision)
+
+    accepted_inputs = [a for a in actions if a.decision == "accept"]
+    validated = validate_accepted_alternatives(accepted_inputs, geom)
+    rejected_ids = [a.alternative_plant_id for a in actions if a.decision == "reject"]
+
+    return {
+        "project_id": project_id,
+        "source_revision": project.revision,
+        "validated_accepted": [v.model_dump() for v in validated],
+        "rejected_plant_ids": rejected_ids,
+    }
+
+
 
 
 @router.post("/projects/{project_id}/elia-engine/validate-candidate")
@@ -514,9 +630,20 @@ def save_candidate(
         if hasattr(request.requirements, "model_dump")
         else request.requirements
     )
+    saved_reqs = master.get("exterior_requirements") or master.get("processing", {}).get("elia_engine", {}).get("requirements") or {}
+    effective_raw_reqs = deepcopy(saved_reqs)
+    if isinstance(raw_reqs, Mapping) and raw_reqs:
+        for k, v in raw_reqs.items():
+            if isinstance(v, Mapping) and isinstance(effective_raw_reqs.get(k), Mapping):
+                merged_sub = dict(effective_raw_reqs[k])
+                merged_sub.update(v)
+                effective_raw_reqs[k] = merged_sub
+            else:
+                effective_raw_reqs[k] = v
+
     try:
         validation_result = validate_candidate_exterior(
-            master, request.exterior_landscape, raw_reqs
+            master, request.exterior_landscape, effective_raw_reqs
         )
     except ELIAError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
@@ -535,7 +662,30 @@ def save_candidate(
 
     canonical_candidate = validation_result.get("canonical_candidate", request.exterior_landscape)
 
+    acceptance_decision = evaluate_acceptance_policy(
+        validation_result=validation_result,
+        candidate=canonical_candidate,
+        master_json=master,
+        requirements=effective_raw_reqs,
+    )
+    if not acceptance_decision["accepted"]:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "ELIA_ACCEPTANCE_BLOCKED",
+                "message": acceptance_decision["message"] or "Candidate exterior design cannot be accepted for persistence due to blocking reviews or missing evidence.",
+                "approval_status": acceptance_decision["approval_status"],
+                "blocking_reasons": acceptance_decision["blocking_reasons"],
+                "blocking_features": acceptance_decision["blocking_features"],
+                "missing_evidence": acceptance_decision["missing_evidence"],
+                "violations": validation_result.get("violations", []),
+            }
+        )
+
     run_id = str(uuid4())
+    if isinstance(canonical_candidate, dict):
+        canonical_candidate = dict(canonical_candidate)
+        canonical_candidate["run_id"] = run_id
     run = ComponentRun(
         id=run_id,
         project_id=project_id,
@@ -546,7 +696,7 @@ def save_candidate(
         input_json={
             "source_revision": current_revision,
             "save_mode": "customer_customized_candidate",
-            "requirements": raw_reqs or {},
+            "requirements": effective_raw_reqs or {},
         },
         output_json=_sanitize_nan(canonical_candidate),
     )
@@ -557,7 +707,7 @@ def save_candidate(
         generation_mode="customized",
         source_revision=current_revision,
         model_version=canonical_candidate.get("model_version"),
-        requirements=raw_reqs,
+        requirements=effective_raw_reqs,
     )
 
     changed = db.execute(

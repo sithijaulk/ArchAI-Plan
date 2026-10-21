@@ -25,8 +25,9 @@ class Settings(BaseSettings):
     backend_url: str = "http://localhost:8000"
     upload_dir: str = "app/uploads"
     max_upload_mb: int = 10
-    elia_model_artifact_path: str | None = None
-    elia_model_service_url: str | None = None
+
+    elia_model_artifact_path: Optional[str] = None
+    elia_model_service_url: Optional[str] = None
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -45,6 +46,8 @@ class Settings(BaseSettings):
                 self.database_url = self.database_url.replace("postgres://", "postgresql+psycopg2://", 1)
             elif self.database_url.startswith("postgresql://") and not self.database_url.startswith("postgresql+"):
                 self.database_url = self.database_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+            elif self.database_url.startswith("mysql+pymysql://"):
+                pass
         return self
 
 

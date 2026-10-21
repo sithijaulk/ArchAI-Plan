@@ -22,6 +22,10 @@ import type {
   FeatureFeasibilityAssessment,
   CombinedConflictResult,
   ProjectFeasibilityResponse,
+  PlantCatalogueEntry,
+  PlantAlternativeProposal,
+  AcceptedPlantAlternative,
+  PlantSuitabilityAssessment,
 } from '@/types/elia'
 import {
   LoaderCircle,
@@ -48,6 +52,7 @@ import {
   Trash2,
   Undo2,
   RotateCcw,
+  RotateCw,
   Check,
   ShieldCheck,
   Tag,
@@ -187,9 +192,13 @@ export default function EliaEnginePage() {
   const [cityQuery, setCityQuery] = useState('')
   const [catalogEntries, setCatalogEntries] = useState(CATALOG_SPECIES_OPTIONS)
   const [saveCandidateSuccess, setSaveCandidateSuccess] = useState<string | null>(null)
+  const [plantCategoryFilter, setPlantCategoryFilter] = useState<string>('all')
+  const [plantSearchTerm, setPlantSearchTerm] = useState<string>('')
+  const [plantVerifiedOnly, setPlantVerifiedOnly] = useState<boolean>(false)
 
   // Load botanical catalogue from backend
   useEffect(() => {
+    controller.loadPlantCatalogue(eliaApi)
     eliaApi.getVegetationCatalog().then((cat) => {
       if (cat && Array.isArray(cat.entries) && cat.entries.length > 0) {
         setCatalogEntries(
@@ -204,7 +213,7 @@ export default function EliaEnginePage() {
     }).catch(() => {
       // Fallback stays active
     })
-  }, [])
+  }, [controller])
 
   // Coherent project lifecycle: activation on mount/project change, deactivation on cleanup
   useEffect(() => {
@@ -483,6 +492,27 @@ export default function EliaEnginePage() {
               variant="ghost"
               className="text-rose-200/70 hover:text-rose-200 text-xs shrink-0"
               onClick={() => controller.dismissActionError()}
+            >
+              Dismiss
+            </Button>
+          </div>
+        )}
+
+        {state.saveCandidateError && (
+          <div className="p-4 rounded-xl border border-rose-500/40 bg-rose-950/30 text-rose-200 text-sm flex items-start justify-between gap-3 shadow-sm">
+            <div className="flex items-start gap-2.5">
+              <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-rose-100">Save Rejected by Acceptance Policy</p>
+                <p className="mt-1 text-xs text-rose-200/90 leading-relaxed">{state.saveCandidateError}</p>
+                <p className="mt-2 text-xs text-rose-300/70">Your customized edits in the editor have been preserved so you can resolve the compliance issues.</p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-rose-200/70 hover:text-rose-200 text-xs shrink-0"
+              onClick={() => controller.dismissSaveCandidateError()}
             >
               Dismiss
             </Button>
@@ -1239,37 +1269,285 @@ export default function EliaEnginePage() {
                         </div>
                       </div>
 
-                      {/* Plant Species Selector */}
-                      <div className="space-y-2 pt-2 border-t border-border/30 text-xs">
-                        <Label className="text-xs font-semibold flex items-center gap-1.5">
-                          <Tag className="w-3.5 h-3.5 text-primary" /> Botanical Catalogue Selection
-                        </Label>
-                        <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1 border rounded bg-background">
-                          {catalogEntries.slice(0, 8).map((sp) => {
-                            const isPref = (form.preferredPlantIds || []).includes(sp.id)
-                            return (
-                              <button
-                                key={sp.id}
-                                type="button"
-                                onClick={() => {
-                                  const current = form.preferredPlantIds || []
-                                  const next = isPref
-                                    ? current.filter((id) => id !== sp.id)
-                                    : [...current, sp.id]
-                                  controller.editRequirement({ preferredPlantIds: next })
-                                }}
-                                className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
-                                  isPref ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted text-muted-foreground border-border'
-                                }`}
-                              >
-                                {sp.name}
-                              </button>
-                            )
-                          })}
+                      {/* STAGE 3: BOTANICAL CATALOGUE & GREENY ALTERNATIVES */}
+                      <div className="space-y-3 pt-3 border-t border-border/40 text-xs">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
+                            <Trees className="w-3.5 h-3.5 text-emerald-500" /> Verified Botanical Catalogue &amp; Greeny Preferences
+                          </Label>
+                          {state.plantCatalogueVersion && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono">
+                              v{state.plantCatalogueVersion}
+                            </Badge>
+                          )}
                         </div>
-                        <span className="text-[10px] text-muted-foreground block">
-                          Selected plants receive score bonuses during vegetation placement.
-                        </span>
+
+                        {/* Search and Category Filter Bar */}
+                        <div className="space-y-2 p-2 rounded-md border border-border/30 bg-background/50">
+                          <div className="flex gap-2">
+                            <div className="relative flex-1">
+                              <Search className="w-3 h-3 absolute left-2 top-2.5 text-muted-foreground" />
+                              <Input
+                                placeholder="Search species or Sinhala name..."
+                                value={plantSearchTerm}
+                                onChange={(e) => setPlantSearchTerm(e.target.value)}
+                                className="h-7 text-xs pl-7"
+                              />
+                            </div>
+                            <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer shrink-0">
+                              <input
+                                type="checkbox"
+                                checked={plantVerifiedOnly}
+                                onChange={(e) => setPlantVerifiedOnly(e.target.checked)}
+                                className="w-3 h-3 rounded text-primary"
+                              />
+                              <span>Verified Only</span>
+                            </label>
+                          </div>
+
+                          <div className="flex flex-wrap gap-1">
+                            {['all', 'tree', 'shrub', 'climber', 'ground_cover'].map((catKey) => {
+                              const labels: Record<string, string> = {
+                                all: 'All Species',
+                                tree: 'Trees',
+                                shrub: 'Shrubs',
+                                climber: 'Climbers',
+                                ground_cover: 'Ground Cover',
+                              }
+                              const isCurrent = plantCategoryFilter === catKey
+                              return (
+                                <button
+                                  key={catKey}
+                                  type="button"
+                                  onClick={() => setPlantCategoryFilter(catKey)}
+                                  className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
+                                    isCurrent
+                                      ? 'bg-primary text-primary-foreground border-primary font-medium'
+                                      : 'bg-muted/40 hover:bg-muted text-muted-foreground border-border/40'
+                                  }`}
+                                >
+                                  {labels[catKey]}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Species Catalogue Card Grid */}
+                        <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                          {((state.plantCatalogue as any[]) || catalogEntries)
+                            .filter((entry: any) => {
+                              const cat = entry.category || ''
+                              if (plantCategoryFilter === 'tree') {
+                                if (!cat.includes('tree') && !cat.includes('shade')) return false
+                              } else if (plantCategoryFilter === 'shrub') {
+                                if (!cat.includes('shrub')) return false
+                              } else if (plantCategoryFilter === 'climber') {
+                                if (!cat.includes('climber') && !cat.includes('creeper')) return false
+                              } else if (plantCategoryFilter === 'ground_cover') {
+                                if (!cat.includes('ground_cover')) return false
+                              }
+                              if (plantVerifiedOnly && !entry.verified_species_data) return false
+                              if (plantSearchTerm.trim()) {
+                                const term = plantSearchTerm.toLowerCase()
+                                const disp = (entry.display_name || entry.name || '').toLowerCase()
+                                const sci = (entry.scientific_name || entry.scientific || '').toLowerCase()
+                                if (!disp.includes(term) && !sci.includes(term)) return false
+                              }
+                              return true
+                            })
+                            .map((plant: any) => {
+                              const pid = plant.vegetation_id || plant.id
+                              const isPreferred = (form.preferredPlantIds || []).includes(pid)
+                              const assessment = state.plantSuitabilityAssessments[pid]
+
+                              return (
+                                <div
+                                  key={pid}
+                                  className={`p-2 rounded border transition-all ${
+                                    isPreferred
+                                      ? 'border-emerald-500/40 bg-emerald-50/10 dark:bg-emerald-950/20'
+                                      : 'border-border/30 bg-background/40 hover:bg-muted/30'
+                                  }`}
+                                >
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="space-y-0.5 min-w-0">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="font-semibold text-xs text-foreground truncate">
+                                          {plant.display_name || plant.name}
+                                        </span>
+                                        {plant.verified_species_data ? (
+                                          <Badge variant="outline" className="text-[9px] px-1 py-0 border-emerald-500/50 text-emerald-600 dark:text-emerald-400 bg-emerald-50/30">
+                                            ✓ Verified
+                                          </Badge>
+                                        ) : plant.verification_status === 'partially_documented' ? (
+                                          <Badge variant="outline" className="text-[9px] px-1 py-0 border-amber-500/50 text-amber-600 dark:text-amber-400">
+                                            Partially Documented
+                                          </Badge>
+                                        ) : (
+                                          <Badge variant="outline" className="text-[9px] px-1 py-0 text-muted-foreground border-border/40">
+                                            Generic
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      <div className="text-[11px] italic text-muted-foreground">
+                                        {plant.scientific_name || plant.scientific}
+                                      </div>
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant={isPreferred ? 'default' : 'outline'}
+                                      onClick={() => {
+                                        if (isPreferred) {
+                                          controller.removePreferredPlant(pid)
+                                        } else {
+                                          controller.selectPreferredPlant(pid, eliaApi)
+                                        }
+                                      }}
+                                      className={`h-6 text-[10px] px-2 shrink-0 ${
+                                        isPreferred ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''
+                                      }`}
+                                    >
+                                      {isPreferred ? '✓ Selected' : '+ Select'}
+                                    </Button>
+                                  </div>
+
+                                  {/* Biological specifications & dimensions */}
+                                  <div className="flex items-center gap-3 mt-1.5 text-[10px] text-muted-foreground font-mono">
+                                    {plant.mature_height_m && (
+                                      <span>H: {plant.mature_height_m}m</span>
+                                    )}
+                                    {plant.canopy_radius_m && (
+                                      <span>Canopy: {plant.canopy_radius_m * 2}m Ø</span>
+                                    )}
+                                    {plant.sun_requirement && (
+                                      <span className="capitalize">{plant.sun_requirement.replace(/_/g, ' ')}</span>
+                                    )}
+                                    {plant.water_demand && (
+                                      <span>Water: {plant.water_demand}</span>
+                                    )}
+                                  </div>
+
+                                  {/* Plant suitability feedback when selected */}
+                                  {isPreferred && assessment && (
+                                    <div className="mt-1.5 pt-1.5 border-t border-border/20 text-[10px]">
+                                      <div className="flex items-center gap-1 font-medium">
+                                        {assessment.overall_status === 'feasible' ? (
+                                          <span className="text-emerald-500 flex items-center gap-1">
+                                            <CheckCircle2 className="w-3 h-3" /> Space &amp; biological requirements satisfied
+                                          </span>
+                                        ) : assessment.overall_status === 'infeasible' ? (
+                                          <span className="text-destructive flex items-center gap-1">
+                                            <XCircle className="w-3 h-3" /> Infeasible: {assessment.explanation}
+                                          </span>
+                                        ) : (
+                                          <span className="text-amber-500 flex items-center gap-1">
+                                            <AlertTriangle className="w-3 h-3" /> Review required: {assessment.explanation}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                        </div>
+
+                        {/* GREENY ALTERNATIVES SECTION */}
+                        {state.plantAlternativeProposals && state.plantAlternativeProposals.length > 0 && (
+                          <div className="space-y-2 p-2.5 rounded-lg border border-amber-500/30 bg-amber-50/10 dark:bg-amber-950/20">
+                            <div className="flex items-center gap-1.5 font-semibold text-amber-600 dark:text-amber-400">
+                              <Sparkles className="w-3.5 h-3.5" />
+                              <span>Supported Greeny Alternatives (Adaptive Substitution)</span>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground">
+                              Requested planting cannot be accommodated in current exterior space. The system identified context-appropriate alternatives requiring explicit user acceptance:
+                            </p>
+
+                            <div className="space-y-2 mt-2">
+                              {state.plantAlternativeProposals.map((prop) => {
+                                const isAccepted = prop.status === 'accepted' || (form.acceptedPlantAlternatives || []).some(
+                                  (a) => a.alternative_plant_id === prop.alternative_plant_id
+                                )
+                                const isRejected = prop.status === 'rejected' || (form.rejectedPlantAlternatives || []).includes(prop.alternative_plant_id)
+
+                                return (
+                                  <div
+                                    key={prop.proposal_id}
+                                    className={`p-2 rounded border text-xs ${
+                                      isAccepted
+                                        ? 'border-emerald-500/50 bg-emerald-50/20 dark:bg-emerald-950/30'
+                                        : isRejected
+                                        ? 'border-border/30 bg-muted/20 opacity-70'
+                                        : 'border-amber-500/40 bg-background/60'
+                                    }`}
+                                  >
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="space-y-0.5">
+                                        <div className="font-semibold text-foreground flex items-center gap-1.5">
+                                          <span>Alternative: {prop.alternative_display_name}</span>
+                                          <Badge variant="outline" className="text-[9px] px-1 py-0 capitalize">
+                                            {prop.proposed_placement_type} ({prop.alternative_category})
+                                          </Badge>
+                                        </div>
+                                        <div className="text-[11px] text-muted-foreground">
+                                          {prop.suitability_explanation}
+                                        </div>
+                                        <div className="text-[10px] text-destructive/90">
+                                          Original Bottleneck: {prop.reason}
+                                        </div>
+                                      </div>
+
+                                      <div className="shrink-0 flex items-center gap-1">
+                                        {isAccepted ? (
+                                          <div className="flex items-center gap-1.5">
+                                            <Badge className="bg-emerald-600 text-white text-[10px] px-1.5 py-0.5">
+                                              ✓ Accepted
+                                            </Badge>
+                                            <Button
+                                              type="button"
+                                              size="sm"
+                                              variant="ghost"
+                                              onClick={() => controller.revertPlantAlternative(prop.alternative_plant_id)}
+                                              className="h-6 text-[10px] px-1.5 text-muted-foreground hover:text-foreground"
+                                            >
+                                              Revert
+                                            </Button>
+                                          </div>
+                                        ) : isRejected ? (
+                                          <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                                            Rejected
+                                          </Badge>
+                                        ) : (
+                                          <div className="flex items-center gap-1">
+                                            <Button
+                                              type="button"
+                                              size="sm"
+                                              onClick={() => controller.acceptPlantAlternative(prop)}
+                                              className="h-6 text-[10px] px-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                                            >
+                                              Accept
+                                            </Button>
+                                            <Button
+                                              type="button"
+                                              size="sm"
+                                              variant="outline"
+                                              onClick={() => controller.rejectPlantAlternative(prop.proposal_id, prop.alternative_plant_id)}
+                                              className="h-6 text-[10px] px-2 text-destructive border-destructive/30 hover:bg-destructive/10"
+                                            >
+                                              Reject
+                                            </Button>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </TabsContent>
@@ -1605,75 +1883,114 @@ export default function EliaEnginePage() {
 
                     {/* GROUP J: WATER FEATURES & UTILITIES */}
                     <div className="space-y-3 p-3 rounded-lg border border-border/40 bg-muted/20 text-xs">
-                      <div className="font-semibold text-xs text-foreground">Group J: Water Features &amp; Utilities</div>
-                      <div className="p-2 rounded bg-muted/40 border border-border/30 text-[10px] text-blue-300 flex items-start gap-1.5">
-                        <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                        <span>Stage 1: Intent captured for feasibility check (Water feature spatial layout generation coming in Stage 2).</span>
+                      <div className="flex items-center justify-between">
+                        <div className="font-semibold text-xs text-foreground">Group J: Water Features &amp; Utilities</div>
+                        <span className="text-[10px] font-mono text-muted-foreground">Sanitary &amp; Hydraulic Clearance</span>
                       </div>
-                      <div className="space-y-2 pt-1">
-                        <div className="grid grid-cols-2 gap-2">
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={form.wellRequired}
-                              onChange={(e) => controller.editRequirement({ wellRequired: e.target.checked })}
-                              className="w-3.5 h-3.5 rounded text-primary"
-                            />
-                            <span>Domestic Water Well</span>
-                          </label>
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={form.pondRequired}
-                              onChange={(e) => controller.editRequirement({ pondRequired: e.target.checked })}
-                              className="w-3.5 h-3.5 rounded text-primary"
-                            />
-                            <span>Garden Pond</span>
-                          </label>
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={form.poolRequired}
-                              onChange={(e) => controller.editRequirement({ poolRequired: e.target.checked })}
-                              className="w-3.5 h-3.5 rounded text-primary"
-                            />
-                            <span>Swimming Pool</span>
-                          </label>
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={form.septicTankRequired}
-                              onChange={(e) => controller.editRequirement({ septicTankRequired: e.target.checked })}
-                              className="w-3.5 h-3.5 rounded text-primary"
-                            />
-                            <span>Septic Tank</span>
-                          </label>
+                      
+                      <div className="space-y-3 pt-1">
+                        {/* 1. Domestic Water Well */}
+                        <div className="p-2.5 rounded-lg border border-border/30 bg-background/50 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className={`flex items-center gap-2 ${featureAssessments.well?.feasibility_status === 'infeasible' && !form.wellRequired ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+                              <input
+                                type="checkbox"
+                                checked={form.wellRequired}
+                                disabled={featureAssessments.well?.feasibility_status === 'infeasible' && !form.wellRequired}
+                                onChange={(e) => controller.editRequirement({ wellRequired: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span className="font-medium">Domestic Water Well</span>
+                            </label>
+                            <FeasibilityBadge assessment={featureAssessments.well} />
+                          </div>
+                          <FeasibilityNotice assessment={featureAssessments.well} />
                         </div>
 
-                        {/* Garden taps */}
-                        <div className="p-2 rounded border border-border/30 bg-background/40 flex items-center justify-between">
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={form.gardenTapsRequired}
-                              onChange={(e) => controller.editRequirement({ gardenTapsRequired: e.target.checked })}
-                              className="w-3.5 h-3.5 rounded text-primary"
-                            />
-                            <span className="font-medium">Garden Water Taps</span>
-                          </label>
-                          {form.gardenTapsRequired && (
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[10px] text-muted-foreground">Count:</span>
-                              <Input
-                                type="number"
-                                min={1}
-                                max={10}
-                                value={form.gardenTapsCount}
-                                onChange={(e) => controller.editRequirement({ gardenTapsCount: e.target.value })}
-                                className="h-6 w-14 text-xs font-mono px-1"
+                        {/* 2. Septic Tank */}
+                        <div className="p-2.5 rounded-lg border border-border/30 bg-background/50 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className={`flex items-center gap-2 ${featureAssessments.septic_tank?.feasibility_status === 'infeasible' && !form.septicTankRequired ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+                              <input
+                                type="checkbox"
+                                checked={form.septicTankRequired}
+                                disabled={featureAssessments.septic_tank?.feasibility_status === 'infeasible' && !form.septicTankRequired}
+                                onChange={(e) => controller.editRequirement({ septicTankRequired: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
                               />
+                              <span className="font-medium">Septic System</span>
+                            </label>
+                            <FeasibilityBadge assessment={featureAssessments.septic_tank} />
+                          </div>
+                          <FeasibilityNotice assessment={featureAssessments.septic_tank} />
+                        </div>
+
+                        {/* 3. Garden Pond */}
+                        <div className="p-2.5 rounded-lg border border-border/30 bg-background/50 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className={`flex items-center gap-2 ${featureAssessments.pond?.feasibility_status === 'infeasible' && !form.pondRequired ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+                              <input
+                                type="checkbox"
+                                checked={form.pondRequired}
+                                disabled={featureAssessments.pond?.feasibility_status === 'infeasible' && !form.pondRequired}
+                                onChange={(e) => controller.editRequirement({ pondRequired: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span className="font-medium">Garden Pond</span>
+                            </label>
+                            <FeasibilityBadge assessment={featureAssessments.pond} />
+                          </div>
+                          <FeasibilityNotice assessment={featureAssessments.pond} />
+                        </div>
+
+                        {/* 4. Swimming Pool */}
+                        <div className="p-2.5 rounded-lg border border-border/30 bg-background/50 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className={`flex items-center gap-2 ${(featureAssessments.swimming_pool?.feasibility_status === 'infeasible' || featureAssessments.pool?.feasibility_status === 'infeasible') && !form.poolRequired ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+                              <input
+                                type="checkbox"
+                                checked={form.poolRequired}
+                                disabled={(featureAssessments.swimming_pool?.feasibility_status === 'infeasible' || featureAssessments.pool?.feasibility_status === 'infeasible') && !form.poolRequired}
+                                onChange={(e) => controller.editRequirement({ poolRequired: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span className="font-medium">Swimming Pool</span>
+                            </label>
+                            <FeasibilityBadge assessment={featureAssessments.swimming_pool || featureAssessments.pool} />
+                          </div>
+                          <FeasibilityNotice assessment={featureAssessments.swimming_pool || featureAssessments.pool} />
+                        </div>
+
+                        {/* 5. Garden Water Taps */}
+                        <div className="p-2.5 rounded-lg border border-border/30 bg-background/50 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={form.gardenTapsRequired}
+                                onChange={(e) => controller.editRequirement({ gardenTapsRequired: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span className="font-medium">Garden Water Taps</span>
+                            </label>
+                            <div className="flex items-center gap-2">
+                              {form.gardenTapsRequired && (
+                                <div className="flex items-center gap-1.5 mr-1">
+                                  <span className="text-[10px] text-muted-foreground">Count:</span>
+                                  <Input
+                                    type="number"
+                                    min={1}
+                                    max={10}
+                                    value={form.gardenTapsCount}
+                                    onChange={(e) => controller.editRequirement({ gardenTapsCount: e.target.value })}
+                                    className="h-6 w-14 text-xs font-mono px-1"
+                                  />
+                                </div>
+                              )}
+                              <FeasibilityBadge assessment={featureAssessments.garden_taps} />
                             </div>
-                          )}
+                          </div>
+                          <FeasibilityNotice assessment={featureAssessments.garden_taps} />
                         </div>
                       </div>
                     </div>
@@ -1867,46 +2184,23 @@ export default function EliaEnginePage() {
             {/* 3. Generation Mode & Operational Actions Card */}
             <Card className="border-border/60 bg-card/60 backdrop-blur-sm">
               <CardContent className="p-5 space-y-4">
-                {/* Generation Mode Selector */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold flex items-center justify-between">
-                    <span>Generation Mode</span>
-                    <span className="text-[10px] font-mono text-muted-foreground">Explicit contract mode</span>
-                  </Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => controller.editRequirement({ generationMode: 'baseline' })}
-                      className={`p-2.5 rounded-lg border text-left text-xs transition-colors ${form.generationMode === 'baseline' ? 'border-primary bg-primary/10 text-primary' : 'border-border/60 hover:bg-muted/40'}`}
-                    >
-                      <div className="font-semibold flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5" /> Baseline Planner
-                      </div>
-                      <div className="text-[10px] text-muted-foreground mt-0.5">
-                        Deterministic spatial heuristics
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => controller.editRequirement({ generationMode: 'trained_model' })}
-                      className={`p-2.5 rounded-lg border text-left text-xs transition-colors ${form.generationMode === 'trained_model' ? 'border-amber-500 bg-amber-950/20 text-amber-300' : 'border-border/60 hover:bg-muted/40'}`}
-                    >
-                      <div className="font-semibold flex items-center gap-1.5">
-                        <Layers className="w-3.5 h-3.5" /> Trained AI Model
-                      </div>
-                      <div className="text-[10px] text-muted-foreground mt-0.5">
-                        Google Colab (Stage 6/7)
-                      </div>
-                    </button>
+                {/* Generation Engine & Planner Architecture */}
+                <div className="space-y-2 p-3 rounded-lg border border-primary/20 bg-primary/5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-foreground flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-primary" /> ELIA Exterior Planning Engine
+                    </span>
+                    <span className="text-[10px] font-mono text-muted-foreground">Rule &amp; Geometric Planner</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    A rule-based, preference-driven exterior planning system using geometric layout generation and optimization.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-[10px] font-mono text-primary/80">
+                    <span className="px-1.5 py-0.5 rounded bg-primary/10 border border-primary/20">79 Rules (v2.1 Registry)</span>
+                    <span className="px-1.5 py-0.5 rounded bg-primary/10 border border-primary/20">Plant Catalogue v2.1</span>
+                    <span className="px-1.5 py-0.5 rounded bg-primary/10 border border-primary/20">A* Pathfinding &amp; OBB Packing</span>
                   </div>
                 </div>
-
-                {form.generationMode === 'trained_model' && (
-                  <div className="p-2.5 rounded border border-amber-500/30 bg-amber-950/20 text-amber-200 text-[11px] leading-tight">
-                    Model adapter not yet registered on this backend. Requesting this mode triggers explicit 503 response without fallback.
-                  </div>
-                )}
 
                 {/* Preference Fulfillment & Unsupported Preferences Notice */}
                 {displayedExterior?.preference_fulfillment?.unsupported_preferences && displayedExterior.preference_fulfillment.unsupported_preferences.length > 0 && (
@@ -2062,6 +2356,23 @@ export default function EliaEnginePage() {
               validationSummary={displayedExterior?.validation_summary}
               selectedFeatureId={state.selectedFeatureId}
               onSelectFeature={(id) => controller.selectFeature(id)}
+              onFeatureMoved={(id, pos) => controller.editFeaturePosition(id, pos)}
+              onFeatureRotated={(id, angleDeg) => controller.editFeatureRotation(id, angleDeg)}
+              onFeatureScaled={(id, factor) => {
+                const veg = (state.candidate?.landscape?.vegetation_nodes ?? []).find(v => v.json_id === id)
+                if (veg) {
+                  controller.editFeatureDimensions(id, { canopy_radius_m: (veg.canopy_radius_m ?? 1.5) * factor })
+                  return
+                }
+                const elem = (state.candidate?.landscape?.outdoor_elements ?? []).find(e => e.json_id === id)
+                if (elem) {
+                  const dims = elem.dimensions || {}
+                  controller.editFeatureDimensions(id, {
+                    width_m: (Number(dims.width_m) || 1.5) * factor,
+                    length_m: (Number(dims.length_m) || 1.5) * factor
+                  })
+                }
+              }}
               lockedFeatureIds={lockedFeatureIds}
             />
 
@@ -2232,6 +2543,123 @@ export default function EliaEnginePage() {
                           </div>
                         </div>
                       </div>
+
+                      {/* Rotation and Dimensions Form Controls */}
+                      {selectedFeature.type === 'outdoor' && (
+                        <div className="pt-2 border-t border-border/30">
+                          <Label className="text-[11px] text-muted-foreground">Orientation / Azimuth Rotation (°)</Label>
+                          <div className="flex items-center gap-1 mt-1">
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-7 w-7 text-xs shrink-0"
+                              onClick={() => {
+                                const curr = Number((selectedFeature as any).rotation_deg ?? (selectedFeature as any).orientation_deg ?? 0)
+                                controller.editFeatureRotation(selectedFeature.id, (curr - 15 + 360) % 360)
+                              }}
+                              title="Rotate Counter-Clockwise -15°"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                            </Button>
+                            <Input
+                              type="number"
+                              step={5}
+                              value={Number((selectedFeature as any).rotation_deg ?? (selectedFeature as any).orientation_deg ?? 0)}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value)
+                                if (!isNaN(val)) controller.editFeatureRotation(selectedFeature.id, (val + 360) % 360)
+                              }}
+                              className="h-7 text-xs font-mono text-center"
+                            />
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-7 w-7 text-xs shrink-0"
+                              onClick={() => {
+                                const curr = Number((selectedFeature as any).rotation_deg ?? (selectedFeature as any).orientation_deg ?? 0)
+                                controller.editFeatureRotation(selectedFeature.id, (curr + 15) % 360)
+                              }}
+                              title="Rotate Clockwise +15°"
+                            >
+                              <RotateCw className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Dimension Editing for Scalable Features */}
+                      {selectedFeature.type === 'vegetation' && (
+                        <div className="pt-2 border-t border-border/30">
+                          <Label className="text-[11px] text-muted-foreground">Canopy Radius (m)</Label>
+                          <div className="flex items-center gap-1 mt-1">
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-7 w-7 text-xs shrink-0"
+                              onClick={() => {
+                                const curr = Number((selectedFeature as any).canopy_radius_m || 1.5)
+                                controller.editFeatureDimensions(selectedFeature.id, { canopy_radius_m: Math.max(0.5, curr - 0.25) })
+                              }}
+                              title="Decrease Canopy -0.25m"
+                            >
+                              -
+                            </Button>
+                            <Input
+                              type="number"
+                              step={0.1}
+                              value={Number((selectedFeature as any).canopy_radius_m || 1.5).toFixed(2)}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value)
+                                if (!isNaN(val)) controller.editFeatureDimensions(selectedFeature.id, { canopy_radius_m: val })
+                              }}
+                              className="h-7 text-xs font-mono text-center"
+                            />
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-7 w-7 text-xs shrink-0"
+                              onClick={() => {
+                                const curr = Number((selectedFeature as any).canopy_radius_m || 1.5)
+                                controller.editFeatureDimensions(selectedFeature.id, { canopy_radius_m: Math.min(10.0, curr + 0.25) })
+                              }}
+                              title="Increase Canopy +0.25m"
+                            >
+                              +
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {selectedFeature.type === 'outdoor' && !['solar_panel_array', 'water_well', 'septic_tank', 'garden_tap'].includes(selectedFeature.category) && (
+                        <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/30">
+                          <div>
+                            <Label className="text-[11px] text-muted-foreground">Width (m)</Label>
+                            <Input
+                              type="number"
+                              step={0.1}
+                              value={Number((selectedFeature as any).dimensions?.width_m || 1.5).toFixed(2)}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value)
+                                if (!isNaN(val)) controller.editFeatureDimensions(selectedFeature.id, { width_m: val })
+                              }}
+                              className="h-7 text-xs font-mono text-center mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-[11px] text-muted-foreground">Length (m)</Label>
+                            <Input
+                              type="number"
+                              step={0.1}
+                              value={Number((selectedFeature as any).dimensions?.length_m || (selectedFeature as any).dimensions?.depth_m || 1.5).toFixed(2)}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value)
+                                if (!isNaN(val)) controller.editFeatureDimensions(selectedFeature.id, { length_m: val })
+                              }}
+                              className="h-7 text-xs font-mono text-center mt-1"
+                            />
+                          </div>
+                        </div>
+                      )}
 
                       {/* Vegetation Replacement Dropdown */}
                       {selectedFeature.type === 'vegetation' && (

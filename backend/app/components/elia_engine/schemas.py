@@ -104,6 +104,103 @@ class AccessRequirements(ELIAInputModel):
         return self
 
 
+FeasibilityStatus = Literal["feasible", "infeasible", "review_required", "evidence_missing", "not_applicable", "unsupported", "search_exhausted", "search_inconclusive", "provider_unavailable"]
+
+
+class PlantAlternativeProposal(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    proposal_id: str
+    original_request: str
+    reason: str
+    alternative_plant_id: str
+    alternative_display_name: str
+    alternative_scientific_name: str | None = None
+    alternative_category: str
+    proposed_placement_type: str
+    proposed_surface_id: str | None = None
+    quantity: int = 1
+    remaining_evidence: list[str] = Field(default_factory=list)
+    suitability_explanation: str
+    source_revision: int | None = None
+    catalogue_version: str = "2.1"
+    status: Literal["proposed", "accepted", "rejected"] = "proposed"
+
+
+class AcceptedPlantAlternative(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    original_request: str
+    alternative_plant_id: str
+    alternative_display_name: str
+    placement_type: str = "ground"
+    surface_id: str | None = None
+    quantity: int = 1
+    source_revision: int | None = None
+    catalogue_version: str = "2.1"
+    acceptance_status: Literal["accepted", "rejected", "unresolved"] = "accepted"
+
+
+class PlantAlternativeAction(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    proposal_id: str | None = None
+    original_request: str
+    alternative_plant_id: str
+    placement_type: str = "ground"
+    surface_id: str | None = None
+    quantity: int = 1
+    decision: Literal["accept", "reject", "unresolved"] = "accept"
+    catalogue_version: str = "2.1"
+
+
+class PlantSuitabilityAssessment(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    plant_id: str
+    display_name: str
+    scientific_name: str | None = None
+    placement_type: str = "ground"
+    surface_id: str | None = None
+    overall_status: FeasibilityStatus
+    plant_suitability: FeasibilityStatus
+    spatial_fit: FeasibilityStatus
+    surface_eligibility: FeasibilityStatus
+    reason_codes: list[str] = Field(default_factory=list)
+    explanation: str
+    missing_evidence: list[str] = Field(default_factory=list)
+    applicable_rule_ids: list[str] = Field(default_factory=list)
+    suggested_alternatives: list[PlantAlternativeProposal] = Field(default_factory=list)
+    source_revision: int | None = None
+    catalogue_version: str = "2.1"
+
+
+class PlantSuitabilityRequest(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    plant_id: str
+    placement_type: str = "ground"
+    surface_id: str | None = None
+    sunlight_score: float | None = None
+    climate_zone: str | None = None
+
+
+class PlantSuitabilityResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    assessment: PlantSuitabilityAssessment
+    alternatives: list[PlantAlternativeProposal] = Field(default_factory=list)
+
+
+class PlantCatalogueResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    catalogue_version: str
+    total_entries: int
+    entries: list[dict[str, Any]]
+    sources: dict[str, Any]
+
+
 class LandscapeRequirements(ELIAInputModel):
     garden_required: bool = False
     lawn_required: bool = False
@@ -131,6 +228,8 @@ class LandscapeRequirements(ELIAInputModel):
     water_availability: Literal["limited", "regular", "irrigation_available", "unknown"] | None = None
     preferred_plant_ids: list[str] = Field(default_factory=list)
     plant_ids_to_avoid: list[str] = Field(default_factory=list)
+    accepted_plant_alternatives: list[AcceptedPlantAlternative] = Field(default_factory=list)
+    rejected_plant_alternatives: list[str] = Field(default_factory=list)
     climate_zone: str | None = None
     site_exposure: str | None = None
     pedestrian_path_required: bool = False
@@ -246,6 +345,8 @@ class ELIARequirements(ELIAInputModel):
     water_availability: Literal["limited", "regular", "irrigation_available", "unknown"] | None = None
     preferred_plant_ids: list[str] = Field(default_factory=list)
     plant_ids_to_avoid: list[str] = Field(default_factory=list)
+    accepted_plant_alternatives: list[AcceptedPlantAlternative] = Field(default_factory=list)
+    rejected_plant_alternatives: list[str] = Field(default_factory=list)
     climate_zone: str | None = None
     site_exposure: str | None = None
     locked_features: list[dict[str, Any]] = Field(default_factory=list)
@@ -300,7 +401,7 @@ class ELIARequest(BaseModel):
     requirements: ELIARequirements = Field(default_factory=ELIARequirements)
     master_json: dict[str, Any] | None = None
     apply_to_project: bool = False
-    generation_mode: Literal["trained_model", "baseline"] = "trained_model"
+    generation_mode: Literal["baseline", "rule_based_geometric", "trained_model"] = "baseline"
     source_revision: int | None = Field(default=None, ge=1)
 
 
@@ -384,6 +485,8 @@ class ExteriorLandscapeResponse(BaseModel):
     vertical_greenery: ExteriorVerticalResponse = Field(default_factory=ExteriorVerticalResponse)
     outdoor_lighting: ExteriorLightingResponse = Field(default_factory=ExteriorLightingResponse)
     outdoor_elements: list[ExteriorFeatureResponse] = Field(default_factory=list)
+    ground_surfaces: list[dict[str, Any]] = Field(default_factory=list)
+    preference_fulfillment: dict[str, Any] = Field(default_factory=dict)
     validation_summary: ExteriorValidationResponse
     metrics: dict[str, Any]
     factors_assessment: dict[str, Any] | None = None
@@ -403,7 +506,7 @@ class ELIAResponse(BaseModel):
     outcome: Literal["valid", "infeasible"]
     exterior_landscape: ExteriorLandscapeResponse
     master_json_updated: bool
-    generation_mode: Literal["trained_model", "baseline"]
+    generation_mode: str
 
 
 class CandidateValidationRequest(BaseModel):
@@ -435,9 +538,6 @@ class CandidateSaveRequest(BaseModel):
     source_revision: int = Field(ge=1)
     requirements: ELIARequirements = Field(default_factory=ELIARequirements)
     run_id: str | None = None
-
-
-FeasibilityStatus = Literal["feasible", "infeasible", "review_required", "not_applicable", "unsupported", "search_inconclusive"]
 
 
 class FeatureFeasibilityAssessment(BaseModel):
