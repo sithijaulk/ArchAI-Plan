@@ -21,6 +21,7 @@ import { LayerControls } from '../controls/LayerControls';
 import { ObjectInfoPanel } from '../controls/ObjectInfoPanel';
 import { EditorToolbar, EditInteractionMode } from '../controls/EditorToolbar';
 import { CatalogBrowserModal } from '../controls/CatalogBrowserModal';
+import { ReportExportModal } from '../controls/ReportExportModal';
 import { useRoomEditor } from '../hooks/useRoomEditor';
 
 interface InteriorViewerProps {
@@ -75,6 +76,19 @@ export const InteriorViewer: React.FC<InteriorViewerProps> = ({
   const [editInteractionMode, setEditInteractionMode] = useState<EditInteractionMode>('select');
   const [catalogModalOpen, setCatalogModalOpen] = useState(false);
   const [catalogModalMode, setCatalogModalMode] = useState<'add' | 'replace'>('add');
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+
+  const capture3DCanvas = () => {
+    try {
+      const canvas = document.querySelector('canvas');
+      if (canvas) {
+        return canvas.toDataURL('image/png');
+      }
+    } catch (e) {
+      console.warn('Canvas snapshot capture not available:', e);
+    }
+    return null;
+  };
 
   // WebGL availability check
   const [webGLSupported, setWebGLSupported] = useState(true);
@@ -223,6 +237,7 @@ export const InteriorViewer: React.FC<InteriorViewerProps> = ({
           explodedView={explodedView}
           onToggleExplodedView={() => setExplodedView((v) => !v)}
           onResetCamera={handleResetCamera}
+          onOpenExport={() => setIsExportModalOpen(true)}
         />
 
         {/* Phase 7 Customization Toolbar */}
@@ -282,6 +297,7 @@ export const InteriorViewer: React.FC<InteriorViewerProps> = ({
                 camera={{ fov: 45, near: 0.1, far: 200, position: [15, 12, 15] }}
                 gl={{
                   antialias: true,
+                  preserveDrawingBuffer: true,
                   toneMapping: THREE.ACESFilmicToneMapping,
                   toneMappingExposure: 1.1,
                   outputColorSpace: THREE.SRGBColorSpace,
@@ -459,6 +475,19 @@ export const InteriorViewer: React.FC<InteriorViewerProps> = ({
             editor.addAsset(chosen);
           }
         }}
+      />
+
+      {/* ── Phase 8: Report & Export Modal ────────────────────────────────────── */}
+      <ReportExportModal
+        projectId={sceneData.project_id}
+        floors={sceneData.floors}
+        selectedFloorId={selection.selectedFloorId}
+        selectedRoomId={selection.selectedRoomId}
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        hasUnsavedChanges={editor.isDirty}
+        onSaveFirst={editor.saveDraft}
+        captureCurrent3DView={capture3DCanvas}
       />
     </div>
   );

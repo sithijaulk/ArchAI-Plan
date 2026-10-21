@@ -18,6 +18,7 @@ interface ViewerToolbarProps {
   explodedView: boolean;
   onToggleExplodedView: () => void;
   onResetCamera: () => void;
+  onOpenExport?: () => void;
 }
 
 export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
@@ -35,6 +36,7 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
   explodedView,
   onToggleExplodedView,
   onResetCamera,
+  onOpenExport,
 }) => {
   // Available rooms for selected floor or all floors
   const availableRooms: RoomDTO[] = React.useMemo(() => {
@@ -179,6 +181,17 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
         >
           Reset Camera
         </button>
+
+        {onOpenExport && (
+          <button
+            onClick={onOpenExport}
+            className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-medium shadow-md shadow-cyan-900/40 text-xs transition-all"
+            title="Export Professional PDF Report & Schedules"
+          >
+            <span>📄</span>
+            <span>Export Report</span>
+          </button>
+        )}
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import { apiClient } from './client';
+import { PdfReportRequest, ReportOptionsResponse } from '@/types/esai';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -482,5 +483,25 @@ export const esaiApi = {
     );
     return r.data;
   },
+
+  // ── Phase 8: PDF Reporting & Final Export ─────────────────────────────────
+
+  getReportOptions: async (projectId: string): Promise<ReportOptionsResponse> => {
+    const r = await apiClient.get(`${base(projectId)}/reports/options`);
+    return r.data;
+  },
+
+  downloadPdfReport: async (projectId: string, payload: PdfReportRequest): Promise<Blob> => {
+    const r = await apiClient.post(`${base(projectId)}/reports/pdf`, payload, {
+      responseType: 'blob',
+    });
+    return r.data;
+  },
+
+  exportReportData: async (projectId: string, payload: PdfReportRequest): Promise<any> => {
+    const r = await apiClient.post(`${base(projectId)}/reports/export-data`, payload);
+    return r.data;
+  },
 };
+
 

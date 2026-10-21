@@ -1456,8 +1456,8 @@ export default function EsaiEnginePage() {
                                 }
                                 className="w-full h-9 px-3 text-xs rounded-md bg-muted/40 border border-border/80 focus:outline-none focus:ring-1 focus:ring-purple-500"
                               >
-                                <option value="dual_monitor">Dual 27" Monitors with Gas Arms</option>
-                                <option value="ultrawide">Single 49" Curved Ultrawide</option>
+                                <option value="dual_monitor">Dual 27&quot; Monitors with Gas Arms</option>
+                                <option value="ultrawide">Single 49&quot; Curved Ultrawide</option>
                                 <option value="laptop_dock">Minimalist Laptop Dock Setup</option>
                               </select>
                             </div>

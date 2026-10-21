@@ -342,3 +342,63 @@ export interface RegenerateUnlockedResponse {
   diagnostics: string[];
 }
 
+// ── Phase 8: PDF Report & Final Export Types ─────────────────────────────────
+
+export type ReportScope = 'building' | 'floor' | 'room';
+export type ReportMode = 'final' | 'draft';
+export type ReportSection =
+  | 'cover'
+  | 'table_of_contents'
+  | 'project_overview'
+  | 'building_floor_summary'
+  | 'client_preferences'
+  | 'room_layouts'
+  | 'furniture_schedule'
+  | 'kitchen_schedule'
+  | 'bathroom_schedule'
+  | 'lighting_schedule'
+  | 'electrical_schedule'
+  | 'plumbing_schedule'
+  | 'finish_schedule'
+  | 'ergonomic_validation'
+  | 'optimization_summary'
+  | 'layout_drawings'
+  | 'interior_views_3d'
+  | 'disclaimers';
+
+export interface PdfReportRequest {
+  scope?: ReportScope;
+  mode?: ReportMode;
+  target_floor_id?: string;
+  target_room_id?: string;
+  floor_id?: string;
+  room_id?: string;
+  floor_ids?: string[];
+  room_ids?: string[];
+  sections?: ReportSection[];
+  include_2d_drawings?: boolean;
+  include_3d_views?: boolean;
+  view_captures?: Record<string, string>;
+  viewer_3d_captures?: Record<string, string>;
+  author_name?: string;
+  notes?: string;
+}
+
+export interface ReportOptionsResponse {
+  available_scopes: string[];
+  available_modes: string[];
+  available_sections: string[];
+  default_sections: string[];
+  supported_scopes?: string[];
+  supported_sections?: string[];
+  available_floors?: Array<{ id: string; name: string }>;
+  available_rooms?: Array<{ id: string; name: string; floor_id?: string; type?: string }>;
+  staleness?: {
+    is_stale: boolean;
+    reasons?: string[];
+    geometry_staleness?: boolean;
+    preference_staleness?: boolean;
+  };
+}
+
+
