@@ -82,6 +82,10 @@ app.add_middleware(
 app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
 
 # Include all routers
+from .routers import esai
+app.include_router(esai.project_router)
+app.include_router(esai.global_router)
+
 app.include_router(auth.router, prefix="/api")
 app.include_router(gallery.router, prefix="/api")
 app.include_router(admin_gallery.router, prefix="/api")
@@ -99,12 +103,6 @@ app.include_router(about.admin_router, prefix="/api")
 # Add CubiCasa5K Research Router
 from .routers import research_cubicasa
 app.include_router(research_cubicasa.router, prefix="/api")
-
-# Add ESAI Routers
-from .routers import esai
-app.include_router(esai.project_router)
-app.include_router(esai.global_router)
-
 
 @app.get("/api/health")
 def health_check():

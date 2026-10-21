@@ -1,357 +1,2236 @@
 {
-  "version": "1.0",
-  "provenance": "Architectural Graphic Standards & Ergonomic Furniture Specifications (All dimensions in meters)",
+  "version": "2.0",
+  "provenance": "Architectural Graphic Standards, Ernst Neufert Architects' Data & Verified Metric Specifications (Dimensions in meters)",
   "items": [
     {
       "id": "BED_KING_01",
       "category": "bed",
       "name": "King Bed",
-      "supported_room_types": ["master_bedroom", "bedroom"],
-      "dimensions": {"width": 1.93, "depth": 2.03, "height": 0.6},
+      "supported_room_types": [
+        "master_bedroom",
+        "bedroom"
+      ],
+      "dimensions": {
+        "width": 1.93,
+        "depth": 2.03,
+        "height": 0.6
+      },
       "physical_footprint_type": "rectangle",
       "default_clearance_rule_id": "BED_ACCESS_PRIMARY",
-      "supported_rotations": [0, 90, 180, 270],
-      "placement_preferences": {"wall_affinity": "headboard_to_wall"},
-      "functional_relations": ["bedside_table", "wardrobe"],
+      "supported_rotations": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "placement_preferences": {
+        "wall_affinity": "headboard_to_wall"
+      },
+      "functional_relations": [
+        "bedside_table",
+        "wardrobe"
+      ],
       "mobility": "movable",
       "rendering_model_id": "model_bed_king_01",
-      "material_variants": ["wood_oak", "wood_walnut", "upholstered_grey", "upholstered_cream"],
+      "material_variants": [
+        "wood_oak",
+        "wood_walnut",
+        "upholstered_grey",
+        "upholstered_cream"
+      ],
       "enabled": true
     },
     {
       "id": "BED_QUEEN_01",
       "category": "bed",
       "name": "Queen Bed",
-      "supported_room_types": ["master_bedroom", "bedroom", "guest_room"],
-      "dimensions": {"width": 1.52, "depth": 2.03, "height": 0.55},
+      "supported_room_types": [
+        "master_bedroom",
+        "bedroom",
+        "guest_room"
+      ],
+      "dimensions": {
+        "width": 1.52,
+        "depth": 2.03,
+        "height": 0.55
+      },
       "physical_footprint_type": "rectangle",
       "default_clearance_rule_id": "BED_ACCESS_PRIMARY",
-      "supported_rotations": [0, 90, 180, 270],
-      "placement_preferences": {"wall_affinity": "headboard_to_wall"},
-      "functional_relations": ["bedside_table", "wardrobe"],
+      "supported_rotations": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "placement_preferences": {
+        "wall_affinity": "headboard_to_wall"
+      },
+      "functional_relations": [
+        "bedside_table",
+        "wardrobe"
+      ],
       "mobility": "movable",
       "rendering_model_id": "model_bed_queen_01",
-      "material_variants": ["wood_teak", "wood_walnut", "upholstered_beige"],
+      "material_variants": [
+        "wood_teak",
+        "wood_walnut",
+        "upholstered_beige"
+      ],
       "enabled": true
     },
     {
       "id": "BED_SINGLE_01",
       "category": "bed",
       "name": "Single / Twin Bed",
-      "supported_room_types": ["bedroom", "guest_room"],
-      "dimensions": {"width": 0.95, "depth": 1.95, "height": 0.5},
+      "supported_room_types": [
+        "bedroom",
+        "guest_room"
+      ],
+      "dimensions": {
+        "width": 0.95,
+        "depth": 1.95,
+        "height": 0.5
+      },
       "physical_footprint_type": "rectangle",
       "default_clearance_rule_id": "BED_ACCESS_SECONDARY",
-      "supported_rotations": [0, 90, 180, 270],
-      "placement_preferences": {"wall_affinity": "headboard_to_wall"},
-      "functional_relations": ["bedside_table", "desk"],
+      "supported_rotations": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "placement_preferences": {
+        "wall_affinity": "headboard_to_wall"
+      },
+      "functional_relations": [
+        "bedside_table",
+        "desk"
+      ],
       "mobility": "movable",
       "rendering_model_id": "model_bed_single_01",
-      "material_variants": ["wood_white", "wood_natural"],
+      "material_variants": [
+        "wood_white",
+        "wood_natural"
+      ],
       "enabled": true
     },
     {
       "id": "NIGHTSTAND_01",
       "category": "bedside_table",
       "name": "Bedside Table",
-      "supported_room_types": ["master_bedroom", "bedroom", "guest_room"],
-      "dimensions": {"width": 0.45, "depth": 0.40, "height": 0.55},
+      "supported_room_types": [
+        "master_bedroom",
+        "bedroom",
+        "guest_room"
+      ],
+      "dimensions": {
+        "width": 0.45,
+        "depth": 0.4,
+        "height": 0.55
+      },
       "physical_footprint_type": "rectangle",
       "default_clearance_rule_id": "GENERAL_CIRCULATION",
-      "supported_rotations": [0, 90, 180, 270],
-      "placement_preferences": {"adjacent_to": "bed"},
-      "functional_relations": ["bed"],
+      "supported_rotations": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "placement_preferences": {
+        "adjacent_to": "bed"
+      },
+      "functional_relations": [
+        "bed"
+      ],
       "mobility": "movable",
       "rendering_model_id": "model_nightstand_01",
-      "material_variants": ["wood_oak", "wood_walnut", "painted_white"],
+      "material_variants": [
+        "wood_oak",
+        "wood_walnut",
+        "painted_white"
+      ],
       "enabled": true
     },
     {
       "id": "WARDROBE_3DOOR_01",
       "category": "wardrobe",
       "name": "3-Door Hinged Wardrobe",
-      "supported_room_types": ["master_bedroom", "bedroom", "guest_room"],
-      "dimensions": {"width": 1.50, "depth": 0.60, "height": 2.20},
+      "supported_room_types": [
+        "master_bedroom",
+        "bedroom",
+        "guest_room"
+      ],
+      "dimensions": {
+        "width": 1.5,
+        "depth": 0.6,
+        "height": 2.2
+      },
       "physical_footprint_type": "rectangle",
       "default_clearance_rule_id": "WARDROBE_HINGED_FRONT",
-      "supported_rotations": [0, 90, 180, 270],
-      "placement_preferences": {"back_against_wall": true},
-      "functional_relations": ["bed", "dressing_table"],
+      "supported_rotations": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "placement_preferences": {
+        "back_against_wall": true
+      },
+      "functional_relations": [
+        "bed",
+        "dressing_table"
+      ],
       "mobility": "movable",
       "rendering_model_id": "model_wardrobe_3d_01",
-      "material_variants": ["matte_white", "wood_laminate_teak"],
+      "material_variants": [
+        "matte_white",
+        "wood_laminate_teak"
+      ],
       "enabled": true
     },
     {
       "id": "WARDROBE_SLIDING_01",
       "category": "wardrobe",
       "name": "Sliding Door Wardrobe",
-      "supported_room_types": ["master_bedroom", "bedroom", "guest_room"],
-      "dimensions": {"width": 1.80, "depth": 0.65, "height": 2.20},
+      "supported_room_types": [
+        "master_bedroom",
+        "bedroom",
+        "guest_room"
+      ],
+      "dimensions": {
+        "width": 1.8,
+        "depth": 0.65,
+        "height": 2.2
+      },
       "physical_footprint_type": "rectangle",
       "default_clearance_rule_id": "WARDROBE_SLIDING_FRONT",
-      "supported_rotations": [0, 90, 180, 270],
-      "placement_preferences": {"back_against_wall": true},
-      "functional_relations": ["bed"],
+      "supported_rotations": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "placement_preferences": {
+        "back_against_wall": true
+      },
+      "functional_relations": [
+        "bed"
+      ],
       "mobility": "movable",
       "rendering_model_id": "model_wardrobe_slide_01",
-      "material_variants": ["wood_walnut", "mirror_front"],
+      "material_variants": [
+        "wood_walnut",
+        "mirror_front"
+      ],
       "enabled": true
     },
     {
       "id": "DRESSING_TABLE_01",
       "category": "dressing_table",
       "name": "Dressing Table with Mirror",
-      "supported_room_types": ["master_bedroom", "bedroom"],
-      "dimensions": {"width": 1.00, "depth": 0.45, "height": 1.40},
+      "supported_room_types": [
+        "master_bedroom",
+        "bedroom"
+      ],
+      "dimensions": {
+        "width": 1.0,
+        "depth": 0.45,
+        "height": 1.4
+      },
       "physical_footprint_type": "rectangle",
       "default_clearance_rule_id": "SEATING_USE_SPACE",
-      "supported_rotations": [0, 90, 180, 270],
-      "placement_preferences": {"back_against_wall": true},
-      "functional_relations": ["wardrobe"],
+      "supported_rotations": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "placement_preferences": {
+        "back_against_wall": true
+      },
+      "functional_relations": [
+        "wardrobe"
+      ],
       "mobility": "movable",
       "rendering_model_id": "model_dressing_tbl_01",
-      "material_variants": ["wood_light", "wood_dark"],
+      "material_variants": [
+        "wood_light",
+        "wood_dark"
+      ],
       "enabled": true
     },
     {
       "id": "SOFA_3SEATER_01",
       "category": "sofa",
       "name": "3-Seater Sofa",
-      "supported_room_types": ["living_room"],
-      "dimensions": {"width": 2.10, "depth": 0.90, "height": 0.85},
+      "supported_room_types": [
+        "living_room"
+      ],
+      "dimensions": {
+        "width": 2.1,
+        "depth": 0.9,
+        "height": 0.85
+      },
       "physical_footprint_type": "rectangle",
       "default_clearance_rule_id": "LIVING_SOFA_FRONT",
-      "supported_rotations": [0, 90, 180, 270],
-      "placement_preferences": {"front_facing": "coffee_table"},
-      "functional_relations": ["coffee_table", "tv_console", "armchair"],
+      "supported_rotations": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "placement_preferences": {
+        "front_facing": "coffee_table"
+      },
+      "functional_relations": [
+        "coffee_table",
+        "tv_console",
+        "armchair"
+      ],
       "mobility": "movable",
       "rendering_model_id": "model_sofa_3s_01",
-      "material_variants": ["fabric_charcoal", "fabric_beige", "leather_tan"],
+      "material_variants": [
+        "fabric_charcoal",
+        "fabric_beige",
+        "leather_tan"
+      ],
       "enabled": true
     },
     {
       "id": "SOFA_2SEATER_01",
       "category": "sofa",
       "name": "2-Seater Loveseat",
-      "supported_room_types": ["living_room", "study"],
-      "dimensions": {"width": 1.55, "depth": 0.85, "height": 0.85},
+      "supported_room_types": [
+        "living_room",
+        "study"
+      ],
+      "dimensions": {
+        "width": 1.55,
+        "depth": 0.85,
+        "height": 0.85
+      },
       "physical_footprint_type": "rectangle",
       "default_clearance_rule_id": "LIVING_SOFA_FRONT",
-      "supported_rotations": [0, 90, 180, 270],
-      "placement_preferences": {"front_facing": "coffee_table"},
-      "functional_relations": ["coffee_table", "sofa"],
+      "supported_rotations": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "placement_preferences": {
+        "front_facing": "coffee_table"
+      },
+      "functional_relations": [
+        "coffee_table",
+        "sofa"
+      ],
       "mobility": "movable",
       "rendering_model_id": "model_sofa_2s_01",
-      "material_variants": ["fabric_blue", "fabric_light_grey"],
+      "material_variants": [
+        "fabric_blue",
+        "fabric_light_grey"
+      ],
       "enabled": true
     },
     {
       "id": "ARMCHAIR_01",
       "category": "armchair",
       "name": "Armchair Accent Chair",
-      "supported_room_types": ["living_room", "study", "master_bedroom"],
-      "dimensions": {"width": 0.80, "depth": 0.80, "height": 0.80},
+      "supported_room_types": [
+        "living_room",
+        "study",
+        "master_bedroom"
+      ],
+      "dimensions": {
+        "width": 0.8,
+        "depth": 0.8,
+        "height": 0.8
+      },
       "physical_footprint_type": "rectangle",
       "default_clearance_rule_id": "SEATING_USE_SPACE",
-      "supported_rotations": [0, 90, 180, 270],
+      "supported_rotations": [
+        0,
+        90,
+        180,
+        270
+      ],
       "placement_preferences": {},
-      "functional_relations": ["coffee_table", "side_table"],
+      "functional_relations": [
+        "coffee_table",
+        "side_table"
+      ],
       "mobility": "movable",
       "rendering_model_id": "model_armchair_01",
-      "material_variants": ["velvet_emerald", "fabric_mustard", "leather_brown"],
+      "material_variants": [
+        "velvet_emerald",
+        "fabric_mustard",
+        "leather_brown"
+      ],
       "enabled": true
     },
     {
       "id": "COFFEE_TABLE_01",
       "category": "coffee_table",
       "name": "Rectangular Coffee Table",
-      "supported_room_types": ["living_room"],
-      "dimensions": {"width": 1.20, "depth": 0.60, "height": 0.45},
+      "supported_room_types": [
+        "living_room"
+      ],
+      "dimensions": {
+        "width": 1.2,
+        "depth": 0.6,
+        "height": 0.45
+      },
       "physical_footprint_type": "rectangle",
       "default_clearance_rule_id": "SOFA_TO_COFFEE_TABLE",
-      "supported_rotations": [0, 90, 180, 270],
-      "placement_preferences": {"centered_with": "sofa"},
-      "functional_relations": ["sofa", "armchair"],
+      "supported_rotations": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "placement_preferences": {
+        "centered_with": "sofa"
+      },
+      "functional_relations": [
+        "sofa",
+        "armchair"
+      ],
       "mobility": "movable",
       "rendering_model_id": "model_coffee_tbl_01",
-      "material_variants": ["wood_glass", "solid_walnut"],
+      "material_variants": [
+        "wood_glass",
+        "solid_walnut"
+      ],
       "enabled": true
     },
     {
       "id": "TV_CONSOLE_01",
       "category": "tv_console",
       "name": "Media TV Console",
-      "supported_room_types": ["living_room", "bedroom"],
-      "dimensions": {"width": 1.60, "depth": 0.40, "height": 0.50},
+      "supported_room_types": [
+        "living_room",
+        "bedroom"
+      ],
+      "dimensions": {
+        "width": 1.6,
+        "depth": 0.4,
+        "height": 0.5
+      },
       "physical_footprint_type": "rectangle",
       "default_clearance_rule_id": "GENERAL_CIRCULATION",
-      "supported_rotations": [0, 90, 180, 270],
-      "placement_preferences": {"back_against_wall": true, "facing": "sofa"},
-      "functional_relations": ["sofa"],
+      "supported_rotations": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "placement_preferences": {
+        "back_against_wall": true,
+        "facing": "sofa"
+      },
+      "functional_relations": [
+        "sofa"
+      ],
       "mobility": "movable",
       "rendering_model_id": "model_tv_console_01",
-      "material_variants": ["wood_black_metal", "scandi_oak"],
+      "material_variants": [
+        "wood_black_metal",
+        "scandi_oak"
+      ],
       "enabled": true
     },
     {
       "id": "BOOKSHELF_01",
       "category": "bookshelf",
       "name": "Open Bookshelf Unit",
-      "supported_room_types": ["living_room", "study", "home_office"],
-      "dimensions": {"width": 0.90, "depth": 0.35, "height": 1.90},
+      "supported_room_types": [
+        "living_room",
+        "study",
+        "home_office"
+      ],
+      "dimensions": {
+        "width": 0.9,
+        "depth": 0.35,
+        "height": 1.9
+      },
       "physical_footprint_type": "rectangle",
       "default_clearance_rule_id": "SHELF_ACCESS_FRONT",
-      "supported_rotations": [0, 90, 180, 270],
-      "placement_preferences": {"back_against_wall": true},
-      "functional_relations": ["desk"],
+      "supported_rotations": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "placement_preferences": {
+        "back_against_wall": true
+      },
+      "functional_relations": [
+        "desk"
+      ],
       "mobility": "movable",
       "rendering_model_id": "model_bookshelf_01",
-      "material_variants": ["oak_veneer", "white_metal"],
+      "material_variants": [
+        "oak_veneer",
+        "white_metal"
+      ],
       "enabled": true
     },
     {
       "id": "DINING_TABLE_6S_01",
       "category": "dining_table",
       "name": "6-Person Dining Table",
-      "supported_room_types": ["dining_room", "living_room"],
-      "dimensions": {"width": 1.60, "depth": 0.90, "height": 0.75},
+      "supported_room_types": [
+        "dining_room",
+        "living_room"
+      ],
+      "dimensions": {
+        "width": 1.6,
+        "depth": 0.9,
+        "height": 0.75
+      },
       "physical_footprint_type": "rectangle",
       "default_clearance_rule_id": "DINING_CHAIR_PULLOUT",
-      "supported_rotations": [0, 90, 180, 270],
-      "placement_preferences": {"circulation_around": true},
-      "functional_relations": ["dining_chair", "storage_cabinet"],
+      "supported_rotations": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "placement_preferences": {
+        "circulation_around": true
+      },
+      "functional_relations": [
+        "dining_chair",
+        "storage_cabinet"
+      ],
       "mobility": "movable",
       "rendering_model_id": "model_dining_tbl_6s_01",
-      "material_variants": ["solid_oak", "smoked_glass", "marble_top"],
+      "material_variants": [
+        "solid_oak",
+        "smoked_glass",
+        "marble_top"
+      ],
       "enabled": true
     },
     {
       "id": "DINING_CHAIR_01",
       "category": "dining_chair",
       "name": "Dining Chair",
-      "supported_room_types": ["dining_room", "kitchen"],
-      "dimensions": {"width": 0.45, "depth": 0.50, "height": 0.85},
+      "supported_room_types": [
+        "dining_room",
+        "kitchen"
+      ],
+      "dimensions": {
+        "width": 0.45,
+        "depth": 0.5,
+        "height": 0.85
+      },
       "physical_footprint_type": "rectangle",
       "default_clearance_rule_id": "DINING_CHAIR_PULLOUT",
-      "supported_rotations": [0, 90, 180, 270],
-      "placement_preferences": {"tucked_under": "dining_table"},
-      "functional_relations": ["dining_table"],
+      "supported_rotations": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "placement_preferences": {
+        "tucked_under": "dining_table"
+      },
+      "functional_relations": [
+        "dining_table"
+      ],
       "mobility": "movable",
       "rendering_model_id": "model_dining_chr_01",
-      "material_variants": ["wood_seat", "cushioned_grey"],
+      "material_variants": [
+        "wood_seat",
+        "cushioned_grey"
+      ],
       "enabled": true
     },
     {
       "id": "DESK_EXEC_01",
       "category": "desk",
       "name": "Study / Office Desk",
-      "supported_room_types": ["study", "home_office", "bedroom"],
-      "dimensions": {"width": 1.40, "depth": 0.70, "height": 0.75},
+      "supported_room_types": [
+        "study",
+        "home_office",
+        "bedroom"
+      ],
+      "dimensions": {
+        "width": 1.4,
+        "depth": 0.7,
+        "height": 0.75
+      },
       "physical_footprint_type": "rectangle",
       "default_clearance_rule_id": "DESK_CHAIR_MOVEMENT",
-      "supported_rotations": [0, 90, 180, 270],
-      "placement_preferences": {"daylight_orientation": "lateral_or_facing"},
-      "functional_relations": ["office_chair", "bookshelf"],
+      "supported_rotations": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "placement_preferences": {
+        "daylight_orientation": "lateral_or_facing"
+      },
+      "functional_relations": [
+        "office_chair",
+        "bookshelf"
+      ],
       "mobility": "movable",
       "rendering_model_id": "model_desk_exec_01",
-      "material_variants": ["walnut_black_frame", "white_minimal"],
+      "material_variants": [
+        "walnut_black_frame",
+        "white_minimal"
+      ],
       "enabled": true
     },
     {
       "id": "OFFICE_CHAIR_01",
       "category": "office_chair",
       "name": "Ergonomic Office Chair",
-      "supported_room_types": ["study", "home_office", "bedroom"],
-      "dimensions": {"width": 0.65, "depth": 0.65, "height": 1.05},
+      "supported_room_types": [
+        "study",
+        "home_office",
+        "bedroom"
+      ],
+      "dimensions": {
+        "width": 0.65,
+        "depth": 0.65,
+        "height": 1.05
+      },
       "physical_footprint_type": "rectangle",
       "default_clearance_rule_id": "DESK_CHAIR_MOVEMENT",
-      "supported_rotations": [0, 90, 180, 270],
-      "placement_preferences": {"paired_with": "desk"},
-      "functional_relations": ["desk"],
+      "supported_rotations": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "placement_preferences": {
+        "paired_with": "desk"
+      },
+      "functional_relations": [
+        "desk"
+      ],
       "mobility": "movable",
       "rendering_model_id": "model_office_chr_01",
-      "material_variants": ["mesh_black", "leather_black"],
+      "material_variants": [
+        "mesh_black",
+        "leather_black"
+      ],
       "enabled": true
     },
     {
       "id": "KITCHEN_COUNTER_BASE_01",
       "category": "kitchen_counter",
       "name": "Standard Kitchen Counter Run",
-      "supported_room_types": ["kitchen"],
-      "dimensions": {"width": 2.40, "depth": 0.60, "height": 0.90},
+      "supported_room_types": [
+        "kitchen"
+      ],
+      "dimensions": {
+        "width": 2.4,
+        "depth": 0.6,
+        "height": 0.9
+      },
       "physical_footprint_type": "rectangle",
       "default_clearance_rule_id": "KITCHEN_WORK_CLEARANCE",
-      "supported_rotations": [0, 90, 180, 270],
-      "placement_preferences": {"against_wall": true},
-      "functional_relations": ["kitchen_appliance"],
+      "supported_rotations": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "placement_preferences": {
+        "against_wall": true
+      },
+      "functional_relations": [
+        "kitchen_appliance"
+      ],
       "mobility": "fixed",
       "rendering_model_id": "model_k_counter_01",
-      "material_variants": ["granite_black", "quartz_white"],
+      "material_variants": [
+        "granite_black",
+        "quartz_white"
+      ],
       "enabled": true
     },
     {
       "id": "KITCHEN_ISLAND_01",
       "category": "kitchen_island",
       "name": "Central Kitchen Island",
-      "supported_room_types": ["kitchen"],
-      "dimensions": {"width": 1.80, "depth": 0.90, "height": 0.90},
+      "supported_room_types": [
+        "kitchen"
+      ],
+      "dimensions": {
+        "width": 1.8,
+        "depth": 0.9,
+        "height": 0.9
+      },
       "physical_footprint_type": "rectangle",
       "default_clearance_rule_id": "KITCHEN_AISLE_CLEARANCE",
-      "supported_rotations": [0, 90, 180, 270],
-      "placement_preferences": {"island_central": true},
-      "functional_relations": ["kitchen_counter"],
+      "supported_rotations": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "placement_preferences": {
+        "island_central": true
+      },
+      "functional_relations": [
+        "kitchen_counter"
+      ],
       "mobility": "fixed",
       "rendering_model_id": "model_k_island_01",
-      "material_variants": ["quartz_waterfall", "butcher_block"],
+      "material_variants": [
+        "quartz_waterfall",
+        "butcher_block"
+      ],
       "enabled": true
     },
     {
       "id": "BATH_BASIN_VANITY_01",
       "category": "basin",
       "name": "Bathroom Vanity Basin",
-      "supported_room_types": ["bathroom"],
-      "dimensions": {"width": 0.80, "depth": 0.50, "height": 0.85},
+      "supported_room_types": [
+        "bathroom"
+      ],
+      "dimensions": {
+        "width": 0.8,
+        "depth": 0.5,
+        "height": 0.85
+      },
       "physical_footprint_type": "rectangle",
       "default_clearance_rule_id": "BATH_BASIN_FRONT",
-      "supported_rotations": [0, 90, 180, 270],
-      "placement_preferences": {"against_wall": true, "plumbing_wall": true},
-      "functional_relations": ["commode", "shower_enclosure"],
+      "supported_rotations": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "placement_preferences": {
+        "against_wall": true,
+        "plumbing_wall": true
+      },
+      "functional_relations": [
+        "commode",
+        "shower_enclosure"
+      ],
       "mobility": "fixed",
       "rendering_model_id": "model_bath_vanity_01",
-      "material_variants": ["ceramic_white_wood"],
+      "material_variants": [
+        "ceramic_white_wood"
+      ],
       "enabled": true
     },
     {
       "id": "BATH_COMMODE_01",
       "category": "commode",
       "name": "Water Closet (WC / Commode)",
-      "supported_room_types": ["bathroom"],
-      "dimensions": {"width": 0.40, "depth": 0.65, "height": 0.75},
+      "supported_room_types": [
+        "bathroom"
+      ],
+      "dimensions": {
+        "width": 0.4,
+        "depth": 0.65,
+        "height": 0.75
+      },
       "physical_footprint_type": "rectangle",
       "default_clearance_rule_id": "BATH_COMMODE_CLEARANCE",
-      "supported_rotations": [0, 90, 180, 270],
-      "placement_preferences": {"against_wall": true, "plumbing_wall": true},
-      "functional_relations": ["basin"],
+      "supported_rotations": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "placement_preferences": {
+        "against_wall": true,
+        "plumbing_wall": true
+      },
+      "functional_relations": [
+        "basin"
+      ],
       "mobility": "fixed",
       "rendering_model_id": "model_bath_wc_01",
-      "material_variants": ["ceramic_white"],
+      "material_variants": [
+        "ceramic_white"
+      ],
       "enabled": true
     },
     {
       "id": "BATH_SHOWER_ENCLOSURE_01",
       "category": "shower_enclosure",
       "name": "Corner Walk-In Shower",
-      "supported_room_types": ["bathroom"],
-      "dimensions": {"width": 0.90, "depth": 0.90, "height": 2.10},
+      "supported_room_types": [
+        "bathroom"
+      ],
+      "dimensions": {
+        "width": 0.9,
+        "depth": 0.9,
+        "height": 2.1
+      },
       "physical_footprint_type": "rectangle",
       "default_clearance_rule_id": "BATH_SHOWER_ENTRY",
-      "supported_rotations": [0, 90, 180, 270],
-      "placement_preferences": {"corner_placement": true},
-      "functional_relations": ["basin"],
+      "supported_rotations": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "placement_preferences": {
+        "corner_placement": true
+      },
+      "functional_relations": [
+        "basin"
+      ],
       "mobility": "fixed",
       "rendering_model_id": "model_bath_shower_01",
-      "material_variants": ["glass_chrome"],
+      "material_variants": [
+        "glass_chrome"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "BED_DOUBLE_01",
+      "category": "bed",
+      "subtype": "double_bed",
+      "name": "Standard Double Bed",
+      "description": "Full-size double bed accommodating two adults (140 x 200 cm mattress).",
+      "supported_room_types": [
+        "bedroom",
+        "guest_room",
+        "master_bedroom"
+      ],
+      "dimensions": {
+        "width": 1.48,
+        "depth": 2.05,
+        "height": 0.55
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "floor_standing",
+      "default_clearance_rule_id": "BED_ACCESS_PRIMARY",
+      "supported_rotations": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "placement_preferences": {
+        "wall_affinity": "headboard_to_wall"
+      },
+      "functional_relations": [
+        "bedside_table",
+        "wardrobe"
+      ],
+      "mobility": "movable",
+      "rendering_model_id": "model_bed_double_01",
+      "material_variants": [
+        "wood_oak",
+        "wood_walnut",
+        "upholstered_grey"
+      ],
+      "color_variants": [
+        "natural_oak",
+        "walnut",
+        "charcoal"
+      ],
+      "required_services": [],
+      "optional_services": [
+        {
+          "type": "power_general",
+          "description": "Bedside reading light outlet"
+        }
+      ],
+      "provenance": "Neufert Architects' Data (p. 254) & Standard Metric Sizing",
+      "enabled": true
+    },
+    {
+      "id": "BED_TWIN_PAIR_01",
+      "category": "bed",
+      "subtype": "twin_beds",
+      "name": "Twin Beds Arrangement",
+      "description": "Paired twin single beds with central nightstand buffer.",
+      "supported_room_types": [
+        "bedroom",
+        "guest_room"
+      ],
+      "dimensions": {
+        "width": 2.25,
+        "depth": 2.0,
+        "height": 0.5
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "floor_standing",
+      "default_clearance_rule_id": "BED_ACCESS_PRIMARY",
+      "supported_rotations": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "placement_preferences": {
+        "wall_affinity": "headboard_to_wall"
+      },
+      "functional_relations": [
+        "bedside_table",
+        "wardrobe"
+      ],
+      "mobility": "movable",
+      "rendering_model_id": "model_bed_twin_pair_01",
+      "material_variants": [
+        "wood_white",
+        "wood_natural"
+      ],
+      "provenance": "Architects' Data (Neufert) Bedroom Configurations",
+      "enabled": true
+    },
+    {
+      "id": "BED_BUNK_01",
+      "category": "bed",
+      "subtype": "bunk_bed",
+      "name": "Twin-over-Twin Bunk Bed",
+      "description": "Two-tier vertical stacked bed with safety guardrail and fixed ladder.",
+      "supported_room_types": [
+        "bedroom"
+      ],
+      "dimensions": {
+        "width": 1.05,
+        "depth": 2.05,
+        "height": 1.7
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "floor_standing",
+      "default_clearance_rule_id": "BED_ACCESS_PRIMARY",
+      "supported_rotations": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "placement_preferences": {
+        "wall_affinity": "headboard_to_wall",
+        "side_wall_affinity": "long_side_against_wall"
+      },
+      "functional_relations": [
+        "wardrobe",
+        "desk"
+      ],
+      "safety_considerations": "Minimum 800mm ceiling buffer required above top bunk mattress.",
+      "mobility": "movable",
+      "rendering_model_id": "model_bed_bunk_01",
+      "material_variants": [
+        "wood_pine",
+        "painted_white",
+        "metal_black"
+      ],
+      "provenance": "ASTM F1427 & EN 747 Bunk Bed Safety Standards",
+      "enabled": true
+    },
+    {
+      "id": "BED_TRIPLE_SLEEPER_01",
+      "category": "bed",
+      "subtype": "triple_sleeper",
+      "name": "Triple-Sleeper Bunk Bed",
+      "description": "Distinct 3-person bunk configuration with double bed lower tier (140cm) and single bed upper tier (90cm).",
+      "supported_room_types": [
+        "bedroom",
+        "guest_room"
+      ],
+      "dimensions": {
+        "width": 1.5,
+        "depth": 2.05,
+        "height": 1.75
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "floor_standing",
+      "default_clearance_rule_id": "BED_ACCESS_PRIMARY",
+      "supported_rotations": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "placement_preferences": {
+        "wall_affinity": "headboard_to_wall"
+      },
+      "functional_relations": [
+        "wardrobe",
+        "bedside_table"
+      ],
+      "safety_considerations": "Integrated ladder clearance required on long side.",
+      "mobility": "movable",
+      "rendering_model_id": "model_bed_triple_01",
+      "material_variants": [
+        "solid_pine",
+        "metal_white"
+      ],
+      "provenance": "European Standard EN 747 / Bunk & High Beds Specification",
+      "enabled": true
+    },
+    {
+      "id": "BED_STORAGE_01",
+      "category": "bed",
+      "subtype": "storage_bed",
+      "name": "Queen Hydraulic Storage Bed",
+      "description": "Queen bed with gas-lift hydraulic under-mattress storage chamber.",
+      "supported_room_types": [
+        "master_bedroom",
+        "bedroom"
+      ],
+      "dimensions": {
+        "width": 1.62,
+        "depth": 2.1,
+        "height": 0.65
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "floor_standing",
+      "default_clearance_rule_id": "BED_ACCESS_PRIMARY",
+      "supported_rotations": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "placement_preferences": {
+        "wall_affinity": "headboard_to_wall"
+      },
+      "functional_relations": [
+        "bedside_table",
+        "wardrobe"
+      ],
+      "mobility": "movable",
+      "rendering_model_id": "model_bed_storage_01",
+      "material_variants": [
+        "fabric_grey",
+        "leather_tan"
+      ],
+      "provenance": "Manufacturer Sizing Specifications",
+      "enabled": true
+    },
+    {
+      "id": "WARDROBE_4DOOR_01",
+      "category": "wardrobe",
+      "subtype": "hinged_wardrobe",
+      "name": "4-Door Hinged Master Wardrobe",
+      "description": "Full-width hinged wardrobe with integrated shelving and hanging rails.",
+      "supported_room_types": [
+        "master_bedroom",
+        "bedroom"
+      ],
+      "dimensions": {
+        "width": 2.0,
+        "depth": 0.6,
+        "height": 2.3
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "floor_standing",
+      "default_clearance_rule_id": "WARDROBE_HINGED_FRONT",
+      "wall_attachment_required": true,
+      "placement_preferences": {
+        "back_against_wall": true
+      },
+      "functional_relations": [
+        "bed",
+        "dressing_table"
+      ],
+      "mobility": "fixed",
+      "rendering_model_id": "model_wardrobe_4d_01",
+      "material_variants": [
+        "matte_white",
+        "wood_walnut",
+        "smoked_glass"
+      ],
+      "provenance": "Neufert Architects' Data (p. 256)",
+      "enabled": true
+    },
+    {
+      "id": "WARDROBE_WALKIN_UNIT_01",
+      "category": "wardrobe",
+      "subtype": "walk_in_wardrobe",
+      "name": "Walk-In Modular Open Wardrobe",
+      "description": "Open modular dressing unit without doors, optimized for dedicated dressing rooms.",
+      "supported_room_types": [
+        "master_bedroom"
+      ],
+      "dimensions": {
+        "width": 1.8,
+        "depth": 0.55,
+        "height": 2.2
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "floor_standing",
+      "default_clearance_rule_id": "WARDROBE_SLIDING_FRONT",
+      "wall_attachment_required": true,
+      "placement_preferences": {
+        "back_against_wall": true
+      },
+      "functional_relations": [
+        "dressing_table"
+      ],
+      "mobility": "fixed",
+      "rendering_model_id": "model_walkin_01",
+      "material_variants": [
+        "dark_ash",
+        "warm_oak"
+      ],
+      "provenance": "Architectural Graphic Standards: Residential Dressing Closets",
+      "enabled": true
+    },
+    {
+      "id": "CHEST_OF_DRAWERS_01",
+      "category": "storage_cabinet",
+      "subtype": "chest_of_drawers",
+      "name": "6-Drawer Bedroom Dresser",
+      "description": "Double column 6-drawer low storage chest.",
+      "supported_room_types": [
+        "master_bedroom",
+        "bedroom",
+        "guest_room"
+      ],
+      "dimensions": {
+        "width": 1.2,
+        "depth": 0.48,
+        "height": 0.85
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "floor_standing",
+      "default_clearance_rule_id": "WARDROBE_HINGED_FRONT",
+      "wall_attachment_required": true,
+      "placement_preferences": {
+        "back_against_wall": true
+      },
+      "mobility": "movable",
+      "rendering_model_id": "model_dresser_01",
+      "material_variants": [
+        "wood_oak",
+        "white_lacquer"
+      ],
+      "provenance": "ANSI/BIFMA Tip-Over Restraint Guidelines & Neufert",
+      "enabled": true
+    },
+    {
+      "id": "SOFA_SECTIONAL_L_01",
+      "category": "sofa",
+      "subtype": "sectional_sofa",
+      "name": "L-Shaped Sectional Corner Sofa",
+      "description": "Spacious family sectional sofa with left or right chaise lounge return.",
+      "supported_room_types": [
+        "living_room",
+        "family_living_area",
+        "lounge",
+        "tv_lounge"
+      ],
+      "dimensions": {
+        "width": 2.8,
+        "depth": 2.1,
+        "height": 0.85
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "floor_standing",
+      "default_clearance_rule_id": "LIVING_SOFA_FRONT",
+      "supported_rotations": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "placement_preferences": {
+        "wall_affinity": "corner_or_freestanding"
+      },
+      "functional_relations": [
+        "coffee_table",
+        "tv_console"
+      ],
+      "mobility": "movable",
+      "rendering_model_id": "model_sofa_sectional_l_01",
+      "material_variants": [
+        "fabric_oatmeal",
+        "fabric_slate",
+        "leather_caramel"
+      ],
+      "provenance": "Panero & Zelnik Human Dimension & Interior Space (p. 138)",
+      "enabled": true
+    },
+    {
+      "id": "RECLINER_ARMCHAIR_01",
+      "category": "armchair",
+      "subtype": "recliner",
+      "name": "Ergonomic Swivel Recliner",
+      "description": "Contoured single lounge recliner with extending footrest.",
+      "supported_room_types": [
+        "living_room",
+        "family_living_area",
+        "tv_lounge",
+        "study"
+      ],
+      "dimensions": {
+        "width": 0.88,
+        "depth": 0.95,
+        "height": 1.05
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "floor_standing",
+      "default_clearance_rule_id": "SEATING_USE_SPACE",
+      "functional_relations": [
+        "side_table",
+        "coffee_table"
+      ],
+      "mobility": "movable",
+      "rendering_model_id": "model_recliner_01",
+      "material_variants": [
+        "leather_black",
+        "leather_cognac",
+        "boucle_cream"
+      ],
+      "provenance": "BIFMA Ergonomic Seating Standards",
+      "enabled": true
+    },
+    {
+      "id": "MEDIA_WALL_UNIT_01",
+      "category": "media_wall",
+      "subtype": "full_media_wall",
+      "name": "Architectural Slat Media Wall Unit",
+      "description": "Full-height timber acoustic slat wall panel with integrated floating TV console.",
+      "supported_room_types": [
+        "living_room",
+        "family_living_area",
+        "tv_lobby",
+        "tv_lounge"
+      ],
+      "dimensions": {
+        "width": 2.4,
+        "depth": 0.4,
+        "height": 2.4
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "wall_mounted",
+      "wall_attachment_required": true,
+      "placement_preferences": {
+        "back_against_wall": true
+      },
+      "functional_relations": [
+        "sofa"
+      ],
+      "required_services": [
+        {
+          "type": "tv_power",
+          "description": "Quad gang TV power socket"
+        },
+        {
+          "type": "tv_data",
+          "description": "Cat6 RJ45 and coaxial RG6 data point"
+        }
+      ],
+      "mobility": "fixed",
+      "rendering_model_id": "model_media_wall_01",
+      "material_variants": [
+        "black_slat_oak",
+        "walnut_bronze"
+      ],
+      "provenance": "Architectural Woodwork Standards (AWS)",
+      "enabled": true
+    },
+    {
+      "id": "SIDE_TABLE_01",
+      "category": "side_table",
+      "subtype": "side_table",
+      "name": "Circular Accent Side Table",
+      "description": "Compact occasional table for placing drinks or task lighting beside seating.",
+      "supported_room_types": [
+        "living_room",
+        "lounge",
+        "bedroom"
+      ],
+      "dimensions": {
+        "width": 0.45,
+        "depth": 0.45,
+        "height": 0.52
+      },
+      "physical_footprint_type": "circle",
+      "placement_mode": "floor_standing",
+      "default_clearance_rule_id": "GENERAL_CIRCULATION",
+      "functional_relations": [
+        "sofa",
+        "armchair"
+      ],
+      "mobility": "movable",
+      "rendering_model_id": "model_side_table_01",
+      "material_variants": [
+        "marble_brass",
+        "smoked_glass",
+        "solid_walnut"
+      ],
+      "provenance": "Standard Metric Furniture Dimensions",
+      "enabled": true
+    },
+    {
+      "id": "KITCHEN_SINK_UNIT_01",
+      "category": "sink",
+      "subtype": "single_bowl_sink",
+      "name": "Undermount Single Basin Sink Unit",
+      "description": "Base cabinet with 600mm deep undermount stainless steel sink and mixer faucet provision.",
+      "supported_room_types": [
+        "kitchen",
+        "pantry",
+        "utility_room"
+      ],
+      "dimensions": {
+        "width": 0.8,
+        "depth": 0.6,
+        "height": 0.9
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "floor_standing",
+      "default_clearance_rule_id": "KITCHEN_WORK_CLEARANCE",
+      "wall_attachment_required": true,
+      "placement_preferences": {
+        "back_against_wall": true
+      },
+      "functional_relations": [
+        "kitchen_counter",
+        "dishwasher"
+      ],
+      "required_services": [
+        {
+          "type": "water_cold",
+          "description": "1/2 inch cold water supply valve"
+        },
+        {
+          "type": "water_hot",
+          "description": "1/2 inch hot water supply valve"
+        },
+        {
+          "type": "drainage",
+          "description": "50mm PVC waste drainage trap"
+        }
+      ],
+      "mobility": "fixed",
+      "rendering_model_id": "model_sink_01",
+      "material_variants": [
+        "stainless_steel",
+        "composite_black_granite"
+      ],
+      "provenance": "Neufert Architects' Data (p. 258) Kitchen Work Triangle",
+      "enabled": true
+    },
+    {
+      "id": "KITCHEN_DOUBLE_SINK_01",
+      "category": "sink",
+      "subtype": "double_bowl_sink",
+      "name": "Double Basin Sink & Draining Board Unit",
+      "description": "Wide base cabinet with twin deep bowls and vegetable prep basin.",
+      "supported_room_types": [
+        "kitchen"
+      ],
+      "dimensions": {
+        "width": 1.2,
+        "depth": 0.6,
+        "height": 0.9
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "floor_standing",
+      "default_clearance_rule_id": "KITCHEN_WORK_CLEARANCE",
+      "wall_attachment_required": true,
+      "placement_preferences": {
+        "back_against_wall": true
+      },
+      "functional_relations": [
+        "kitchen_counter",
+        "dishwasher"
+      ],
+      "required_services": [
+        {
+          "type": "water_cold",
+          "description": "Cold water point"
+        },
+        {
+          "type": "water_hot",
+          "description": "Hot water point"
+        },
+        {
+          "type": "drainage",
+          "description": "Dual waste drain"
+        }
+      ],
+      "mobility": "fixed",
+      "rendering_model_id": "model_sink_double_01",
+      "material_variants": [
+        "brushed_steel",
+        "matte_anthracite"
+      ],
+      "provenance": "Neufert Architects' Data (p. 258)",
+      "enabled": true
+    },
+    {
+      "id": "KITCHEN_WALL_CABINET_01",
+      "category": "kitchen_counter",
+      "subtype": "wall_cabinet",
+      "name": "Overhead Wall Cabinet Unit",
+      "description": "Double door overhead upper cabinet mounted above base counter.",
+      "supported_room_types": [
+        "kitchen",
+        "pantry"
+      ],
+      "dimensions": {
+        "width": 0.9,
+        "depth": 0.35,
+        "height": 0.72
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "wall_mounted",
+      "wall_attachment_required": true,
+      "placement_preferences": {
+        "mounted_height_m": 1.45
+      },
+      "mobility": "fixed",
+      "rendering_model_id": "model_wall_cab_01",
+      "material_variants": [
+        "white_matte",
+        "natural_wood",
+        "fluted_glass"
+      ],
+      "provenance": "Neufert (p. 259) Upper Kitchen Cabinet Clearances",
+      "enabled": true
+    },
+    {
+      "id": "KITCHEN_TALL_PANTRY_01",
+      "category": "pantry_cabinet",
+      "subtype": "tall_pantry",
+      "name": "Floor-to-Ceiling Pantry Unit",
+      "description": "Full height tall storage cabinet with pull-out internal wire baskets.",
+      "supported_room_types": [
+        "kitchen",
+        "pantry"
+      ],
+      "dimensions": {
+        "width": 0.6,
+        "depth": 0.6,
+        "height": 2.2
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "floor_standing",
+      "wall_attachment_required": true,
+      "default_clearance_rule_id": "KITCHEN_WORK_CLEARANCE",
+      "mobility": "fixed",
+      "rendering_model_id": "model_tall_pantry_01",
+      "material_variants": [
+        "matte_anthracite",
+        "light_oak"
+      ],
+      "provenance": "Kitchen Manufacturers Association (KCMA) Standards",
+      "enabled": true
+    },
+    {
+      "id": "REFRIGERATOR_FRENCH_DOOR_01",
+      "category": "refrigerator",
+      "subtype": "refrigerator",
+      "name": "French Door Refrigerator & Freezer",
+      "description": "500L multi-door freestanding refrigerator with dual door swing.",
+      "supported_room_types": [
+        "kitchen",
+        "pantry"
+      ],
+      "dimensions": {
+        "width": 0.91,
+        "depth": 0.76,
+        "height": 1.78
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "floor_standing",
+      "default_clearance_rule_id": "KITCHEN_WORK_CLEARANCE",
+      "required_services": [
+        {
+          "type": "power_appliance",
+          "description": "15A dedicated continuous power socket (230V)"
+        }
+      ],
+      "optional_services": [
+        {
+          "type": "water_cold",
+          "description": "Filtered cold water line for ice maker"
+        }
+      ],
+      "functional_relations": [
+        "kitchen_counter"
+      ],
+      "mobility": "movable",
+      "rendering_model_id": "model_fridge_01",
+      "material_variants": [
+        "stainless_steel",
+        "black_matte_steel"
+      ],
+      "provenance": "AHAM Standard Refrigeration Sizing",
+      "enabled": true
+    },
+    {
+      "id": "COOKTOP_INDUCTION_01",
+      "category": "cooktop",
+      "subtype": "cooktop",
+      "name": "4-Zone Flush Induction Cooktop",
+      "description": "60cm ceramic glass induction hob for countertop cut-out installation.",
+      "supported_room_types": [
+        "kitchen"
+      ],
+      "dimensions": {
+        "width": 0.6,
+        "depth": 0.52,
+        "height": 0.06
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "countertop",
+      "required_services": [
+        {
+          "type": "power_appliance",
+          "description": "Dedicated 32A cooker connection unit with isolator"
+        }
+      ],
+      "functional_relations": [
+        "range_hood",
+        "oven"
+      ],
+      "mobility": "fixed",
+      "rendering_model_id": "model_hob_01",
+      "material_variants": [
+        "black_ceramic_glass"
+      ],
+      "provenance": "IEC 60335 Household Electrical Appliances Standards",
+      "enabled": true
+    },
+    {
+      "id": "RANGE_HOOD_CHIMNEY_01",
+      "category": "range_hood",
+      "subtype": "range_hood",
+      "name": "Wall-Mounted Chimney Range Hood",
+      "description": "High-extraction stainless steel cooker canopy with grease filters and LED task lights.",
+      "supported_room_types": [
+        "kitchen"
+      ],
+      "dimensions": {
+        "width": 0.9,
+        "depth": 0.5,
+        "height": 0.7
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "wall_mounted",
+      "wall_attachment_required": true,
+      "placement_preferences": {
+        "mounted_height_m": 0.65,
+        "aligned_above": "cooktop"
+      },
+      "required_services": [
+        {
+          "type": "power_general",
+          "description": "High-level switched power outlet"
+        },
+        {
+          "type": "exhaust_duct",
+          "description": "150mm exterior wall exhaust vent connection"
+        }
+      ],
+      "functional_relations": [
+        "cooktop"
+      ],
+      "mobility": "fixed",
+      "rendering_model_id": "model_hood_01",
+      "material_variants": [
+        "brushed_stainless",
+        "matte_black"
+      ],
+      "provenance": "Neufert (p. 258) Minimum 650mm clearance above electric cooktop",
+      "enabled": true
+    },
+    {
+      "id": "DISHWASHER_BUILTIN_01",
+      "category": "dishwasher",
+      "subtype": "dishwasher",
+      "name": "Fully-Integrated 60cm Dishwasher",
+      "description": "14-place setting undercounter dishwasher with matching cabinet front.",
+      "supported_room_types": [
+        "kitchen"
+      ],
+      "dimensions": {
+        "width": 0.6,
+        "depth": 0.55,
+        "height": 0.82
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "floor_standing",
+      "default_clearance_rule_id": "KITCHEN_WORK_CLEARANCE",
+      "required_services": [
+        {
+          "type": "power_appliance",
+          "description": "13A unswitched socket under adjacent cabinet"
+        },
+        {
+          "type": "water_cold",
+          "description": "3/4 inch appliance water isolation valve"
+        },
+        {
+          "type": "drainage",
+          "description": "Spigot connection into sink waste trap"
+        }
+      ],
+      "functional_relations": [
+        "sink"
+      ],
+      "mobility": "fixed",
+      "rendering_model_id": "model_dishwasher_01",
+      "material_variants": [
+        "cabinet_matched_panel"
+      ],
+      "provenance": "EN 50242 Electric Dishwashers Specification",
+      "enabled": true
+    },
+    {
+      "id": "BATH_COMMODE_WALLHUNG_01",
+      "category": "commode",
+      "subtype": "wall_hung_toilet",
+      "name": "Wall-Hung Rimless WC with Concealed Cistern",
+      "description": "Hygienic wall-hung toilet bowl mounted on in-wall carrier frame with dual flush plate.",
+      "supported_room_types": [
+        "bathroom",
+        "attached_bathroom",
+        "common_bathroom",
+        "toilet"
+      ],
+      "dimensions": {
+        "width": 0.36,
+        "depth": 0.54,
+        "height": 0.4
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "wall_mounted",
+      "wall_attachment_required": true,
+      "default_clearance_rule_id": "BATH_COMMODE_CLEARANCE",
+      "required_services": [
+        {
+          "type": "water_cold",
+          "description": "Concealed cistern cold feed point"
+        },
+        {
+          "type": "drainage",
+          "description": "110mm horizontal soil pipe connection"
+        }
+      ],
+      "mobility": "fixed",
+      "rendering_model_id": "model_wc_wallhung_01",
+      "material_variants": [
+        "white_vitreous_china",
+        "matte_black_ceramic"
+      ],
+      "provenance": "Neufert Architects' Data (p. 262) & EN 997 WC Pan Specifications",
+      "enabled": true
+    },
+    {
+      "id": "BATH_DOUBLE_VANITY_01",
+      "category": "vanity_unit",
+      "subtype": "double_vanity",
+      "name": "Floating Double-Sink Vanity Unit",
+      "description": "1400mm floating wall-mounted bathroom console with twin integrated under-mount basins and drawers.",
+      "supported_room_types": [
+        "master_bedroom",
+        "bathroom",
+        "attached_bathroom"
+      ],
+      "dimensions": {
+        "width": 1.4,
+        "depth": 0.52,
+        "height": 0.5
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "wall_mounted",
+      "wall_attachment_required": true,
+      "default_clearance_rule_id": "BATH_BASIN_FRONT",
+      "required_services": [
+        {
+          "type": "water_cold",
+          "description": "Twin cold water isolation valves"
+        },
+        {
+          "type": "water_hot",
+          "description": "Twin hot water isolation valves"
+        },
+        {
+          "type": "drainage",
+          "description": "Twin 40mm waste outlets"
+        }
+      ],
+      "functional_relations": [
+        "bathroom_mirror"
+      ],
+      "mobility": "fixed",
+      "rendering_model_id": "model_double_vanity_01",
+      "material_variants": [
+        "fluted_oak",
+        "matte_white_corian",
+        "dark_walnut"
+      ],
+      "provenance": "Neufert Architects' Data (p. 264)",
+      "enabled": true
+    },
+    {
+      "id": "BATH_WALKIN_SHOWER_01",
+      "category": "shower_enclosure",
+      "subtype": "walk_in_shower",
+      "name": "Walk-In Glass Screen Shower Zone",
+      "description": "Frameless 10mm toughened glass screen with flush tiled floor linear drain.",
+      "supported_room_types": [
+        "bathroom",
+        "attached_bathroom",
+        "common_bathroom"
+      ],
+      "dimensions": {
+        "width": 1.4,
+        "depth": 0.9,
+        "height": 2.05
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "floor_standing",
+      "default_clearance_rule_id": "BATH_SHOWER_ENTRY",
+      "required_services": [
+        {
+          "type": "water_cold",
+          "description": "Cold feed to thermostatic shower mixer"
+        },
+        {
+          "type": "water_hot",
+          "description": "Hot water feed to shower mixer"
+        },
+        {
+          "type": "drainage",
+          "description": "Linear stainless floor waste drain"
+        }
+      ],
+      "mobility": "fixed",
+      "rendering_model_id": "model_walkin_shower_01",
+      "material_variants": [
+        "chrome_trim",
+        "matte_black_hardware",
+        "brushed_brass"
+      ],
+      "provenance": "Neufert (p. 263) Shower Clearance Requirements",
+      "enabled": true
+    },
+    {
+      "id": "BATH_BATHTUB_FREESTANDING_01",
+      "category": "bathtub",
+      "subtype": "freestanding_bathtub",
+      "name": "Freestanding Oval Soaking Tub",
+      "description": "Contemporary mineral cast stone freestanding soaking bathtub with floor-mounted mixer tap.",
+      "supported_room_types": [
+        "master_bedroom",
+        "bathroom",
+        "attached_bathroom"
+      ],
+      "dimensions": {
+        "width": 1.7,
+        "depth": 0.8,
+        "height": 0.6
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "floor_standing",
+      "default_clearance_rule_id": "GENERAL_CIRCULATION",
+      "required_services": [
+        {
+          "type": "water_cold",
+          "description": "Under-floor cold water pipe to tub filler"
+        },
+        {
+          "type": "water_hot",
+          "description": "Under-floor hot water pipe to tub filler"
+        },
+        {
+          "type": "drainage",
+          "description": "40mm trapped floor waste drain"
+        }
+      ],
+      "mobility": "fixed",
+      "rendering_model_id": "model_bathtub_free_01",
+      "material_variants": [
+        "matte_white_stone",
+        "gloss_acrylic"
+      ],
+      "provenance": "Neufert (p. 263) Bathtub Dimensions & Access Clearance",
+      "enabled": true
+    },
+    {
+      "id": "BATH_BATHTUB_BUILTIN_01",
+      "category": "bathtub",
+      "subtype": "builtin_bathtub",
+      "name": "Built-In Alcove Bathtub",
+      "description": "Enamelled steel alcove bathtub installed against walls with tiled front apron panel.",
+      "supported_room_types": [
+        "bathroom",
+        "attached_bathroom",
+        "common_bathroom"
+      ],
+      "dimensions": {
+        "width": 1.7,
+        "depth": 0.75,
+        "height": 0.55
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "floor_standing",
+      "wall_attachment_required": true,
+      "default_clearance_rule_id": "BATH_SHOWER_ENTRY",
+      "required_services": [
+        {
+          "type": "water_cold",
+          "description": "Cold supply point"
+        },
+        {
+          "type": "water_hot",
+          "description": "Hot supply point"
+        },
+        {
+          "type": "drainage",
+          "description": "Waste trap connection"
+        }
+      ],
+      "mobility": "fixed",
+      "rendering_model_id": "model_bathtub_builtin_01",
+      "material_variants": [
+        "white_enamel"
+      ],
+      "provenance": "Neufert (p. 263)",
+      "enabled": true
+    },
+    {
+      "id": "BATH_HEATED_TOWEL_RAIL_01",
+      "category": "towel_rail",
+      "subtype": "heated_towel_rail",
+      "name": "Electric Heated Ladder Towel Rail",
+      "description": "Wall-mounted multi-rung ladder towel dryer with IPX4 splash-proof rating.",
+      "supported_room_types": [
+        "bathroom",
+        "attached_bathroom",
+        "common_bathroom"
+      ],
+      "dimensions": {
+        "width": 0.5,
+        "depth": 0.12,
+        "height": 1.1
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "wall_mounted",
+      "wall_attachment_required": true,
+      "required_services": [
+        {
+          "type": "power_general",
+          "description": "Fused spur switch outside Zone 2 with IPX4 rating"
+        }
+      ],
+      "mobility": "fixed",
+      "rendering_model_id": "model_towel_rail_01",
+      "material_variants": [
+        "polished_chrome",
+        "matte_black",
+        "brushed_nickel"
+      ],
+      "provenance": "BS 7671 IET Wiring Regulations Bathroom Zones",
+      "enabled": true
+    },
+    {
+      "id": "DINING_TABLE_ROUND_4S_01",
+      "category": "dining_table",
+      "subtype": "round_dining_table",
+      "name": "Round 4-Seater Dining Table",
+      "description": "1100mm diameter round pedestal dining table for intimate dining and conversation.",
+      "supported_room_types": [
+        "dining_room",
+        "dining_area",
+        "kitchen"
+      ],
+      "dimensions": {
+        "width": 1.1,
+        "depth": 1.1,
+        "height": 0.75
+      },
+      "physical_footprint_type": "circle",
+      "placement_mode": "floor_standing",
+      "default_clearance_rule_id": "DINING_CHAIR_PULLOUT",
+      "functional_relations": [
+        "dining_chair"
+      ],
+      "mobility": "movable",
+      "rendering_model_id": "model_table_round_01",
+      "material_variants": [
+        "oak_pedestal",
+        "white_marble_tulip"
+      ],
+      "provenance": "Neufert Architects' Data (p. 260) Dining Space Requirements",
+      "enabled": true
+    },
+    {
+      "id": "DINING_TABLE_8S_01",
+      "category": "dining_table",
+      "subtype": "rectangular_dining_table",
+      "name": "Rectangular 8-Seater Dining Table",
+      "description": "Extended 2200mm solid wood dining table for hosting large dinner parties.",
+      "supported_room_types": [
+        "dining_room",
+        "dining_area"
+      ],
+      "dimensions": {
+        "width": 2.2,
+        "depth": 1.0,
+        "height": 0.75
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "floor_standing",
+      "default_clearance_rule_id": "DINING_CHAIR_PULLOUT",
+      "functional_relations": [
+        "dining_chair"
+      ],
+      "mobility": "movable",
+      "rendering_model_id": "model_table_8s_01",
+      "material_variants": [
+        "solid_walnut",
+        "smoked_oak"
+      ],
+      "provenance": "Neufert Architects' Data (p. 260)",
+      "enabled": true
+    },
+    {
+      "id": "DINING_SIDEBOARD_01",
+      "category": "storage_cabinet",
+      "subtype": "sideboard",
+      "name": "Dining Credenza / Buffet Sideboard",
+      "description": "Four-door low sideboard for storing dinnerware, linens, and serving platters.",
+      "supported_room_types": [
+        "dining_room",
+        "dining_area",
+        "living_room"
+      ],
+      "dimensions": {
+        "width": 1.8,
+        "depth": 0.45,
+        "height": 0.8
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "floor_standing",
+      "placement_preferences": {
+        "back_against_wall": true
+      },
+      "mobility": "movable",
+      "rendering_model_id": "model_sideboard_01",
+      "material_variants": [
+        "walnut_brass",
+        "fluted_oak"
+      ],
+      "provenance": "Standard Residential Furniture Dimensions",
+      "enabled": true
+    },
+    {
+      "id": "DESK_STANDING_01",
+      "category": "desk",
+      "subtype": "standing_desk",
+      "name": "Motorized Height-Adjustable Standing Desk",
+      "description": "Dual-motor sit-stand desk with memory presets and integrated cable management tray.",
+      "supported_room_types": [
+        "study",
+        "study_office",
+        "home_office",
+        "bedroom"
+      ],
+      "dimensions": {
+        "width": 1.6,
+        "depth": 0.8,
+        "height": 0.72
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "floor_standing",
+      "default_clearance_rule_id": "DESK_CHAIR_MOVEMENT",
+      "functional_relations": [
+        "office_chair"
+      ],
+      "required_services": [
+        {
+          "type": "power_general",
+          "description": "Desk power outlet for motorized lifting mechanism and IT equipment"
+        },
+        {
+          "type": "network_data",
+          "description": "Cat6 high speed data point"
+        }
+      ],
+      "mobility": "movable",
+      "rendering_model_id": "model_standing_desk_01",
+      "material_variants": [
+        "oak_black_frame",
+        "walnut_white_frame"
+      ],
+      "provenance": "BIFMA G1 Ergonomics Guideline for Sit-Stand Desks",
+      "enabled": true
+    },
+    {
+      "id": "WASHING_MACHINE_01",
+      "category": "washing_machine",
+      "subtype": "washing_machine",
+      "name": "Front-Loading 9kg Washing Machine",
+      "description": "Energy-efficient front-load washing machine with vibration dampening feet.",
+      "supported_room_types": [
+        "utility_room",
+        "laundry_room",
+        "bathroom"
+      ],
+      "dimensions": {
+        "width": 0.6,
+        "depth": 0.6,
+        "height": 0.85
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "floor_standing",
+      "default_clearance_rule_id": "KITCHEN_WORK_CLEARANCE",
+      "required_services": [
+        {
+          "type": "power_appliance",
+          "description": "Dedicated 13A electrical socket"
+        },
+        {
+          "type": "water_cold",
+          "description": "Washing machine cold water bib tap"
+        },
+        {
+          "type": "drainage",
+          "description": "40mm standpipe waste drain"
+        }
+      ],
+      "mobility": "movable",
+      "rendering_model_id": "model_washer_01",
+      "material_variants": [
+        "white",
+        "graphite_grey"
+      ],
+      "provenance": "IEC Appliance Standards",
+      "enabled": true
+    },
+    {
+      "id": "TUMBLE_DRYER_01",
+      "category": "dryer",
+      "subtype": "dryer",
+      "name": "Heat Pump Condenser Clothes Dryer",
+      "description": "Closed-loop heat pump dryer suitable for undercounter or stacked installation.",
+      "supported_room_types": [
+        "utility_room",
+        "laundry_room"
+      ],
+      "dimensions": {
+        "width": 0.6,
+        "depth": 0.6,
+        "height": 0.85
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "floor_standing",
+      "default_clearance_rule_id": "KITCHEN_WORK_CLEARANCE",
+      "required_services": [
+        {
+          "type": "power_appliance",
+          "description": "13A electrical socket"
+        }
+      ],
+      "functional_relations": [
+        "washing_machine"
+      ],
+      "mobility": "movable",
+      "rendering_model_id": "model_dryer_01",
+      "material_variants": [
+        "white",
+        "graphite"
+      ],
+      "provenance": "Manufacturer Sizing Specifications",
+      "enabled": true
+    },
+    {
+      "id": "LIGHT_CEILING_PENDANT_01",
+      "category": "pendant_light",
+      "subtype": "pendant_light",
+      "name": "Architectural Dining Pendant Light",
+      "description": "Linear architectural LED pendant light with anti-glare diffuser and dimmable driver.",
+      "supported_room_types": [
+        "dining_room",
+        "dining_area",
+        "kitchen"
+      ],
+      "dimensions": {
+        "width": 1.2,
+        "depth": 0.15,
+        "height": 0.25
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "ceiling_mounted",
+      "ceiling_attachment_required": true,
+      "placement_preferences": {
+        "centered_above": "dining_table",
+        "drop_height_m": 0.75
+      },
+      "required_services": [
+        {
+          "type": "dimmer_switch",
+          "description": "Ceiling junction box wired to wall dimmer"
+        }
+      ],
+      "mobility": "fixed",
+      "rendering_model_id": "model_pendant_01",
+      "material_variants": [
+        "matte_black",
+        "brushed_brass"
+      ],
+      "provenance": "CIBSE Code for Lighting: Interior Lighting Standards",
+      "enabled": true
+    },
+    {
+      "id": "LIGHT_RECESSED_DOWNLIGHT_01",
+      "category": "recessed_downlight",
+      "subtype": "recessed_downlight",
+      "name": "CRI95+ Deep Recessed LED Downlight",
+      "description": "Architectural trimless downlight with 36-degree beam angle and warm dimming (2700K-1800K).",
+      "supported_room_types": [
+        "all"
+      ],
+      "dimensions": {
+        "width": 0.1,
+        "depth": 0.1,
+        "height": 0.12
+      },
+      "physical_footprint_type": "circle",
+      "placement_mode": "ceiling_mounted",
+      "ceiling_attachment_required": true,
+      "required_services": [
+        {
+          "type": "light_switch",
+          "description": "Switched ceiling circuit loop"
+        }
+      ],
+      "mobility": "fixed",
+      "rendering_model_id": "model_downlight_01",
+      "material_variants": [
+        "matte_white",
+        "matte_black"
+      ],
+      "provenance": "EN 12464-1 Lighting of Work Places",
+      "enabled": true
+    },
+    {
+      "id": "CEILING_FAN_01",
+      "category": "ceiling_fan",
+      "subtype": "ceiling_fan",
+      "name": "Aerodynamic DC Motor Ceiling Fan with Light",
+      "description": "Whisper-quiet 52-inch 3-blade ceiling fan with integrated dimmable LED light.",
+      "supported_room_types": [
+        "bedroom",
+        "master_bedroom",
+        "living_room",
+        "family_living_area"
+      ],
+      "dimensions": {
+        "width": 1.32,
+        "depth": 1.32,
+        "height": 0.35
+      },
+      "physical_footprint_type": "circle",
+      "placement_mode": "ceiling_mounted",
+      "ceiling_attachment_required": true,
+      "placement_preferences": {
+        "room_center": true,
+        "min_blade_clearance_m": 2.3
+      },
+      "required_services": [
+        {
+          "type": "fan_point",
+          "description": "Heavy-duty ceiling hook box with wall fan speed controller"
+        }
+      ],
+      "mobility": "fixed",
+      "rendering_model_id": "model_fan_01",
+      "material_variants": [
+        "matte_white",
+        "brushed_nickel",
+        "natural_wood_blades"
+      ],
+      "provenance": "UL 507 Electric Fans Safety Standards",
+      "enabled": true
+    },
+    {
+      "id": "SERVICE_SOCKET_BEDSIDE_01",
+      "category": "usb_charging_point",
+      "subtype": "bedside_socket",
+      "name": "Dual Power Socket with USB-C PD Charging",
+      "description": "Bedside wall-mounted plate with two 13A switched sockets and high-speed 45W USB-C PD ports.",
+      "supported_room_types": [
+        "master_bedroom",
+        "bedroom",
+        "guest_room",
+        "study"
+      ],
+      "dimensions": {
+        "width": 0.15,
+        "depth": 0.04,
+        "height": 0.08
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "wall_mounted",
+      "placement_preferences": {
+        "mounted_height_m": 0.65,
+        "adjacent_to": "bedside_table"
+      },
+      "required_services": [
+        {
+          "type": "power_general",
+          "description": "Radial or ring final electrical circuit connection"
+        }
+      ],
+      "mobility": "fixed",
+      "rendering_model_id": "model_socket_usb_01",
+      "material_variants": [
+        "screwless_matte_white",
+        "brushed_brass",
+        "matte_black"
+      ],
+      "provenance": "BS 1363 Electrical Plugs and Sockets Standard",
+      "enabled": true
+    },
+    {
+      "id": "SERVICE_AC_INDOOR_UNIT_01",
+      "category": "ac_unit",
+      "subtype": "split_ac_unit",
+      "name": "High-Efficiency Inverter Split AC Indoor Unit",
+      "description": "Wall-mounted multi-split air conditioner indoor unit with auto-swing louver.",
+      "supported_room_types": [
+        "master_bedroom",
+        "bedroom",
+        "living_room",
+        "family_living_area",
+        "study"
+      ],
+      "dimensions": {
+        "width": 0.88,
+        "depth": 0.22,
+        "height": 0.3
+      },
+      "physical_footprint_type": "rectangle",
+      "placement_mode": "wall_mounted",
+      "wall_attachment_required": true,
+      "placement_preferences": {
+        "mounted_height_m": 2.3,
+        "avoid_direct_draft_on_bed": true
+      },
+      "required_services": [
+        {
+          "type": "ac_power",
+          "description": "Dedicated 20A rotary isolator switch"
+        },
+        {
+          "type": "drainage",
+          "description": "Condensate gravity drain line to exterior/hopper"
+        }
+      ],
+      "mobility": "fixed",
+      "rendering_model_id": "model_ac_unit_01",
+      "material_variants": [
+        "matte_white"
+      ],
+      "provenance": "ASHRAE Standard 55 Thermal Environmental Conditions",
       "enabled": true
     }
   ]

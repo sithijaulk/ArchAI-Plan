@@ -1,0 +1,163 @@
+{
+  "version": "1.0",
+  "provenance": "Computational Interior Design & Aesthetic Harmony Rules (Deterministic Compatibility Model)",
+  "styles": {
+    "modern": {
+      "name": "Modern",
+      "description": "Clean horizontal and vertical lines, unadorned surfaces, functional clarity",
+      "compatible_materials": [
+        "wood_oak",
+        "wood_walnut",
+        "stainless_steel",
+        "black_matte_steel",
+        "matte_lacquer",
+        "porcelain",
+        "glass"
+      ],
+      "recommended_palettes": [
+        "neutral_warm",
+        "cool_slate",
+        "monochrome_high_contrast"
+      ],
+      "lighting_character": "neutral_architectural",
+      "symmetry_bias": 0.6,
+      "visual_weight_balance": "distributed"
+    },
+    "minimalist": {
+      "name": "Minimalist",
+      "description": "Essential forms, hidden storage, negative space, monochromatic textures",
+      "compatible_materials": [
+        "matte_white",
+        "matte_anthracite",
+        "light_ash",
+        "polished_concrete",
+        "corian"
+      ],
+      "recommended_palettes": [
+        "monochrome_high_contrast",
+        "cool_slate"
+      ],
+      "lighting_character": "cove_indirect",
+      "symmetry_bias": 0.8,
+      "visual_weight_balance": "low_density_sparse"
+    },
+    "scandinavian": {
+      "name": "Scandinavian",
+      "description": "Light natural timbers, soft textured textiles, organic curves, airy daylight illumination",
+      "compatible_materials": [
+        "wood_oak",
+        "wood_pine",
+        "linen",
+        "wool",
+        "boucle",
+        "light_ceramics"
+      ],
+      "recommended_palettes": [
+        "neutral_warm",
+        "nordic_forest"
+      ],
+      "lighting_character": "warm_diffuse",
+      "symmetry_bias": 0.5,
+      "visual_weight_balance": "comfortable_organic"
+    },
+    "japandi": {
+      "name": "Japandi",
+      "description": "Hybrid Japanese-Scandinavian aesthetic; wabi-sabi simplicity with warm refined joinery",
+      "compatible_materials": [
+        "wood_oak",
+        "wood_walnut",
+        "dark_ash",
+        "acoustic_felt",
+        "paper_shoji",
+        "linen",
+        "clay_plaster"
+      ],
+      "recommended_palettes": [
+        "neutral_warm",
+        "earth_terracotta",
+        "nordic_forest"
+      ],
+      "lighting_character": "warm_diffuse",
+      "symmetry_bias": 0.4,
+      "visual_weight_balance": "grounded_low_center_of_gravity"
+    },
+    "industrial": {
+      "name": "Industrial",
+      "description": "Raw structural elements, exposed metals, weathered timber, concrete and brick",
+      "compatible_materials": [
+        "metal_black",
+        "cast_iron",
+        "weathered_oak",
+        "brick",
+        "polished_concrete",
+        "leather_cognac"
+      ],
+      "recommended_palettes": [
+        "cool_slate",
+        "earth_terracotta",
+        "monochrome_high_contrast"
+      ],
+      "lighting_character": "warm_diffuse",
+      "symmetry_bias": 0.3,
+      "visual_weight_balance": "asymmetric_robust"
+    },
+    "luxury": {
+      "name": "Luxury & Glamour",
+      "description": "Bookmatched marble, polished metallic trims, velvet, crystal accents, tailored joinery",
+      "compatible_materials": [
+        "marble_brass",
+        "calacatta_marble",
+        "brushed_brass",
+        "smoked_glass",
+        "velvet",
+        "high_gloss_lacquer"
+      ],
+      "recommended_palettes": [
+        "luxury_gold_navy",
+        "neutral_warm",
+        "monochrome_high_contrast"
+      ],
+      "lighting_character": "cove_indirect",
+      "symmetry_bias": 0.85,
+      "visual_weight_balance": "formal_axial"
+    },
+    "traditional": {
+      "name": "Traditional Classic",
+      "description": "Symmetrical architectural layouts, crown mouldings, rich stained hardwoods, formal upholstery",
+      "compatible_materials": [
+        "solid_walnut",
+        "solid_mahogany",
+        "brass",
+        "linen",
+        "silk_damask",
+        "ceramic_tile"
+      ],
+      "recommended_palettes": [
+        "neutral_warm",
+        "earth_terracotta"
+      ],
+      "lighting_character": "warm_diffuse",
+      "symmetry_bias": 0.9,
+      "visual_weight_balance": "balanced_formal"
+    },
+    "contemporary": {
+      "name": "Contemporary",
+      "description": "Fluid curved furniture, high-tech architectural materials, bold sculpted focal points",
+      "compatible_materials": [
+        "engineered_wood",
+        "terrazzo",
+        "curved_metal",
+        "boucle",
+        "tinted_glass"
+      ],
+      "recommended_palettes": [
+        "neutral_warm",
+        "nordic_forest",
+        "cool_slate"
+      ],
+      "lighting_character": "neutral_architectural",
+      "symmetry_bias": 0.45,
+      "visual_weight_balance": "dynamic_sculptural"
+    }
+  }
+}

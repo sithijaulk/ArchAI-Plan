@@ -1,0 +1,231 @@
+{
+  "version": "1.0",
+  "provenance": "Verified Architectural Finish Specifications & British Standards for Interior Surface Materials",
+  "finishes": [
+    {
+      "id": "FIN_WALL_PAINT_MATTE",
+      "category": "wall_finish",
+      "name": "Architectural Low-VOC Matte Emulsion Paint",
+      "material_type": "acrylic_emulsion",
+      "compatible_surfaces": [
+        "drywall",
+        "plaster",
+        "concrete"
+      ],
+      "style_tags": [
+        "modern",
+        "minimalist",
+        "scandinavian",
+        "japandi",
+        "contemporary"
+      ],
+      "color_variants": [
+        "chalk_white",
+        "warm_taupe",
+        "pale_sage",
+        "slate_grey",
+        "bone"
+      ],
+      "texture_mapping": "textures/walls/paint_matte_normal.png",
+      "installation_notes": "Two coats over primer on skim-coated substrate",
+      "provenance": "BS EN 13300 Paints and Varnishes for Interior Walls",
+      "enabled": true
+    },
+    {
+      "id": "FIN_WALL_WOOD_SLATS",
+      "category": "wall_finish",
+      "name": "Acoustic Natural Timber Slats on Felt Backing",
+      "material_type": "wood_veneer_acoustic_felt",
+      "compatible_surfaces": [
+        "drywall",
+        "masonry"
+      ],
+      "style_tags": [
+        "japandi",
+        "scandinavian",
+        "modern",
+        "contemporary"
+      ],
+      "color_variants": [
+        "natural_oak",
+        "smoked_walnut",
+        "ebony_ash"
+      ],
+      "texture_mapping": "textures/walls/wood_slat_diffuse.png",
+      "installation_notes": "Direct screw or adhesive fixing over battens; provides NRC 0.85 sound absorption",
+      "provenance": "ASTM C423 Sound Absorption Testing Specification",
+      "enabled": true
+    },
+    {
+      "id": "FIN_WALL_TILE_SUBWAY",
+      "category": "wall_finish",
+      "name": "Glazed Ceramic Beveled Subway Tile",
+      "material_type": "glazed_ceramic",
+      "compatible_surfaces": [
+        "cement_board",
+        "waterproof_render"
+      ],
+      "style_tags": [
+        "industrial",
+        "traditional",
+        "modern",
+        "scandinavian"
+      ],
+      "color_variants": [
+        "gloss_white",
+        "matte_sage",
+        "deep_navy",
+        "black"
+      ],
+      "texture_mapping": "textures/walls/subway_tile_normal.png",
+      "installation_notes": "Epoxy or polymer-modified waterproof grout required in wet areas",
+      "provenance": "ANSI A137.1 Ceramic Tile Standards",
+      "enabled": true
+    },
+    {
+      "id": "FIN_FLOOR_OAK_HARDWOOD",
+      "category": "floor_finish",
+      "name": "Engineered European White Oak Flooring",
+      "material_type": "engineered_hardwood",
+      "compatible_surfaces": [
+        "concrete_screed",
+        "plywood_subfloor"
+      ],
+      "style_tags": [
+        "scandinavian",
+        "japandi",
+        "modern",
+        "traditional",
+        "contemporary"
+      ],
+      "color_variants": [
+        "natural_clear_matte",
+        "warm_honey",
+        "whitewashed",
+        "smoked_cognac"
+      ],
+      "texture_mapping": "textures/floors/oak_hardwood_pbr.png",
+      "installation_notes": "Tongue-and-groove floating or direct glue-down; compatible with underfloor radiant heating",
+      "provenance": "NWFA (National Wood Flooring Association) Standards",
+      "enabled": true
+    },
+    {
+      "id": "FIN_FLOOR_PORCELAIN_TILE",
+      "category": "floor_finish",
+      "name": "Large Format Matte Porcelain Floor Tile (600x1200mm)",
+      "material_type": "porcelain",
+      "compatible_surfaces": [
+        "concrete_screed",
+        "cement_board"
+      ],
+      "style_tags": [
+        "modern",
+        "minimalist",
+        "luxury",
+        "industrial"
+      ],
+      "color_variants": [
+        "calacatta_marble_look",
+        "pulpis_grey",
+        "limestone_cream",
+        "charcoal_basalt"
+      ],
+      "texture_mapping": "textures/floors/porcelain_pbr.png",
+      "installation_notes": "R10 slip rating minimum for wet areas; 2mm grout joint",
+      "provenance": "ISO 13006 Ceramic Tiles Classification & DIN 51130 Slip Resistance",
+      "enabled": true
+    },
+    {
+      "id": "FIN_FLOOR_TERRAZZO",
+      "category": "floor_finish",
+      "name": "Custom Cast-in-Place Resin Terrazzo",
+      "material_type": "epoxy_terrazzo",
+      "compatible_surfaces": [
+        "concrete_slab"
+      ],
+      "style_tags": [
+        "contemporary",
+        "modern",
+        "industrial",
+        "luxury"
+      ],
+      "color_variants": [
+        "white_marble_aggregate",
+        "warm_terracotta",
+        "sage_granite"
+      ],
+      "texture_mapping": "textures/floors/terrazzo_diffuse.png",
+      "installation_notes": "Grind and polish to 800 grit; sealed with penetrating sealer",
+      "provenance": "NTMA (National Terrazzo & Mosaic Association) Specifications",
+      "enabled": true
+    },
+    {
+      "id": "FIN_CEILING_GYPSUM_COVE",
+      "category": "ceiling_finish",
+      "name": "Recessed Gypsum False Ceiling with LED Perimeter Cove",
+      "material_type": "gypsum_board_metal_framework",
+      "compatible_surfaces": [
+        "concrete_soffit"
+      ],
+      "style_tags": [
+        "modern",
+        "luxury",
+        "contemporary"
+      ],
+      "color_variants": [
+        "matte_ceiling_white"
+      ],
+      "texture_mapping": "textures/ceilings/gypsum_smooth.png",
+      "installation_notes": "12.5mm plasterboard on galvanised steel studs; 150mm drop from structural slab",
+      "provenance": "ASTM C1396 Standard Specification for Gypsum Board",
+      "enabled": true
+    },
+    {
+      "id": "FIN_WINDOW_SHEER_CURTAIN",
+      "category": "window_treatment",
+      "name": "Wave-Pleat Sheer Linen Drapery",
+      "material_type": "linen_polyester_blend",
+      "compatible_surfaces": [
+        "ceiling_recess_track",
+        "wall_mounted_rod"
+      ],
+      "style_tags": [
+        "scandinavian",
+        "japandi",
+        "modern",
+        "luxury"
+      ],
+      "color_variants": [
+        "pure_white",
+        "natural_flax",
+        "warm_ivory"
+      ],
+      "installation_notes": "Ceiling-recessed motorized or manual track with 2.5x fabric fullness",
+      "provenance": "Architectural Drapery Specification Standards",
+      "enabled": true
+    },
+    {
+      "id": "FIN_WINDOW_BLACKOUT_BLIND",
+      "category": "window_treatment",
+      "name": "Motorized Cassette Blackout Roller Blind",
+      "material_type": "opaque_fiberglass_vinyl",
+      "compatible_surfaces": [
+        "window_frame_recess",
+        "wall_lintel"
+      ],
+      "style_tags": [
+        "minimalist",
+        "modern",
+        "contemporary"
+      ],
+      "color_variants": [
+        "white",
+        "soft_grey",
+        "charcoal"
+      ],
+      "installation_notes": "Side guide channels provide 99.8% light blockout for bedrooms",
+      "provenance": "BS 5867 Fire Retardant Fabric Standards",
+      "enabled": true
+    }
+  ]
+}
