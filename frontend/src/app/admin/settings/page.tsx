@@ -1,3 +1,5 @@
+'use client'
+
 import { useEffect, useState } from 'react'
 import { settingsApi } from '@/lib/api/settings'
 import { Button } from '@/components/ui/button'

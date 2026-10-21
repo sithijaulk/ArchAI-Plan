@@ -1,9 +1,12 @@
 import { apiClient } from './client'
 
+export type TeamMemberCategory = 'supervisor' | 'co_supervisor' | 'member'
+
 export type TeamMember = {
   id?: string
   name: string
   role: string
+  category?: TeamMemberCategory | string
   bio?: string
   sort_order: number
   image_url?: string | null
@@ -25,6 +28,7 @@ export const aboutApi = {
     const data = new FormData()
     data.append('name', member.name)
     data.append('role', member.role)
+    data.append('category', member.category || 'member')
     data.append('bio', member.bio || '')
     data.append('sort_order', String(member.sort_order))
     if (image) data.append('image', image)
