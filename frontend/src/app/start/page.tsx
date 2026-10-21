@@ -1,23 +1,21 @@
 "use client"
 
-import React, { useRef, useState } from 'react'
+import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useProjectStore } from '@/store/projectStore'
-import { projectsApi } from '@/lib/api/projects'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card'
-import { ArrowRight, Loader2, Sparkles, Upload } from 'lucide-react'
+import { ArrowRight, Loader2, Sparkles } from 'lucide-react'
 
 export default function StartProjectPage() {
   const router = useRouter()
-  const { createProject, loadProject } = useProjectStore()
+  const { createProject } = useProjectStore()
   const [projectName, setProjectName] = useState('')
   const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleCreateNew = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -30,25 +28,6 @@ export default function StartProjectPage() {
     } catch {
       setError('Unable to create the project. Check the API connection and try again.')
       setLoading(false)
-    }
-  }
-
-  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-    setError('')
-    try {
-      if (!file.name.toLowerCase().endsWith('.json')) throw new Error('Select a JSON file.')
-      const masterJson = JSON.parse(await file.text())
-      if (!masterJson.project_name || !masterJson.processing) throw new Error('This is not a compatible Master JSON file.')
-      const project = await projectsApi.createProject({ project_name: masterJson.project_name })
-      const updated = await projectsApi.updateProject(project.id, { master_json: masterJson })
-      loadProject(updated)
-      router.push('/features/gab-gen')
-    } catch (uploadError) {
-      setError(uploadError instanceof Error ? uploadError.message : 'Unable to load the JSON file.')
-    } finally {
-      event.target.value = ''
     }
   }
 
@@ -65,9 +44,9 @@ export default function StartProjectPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl">
+      <div className="w-full max-w-lg">
         <Card className="bg-card/60 backdrop-blur-md border border-primary/20 shadow-xl shadow-primary/5">
-          <CardHeader className="space-y-1.5">
+          <CardHeader className="space-y-1.5 text-center">
             <CardTitle className="text-2xl font-bold">Create New Project</CardTitle>
             <CardDescription className="text-sm">Start from the beginning with GAB-Gen</CardDescription>
           </CardHeader>
@@ -130,25 +109,6 @@ export default function StartProjectPage() {
               </Button>
             </CardFooter>
           </form>
-        </Card>
-
-        <Card className="bg-card/30 border-border/50">
-          <CardHeader className="space-y-1.5">
-            <CardTitle className="text-2xl font-bold">Load Existing Project</CardTitle>
-            <CardDescription className="text-sm">Upload a compatible Master JSON file to resume</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col items-center justify-center py-8">
-            <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center mb-6 text-muted-foreground border-2 border-dashed border-border">
-              <Upload className="w-8 h-8" />
-            </div>
-            <p className="text-sm text-center text-muted-foreground mb-4">
-              Drag and drop your Master JSON file here, or click to browse.
-            </p>
-            <input ref={fileInputRef} type="file" accept=".json,application/json" className="hidden" onChange={handleUpload} />
-            <Button variant="outline" type="button" onClick={() => fileInputRef.current?.click()}>
-              Select File
-            </Button>
-          </CardContent>
         </Card>
       </div>
     </div>
