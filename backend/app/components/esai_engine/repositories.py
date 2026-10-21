@@ -1,6 +1,6 @@
 """
 Database Repositories for ESAI Entities
-Provides clean CRUD access to MySQL via SQLAlchemy models:
+Provides clean CRUD access to PostgreSQL via SQLAlchemy models:
 - EsaiRoomRequirement
 - EsaiDesignPreference
 - EsaiSavedConfig

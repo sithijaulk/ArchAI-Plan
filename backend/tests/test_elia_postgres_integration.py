@@ -1,4 +1,4 @@
-"""Opt-in persistence test against an explicitly configured disposable MySQL schema."""
+"""Opt-in persistence test against an explicitly configured disposable PostgreSQL database."""
 
 import os
 
@@ -13,12 +13,12 @@ from app.models.project import Project
 from app.routers.elia import run_project_elia
 
 
-def test_mysql_run_persists_same_master_and_component_history():
-    database_url = os.getenv("ELIA_TEST_MYSQL_URL")
+def test_postgres_run_persists_same_master_and_component_history():
+    database_url = os.getenv("ELIA_TEST_POSTGRES_URL")
     if not database_url:
-        pytest.skip("Set ELIA_TEST_MYSQL_URL to a disposable MySQL test schema to run persistence integration.")
-    if not database_url.startswith("mysql+pymysql://"):
-        pytest.fail("ELIA_TEST_MYSQL_URL must use the existing MySQL PyMySQL driver.")
+        pytest.skip("Set ELIA_TEST_POSTGRES_URL to a disposable PostgreSQL test database to run persistence integration.")
+    if not database_url.startswith("postgresql+psycopg2://"):
+        pytest.fail("ELIA_TEST_POSTGRES_URL must use the PostgreSQL psycopg2 driver (postgresql+psycopg2://).")
 
     engine = create_engine(database_url, pool_pre_ping=True)
     Base.metadata.create_all(engine)

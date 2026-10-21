@@ -434,13 +434,11 @@ def list_standards(
     )
     return StandardsListResponse(total=len(rules), rules=rules)
 
-
 @global_router.get("/room-profiles")
 @global_router.get("/knowledge/room-profiles")
 def get_room_profiles(db: Session = Depends(get_db)):
     service = EsaiEngineService(db)
     return {"profiles": service.get_room_profiles()}
-
 
 @global_router.get("/knowledge/styles", response_model=StylesCatalogResponse)
 def get_styles_catalog(db: Session = Depends(get_db)):
@@ -1150,6 +1148,7 @@ def export_report_data(
     req = payload or PdfReportRequest()
     return service.get_export_data(project, req)
 
-
+# Backward compatibility alias
+router = project_router
 
 

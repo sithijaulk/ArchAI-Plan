@@ -1,0 +1,600 @@
+{
+  "project_id": "PRJ-FRENCH-GROUND-001",
+  "project_name": "Plan du Rez de Chaussée",
+  "schema_version": "1.0",
+  "land_info": {
+    "orientation": null,
+    "road_facing": null,
+    "area_sqft": null
+  },
+  "floor_plan": {
+    "id": "FP-GROUND-001",
+    "name": "Ground Floor Plan",
+    "units": "mm",
+    "coordinate_system": {
+      "origin": "top_left",
+      "x_axis": "right",
+      "y_axis": "down"
+    },
+    "dimensions": {
+      "width": 17710,
+      "height": 13330
+    },
+    "boundary": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          0,
+          0
+        ],
+        [
+          17710,
+          0
+        ],
+        [
+          17710,
+          13330
+        ],
+        [
+          9920,
+          13330
+        ],
+        [
+          9920,
+          8160
+        ],
+        [
+          3960,
+          8160
+        ],
+        [
+          3960,
+          8820
+        ],
+        [
+          0,
+          8820
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    "rooms": [
+      {
+        "id": "room-01",
+        "name": "Living and Dining Area (Séjour / Repas)",
+        "type": "living_dining",
+        "polygon": [
+          [
+            400,
+            370
+          ],
+          [
+            6820,
+            370
+          ],
+          [
+            6820,
+            2970
+          ],
+          [
+            8540,
+            2970
+          ],
+          [
+            8540,
+            4090
+          ],
+          [
+            4310,
+            4090
+          ],
+          [
+            4310,
+            5630
+          ],
+          [
+            400,
+            5630
+          ]
+        ],
+        "dimensions": {
+          "width": 8140,
+          "height": 5260
+        },
+        "area_sqm": 26.18
+      },
+      {
+        "id": "room-02",
+        "name": "Pantry (Cellier)",
+        "type": "pantry",
+        "polygon": [
+          [
+            6890,
+            370
+          ],
+          [
+            8490,
+            370
+          ],
+          [
+            8490,
+            2970
+          ],
+          [
+            6890,
+            2970
+          ]
+        ],
+        "dimensions": {
+          "width": 1600,
+          "height": 2600
+        },
+        "area_sqm": 3.72
+      },
+      {
+        "id": "room-03",
+        "name": "Garage",
+        "type": "garage",
+        "polygon": [
+          [
+            8780,
+            370
+          ],
+          [
+            14100,
+            370
+          ],
+          [
+            14100,
+            3890
+          ],
+          [
+            8780,
+            3890
+          ]
+        ],
+        "dimensions": {
+          "width": 5320,
+          "height": 3520
+        },
+        "area_sqm": 17.25
+      },
+      {
+        "id": "room-04",
+        "name": "Carport (Abri Voiture)",
+        "type": "carport",
+        "polygon": [
+          [
+            14320,
+            370
+          ],
+          [
+            17310,
+            370
+          ],
+          [
+            17310,
+            3450
+          ],
+          [
+            14320,
+            3450
+          ]
+        ],
+        "dimensions": {
+          "width": 2990,
+          "height": 3080
+        },
+        "area_sqm": 10.08
+      },
+      {
+        "id": "room-05",
+        "name": "Kitchen (Cuisine)",
+        "type": "kitchen",
+        "polygon": [
+          [
+            4330,
+            4180
+          ],
+          [
+            7570,
+            4180
+          ],
+          [
+            7570,
+            7740
+          ],
+          [
+            4330,
+            7740
+          ]
+        ],
+        "dimensions": {
+          "width": 3240,
+          "height": 3560
+        },
+        "area_sqm": 10.05
+      },
+      {
+        "id": "room-06",
+        "name": "Entrance Hall (Hall)",
+        "type": "hallway",
+        "polygon": [
+          [
+            7610,
+            4110
+          ],
+          [
+            9590,
+            4110
+          ],
+          [
+            9590,
+            5060
+          ],
+          [
+            9280,
+            5060
+          ],
+          [
+            9280,
+            6710
+          ],
+          [
+            7610,
+            6710
+          ]
+        ],
+        "dimensions": {
+          "width": 1980,
+          "height": 2600
+        },
+        "area_sqm": 5.4
+      },
+      {
+        "id": "room-07",
+        "name": "Passage (Dégagement)",
+        "type": "hallway",
+        "polygon": [
+          [
+            9660,
+            3980
+          ],
+          [
+            14190,
+            3980
+          ],
+          [
+            14190,
+            5060
+          ],
+          [
+            13790,
+            5060
+          ],
+          [
+            13790,
+            10650
+          ],
+          [
+            13350,
+            10650
+          ],
+          [
+            13350,
+            5060
+          ],
+          [
+            9660,
+            5060
+          ]
+        ],
+        "dimensions": {
+          "width": 4530,
+          "height": 6670
+        },
+        "area_sqm": 7.82
+      },
+      {
+        "id": "room-08",
+        "name": "WC",
+        "type": "toilet",
+        "polygon": [
+          [
+            9350,
+            5100
+          ],
+          [
+            10250,
+            5100
+          ],
+          [
+            10250,
+            6730
+          ],
+          [
+            9350,
+            6730
+          ]
+        ],
+        "dimensions": {
+          "width": 900,
+          "height": 1630
+        },
+        "area_sqm": 1.28
+      },
+      {
+        "id": "room-09",
+        "name": "Covered Porch (Porche)",
+        "type": "porch",
+        "polygon": [
+          [
+            7990,
+            7060
+          ],
+          [
+            9920,
+            7060
+          ],
+          [
+            9920,
+            8140
+          ],
+          [
+            7990,
+            8140
+          ]
+        ],
+        "dimensions": {
+          "width": 1930,
+          "height": 1080
+        },
+        "area_sqm": 1.85
+      },
+      {
+        "id": "room-10",
+        "name": "Bedroom 1 (Chambre 1)",
+        "type": "bedroom",
+        "polygon": [
+          [
+            10300,
+            5100
+          ],
+          [
+            13310,
+            5100
+          ],
+          [
+            13310,
+            9150
+          ],
+          [
+            10300,
+            9150
+          ]
+        ],
+        "dimensions": {
+          "width": 3010,
+          "height": 4050
+        },
+        "area_sqm": 12.6
+      },
+      {
+        "id": "room-11",
+        "name": "Closet (Placard)",
+        "type": "closet",
+        "polygon": [
+          [
+            10300,
+            9200
+          ],
+          [
+            13310,
+            9200
+          ],
+          [
+            13310,
+            9920
+          ],
+          [
+            10300,
+            9920
+          ]
+        ],
+        "dimensions": {
+          "width": 3010,
+          "height": 720
+        }
+      },
+      {
+        "id": "room-12",
+        "name": "Bedroom 2 (Chambre 2)",
+        "type": "bedroom",
+        "polygon": [
+          [
+            10300,
+            9990
+          ],
+          [
+            13790,
+            9990
+          ],
+          [
+            13790,
+            12960
+          ],
+          [
+            10300,
+            12960
+          ]
+        ],
+        "dimensions": {
+          "width": 3490,
+          "height": 2970
+        },
+        "area_sqm": 10.36
+      },
+      {
+        "id": "room-13",
+        "name": "Bedroom 3 (Chambre 3)",
+        "type": "bedroom",
+        "polygon": [
+          [
+            14300,
+            9040
+          ],
+          [
+            17310,
+            9040
+          ],
+          [
+            17310,
+            12960
+          ],
+          [
+            14300,
+            12960
+          ]
+        ],
+        "dimensions": {
+          "width": 3010,
+          "height": 3920
+        },
+        "area_sqm": 10.36
+      },
+      {
+        "id": "room-14",
+        "name": "Bathroom (Bains)",
+        "type": "bathroom",
+        "polygon": [
+          [
+            14300,
+            7060
+          ],
+          [
+            17310,
+            7060
+          ],
+          [
+            17310,
+            8950
+          ],
+          [
+            14300,
+            8950
+          ]
+        ],
+        "dimensions": {
+          "width": 3010,
+          "height": 1890
+        },
+        "area_sqm": 4.9
+      },
+      {
+        "id": "room-15",
+        "name": "Bedroom 4 (Chambre 4)",
+        "type": "bedroom",
+        "polygon": [
+          [
+            14300,
+            3700
+          ],
+          [
+            17310,
+            3700
+          ],
+          [
+            17310,
+            7000
+          ],
+          [
+            14300,
+            7000
+          ]
+        ],
+        "dimensions": {
+          "width": 3010,
+          "height": 3300
+        },
+        "area_sqm": 8.4
+      },
+      {
+        "id": "room-16",
+        "name": "Covered Terrace (Terrasse Couverte)",
+        "type": "covered_terrace",
+        "polygon": [
+          [
+            20,
+            5980
+          ],
+          [
+            3940,
+            5980
+          ],
+          [
+            3940,
+            8760
+          ],
+          [
+            20,
+            8760
+          ]
+        ],
+        "dimensions": {
+          "width": 3920,
+          "height": 2780
+        },
+        "area_sqm": 7.4
+      }
+    ],
+    "structural_elements": [
+      {
+        "id": "col-01",
+        "type": "column",
+        "polygon": [
+          [
+            -20,
+            7920
+          ],
+          [
+            220,
+            7920
+          ],
+          [
+            220,
+            8160
+          ],
+          [
+            -20,
+            8160
+          ]
+        ]
+      },
+      {
+        "id": "col-02",
+        "type": "column",
+        "polygon": [
+          [
+            17470,
+            -20
+          ],
+          [
+            17710,
+            -20
+          ],
+          [
+            17710,
+            240
+          ],
+          [
+            17470,
+            240
+          ]
+        ]
+      }
+    ]
+  }
+}

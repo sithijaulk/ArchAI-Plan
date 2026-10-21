@@ -1,22 +1,21 @@
 version: "3.9"
 
 services:
-  # ─────────────────── MySQL (production database) ───────────────────
+  # ─────────────────── PostgreSQL (production database) ───────────────────
   db:
-    image: mysql:8.0
-    container_name: archai_mysql
+    image: postgres:16-alpine
+    container_name: archai_postgres
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-changeme}
-      MYSQL_DATABASE: archai_plan
-      MYSQL_USER: archai
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-changeme}
+      POSTGRES_DB: archai_plan
+      POSTGRES_USER: ${DB_USER:-archai}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-archai}
     ports:
-      - "3306:3306"
+      - "5432:5432"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-archai} -d archai_plan"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -33,7 +32,12 @@ services:
         condition: service_healthy
     environment:
       APP_ENV: production
-      DATABASE_URL: mysql+pymysql://archai:${MYSQL_PASSWORD:-changeme}@db:3306/archai_plan
+      DATABASE_URL: postgresql+psycopg2://${DB_USER:-archai}:${DB_PASSWORD:-archai}@db:5432/archai_plan
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: archai_plan
+      DB_USER: ${DB_USER:-archai}
+      DB_PASSWORD: ${DB_PASSWORD:-archai}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
       UPLOAD_DIR: /app/uploads
@@ -60,5 +64,5 @@ services:
       - "3000:3000"
 
 volumes:
-  mysql_data:
+  postgres_data:
   uploads_data:

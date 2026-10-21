@@ -1,0 +1,2159 @@
+{
+  "project_id": "PRJ-FLOORPLAN-016",
+  "project_name": "Architectural Ground Floor Plan 16",
+  "schema_version": "1.0",
+  "land_info": {
+    "orientation": null,
+    "road_facing": null,
+    "area_sqft": null
+  },
+  "buildable_footprint": {},
+  "floor_plan": {
+    "id": "FP-016-GROUND",
+    "name": "Ground Floor Plan",
+    "units": "mm",
+    "coordinate_system": {
+      "origin": "top_left",
+      "x_axis": "right",
+      "y_axis": "down"
+    },
+    "dimensions": {
+      "width": 8000,
+      "height": 13550
+    },
+    "boundary": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          4680,
+          0
+        ],
+        [
+          8000,
+          0
+        ],
+        [
+          8000,
+          13550
+        ],
+        [
+          3600,
+          13550
+        ],
+        [
+          3600,
+          10700
+        ],
+        [
+          0,
+          10700
+        ],
+        [
+          0,
+          1700
+        ],
+        [
+          4680,
+          1700
+        ],
+        [
+          4680,
+          0
+        ]
+      ]
+    },
+    "rooms": [
+      {
+        "id": "room-01",
+        "name": "Living Room",
+        "type": "living_room",
+        "polygon": [
+          [
+            330,
+            2000
+          ],
+          [
+            4650,
+            2000
+          ],
+          [
+            4650,
+            6880
+          ],
+          [
+            330,
+            6880
+          ]
+        ],
+        "dimensions": {
+          "width": 4320,
+          "height": 4880
+        },
+        "original_label": "SEJOUR",
+        "area_sqm": 20.85
+      },
+      {
+        "id": "room-02",
+        "name": "Kitchen",
+        "type": "kitchen",
+        "polygon": [
+          [
+            4860,
+            1950
+          ],
+          [
+            7650,
+            1950
+          ],
+          [
+            7650,
+            6120
+          ],
+          [
+            4860,
+            6120
+          ]
+        ],
+        "dimensions": {
+          "width": 2790,
+          "height": 4170
+        },
+        "original_label": "CUISINE",
+        "area_sqm": 11.97
+      },
+      {
+        "id": "room-03",
+        "name": "Pantry",
+        "type": "pantry",
+        "polygon": [
+          [
+            4920,
+            210
+          ],
+          [
+            7820,
+            210
+          ],
+          [
+            7820,
+            1670
+          ],
+          [
+            4920,
+            1670
+          ]
+        ],
+        "dimensions": {
+          "width": 2900,
+          "height": 1460
+        },
+        "original_label": "CELLIER",
+        "area_sqm": 4.42
+      },
+      {
+        "id": "room-04",
+        "name": "Bedroom 1",
+        "type": "bedroom",
+        "polygon": [
+          [
+            330,
+            7000
+          ],
+          [
+            3610,
+            7000
+          ],
+          [
+            3610,
+            10320
+          ],
+          [
+            330,
+            10320
+          ]
+        ],
+        "dimensions": {
+          "width": 3280,
+          "height": 3320
+        },
+        "original_label": "CH.1",
+        "area_sqm": 11.05
+      },
+      {
+        "id": "room-05",
+        "name": "Bedroom 2",
+        "type": "bedroom",
+        "polygon": [
+          [
+            3950,
+            7980
+          ],
+          [
+            7660,
+            7980
+          ],
+          [
+            7660,
+            10720
+          ],
+          [
+            3950,
+            10720
+          ]
+        ],
+        "dimensions": {
+          "width": 3710,
+          "height": 2740
+        },
+        "original_label": "CH.2",
+        "area_sqm": 10.81
+      },
+      {
+        "id": "room-06",
+        "name": "Bathroom",
+        "type": "bathroom",
+        "polygon": [
+          [
+            6060,
+            6230
+          ],
+          [
+            7670,
+            6230
+          ],
+          [
+            7670,
+            7780
+          ],
+          [
+            6060,
+            7780
+          ]
+        ],
+        "dimensions": {
+          "width": 1610,
+          "height": 1550
+        },
+        "original_label": "BAINS",
+        "area_sqm": 3.05
+      },
+      {
+        "id": "room-07",
+        "name": "Toilet",
+        "type": "toilet",
+        "polygon": [
+          [
+            4880,
+            6220
+          ],
+          [
+            5950,
+            6220
+          ],
+          [
+            5950,
+            7070
+          ],
+          [
+            4880,
+            7070
+          ]
+        ],
+        "dimensions": {
+          "width": 1070,
+          "height": 850
+        },
+        "original_label": "WC",
+        "area_sqm": 1.02
+      },
+      {
+        "id": "room-08",
+        "name": "Passage",
+        "type": "hallway",
+        "polygon": [
+          [
+            3700,
+            6970
+          ],
+          [
+            4840,
+            6970
+          ],
+          [
+            4840,
+            7910
+          ],
+          [
+            3700,
+            7910
+          ]
+        ],
+        "dimensions": {
+          "width": 1140,
+          "height": 940
+        },
+        "original_label": "DEGT.",
+        "area_sqm": 1.79
+      },
+      {
+        "id": "room-09",
+        "name": "Cellar",
+        "type": "storage",
+        "polygon": [
+          [
+            3920,
+            10840
+          ],
+          [
+            7650,
+            10840
+          ],
+          [
+            7650,
+            13270
+          ],
+          [
+            3920,
+            13270
+          ]
+        ],
+        "dimensions": {
+          "width": 3730,
+          "height": 2430
+        },
+        "original_label": "CAVE",
+        "area_sqm": 8.88
+      },
+      {
+        "id": "room-10",
+        "name": "Porch",
+        "type": "porch",
+        "polygon": [
+          [
+            0,
+            100
+          ],
+          [
+            4600,
+            100
+          ],
+          [
+            4600,
+            1680
+          ],
+          [
+            0,
+            1680
+          ]
+        ],
+        "dimensions": {
+          "width": 4600,
+          "height": 1580
+        },
+        "original_label": "Porche",
+        "area_sqm": null
+      },
+      {
+        "id": "room-11",
+        "name": "Terrace",
+        "type": "terrace",
+        "polygon": [
+          [
+            0,
+            10700
+          ],
+          [
+            3600,
+            10700
+          ],
+          [
+            3600,
+            13550
+          ],
+          [
+            0,
+            13550
+          ]
+        ],
+        "dimensions": {
+          "width": 3600,
+          "height": 2850
+        },
+        "original_label": "Terrasse",
+        "area_sqm": null
+      }
+    ],
+    "structural_elements": [
+      {
+        "id": "col-01",
+        "type": "column",
+        "polygon": [
+          [
+            2920,
+            0
+          ],
+          [
+            3120,
+            0
+          ],
+          [
+            3120,
+            200
+          ],
+          [
+            2920,
+            200
+          ]
+        ]
+      },
+      {
+        "id": "col-02",
+        "type": "column",
+        "polygon": [
+          [
+            0,
+            13300
+          ],
+          [
+            200,
+            13300
+          ],
+          [
+            200,
+            13500
+          ],
+          [
+            0,
+            13500
+          ]
+        ]
+      }
+    ],
+    "measurement_notes": {
+      "overall_dimensions": "8.00 m by 13.55 m, transcribed from the drawing",
+      "room_areas": "area_sqm fields are taken from labels printed on the drawing; null means not provided",
+      "coordinates": "Room polygons, room dimensions, building boundary offsets and column sizes are approximate interpretations of the raster image, not surveyed architectural measurements.",
+      "external_spaces": "Porch and terrace are included as rooms for compatibility with the supplied schema, although their polygons are exterior to the enclosed-building boundary.",
+      "orientation": "North and road direction are not indicated on the drawing."
+    }
+  },
+  "structural_rectification": {
+    "status": "completed",
+    "baseline_score": 52,
+    "rectified_score": 59,
+    "score_delta": 7,
+    "baseline_floor_plan": {
+      "id": "FP-016-GROUND",
+      "name": "Ground Floor Plan",
+      "units": "mm",
+      "coordinate_system": {
+        "origin": "top_left",
+        "x_axis": "right",
+        "y_axis": "down"
+      },
+      "dimensions": {
+        "width": 8000,
+        "height": 13550
+      },
+      "boundary": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            4680,
+            0
+          ],
+          [
+            8000,
+            0
+          ],
+          [
+            8000,
+            13550
+          ],
+          [
+            3600,
+            13550
+          ],
+          [
+            3600,
+            10700
+          ],
+          [
+            0,
+            10700
+          ],
+          [
+            0,
+            1700
+          ],
+          [
+            4680,
+            1700
+          ],
+          [
+            4680,
+            0
+          ]
+        ]
+      },
+      "rooms": [
+        {
+          "id": "room-01",
+          "name": "Living Room",
+          "type": "living_room",
+          "polygon": [
+            [
+              330,
+              2000
+            ],
+            [
+              4650,
+              2000
+            ],
+            [
+              4650,
+              6880
+            ],
+            [
+              330,
+              6880
+            ]
+          ],
+          "dimensions": {
+            "width": 4320,
+            "height": 4880
+          },
+          "original_label": "SEJOUR",
+          "area_sqm": 20.85
+        },
+        {
+          "id": "room-02",
+          "name": "Kitchen",
+          "type": "kitchen",
+          "polygon": [
+            [
+              4860,
+              1950
+            ],
+            [
+              7650,
+              1950
+            ],
+            [
+              7650,
+              6120
+            ],
+            [
+              4860,
+              6120
+            ]
+          ],
+          "dimensions": {
+            "width": 2790,
+            "height": 4170
+          },
+          "original_label": "CUISINE",
+          "area_sqm": 11.97
+        },
+        {
+          "id": "room-03",
+          "name": "Pantry",
+          "type": "pantry",
+          "polygon": [
+            [
+              4920,
+              210
+            ],
+            [
+              7820,
+              210
+            ],
+            [
+              7820,
+              1670
+            ],
+            [
+              4920,
+              1670
+            ]
+          ],
+          "dimensions": {
+            "width": 2900,
+            "height": 1460
+          },
+          "original_label": "CELLIER",
+          "area_sqm": 4.42
+        },
+        {
+          "id": "room-04",
+          "name": "Bedroom 1",
+          "type": "bedroom",
+          "polygon": [
+            [
+              330,
+              7000
+            ],
+            [
+              3610,
+              7000
+            ],
+            [
+              3610,
+              10320
+            ],
+            [
+              330,
+              10320
+            ]
+          ],
+          "dimensions": {
+            "width": 3280,
+            "height": 3320
+          },
+          "original_label": "CH.1",
+          "area_sqm": 11.05
+        },
+        {
+          "id": "room-05",
+          "name": "Bedroom 2",
+          "type": "bedroom",
+          "polygon": [
+            [
+              3950,
+              7980
+            ],
+            [
+              7660,
+              7980
+            ],
+            [
+              7660,
+              10720
+            ],
+            [
+              3950,
+              10720
+            ]
+          ],
+          "dimensions": {
+            "width": 3710,
+            "height": 2740
+          },
+          "original_label": "CH.2",
+          "area_sqm": 10.81
+        },
+        {
+          "id": "room-06",
+          "name": "Bathroom",
+          "type": "bathroom",
+          "polygon": [
+            [
+              6060,
+              6230
+            ],
+            [
+              7670,
+              6230
+            ],
+            [
+              7670,
+              7780
+            ],
+            [
+              6060,
+              7780
+            ]
+          ],
+          "dimensions": {
+            "width": 1610,
+            "height": 1550
+          },
+          "original_label": "BAINS",
+          "area_sqm": 3.05
+        },
+        {
+          "id": "room-07",
+          "name": "Toilet",
+          "type": "toilet",
+          "polygon": [
+            [
+              4880,
+              6220
+            ],
+            [
+              5950,
+              6220
+            ],
+            [
+              5950,
+              7070
+            ],
+            [
+              4880,
+              7070
+            ]
+          ],
+          "dimensions": {
+            "width": 1070,
+            "height": 850
+          },
+          "original_label": "WC",
+          "area_sqm": 1.02
+        },
+        {
+          "id": "room-08",
+          "name": "Passage",
+          "type": "hallway",
+          "polygon": [
+            [
+              3700,
+              6970
+            ],
+            [
+              4840,
+              6970
+            ],
+            [
+              4840,
+              7910
+            ],
+            [
+              3700,
+              7910
+            ]
+          ],
+          "dimensions": {
+            "width": 1140,
+            "height": 940
+          },
+          "original_label": "DEGT.",
+          "area_sqm": 1.79
+        },
+        {
+          "id": "room-09",
+          "name": "Cellar",
+          "type": "storage",
+          "polygon": [
+            [
+              3920,
+              10840
+            ],
+            [
+              7650,
+              10840
+            ],
+            [
+              7650,
+              13270
+            ],
+            [
+              3920,
+              13270
+            ]
+          ],
+          "dimensions": {
+            "width": 3730,
+            "height": 2430
+          },
+          "original_label": "CAVE",
+          "area_sqm": 8.88
+        },
+        {
+          "id": "room-10",
+          "name": "Porch",
+          "type": "porch",
+          "polygon": [
+            [
+              0,
+              100
+            ],
+            [
+              4600,
+              100
+            ],
+            [
+              4600,
+              1680
+            ],
+            [
+              0,
+              1680
+            ]
+          ],
+          "dimensions": {
+            "width": 4600,
+            "height": 1580
+          },
+          "original_label": "Porche",
+          "area_sqm": null
+        },
+        {
+          "id": "room-11",
+          "name": "Terrace",
+          "type": "terrace",
+          "polygon": [
+            [
+              0,
+              10700
+            ],
+            [
+              3600,
+              10700
+            ],
+            [
+              3600,
+              13550
+            ],
+            [
+              0,
+              13550
+            ]
+          ],
+          "dimensions": {
+            "width": 3600,
+            "height": 2850
+          },
+          "original_label": "Terrasse",
+          "area_sqm": null
+        }
+      ],
+      "structural_elements": [
+        {
+          "id": "col-01",
+          "type": "column",
+          "polygon": [
+            [
+              2920,
+              0
+            ],
+            [
+              3120,
+              0
+            ],
+            [
+              3120,
+              200
+            ],
+            [
+              2920,
+              200
+            ]
+          ]
+        },
+        {
+          "id": "col-02",
+          "type": "column",
+          "polygon": [
+            [
+              0,
+              13300
+            ],
+            [
+              200,
+              13300
+            ],
+            [
+              200,
+              13500
+            ],
+            [
+              0,
+              13500
+            ]
+          ]
+        }
+      ],
+      "measurement_notes": {
+        "overall_dimensions": "8.00 m by 13.55 m, transcribed from the drawing",
+        "room_areas": "area_sqm fields are taken from labels printed on the drawing; null means not provided",
+        "coordinates": "Room polygons, room dimensions, building boundary offsets and column sizes are approximate interpretations of the raster image, not surveyed architectural measurements.",
+        "external_spaces": "Porch and terrace are included as rooms for compatibility with the supplied schema, although their polygons are exterior to the enclosed-building boundary.",
+        "orientation": "North and road direction are not indicated on the drawing."
+      }
+    },
+    "rectified_floor_plan": {
+      "id": "FP-016-GROUND",
+      "name": "Ground Floor Plan",
+      "units": "mm",
+      "coordinate_system": {
+        "origin": "top_left",
+        "x_axis": "right",
+        "y_axis": "down"
+      },
+      "dimensions": {
+        "width": 8000,
+        "height": 13550
+      },
+      "boundary": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            4680,
+            0
+          ],
+          [
+            8000,
+            0
+          ],
+          [
+            8000,
+            13550
+          ],
+          [
+            3600,
+            13550
+          ],
+          [
+            3600,
+            10700
+          ],
+          [
+            0,
+            10700
+          ],
+          [
+            0,
+            1700
+          ],
+          [
+            4680,
+            1700
+          ],
+          [
+            4680,
+            0
+          ]
+        ]
+      },
+      "rooms": [
+        {
+          "id": "room-01",
+          "name": "Living Room",
+          "type": "living_room",
+          "polygon": [
+            [
+              3950,
+              7980
+            ],
+            [
+              7660,
+              7980
+            ],
+            [
+              7660,
+              10720
+            ],
+            [
+              3950,
+              10720
+            ]
+          ],
+          "dimensions": {
+            "width": 4320,
+            "height": 4880
+          },
+          "original_label": "SEJOUR",
+          "area_sqm": 20.85
+        },
+        {
+          "id": "room-02",
+          "name": "Kitchen",
+          "type": "kitchen",
+          "polygon": [
+            [
+              4860,
+              1950
+            ],
+            [
+              7650,
+              1950
+            ],
+            [
+              7650,
+              6120
+            ],
+            [
+              4860,
+              6120
+            ]
+          ],
+          "dimensions": {
+            "width": 2790,
+            "height": 4170
+          },
+          "original_label": "CUISINE",
+          "area_sqm": 11.97
+        },
+        {
+          "id": "room-03",
+          "name": "Pantry",
+          "type": "pantry",
+          "polygon": [
+            [
+              4920,
+              210
+            ],
+            [
+              7820,
+              210
+            ],
+            [
+              7820,
+              1670
+            ],
+            [
+              4920,
+              1670
+            ]
+          ],
+          "dimensions": {
+            "width": 2900,
+            "height": 1460
+          },
+          "original_label": "CELLIER",
+          "area_sqm": 4.42
+        },
+        {
+          "id": "room-04",
+          "name": "Bedroom 1",
+          "type": "bedroom",
+          "polygon": [
+            [
+              4880,
+              6220
+            ],
+            [
+              5950,
+              6220
+            ],
+            [
+              5950,
+              7070
+            ],
+            [
+              4880,
+              7070
+            ]
+          ],
+          "dimensions": {
+            "width": 3280,
+            "height": 3320
+          },
+          "original_label": "CH.1",
+          "area_sqm": 11.05
+        },
+        {
+          "id": "room-05",
+          "name": "Bedroom 2",
+          "type": "bedroom",
+          "polygon": [
+            [
+              330,
+              2000
+            ],
+            [
+              4650,
+              2000
+            ],
+            [
+              4650,
+              6880
+            ],
+            [
+              330,
+              6880
+            ]
+          ],
+          "dimensions": {
+            "width": 3710,
+            "height": 2740
+          },
+          "original_label": "CH.2",
+          "area_sqm": 10.81
+        },
+        {
+          "id": "room-06",
+          "name": "Bathroom",
+          "type": "bathroom",
+          "polygon": [
+            [
+              0,
+              10700
+            ],
+            [
+              3600,
+              10700
+            ],
+            [
+              3600,
+              13550
+            ],
+            [
+              0,
+              13550
+            ]
+          ],
+          "dimensions": {
+            "width": 1610,
+            "height": 1550
+          },
+          "original_label": "BAINS",
+          "area_sqm": 3.05
+        },
+        {
+          "id": "room-07",
+          "name": "Toilet",
+          "type": "toilet",
+          "polygon": [
+            [
+              330,
+              7000
+            ],
+            [
+              3610,
+              7000
+            ],
+            [
+              3610,
+              10320
+            ],
+            [
+              330,
+              10320
+            ]
+          ],
+          "dimensions": {
+            "width": 1070,
+            "height": 850
+          },
+          "original_label": "WC",
+          "area_sqm": 1.02
+        },
+        {
+          "id": "room-08",
+          "name": "Passage",
+          "type": "hallway",
+          "polygon": [
+            [
+              3920,
+              10840
+            ],
+            [
+              7650,
+              10840
+            ],
+            [
+              7650,
+              13270
+            ],
+            [
+              3920,
+              13270
+            ]
+          ],
+          "dimensions": {
+            "width": 1140,
+            "height": 940
+          },
+          "original_label": "DEGT.",
+          "area_sqm": 1.79
+        },
+        {
+          "id": "room-09",
+          "name": "Cellar",
+          "type": "storage",
+          "polygon": [
+            [
+              3700,
+              6970
+            ],
+            [
+              4840,
+              6970
+            ],
+            [
+              4840,
+              7910
+            ],
+            [
+              3700,
+              7910
+            ]
+          ],
+          "dimensions": {
+            "width": 3730,
+            "height": 2430
+          },
+          "original_label": "CAVE",
+          "area_sqm": 8.88
+        },
+        {
+          "id": "room-10",
+          "name": "Porch",
+          "type": "porch",
+          "polygon": [
+            [
+              0,
+              100
+            ],
+            [
+              4600,
+              100
+            ],
+            [
+              4600,
+              1680
+            ],
+            [
+              0,
+              1680
+            ]
+          ],
+          "dimensions": {
+            "width": 4600,
+            "height": 1580
+          },
+          "original_label": "Porche",
+          "area_sqm": null
+        },
+        {
+          "id": "room-11",
+          "name": "Terrace",
+          "type": "terrace",
+          "polygon": [
+            [
+              6060,
+              6230
+            ],
+            [
+              7670,
+              6230
+            ],
+            [
+              7670,
+              7780
+            ],
+            [
+              6060,
+              7780
+            ]
+          ],
+          "dimensions": {
+            "width": 3600,
+            "height": 2850
+          },
+          "original_label": "Terrasse",
+          "area_sqm": null
+        }
+      ],
+      "structural_elements": [
+        {
+          "id": "col-01",
+          "type": "column",
+          "polygon": [
+            [
+              2920,
+              0
+            ],
+            [
+              3120,
+              0
+            ],
+            [
+              3120,
+              200
+            ],
+            [
+              2920,
+              200
+            ]
+          ]
+        },
+        {
+          "id": "col-02",
+          "type": "column",
+          "polygon": [
+            [
+              0,
+              13300
+            ],
+            [
+              200,
+              13300
+            ],
+            [
+              200,
+              13500
+            ],
+            [
+              0,
+              13500
+            ]
+          ]
+        }
+      ],
+      "measurement_notes": {
+        "overall_dimensions": "8.00 m by 13.55 m, transcribed from the drawing",
+        "room_areas": "area_sqm fields are taken from labels printed on the drawing; null means not provided",
+        "coordinates": "Room polygons, room dimensions, building boundary offsets and column sizes are approximate interpretations of the raster image, not surveyed architectural measurements.",
+        "external_spaces": "Porch and terrace are included as rooms for compatibility with the supplied schema, although their polygons are exterior to the enclosed-building boundary.",
+        "orientation": "North and road direction are not indicated on the drawing."
+      }
+    },
+    "modifications": [
+      {
+        "roomId": "room-06",
+        "roomName": "Bathroom",
+        "previousSector": "East (Purva / Indra)",
+        "newSector": "North-West (Vayavya / Vayu)",
+        "reason": "Relocated drainage/water waste zone away from Brahmasthan core and sacred zones.",
+        "pointsGained": 10,
+        "previousCenter": [
+          6865.0,
+          7005.0
+        ],
+        "newCenter": [
+          1800.0,
+          12125.0
+        ]
+      },
+      {
+        "roomId": "room-07",
+        "roomName": "Toilet",
+        "previousSector": "East (Purva / Indra)",
+        "newSector": "West (Pashchima / Varuna)",
+        "reason": "Relocated drainage/water waste zone away from Brahmasthan core and sacred zones.",
+        "pointsGained": 10,
+        "previousCenter": [
+          5415.0,
+          6645.0
+        ],
+        "newCenter": [
+          1970.0,
+          8660.0
+        ]
+      },
+      {
+        "roomId": "room-05",
+        "roomName": "Bedroom 2",
+        "previousSector": "North-East (Ishanya / Shiva)",
+        "newSector": "South-West (Nairutya / Nirrithi)",
+        "reason": "Aligned sleeping quarters with favorable energy flow and natural daylight.",
+        "pointsGained": 8,
+        "previousCenter": [
+          5805.0,
+          9350.0
+        ],
+        "newCenter": [
+          2490.0,
+          4440.0
+        ]
+      },
+      {
+        "roomId": "room-08",
+        "roomName": "Passage",
+        "previousSector": "Brahmasthan (Center / Brahma Core)",
+        "newSector": "North-East (Ishanya / Shiva)",
+        "reason": "Positioned welcome and social area to capture welcoming cosmic morning energy.",
+        "pointsGained": 5,
+        "previousCenter": [
+          4270.0,
+          7440.0
+        ],
+        "newCenter": [
+          5785.0,
+          12055.0
+        ]
+      }
+    ],
+    "applied_modifications_count": 4,
+    "post_rectification_analysis": {
+      "score": 59,
+      "grade": "B",
+      "grade_description": "Moderate Vastu Harmony: Key elemental or directional rectifications needed.",
+      "good_aspects": [
+        {
+          "rule_id": "vsai.dwara_sthana.combination",
+          "title": "Dwara Sthana: Dhruva Combination (VERY_GOOD)",
+          "room_id": null,
+          "room_name": "Doors",
+          "sector": "CENTER",
+          "sector_display": "Global House Doors",
+          "polygon": null,
+          "description": "House has no door representations detected. Traditional Dwara Sthana classification: Dhruva (VERY_GOOD) \u2014 Wealth, grain and prosperity.",
+          "points_earned": 25
+        },
+        {
+          "rule_id": "vsai.main_entrance.direction",
+          "title": "Main Entrance: Pending Designation",
+          "room_id": null,
+          "room_name": "Main Entrance",
+          "sector": "NORTH",
+          "sector_display": "Entrance Sector Pending",
+          "polygon": null,
+          "description": "No doors are represented in the floor plan to evaluate main entrance direction. Stage 1 analysis requires explicit door representations.",
+          "points_earned": 15
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Living Room - Auspicious Sector (North-East (Ishanya / Shiva))",
+          "room_id": "room-01",
+          "room_name": "Living Room",
+          "sector": "NORTH_EAST",
+          "sector_display": "North-East (Ishanya / Shiva)",
+          "polygon": [
+            [
+              3950,
+              7980
+            ],
+            [
+              7660,
+              7980
+            ],
+            [
+              7660,
+              10720
+            ],
+            [
+              3950,
+              10720
+            ]
+          ],
+          "description": "Living Room is ideally positioned in North-East (Ishanya / Shiva), which is the primary auspicious sector for Living Room in Vastu Shastra.",
+          "points_earned": 2.3
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Kitchen - Auspicious Sector (South-East (Agneya / Agni))",
+          "room_id": "room-02",
+          "room_name": "Kitchen",
+          "sector": "SOUTH_EAST",
+          "sector_display": "South-East (Agneya / Agni)",
+          "polygon": [
+            [
+              4860,
+              1950
+            ],
+            [
+              7650,
+              1950
+            ],
+            [
+              7650,
+              6120
+            ],
+            [
+              4860,
+              6120
+            ]
+          ],
+          "description": "Kitchen is ideally positioned in South-East (Agneya / Agni), which is the primary auspicious sector for Kitchen in Vastu Shastra.",
+          "points_earned": 2.3
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Pantry - Auspicious Sector (South-East (Agneya / Agni))",
+          "room_id": "room-03",
+          "room_name": "Pantry",
+          "sector": "SOUTH_EAST",
+          "sector_display": "South-East (Agneya / Agni)",
+          "polygon": [
+            [
+              4920,
+              210
+            ],
+            [
+              7820,
+              210
+            ],
+            [
+              7820,
+              1670
+            ],
+            [
+              4920,
+              1670
+            ]
+          ],
+          "description": "Pantry is ideally positioned in South-East (Agneya / Agni), which is the primary auspicious sector for Kitchen in Vastu Shastra.",
+          "points_earned": 2.3
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Bedroom 2 - Auspicious Sector (South-West (Nairutya / Nirrithi))",
+          "room_id": "room-05",
+          "room_name": "Bedroom 2",
+          "sector": "SOUTH_WEST",
+          "sector_display": "South-West (Nairutya / Nirrithi)",
+          "polygon": [
+            [
+              330,
+              2000
+            ],
+            [
+              4650,
+              2000
+            ],
+            [
+              4650,
+              6880
+            ],
+            [
+              330,
+              6880
+            ]
+          ],
+          "description": "Bedroom 2 is ideally positioned in South-West (Nairutya / Nirrithi), which is the primary auspicious sector for Bedroom in Vastu Shastra.",
+          "points_earned": 2.3
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Bathroom - Auspicious Sector (North-West (Vayavya / Vayu))",
+          "room_id": "room-06",
+          "room_name": "Bathroom",
+          "sector": "NORTH_WEST",
+          "sector_display": "North-West (Vayavya / Vayu)",
+          "polygon": [
+            [
+              0,
+              10700
+            ],
+            [
+              3600,
+              10700
+            ],
+            [
+              3600,
+              13550
+            ],
+            [
+              0,
+              13550
+            ]
+          ],
+          "description": "Bathroom is ideally positioned in North-West (Vayavya / Vayu), which is the primary auspicious sector for Toilet / Washroom in Vastu Shastra.",
+          "points_earned": 2.3
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Toilet - Auspicious Sector (West (Pashchima / Varuna))",
+          "room_id": "room-07",
+          "room_name": "Toilet",
+          "sector": "WEST",
+          "sector_display": "West (Pashchima / Varuna)",
+          "polygon": [
+            [
+              330,
+              7000
+            ],
+            [
+              3610,
+              7000
+            ],
+            [
+              3610,
+              10320
+            ],
+            [
+              330,
+              10320
+            ]
+          ],
+          "description": "Toilet is ideally positioned in West (Pashchima / Varuna), which is the primary auspicious sector for Toilet / Washroom in Vastu Shastra.",
+          "points_earned": 2.3
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Passage - Auspicious Sector (North-East (Ishanya / Shiva))",
+          "room_id": "room-08",
+          "room_name": "Passage",
+          "sector": "NORTH_EAST",
+          "sector_display": "North-East (Ishanya / Shiva)",
+          "polygon": [
+            [
+              3920,
+              10840
+            ],
+            [
+              7650,
+              10840
+            ],
+            [
+              7650,
+              13270
+            ],
+            [
+              3920,
+              13270
+            ]
+          ],
+          "description": "Passage is ideally positioned in North-East (Ishanya / Shiva), which is the primary auspicious sector for Living Room in Vastu Shastra.",
+          "points_earned": 2.3
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Terrace - Auspicious Sector (East (Purva / Indra))",
+          "room_id": "room-11",
+          "room_name": "Terrace",
+          "sector": "EAST",
+          "sector_display": "East (Purva / Indra)",
+          "polygon": [
+            [
+              6060,
+              6230
+            ],
+            [
+              7670,
+              6230
+            ],
+            [
+              7670,
+              7780
+            ],
+            [
+              6060,
+              7780
+            ]
+          ],
+          "description": "Terrace is ideally positioned in East (Purva / Indra), which is the primary auspicious sector for Living Room in Vastu Shastra.",
+          "points_earned": 2.3
+        }
+      ],
+      "defects": [
+        {
+          "rule_id": "vsai.brahmasthan.exact_center",
+          "title": "Brahmasthan Exact Center Point Obstructed",
+          "severity": "CRITICAL",
+          "room_id": null,
+          "room_name": "Room 'Bedroom 2'",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "polygon": null,
+          "description": "The exact Brahmasthan center point (3910.00, 6825.00) is occupied or intersected by 1 represented spatial object(s): Room 'Bedroom 2'.",
+          "remedy": "Ensure the exact plan center point (Brahmasthan core) is left completely free and open. Relocate load-bearing walls, structural columns, pillars, staircases, and enclosed partitions away from the center coordinate.",
+          "points_deducted": 25
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Bedroom 1 Sub-Optimal Placement (East (Purva / Indra))",
+          "severity": "MEDIUM",
+          "room_id": "room-04",
+          "room_name": "Bedroom 1",
+          "sector": "EAST",
+          "sector_display": "East (Purva / Indra)",
+          "polygon": [
+            [
+              4880,
+              6220
+            ],
+            [
+              5950,
+              6220
+            ],
+            [
+              5950,
+              7070
+            ],
+            [
+              4880,
+              7070
+            ]
+          ],
+          "description": "Bedroom 1 is located in East (Purva / Indra). Recommended preferred directions are SOUTH_WEST, SOUTH, WEST, NORTH_WEST.",
+          "remedy": "Orient sleeping head direction towards South or East.",
+          "points_deducted": 1.4
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Cellar in Prohibited Zone (Brahmasthan (Center / Brahma Core))",
+          "severity": "CRITICAL",
+          "room_id": "room-09",
+          "room_name": "Cellar",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "polygon": [
+            [
+              3700,
+              6970
+            ],
+            [
+              4840,
+              6970
+            ],
+            [
+              4840,
+              7910
+            ],
+            [
+              3700,
+              7910
+            ]
+          ],
+          "description": "Cellar is located in Brahmasthan (Center / Brahma Core). Vastu Shastra explicitly states that Store Room must AVOID NORTH_EAST, CENTER.",
+          "remedy": "Heavy storage should be positioned in heavier South or West sectors.",
+          "points_deducted": 2.3
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Porch in Prohibited Zone (South-West (Nairutya / Nirrithi))",
+          "severity": "CRITICAL",
+          "room_id": "room-10",
+          "room_name": "Porch",
+          "sector": "SOUTH_WEST",
+          "sector_display": "South-West (Nairutya / Nirrithi)",
+          "polygon": [
+            [
+              0,
+              100
+            ],
+            [
+              4600,
+              100
+            ],
+            [
+              4600,
+              1680
+            ],
+            [
+              0,
+              1680
+            ]
+          ],
+          "description": "Porch is located in South-West (Nairutya / Nirrithi). Vastu Shastra explicitly states that Living Room must AVOID SOUTH_WEST.",
+          "remedy": "Align living seating towards North or East during conversations.",
+          "points_deducted": 2.3
+        }
+      ],
+      "total_rules_evaluated": 4,
+      "passed_rules_count": 10,
+      "failed_rules_count": 4,
+      "room_sectors": {
+        "room-01": {
+          "id": "room-01",
+          "name": "Living Room",
+          "type": "living_room",
+          "sector": "NORTH_EAST",
+          "sector_display": "North-East (Ishanya / Shiva)",
+          "centroid": [
+            5805.0,
+            9350.0
+          ],
+          "polygon": [
+            [
+              3950,
+              7980
+            ],
+            [
+              7660,
+              7980
+            ],
+            [
+              7660,
+              10720
+            ],
+            [
+              3950,
+              10720
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": false
+        },
+        "room-02": {
+          "id": "room-02",
+          "name": "Kitchen",
+          "type": "kitchen",
+          "sector": "SOUTH_EAST",
+          "sector_display": "South-East (Agneya / Agni)",
+          "centroid": [
+            6255.0,
+            4035.0
+          ],
+          "polygon": [
+            [
+              4860,
+              1950
+            ],
+            [
+              7650,
+              1950
+            ],
+            [
+              7650,
+              6120
+            ],
+            [
+              4860,
+              6120
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": false
+        },
+        "room-03": {
+          "id": "room-03",
+          "name": "Pantry",
+          "type": "pantry",
+          "sector": "SOUTH_EAST",
+          "sector_display": "South-East (Agneya / Agni)",
+          "centroid": [
+            6370.0,
+            940.0
+          ],
+          "polygon": [
+            [
+              4920,
+              210
+            ],
+            [
+              7820,
+              210
+            ],
+            [
+              7820,
+              1670
+            ],
+            [
+              4920,
+              1670
+            ]
+          ],
+          "overlaps_brahmasthan": false,
+          "occupies_exact_center": false
+        },
+        "room-04": {
+          "id": "room-04",
+          "name": "Bedroom 1",
+          "type": "bedroom",
+          "sector": "EAST",
+          "sector_display": "East (Purva / Indra)",
+          "centroid": [
+            5415.0,
+            6645.0
+          ],
+          "polygon": [
+            [
+              4880,
+              6220
+            ],
+            [
+              5950,
+              6220
+            ],
+            [
+              5950,
+              7070
+            ],
+            [
+              4880,
+              7070
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": false
+        },
+        "room-05": {
+          "id": "room-05",
+          "name": "Bedroom 2",
+          "type": "bedroom",
+          "sector": "SOUTH_WEST",
+          "sector_display": "South-West (Nairutya / Nirrithi)",
+          "centroid": [
+            2490.0,
+            4440.0
+          ],
+          "polygon": [
+            [
+              330,
+              2000
+            ],
+            [
+              4650,
+              2000
+            ],
+            [
+              4650,
+              6880
+            ],
+            [
+              330,
+              6880
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": true
+        },
+        "room-06": {
+          "id": "room-06",
+          "name": "Bathroom",
+          "type": "bathroom",
+          "sector": "NORTH_WEST",
+          "sector_display": "North-West (Vayavya / Vayu)",
+          "centroid": [
+            1800.0,
+            12125.0
+          ],
+          "polygon": [
+            [
+              0,
+              10700
+            ],
+            [
+              3600,
+              10700
+            ],
+            [
+              3600,
+              13550
+            ],
+            [
+              0,
+              13550
+            ]
+          ],
+          "overlaps_brahmasthan": false,
+          "occupies_exact_center": false
+        },
+        "room-07": {
+          "id": "room-07",
+          "name": "Toilet",
+          "type": "toilet",
+          "sector": "WEST",
+          "sector_display": "West (Pashchima / Varuna)",
+          "centroid": [
+            1970.0,
+            8660.0
+          ],
+          "polygon": [
+            [
+              330,
+              7000
+            ],
+            [
+              3610,
+              7000
+            ],
+            [
+              3610,
+              10320
+            ],
+            [
+              330,
+              10320
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": false
+        },
+        "room-08": {
+          "id": "room-08",
+          "name": "Passage",
+          "type": "hallway",
+          "sector": "NORTH_EAST",
+          "sector_display": "North-East (Ishanya / Shiva)",
+          "centroid": [
+            5785.0,
+            12055.0
+          ],
+          "polygon": [
+            [
+              3920,
+              10840
+            ],
+            [
+              7650,
+              10840
+            ],
+            [
+              7650,
+              13270
+            ],
+            [
+              3920,
+              13270
+            ]
+          ],
+          "overlaps_brahmasthan": false,
+          "occupies_exact_center": false
+        },
+        "room-09": {
+          "id": "room-09",
+          "name": "Cellar",
+          "type": "storage",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "centroid": [
+            4270.0,
+            7440.0
+          ],
+          "polygon": [
+            [
+              3700,
+              6970
+            ],
+            [
+              4840,
+              6970
+            ],
+            [
+              4840,
+              7910
+            ],
+            [
+              3700,
+              7910
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": false
+        },
+        "room-10": {
+          "id": "room-10",
+          "name": "Porch",
+          "type": "porch",
+          "sector": "SOUTH_WEST",
+          "sector_display": "South-West (Nairutya / Nirrithi)",
+          "centroid": [
+            2300.0,
+            890.0
+          ],
+          "polygon": [
+            [
+              0,
+              100
+            ],
+            [
+              4600,
+              100
+            ],
+            [
+              4600,
+              1680
+            ],
+            [
+              0,
+              1680
+            ]
+          ],
+          "overlaps_brahmasthan": false,
+          "occupies_exact_center": false
+        },
+        "room-11": {
+          "id": "room-11",
+          "name": "Terrace",
+          "type": "terrace",
+          "sector": "EAST",
+          "sector_display": "East (Purva / Indra)",
+          "centroid": [
+            6865.0,
+            7005.0
+          ],
+          "polygon": [
+            [
+              6060,
+              6230
+            ],
+            [
+              7670,
+              6230
+            ],
+            [
+              7670,
+              7780
+            ],
+            [
+              6060,
+              7780
+            ]
+          ],
+          "overlaps_brahmasthan": false,
+          "occupies_exact_center": false
+        }
+      },
+      "brahmasthan": {
+        "status": "OBSTRUCTED",
+        "exact_center": [
+          3910.0,
+          6825.0
+        ],
+        "tolerance": 0.05,
+        "obstructing_objects": [
+          "Bedroom 2"
+        ],
+        "obstructing_rooms": [
+          "Bedroom 2"
+        ]
+      },
+      "dwara_sthana": {
+        "house_type": "Dhruva",
+        "classification": "VERY_GOOD",
+        "directions": [],
+        "traditional_result": "Wealth, grain and prosperity"
+      },
+      "main_entrance": {
+        "identified": false,
+        "door_id": null,
+        "sector": null,
+        "classification": null
+      },
+      "bounding_box": {
+        "min_x": 0,
+        "max_x": 7820,
+        "min_y": 100,
+        "max_y": 13550,
+        "width": 7820,
+        "height": 13450,
+        "area_sqft": 105179000.0
+      },
+      "rule_details": {
+        "vsai.brahmasthan.exact_center": {
+          "status": "FAIL",
+          "exact_center": [
+            3910.0,
+            6825.0
+          ],
+          "tolerance": 0.05,
+          "obstructing_objects_count": 1,
+          "obstructing_objects": [
+            {
+              "id": "room-05",
+              "name": "Bedroom 2",
+              "type": "room"
+            }
+          ]
+        },
+        "vsai.dwara_sthana.combination": {
+          "house_type": "Dhruva",
+          "classification": "VERY_GOOD",
+          "directions": [],
+          "traditional_result": "Wealth, grain and prosperity",
+          "doors_count": 0
+        },
+        "vsai.main_entrance.direction": {
+          "identified": false,
+          "reason": "No door representations present."
+        },
+        "vsai.room.direction": {
+          "evaluated_rooms_count": 11
+        }
+      }
+    }
+  },
+  "interior_layout": {},
+  "exterior_landscape": {},
+  "processing": {
+    "gab_gen": {
+      "status": "pending"
+    },
+    "vsai_rectifier": {
+      "status": "completed",
+      "updatedAt": "2026-10-20T08:23:46.655Z"
+    },
+    "esai_engine": {
+      "status": "pending"
+    },
+    "elia_engine": {
+      "status": "pending"
+    }
+  }
+}
