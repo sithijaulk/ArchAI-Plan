@@ -31,6 +31,99 @@ ROOM_CLASS_TO_TYPE: Dict[str, Tuple[str, str]] = {
 IGNORED_ROOM_CLASSES = {"Background", "Outdoor", "Wall", "Railing"}
 
 
+from shapely.geometry import Polygon, MultiPolygon, box
+
+def regularize_room_polygon(poly: Polygon, scale_factor: float, min_area_sqft: float = 24.0) -> Optional[List[List[float]]]:
+    """
+    Transforms a raw raster contour polygon into a clean, CAD-ready architectural room polygon:
+    1. Filters out small noise/artifacts (area < 24 sq ft or dimensions < 3.0 ft).
+    2. If approximately rectangular (rectangularity >= 0.80), snaps directly to a perfect 4-corner bounding box.
+    3. If non-rectangular (L-shaped or complex), simplifies with Douglas-Peucker (tolerance 0.6 ft) and snaps nearly horizontal/vertical edges to clean 90° right angles.
+    4. Eliminates micro-steps and acute jagged angles so the room has at most 4-12 crisp vertices.
+    """
+    if poly.is_empty or not poly.is_valid:
+        poly = poly.buffer(0)
+    if not isinstance(poly, Polygon) or poly.is_empty:
+        return None
+
+    # Scale polygon to feet
+    poly_ft = scale(poly, xfact=scale_factor, yfact=scale_factor, origin=(0, 0))
+    if poly_ft.area < min_area_sqft:
+        return None
+
+    minx, miny, maxx, maxy = poly_ft.bounds
+    width = maxx - minx
+    height = maxy - miny
+    if width < 3.0 or height < 3.0:
+        return None
+
+    bbox_poly = box(minx, miny, maxx, maxy)
+    rectangularity = poly_ft.area / max(bbox_poly.area, 1e-4)
+
+    # 1. High rectangularity (standard rectangular room) -> snap to clean 4-corner rectangle
+    if rectangularity >= 0.80:
+        return [
+            [round(minx, 1), round(miny, 1)],
+            [round(maxx, 1), round(miny, 1)],
+            [round(maxx, 1), round(maxy, 1)],
+            [round(minx, 1), round(maxy, 1)],
+        ]
+
+    # 2. Non-rectangular room (L-shape, T-shape) -> simplify and orthogonalize
+    simplified = poly_ft.simplify(0.6, preserve_topology=True)
+    if not simplified.is_valid:
+        simplified = simplified.buffer(0)
+    if not isinstance(simplified, Polygon) or simplified.is_empty or simplified.area < min_area_sqft:
+        return None
+
+    coords = list(simplified.exterior.coords)[:-1]
+    if len(coords) < 3:
+        return None
+
+    # Snap nearly horizontal or vertical edges
+    pts = [[float(p[0]), float(p[1])] for p in coords]
+    n = len(pts)
+    snapped: List[List[float]] = []
+
+    for i in range(n):
+        p1 = pts[i]
+        p2 = pts[(i + 1) % n]
+        dx = abs(p2[0] - p1[0])
+        dy = abs(p2[1] - p1[1])
+        # Nearly horizontal: dy is very small compared to dx
+        if dy < 0.8 and dx > dy:
+            p2[1] = p1[1]
+        # Nearly vertical: dx is very small compared to dy
+        elif dx < 0.8 and dy > dx:
+            p2[0] = p1[0]
+        snapped.append([round(p1[0], 1), round(p1[1], 1)])
+
+    # Remove consecutive duplicate points
+    filtered: List[List[float]] = []
+    for pt in snapped:
+        if not filtered or (abs(pt[0] - filtered[-1][0]) > 0.2 or abs(pt[1] - filtered[-1][1]) > 0.2):
+            filtered.append(pt)
+
+    if len(filtered) < 3:
+        return [
+            [round(minx, 1), round(miny, 1)],
+            [round(maxx, 1), round(miny, 1)],
+            [round(maxx, 1), round(maxy, 1)],
+            [round(minx, 1), round(maxy, 1)],
+        ]
+
+    # If still has too many vertices (> 16), snap to bounding box to guarantee CAD cleanliness
+    if len(filtered) > 16:
+        return [
+            [round(minx, 1), round(miny, 1)],
+            [round(maxx, 1), round(miny, 1)],
+            [round(maxx, 1), round(maxy, 1)],
+            [round(minx, 1), round(maxy, 1)],
+        ]
+
+    return filtered
+
+
 def snap_polygon_to_orthogonal(poly: Polygon, angle_threshold_deg: float = 15.0) -> Polygon:
     """
     Snaps nearly horizontal or vertical polygon edges to exact right angles (orthogonal grid).
@@ -127,24 +220,9 @@ def convert_cubicasa_to_master_json(
         raw_type, base_name = ROOM_CLASS_TO_TYPE.get(room_class, ("room", "ROOM"))
 
         for poly in polygons:
-            if poly.is_empty or not poly.is_valid or poly.area < 200:
-                continue
-
-            # Simplify and snap polygon to orthogonal grid
-            simplified = poly.simplify(2.0, preserve_topology=True)
-            if not isinstance(simplified, Polygon):
-                continue
-            snapped = snap_polygon_to_orthogonal(simplified)
-
-            # Convert coordinates from pixels to feet (round to 1 decimal place)
-            # In image coordinates (0,0) is top-left, matching the 2D CAD viewer canvas
-            raw_coords = list(snapped.exterior.coords)[:-1]
-            scaled_coords = [
-                [round(x * scale_factor, 1), round(y * scale_factor, 1)]
-                for x, y in raw_coords
-            ]
-
-            if len(scaled_coords) < 3:
+            # Regularize room polygon (filters noise, snaps rectangular rooms, eliminates jagged micro-steps)
+            scaled_coords = regularize_room_polygon(poly, scale_factor, min_area_sqft=20.0)
+            if not scaled_coords or len(scaled_coords) < 3:
                 continue
 
             # Bounding box dimensions
@@ -152,7 +230,7 @@ def convert_cubicasa_to_master_json(
             ys = [p[1] for p in scaled_coords]
             rw = round(max(xs) - min(xs), 1)
             rh = round(max(ys) - min(ys), 1)
-            if rw < 1.0 or rh < 1.0:
+            if rw < 2.5 or rh < 2.5:
                 continue
 
             # Calculate average room confidence from confidence map if available

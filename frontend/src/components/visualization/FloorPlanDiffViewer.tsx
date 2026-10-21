@@ -518,8 +518,9 @@ export function FloorPlanDiffViewer({
                           : '#000000'))
                   }
                   strokeWidth={bounds.baseDim * 0.016}
-                  strokeLinejoin="miter"
-                  strokeLinecap="square"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                  strokeMiterlimit={2}
                 />
 
                 {/* Room Name Label (Solid Black Bold Architectural Typography) */}

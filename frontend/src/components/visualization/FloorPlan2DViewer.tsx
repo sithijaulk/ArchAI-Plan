@@ -688,8 +688,9 @@ export function FloorPlan2DViewer({
                       ? bounds.baseDim * 0.016
                       : bounds.baseDim * 0.016
                   }
-                  strokeLinejoin="miter"
-                  strokeLinecap="square"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                  strokeMiterlimit={2}
                   className="transition-all"
                 />
 
