@@ -1,0 +1,2126 @@
+{
+  "project_id": "PRJ-FP-20261021-001",
+  "project_name": "Ground Floor Plan - 10.25m x 9.75m",
+  "schema_version": "1.0",
+  "land_info": {
+    "orientation": null,
+    "road_facing": null,
+    "area_sqft": null
+  },
+  "buildable_footprint": {},
+  "floor_plan": {
+    "id": "FP-20261021-001",
+    "name": "Ground Floor Plan",
+    "units": "mm",
+    "coordinate_system": {
+      "origin": "top_left",
+      "x_axis": "right",
+      "y_axis": "down"
+    },
+    "dimensions": {
+      "width": 13650,
+      "height": 9750
+    },
+    "boundary": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          3400,
+          0
+        ],
+        [
+          13650,
+          0
+        ],
+        [
+          13650,
+          9750
+        ],
+        [
+          3400,
+          9750
+        ],
+        [
+          3400,
+          5900
+        ],
+        [
+          0,
+          5900
+        ],
+        [
+          0,
+          3700
+        ],
+        [
+          3400,
+          3700
+        ],
+        [
+          3400,
+          0
+        ]
+      ]
+    },
+    "rooms": [
+      {
+        "id": "room-01",
+        "name": "Cellier",
+        "type": "storage_room",
+        "area_sqm": 7.59,
+        "polygon": [
+          [
+            0,
+            4100
+          ],
+          [
+            2900,
+            4100
+          ],
+          [
+            2900,
+            5850
+          ],
+          [
+            0,
+            5850
+          ]
+        ],
+        "dimensions": {
+          "width": 2900,
+          "height": 1750
+        }
+      },
+      {
+        "id": "room-02",
+        "name": "Cuisine",
+        "type": "kitchen",
+        "area_sqm": 11.48,
+        "polygon": [
+          [
+            3800,
+            5600
+          ],
+          [
+            6900,
+            5600
+          ],
+          [
+            6900,
+            9300
+          ],
+          [
+            3800,
+            9300
+          ]
+        ],
+        "dimensions": {
+          "width": 3100,
+          "height": 3700
+        }
+      },
+      {
+        "id": "room-03",
+        "name": "Sejour",
+        "type": "living_room",
+        "area_sqm": 33.29,
+        "polygon": [
+          [
+            6900,
+            4100
+          ],
+          [
+            13300,
+            4100
+          ],
+          [
+            13300,
+            9000
+          ],
+          [
+            6900,
+            9000
+          ]
+        ],
+        "dimensions": {
+          "width": 6400,
+          "height": 4900
+        }
+      },
+      {
+        "id": "room-04",
+        "name": "Chambre 1",
+        "type": "bedroom",
+        "area_sqm": 10.22,
+        "polygon": [
+          [
+            3800,
+            300
+          ],
+          [
+            7000,
+            300
+          ],
+          [
+            7000,
+            2900
+          ],
+          [
+            3800,
+            2900
+          ]
+        ],
+        "dimensions": {
+          "width": 3200,
+          "height": 2600
+        }
+      },
+      {
+        "id": "room-05",
+        "name": "Chambre 2",
+        "type": "bedroom",
+        "area_sqm": 10.36,
+        "polygon": [
+          [
+            7000,
+            300
+          ],
+          [
+            9800,
+            300
+          ],
+          [
+            9800,
+            2900
+          ],
+          [
+            7000,
+            2900
+          ]
+        ],
+        "dimensions": {
+          "width": 2800,
+          "height": 2600
+        }
+      },
+      {
+        "id": "room-06",
+        "name": "Chambre 3",
+        "type": "bedroom",
+        "area_sqm": 11.1,
+        "polygon": [
+          [
+            9800,
+            300
+          ],
+          [
+            13300,
+            300
+          ],
+          [
+            13300,
+            3200
+          ],
+          [
+            9800,
+            3200
+          ]
+        ],
+        "dimensions": {
+          "width": 3500,
+          "height": 2900
+        }
+      },
+      {
+        "id": "room-07",
+        "name": "Bains",
+        "type": "bathroom",
+        "area_sqm": 5.58,
+        "polygon": [
+          [
+            4000,
+            2900
+          ],
+          [
+            6200,
+            2900
+          ],
+          [
+            6200,
+            5400
+          ],
+          [
+            4000,
+            5400
+          ]
+        ],
+        "dimensions": {
+          "width": 2200,
+          "height": 2500
+        }
+      },
+      {
+        "id": "room-08",
+        "name": "Degagement",
+        "type": "hallway",
+        "area_sqm": 3.13,
+        "polygon": [
+          [
+            6200,
+            3300
+          ],
+          [
+            10200,
+            3300
+          ],
+          [
+            10200,
+            4100
+          ],
+          [
+            6200,
+            4100
+          ]
+        ],
+        "dimensions": {
+          "width": 4000,
+          "height": 800
+        }
+      },
+      {
+        "id": "room-09",
+        "name": "Placard 1",
+        "type": "closet",
+        "area_sqm": 0.84,
+        "polygon": [
+          [
+            5100,
+            5000
+          ],
+          [
+            5900,
+            5000
+          ],
+          [
+            5900,
+            6050
+          ],
+          [
+            5100,
+            6050
+          ]
+        ],
+        "dimensions": {
+          "width": 800,
+          "height": 1050
+        }
+      },
+      {
+        "id": "room-10",
+        "name": "Placard 2",
+        "type": "closet",
+        "area_sqm": 1.02,
+        "polygon": [
+          [
+            5900,
+            5000
+          ],
+          [
+            7000,
+            5000
+          ],
+          [
+            7000,
+            5930
+          ],
+          [
+            5900,
+            5930
+          ]
+        ],
+        "dimensions": {
+          "width": 1100,
+          "height": 930
+        }
+      },
+      {
+        "id": "room-11",
+        "name": "Placard 3",
+        "type": "closet",
+        "area_sqm": 0.94,
+        "polygon": [
+          [
+            7500,
+            4700
+          ],
+          [
+            8400,
+            4700
+          ],
+          [
+            8400,
+            5740
+          ],
+          [
+            7500,
+            5740
+          ]
+        ],
+        "dimensions": {
+          "width": 900,
+          "height": 1040
+        }
+      },
+      {
+        "id": "room-12",
+        "name": "Placard 4",
+        "type": "closet",
+        "area_sqm": 0.98,
+        "polygon": [
+          [
+            12400,
+            3000
+          ],
+          [
+            13300,
+            3000
+          ],
+          [
+            13300,
+            4090
+          ],
+          [
+            12400,
+            4090
+          ]
+        ],
+        "dimensions": {
+          "width": 900,
+          "height": 1090
+        }
+      }
+    ],
+    "structural_elements": []
+  },
+  "structural_rectification": {
+    "status": "completed",
+    "baseline_score": 80,
+    "rectified_score": 98,
+    "score_delta": 18,
+    "baseline_floor_plan": {
+      "id": "FP-20261021-001",
+      "name": "Ground Floor Plan",
+      "units": "mm",
+      "coordinate_system": {
+        "origin": "top_left",
+        "x_axis": "right",
+        "y_axis": "down"
+      },
+      "dimensions": {
+        "width": 13650,
+        "height": 9750
+      },
+      "boundary": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            3400,
+            0
+          ],
+          [
+            13650,
+            0
+          ],
+          [
+            13650,
+            9750
+          ],
+          [
+            3400,
+            9750
+          ],
+          [
+            3400,
+            5900
+          ],
+          [
+            0,
+            5900
+          ],
+          [
+            0,
+            3700
+          ],
+          [
+            3400,
+            3700
+          ],
+          [
+            3400,
+            0
+          ]
+        ]
+      },
+      "rooms": [
+        {
+          "id": "room-01",
+          "name": "Cellier",
+          "type": "storage_room",
+          "area_sqm": 7.59,
+          "polygon": [
+            [
+              0,
+              4100
+            ],
+            [
+              2900,
+              4100
+            ],
+            [
+              2900,
+              5850
+            ],
+            [
+              0,
+              5850
+            ]
+          ],
+          "dimensions": {
+            "width": 2900,
+            "height": 1750
+          }
+        },
+        {
+          "id": "room-02",
+          "name": "Cuisine",
+          "type": "kitchen",
+          "area_sqm": 11.48,
+          "polygon": [
+            [
+              3800,
+              5600
+            ],
+            [
+              6900,
+              5600
+            ],
+            [
+              6900,
+              9300
+            ],
+            [
+              3800,
+              9300
+            ]
+          ],
+          "dimensions": {
+            "width": 3100,
+            "height": 3700
+          }
+        },
+        {
+          "id": "room-03",
+          "name": "Sejour",
+          "type": "living_room",
+          "area_sqm": 33.29,
+          "polygon": [
+            [
+              6900,
+              4100
+            ],
+            [
+              13300,
+              4100
+            ],
+            [
+              13300,
+              9000
+            ],
+            [
+              6900,
+              9000
+            ]
+          ],
+          "dimensions": {
+            "width": 6400,
+            "height": 4900
+          }
+        },
+        {
+          "id": "room-04",
+          "name": "Chambre 1",
+          "type": "bedroom",
+          "area_sqm": 10.22,
+          "polygon": [
+            [
+              3800,
+              300
+            ],
+            [
+              7000,
+              300
+            ],
+            [
+              7000,
+              2900
+            ],
+            [
+              3800,
+              2900
+            ]
+          ],
+          "dimensions": {
+            "width": 3200,
+            "height": 2600
+          }
+        },
+        {
+          "id": "room-05",
+          "name": "Chambre 2",
+          "type": "bedroom",
+          "area_sqm": 10.36,
+          "polygon": [
+            [
+              7000,
+              300
+            ],
+            [
+              9800,
+              300
+            ],
+            [
+              9800,
+              2900
+            ],
+            [
+              7000,
+              2900
+            ]
+          ],
+          "dimensions": {
+            "width": 2800,
+            "height": 2600
+          }
+        },
+        {
+          "id": "room-06",
+          "name": "Chambre 3",
+          "type": "bedroom",
+          "area_sqm": 11.1,
+          "polygon": [
+            [
+              9800,
+              300
+            ],
+            [
+              13300,
+              300
+            ],
+            [
+              13300,
+              3200
+            ],
+            [
+              9800,
+              3200
+            ]
+          ],
+          "dimensions": {
+            "width": 3500,
+            "height": 2900
+          }
+        },
+        {
+          "id": "room-07",
+          "name": "Bains",
+          "type": "bathroom",
+          "area_sqm": 5.58,
+          "polygon": [
+            [
+              4000,
+              2900
+            ],
+            [
+              6200,
+              2900
+            ],
+            [
+              6200,
+              5400
+            ],
+            [
+              4000,
+              5400
+            ]
+          ],
+          "dimensions": {
+            "width": 2200,
+            "height": 2500
+          }
+        },
+        {
+          "id": "room-08",
+          "name": "Degagement",
+          "type": "hallway",
+          "area_sqm": 3.13,
+          "polygon": [
+            [
+              6200,
+              3300
+            ],
+            [
+              10200,
+              3300
+            ],
+            [
+              10200,
+              4100
+            ],
+            [
+              6200,
+              4100
+            ]
+          ],
+          "dimensions": {
+            "width": 4000,
+            "height": 800
+          }
+        },
+        {
+          "id": "room-09",
+          "name": "Placard 1",
+          "type": "closet",
+          "area_sqm": 0.84,
+          "polygon": [
+            [
+              5100,
+              5000
+            ],
+            [
+              5900,
+              5000
+            ],
+            [
+              5900,
+              6050
+            ],
+            [
+              5100,
+              6050
+            ]
+          ],
+          "dimensions": {
+            "width": 800,
+            "height": 1050
+          }
+        },
+        {
+          "id": "room-10",
+          "name": "Placard 2",
+          "type": "closet",
+          "area_sqm": 1.02,
+          "polygon": [
+            [
+              5900,
+              5000
+            ],
+            [
+              7000,
+              5000
+            ],
+            [
+              7000,
+              5930
+            ],
+            [
+              5900,
+              5930
+            ]
+          ],
+          "dimensions": {
+            "width": 1100,
+            "height": 930
+          }
+        },
+        {
+          "id": "room-11",
+          "name": "Placard 3",
+          "type": "closet",
+          "area_sqm": 0.94,
+          "polygon": [
+            [
+              7500,
+              4700
+            ],
+            [
+              8400,
+              4700
+            ],
+            [
+              8400,
+              5740
+            ],
+            [
+              7500,
+              5740
+            ]
+          ],
+          "dimensions": {
+            "width": 900,
+            "height": 1040
+          }
+        },
+        {
+          "id": "room-12",
+          "name": "Placard 4",
+          "type": "closet",
+          "area_sqm": 0.98,
+          "polygon": [
+            [
+              12400,
+              3000
+            ],
+            [
+              13300,
+              3000
+            ],
+            [
+              13300,
+              4090
+            ],
+            [
+              12400,
+              4090
+            ]
+          ],
+          "dimensions": {
+            "width": 900,
+            "height": 1090
+          }
+        }
+      ],
+      "structural_elements": []
+    },
+    "rectified_floor_plan": {
+      "id": "FP-20261021-001",
+      "name": "Ground Floor Plan",
+      "units": "mm",
+      "coordinate_system": {
+        "origin": "top_left",
+        "x_axis": "right",
+        "y_axis": "down"
+      },
+      "dimensions": {
+        "width": 13650,
+        "height": 9750
+      },
+      "boundary": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            3400,
+            0
+          ],
+          [
+            13650,
+            0
+          ],
+          [
+            13650,
+            9750
+          ],
+          [
+            3400,
+            9750
+          ],
+          [
+            3400,
+            5900
+          ],
+          [
+            0,
+            5900
+          ],
+          [
+            0,
+            3700
+          ],
+          [
+            3400,
+            3700
+          ],
+          [
+            3400,
+            0
+          ]
+        ]
+      },
+      "rooms": [
+        {
+          "id": "room-01",
+          "name": "Cellier",
+          "type": "storage_room",
+          "area_sqm": 7.59,
+          "polygon": [
+            [
+              4000,
+              2900
+            ],
+            [
+              6200,
+              2900
+            ],
+            [
+              6200,
+              5400
+            ],
+            [
+              4000,
+              5400
+            ]
+          ],
+          "dimensions": {
+            "width": 2900,
+            "height": 1750
+          }
+        },
+        {
+          "id": "room-02",
+          "name": "Cuisine",
+          "type": "kitchen",
+          "area_sqm": 11.48,
+          "polygon": [
+            [
+              9800,
+              300
+            ],
+            [
+              13300,
+              300
+            ],
+            [
+              13300,
+              3200
+            ],
+            [
+              9800,
+              3200
+            ]
+          ],
+          "dimensions": {
+            "width": 3100,
+            "height": 3700
+          }
+        },
+        {
+          "id": "room-03",
+          "name": "Sejour",
+          "type": "living_room",
+          "area_sqm": 33.29,
+          "polygon": [
+            [
+              6900,
+              4100
+            ],
+            [
+              13300,
+              4100
+            ],
+            [
+              13300,
+              9000
+            ],
+            [
+              6900,
+              9000
+            ]
+          ],
+          "dimensions": {
+            "width": 6400,
+            "height": 4900
+          }
+        },
+        {
+          "id": "room-04",
+          "name": "Chambre 1",
+          "type": "bedroom",
+          "area_sqm": 10.22,
+          "polygon": [
+            [
+              5100,
+              5000
+            ],
+            [
+              5900,
+              5000
+            ],
+            [
+              5900,
+              6050
+            ],
+            [
+              5100,
+              6050
+            ]
+          ],
+          "dimensions": {
+            "width": 3200,
+            "height": 2600
+          }
+        },
+        {
+          "id": "room-05",
+          "name": "Chambre 2",
+          "type": "bedroom",
+          "area_sqm": 10.36,
+          "polygon": [
+            [
+              5900,
+              5000
+            ],
+            [
+              7000,
+              5000
+            ],
+            [
+              7000,
+              5930
+            ],
+            [
+              5900,
+              5930
+            ]
+          ],
+          "dimensions": {
+            "width": 2800,
+            "height": 2600
+          }
+        },
+        {
+          "id": "room-06",
+          "name": "Chambre 3",
+          "type": "bedroom",
+          "area_sqm": 11.1,
+          "polygon": [
+            [
+              3800,
+              5600
+            ],
+            [
+              6900,
+              5600
+            ],
+            [
+              6900,
+              9300
+            ],
+            [
+              3800,
+              9300
+            ]
+          ],
+          "dimensions": {
+            "width": 3500,
+            "height": 2900
+          }
+        },
+        {
+          "id": "room-07",
+          "name": "Bains",
+          "type": "bathroom",
+          "area_sqm": 5.58,
+          "polygon": [
+            [
+              0,
+              4100
+            ],
+            [
+              2900,
+              4100
+            ],
+            [
+              2900,
+              5850
+            ],
+            [
+              0,
+              5850
+            ]
+          ],
+          "dimensions": {
+            "width": 2200,
+            "height": 2500
+          }
+        },
+        {
+          "id": "room-08",
+          "name": "Degagement",
+          "type": "hallway",
+          "area_sqm": 3.13,
+          "polygon": [
+            [
+              7500,
+              4700
+            ],
+            [
+              8400,
+              4700
+            ],
+            [
+              8400,
+              5740
+            ],
+            [
+              7500,
+              5740
+            ]
+          ],
+          "dimensions": {
+            "width": 4000,
+            "height": 800
+          }
+        },
+        {
+          "id": "room-09",
+          "name": "Placard 1",
+          "type": "closet",
+          "area_sqm": 0.84,
+          "polygon": [
+            [
+              3800,
+              300
+            ],
+            [
+              7000,
+              300
+            ],
+            [
+              7000,
+              2900
+            ],
+            [
+              3800,
+              2900
+            ]
+          ],
+          "dimensions": {
+            "width": 800,
+            "height": 1050
+          }
+        },
+        {
+          "id": "room-10",
+          "name": "Placard 2",
+          "type": "closet",
+          "area_sqm": 1.02,
+          "polygon": [
+            [
+              7000,
+              300
+            ],
+            [
+              9800,
+              300
+            ],
+            [
+              9800,
+              2900
+            ],
+            [
+              7000,
+              2900
+            ]
+          ],
+          "dimensions": {
+            "width": 1100,
+            "height": 930
+          }
+        },
+        {
+          "id": "room-11",
+          "name": "Placard 3",
+          "type": "closet",
+          "area_sqm": 0.94,
+          "polygon": [
+            [
+              6200,
+              3300
+            ],
+            [
+              10200,
+              3300
+            ],
+            [
+              10200,
+              4100
+            ],
+            [
+              6200,
+              4100
+            ]
+          ],
+          "dimensions": {
+            "width": 900,
+            "height": 1040
+          }
+        },
+        {
+          "id": "room-12",
+          "name": "Placard 4",
+          "type": "closet",
+          "area_sqm": 0.98,
+          "polygon": [
+            [
+              12400,
+              3000
+            ],
+            [
+              13300,
+              3000
+            ],
+            [
+              13300,
+              4090
+            ],
+            [
+              12400,
+              4090
+            ]
+          ],
+          "dimensions": {
+            "width": 900,
+            "height": 1090
+          }
+        }
+      ],
+      "structural_elements": [],
+      "doors": [],
+      "windows": []
+    },
+    "modifications": [
+      {
+        "roomId": "room-02",
+        "roomName": "Cuisine",
+        "previousSector": "North (Uttara / Kubera)",
+        "newSector": "South-East (Agneya / Agni)",
+        "reason": "Shifted cooking hearth out of conflict sector to primary Agni quadrant for health and wealth.",
+        "pointsGained": 15,
+        "previousCenter": [
+          5350.0,
+          7450.0
+        ],
+        "newCenter": [
+          11550.0,
+          1750.0
+        ]
+      },
+      {
+        "roomId": "room-07",
+        "roomName": "Bains",
+        "previousSector": "Brahmasthan (Center / Brahma Core)",
+        "newSector": "West (Pashchima / Varuna)",
+        "reason": "Relocated drainage/water waste zone away from Brahmasthan core and sacred zones.",
+        "pointsGained": 10,
+        "previousCenter": [
+          5100.0,
+          4150.0
+        ],
+        "newCenter": [
+          1450.0,
+          4975.0
+        ]
+      },
+      {
+        "roomId": "room-04",
+        "roomName": "Chambre 1",
+        "previousSector": "South (Dakshina / Yama)",
+        "newSector": "Brahmasthan (Center / Brahma Core)",
+        "reason": "Aligned sleeping quarters with favorable energy flow and natural daylight.",
+        "pointsGained": 8,
+        "previousCenter": [
+          5400.0,
+          1600.0
+        ],
+        "newCenter": [
+          5500.0,
+          5525.0
+        ]
+      },
+      {
+        "roomId": "room-05",
+        "roomName": "Chambre 2",
+        "previousSector": "South (Dakshina / Yama)",
+        "newSector": "Brahmasthan (Center / Brahma Core)",
+        "reason": "Aligned sleeping quarters with favorable energy flow and natural daylight.",
+        "pointsGained": 8,
+        "previousCenter": [
+          8400.0,
+          1600.0
+        ],
+        "newCenter": [
+          6450.0,
+          5465.0
+        ]
+      },
+      {
+        "roomId": "room-08",
+        "roomName": "Degagement",
+        "previousSector": "Brahmasthan (Center / Brahma Core)",
+        "newSector": "Brahmasthan (Center / Brahma Core)",
+        "reason": "Positioned welcome and social area to capture welcoming cosmic morning energy.",
+        "pointsGained": 5,
+        "previousCenter": [
+          8200.0,
+          3700.0
+        ],
+        "newCenter": [
+          7950.0,
+          5220.0
+        ]
+      }
+    ],
+    "applied_modifications_count": 5,
+    "post_rectification_analysis": {
+      "score": 79,
+      "grade": "A",
+      "grade_description": "Good Compliance: Solid Vastu layout with minimal non-critical adjustments.",
+      "good_aspects": [
+        {
+          "rule_id": "vsai.brahmasthan.exact_center",
+          "title": "Brahmasthan Exact Center Point is Open & Clear",
+          "room_id": null,
+          "room_name": "Brahmasthan Center",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "polygon": null,
+          "description": "The exact Brahmasthan center point (6650.00, 4800.00) is completely clear and unobstructed by any walls, columns, pillars, stairs, or rooms (tested with 0.05m numerical tolerance).",
+          "points_earned": 25
+        },
+        {
+          "rule_id": "vsai.dwara_sthana.combination",
+          "title": "Dwara Sthana: Dhruva Combination (VERY_GOOD)",
+          "room_id": null,
+          "room_name": "Doors",
+          "sector": "CENTER",
+          "sector_display": "Global House Doors",
+          "polygon": null,
+          "description": "House has no door representations detected. Traditional Dwara Sthana classification: Dhruva (VERY_GOOD) \u2014 Wealth, grain and prosperity.",
+          "points_earned": 25
+        },
+        {
+          "rule_id": "vsai.main_entrance.direction",
+          "title": "Main Entrance: Pending Designation",
+          "room_id": null,
+          "room_name": "Main Entrance",
+          "sector": "NORTH",
+          "sector_display": "Entrance Sector Pending",
+          "polygon": null,
+          "description": "No doors are represented in the floor plan to evaluate main entrance direction. Stage 1 analysis requires explicit door representations.",
+          "points_earned": 15
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Cuisine - Auspicious Sector (South-East (Agneya / Agni))",
+          "room_id": "room-02",
+          "room_name": "Cuisine",
+          "sector": "SOUTH_EAST",
+          "sector_display": "South-East (Agneya / Agni)",
+          "polygon": [
+            [
+              9800,
+              300
+            ],
+            [
+              13300,
+              300
+            ],
+            [
+              13300,
+              3200
+            ],
+            [
+              9800,
+              3200
+            ]
+          ],
+          "description": "Cuisine is ideally positioned in South-East (Agneya / Agni), which is the primary auspicious sector for Kitchen in Vastu Shastra.",
+          "points_earned": 2.1
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Sejour - Auspicious Sector (North-East (Ishanya / Shiva))",
+          "room_id": "room-03",
+          "room_name": "Sejour",
+          "sector": "NORTH_EAST",
+          "sector_display": "North-East (Ishanya / Shiva)",
+          "polygon": [
+            [
+              6900,
+              4100
+            ],
+            [
+              13300,
+              4100
+            ],
+            [
+              13300,
+              9000
+            ],
+            [
+              6900,
+              9000
+            ]
+          ],
+          "description": "Sejour is ideally positioned in North-East (Ishanya / Shiva), which is the primary auspicious sector for Living Room in Vastu Shastra.",
+          "points_earned": 2.1
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Chambre 3 - Acceptable Alternative (North (Uttara / Kubera))",
+          "room_id": "room-06",
+          "room_name": "Chambre 3",
+          "sector": "NORTH",
+          "sector_display": "North (Uttara / Kubera)",
+          "polygon": [
+            [
+              3800,
+              5600
+            ],
+            [
+              6900,
+              5600
+            ],
+            [
+              6900,
+              9300
+            ],
+            [
+              3800,
+              9300
+            ]
+          ],
+          "description": "Chambre 3 is located in North (Uttara / Kubera), which is listed as an acceptable secondary alternative for Bedroom.",
+          "points_earned": 1.8
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Bains - Auspicious Sector (West (Pashchima / Varuna))",
+          "room_id": "room-07",
+          "room_name": "Bains",
+          "sector": "WEST",
+          "sector_display": "West (Pashchima / Varuna)",
+          "polygon": [
+            [
+              0,
+              4100
+            ],
+            [
+              2900,
+              4100
+            ],
+            [
+              2900,
+              5850
+            ],
+            [
+              0,
+              5850
+            ]
+          ],
+          "description": "Bains is ideally positioned in West (Pashchima / Varuna), which is the primary auspicious sector for Toilet / Washroom in Vastu Shastra.",
+          "points_earned": 2.1
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Placard 4 - Auspicious Sector (East (Purva / Indra))",
+          "room_id": "room-12",
+          "room_name": "Placard 4",
+          "sector": "EAST",
+          "sector_display": "East (Purva / Indra)",
+          "polygon": [
+            [
+              12400,
+              3000
+            ],
+            [
+              13300,
+              3000
+            ],
+            [
+              13300,
+              4090
+            ],
+            [
+              12400,
+              4090
+            ]
+          ],
+          "description": "Placard 4 is ideally positioned in East (Purva / Indra), which is the primary auspicious sector for Living Room in Vastu Shastra.",
+          "points_earned": 2.1
+        }
+      ],
+      "defects": [
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Cellier Sub-Optimal Placement (Brahmasthan (Center / Brahma Core))",
+          "severity": "MEDIUM",
+          "room_id": "room-01",
+          "room_name": "Cellier",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "polygon": [
+            [
+              4000,
+              2900
+            ],
+            [
+              6200,
+              2900
+            ],
+            [
+              6200,
+              5400
+            ],
+            [
+              4000,
+              5400
+            ]
+          ],
+          "description": "Cellier is located in Brahmasthan (Center / Brahma Core). Recommended preferred directions are NORTH_WEST, NORTH, NORTH_EAST, EAST.",
+          "remedy": "Align living seating towards North or East during conversations.",
+          "points_deducted": 1.2
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Chambre 1 in Prohibited Zone (Brahmasthan (Center / Brahma Core))",
+          "severity": "CRITICAL",
+          "room_id": "room-04",
+          "room_name": "Chambre 1",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "polygon": [
+            [
+              5100,
+              5000
+            ],
+            [
+              5900,
+              5000
+            ],
+            [
+              5900,
+              6050
+            ],
+            [
+              5100,
+              6050
+            ]
+          ],
+          "description": "Chambre 1 is located in Brahmasthan (Center / Brahma Core). Vastu Shastra explicitly states that Bedroom must AVOID NORTH_EAST, CENTER.",
+          "remedy": "Orient sleeping head direction towards South or East.",
+          "points_deducted": 2.1
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Chambre 2 in Prohibited Zone (Brahmasthan (Center / Brahma Core))",
+          "severity": "CRITICAL",
+          "room_id": "room-05",
+          "room_name": "Chambre 2",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "polygon": [
+            [
+              5900,
+              5000
+            ],
+            [
+              7000,
+              5000
+            ],
+            [
+              7000,
+              5930
+            ],
+            [
+              5900,
+              5930
+            ]
+          ],
+          "description": "Chambre 2 is located in Brahmasthan (Center / Brahma Core). Vastu Shastra explicitly states that Bedroom must AVOID NORTH_EAST, CENTER.",
+          "remedy": "Orient sleeping head direction towards South or East.",
+          "points_deducted": 2.1
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Degagement Sub-Optimal Placement (Brahmasthan (Center / Brahma Core))",
+          "severity": "MEDIUM",
+          "room_id": "room-08",
+          "room_name": "Degagement",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "polygon": [
+            [
+              7500,
+              4700
+            ],
+            [
+              8400,
+              4700
+            ],
+            [
+              8400,
+              5740
+            ],
+            [
+              7500,
+              5740
+            ]
+          ],
+          "description": "Degagement is located in Brahmasthan (Center / Brahma Core). Recommended preferred directions are NORTH_WEST, NORTH, NORTH_EAST, EAST.",
+          "remedy": "Align living seating towards North or East during conversations.",
+          "points_deducted": 1.2
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Placard 1 Sub-Optimal Placement (South (Dakshina / Yama))",
+          "severity": "MEDIUM",
+          "room_id": "room-09",
+          "room_name": "Placard 1",
+          "sector": "SOUTH",
+          "sector_display": "South (Dakshina / Yama)",
+          "polygon": [
+            [
+              3800,
+              300
+            ],
+            [
+              7000,
+              300
+            ],
+            [
+              7000,
+              2900
+            ],
+            [
+              3800,
+              2900
+            ]
+          ],
+          "description": "Placard 1 is located in South (Dakshina / Yama). Recommended preferred directions are NORTH_WEST, NORTH, NORTH_EAST, EAST.",
+          "remedy": "Align living seating towards North or East during conversations.",
+          "points_deducted": 1.2
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Placard 2 Sub-Optimal Placement (South (Dakshina / Yama))",
+          "severity": "MEDIUM",
+          "room_id": "room-10",
+          "room_name": "Placard 2",
+          "sector": "SOUTH",
+          "sector_display": "South (Dakshina / Yama)",
+          "polygon": [
+            [
+              7000,
+              300
+            ],
+            [
+              9800,
+              300
+            ],
+            [
+              9800,
+              2900
+            ],
+            [
+              7000,
+              2900
+            ]
+          ],
+          "description": "Placard 2 is located in South (Dakshina / Yama). Recommended preferred directions are NORTH_WEST, NORTH, NORTH_EAST, EAST.",
+          "remedy": "Align living seating towards North or East during conversations.",
+          "points_deducted": 1.2
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "Placard 3 Sub-Optimal Placement (Brahmasthan (Center / Brahma Core))",
+          "severity": "MEDIUM",
+          "room_id": "room-11",
+          "room_name": "Placard 3",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "polygon": [
+            [
+              6200,
+              3300
+            ],
+            [
+              10200,
+              3300
+            ],
+            [
+              10200,
+              4100
+            ],
+            [
+              6200,
+              4100
+            ]
+          ],
+          "description": "Placard 3 is located in Brahmasthan (Center / Brahma Core). Recommended preferred directions are NORTH_WEST, NORTH, NORTH_EAST, EAST.",
+          "remedy": "Align living seating towards North or East during conversations.",
+          "points_deducted": 1.2
+        }
+      ],
+      "total_rules_evaluated": 4,
+      "passed_rules_count": 8,
+      "failed_rules_count": 7,
+      "room_sectors": {
+        "room-01": {
+          "id": "room-01",
+          "name": "Cellier",
+          "type": "storage_room",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "centroid": [
+            5100.0,
+            4150.0
+          ],
+          "polygon": [
+            [
+              4000,
+              2900
+            ],
+            [
+              6200,
+              2900
+            ],
+            [
+              6200,
+              5400
+            ],
+            [
+              4000,
+              5400
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": false
+        },
+        "room-02": {
+          "id": "room-02",
+          "name": "Cuisine",
+          "type": "kitchen",
+          "sector": "SOUTH_EAST",
+          "sector_display": "South-East (Agneya / Agni)",
+          "centroid": [
+            11550.0,
+            1750.0
+          ],
+          "polygon": [
+            [
+              9800,
+              300
+            ],
+            [
+              13300,
+              300
+            ],
+            [
+              13300,
+              3200
+            ],
+            [
+              9800,
+              3200
+            ]
+          ],
+          "overlaps_brahmasthan": false,
+          "occupies_exact_center": false
+        },
+        "room-03": {
+          "id": "room-03",
+          "name": "Sejour",
+          "type": "living_room",
+          "sector": "NORTH_EAST",
+          "sector_display": "North-East (Ishanya / Shiva)",
+          "centroid": [
+            10100.0,
+            6550.0
+          ],
+          "polygon": [
+            [
+              6900,
+              4100
+            ],
+            [
+              13300,
+              4100
+            ],
+            [
+              13300,
+              9000
+            ],
+            [
+              6900,
+              9000
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": false
+        },
+        "room-04": {
+          "id": "room-04",
+          "name": "Chambre 1",
+          "type": "bedroom",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "centroid": [
+            5500.0,
+            5525.0
+          ],
+          "polygon": [
+            [
+              5100,
+              5000
+            ],
+            [
+              5900,
+              5000
+            ],
+            [
+              5900,
+              6050
+            ],
+            [
+              5100,
+              6050
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": false
+        },
+        "room-05": {
+          "id": "room-05",
+          "name": "Chambre 2",
+          "type": "bedroom",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "centroid": [
+            6450.0,
+            5465.0
+          ],
+          "polygon": [
+            [
+              5900,
+              5000
+            ],
+            [
+              7000,
+              5000
+            ],
+            [
+              7000,
+              5930
+            ],
+            [
+              5900,
+              5930
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": false
+        },
+        "room-06": {
+          "id": "room-06",
+          "name": "Chambre 3",
+          "type": "bedroom",
+          "sector": "NORTH",
+          "sector_display": "North (Uttara / Kubera)",
+          "centroid": [
+            5350.0,
+            7450.0
+          ],
+          "polygon": [
+            [
+              3800,
+              5600
+            ],
+            [
+              6900,
+              5600
+            ],
+            [
+              6900,
+              9300
+            ],
+            [
+              3800,
+              9300
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": false
+        },
+        "room-07": {
+          "id": "room-07",
+          "name": "Bains",
+          "type": "bathroom",
+          "sector": "WEST",
+          "sector_display": "West (Pashchima / Varuna)",
+          "centroid": [
+            1450.0,
+            4975.0
+          ],
+          "polygon": [
+            [
+              0,
+              4100
+            ],
+            [
+              2900,
+              4100
+            ],
+            [
+              2900,
+              5850
+            ],
+            [
+              0,
+              5850
+            ]
+          ],
+          "overlaps_brahmasthan": false,
+          "occupies_exact_center": false
+        },
+        "room-08": {
+          "id": "room-08",
+          "name": "Degagement",
+          "type": "hallway",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "centroid": [
+            7950.0,
+            5220.0
+          ],
+          "polygon": [
+            [
+              7500,
+              4700
+            ],
+            [
+              8400,
+              4700
+            ],
+            [
+              8400,
+              5740
+            ],
+            [
+              7500,
+              5740
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": false
+        },
+        "room-09": {
+          "id": "room-09",
+          "name": "Placard 1",
+          "type": "closet",
+          "sector": "SOUTH",
+          "sector_display": "South (Dakshina / Yama)",
+          "centroid": [
+            5400.0,
+            1600.0
+          ],
+          "polygon": [
+            [
+              3800,
+              300
+            ],
+            [
+              7000,
+              300
+            ],
+            [
+              7000,
+              2900
+            ],
+            [
+              3800,
+              2900
+            ]
+          ],
+          "overlaps_brahmasthan": false,
+          "occupies_exact_center": false
+        },
+        "room-10": {
+          "id": "room-10",
+          "name": "Placard 2",
+          "type": "closet",
+          "sector": "SOUTH",
+          "sector_display": "South (Dakshina / Yama)",
+          "centroid": [
+            8400.0,
+            1600.0
+          ],
+          "polygon": [
+            [
+              7000,
+              300
+            ],
+            [
+              9800,
+              300
+            ],
+            [
+              9800,
+              2900
+            ],
+            [
+              7000,
+              2900
+            ]
+          ],
+          "overlaps_brahmasthan": false,
+          "occupies_exact_center": false
+        },
+        "room-11": {
+          "id": "room-11",
+          "name": "Placard 3",
+          "type": "closet",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "centroid": [
+            8200.0,
+            3700.0
+          ],
+          "polygon": [
+            [
+              6200,
+              3300
+            ],
+            [
+              10200,
+              3300
+            ],
+            [
+              10200,
+              4100
+            ],
+            [
+              6200,
+              4100
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": false
+        },
+        "room-12": {
+          "id": "room-12",
+          "name": "Placard 4",
+          "type": "closet",
+          "sector": "EAST",
+          "sector_display": "East (Purva / Indra)",
+          "centroid": [
+            12850.0,
+            3545.0
+          ],
+          "polygon": [
+            [
+              12400,
+              3000
+            ],
+            [
+              13300,
+              3000
+            ],
+            [
+              13300,
+              4090
+            ],
+            [
+              12400,
+              4090
+            ]
+          ],
+          "overlaps_brahmasthan": false,
+          "occupies_exact_center": false
+        }
+      },
+      "brahmasthan": {
+        "status": "CLEAR",
+        "exact_center": [
+          6650.0,
+          4800.0
+        ],
+        "tolerance": 0.05,
+        "obstructing_objects": [],
+        "obstructing_rooms": []
+      },
+      "dwara_sthana": {
+        "house_type": "Dhruva",
+        "classification": "VERY_GOOD",
+        "directions": [],
+        "traditional_result": "Wealth, grain and prosperity"
+      },
+      "main_entrance": {
+        "identified": false,
+        "door_id": null,
+        "sector": null,
+        "classification": null
+      },
+      "bounding_box": {
+        "min_x": 0,
+        "max_x": 13300,
+        "min_y": 300,
+        "max_y": 9300,
+        "width": 13300,
+        "height": 9000,
+        "area_sqft": 119700000.0
+      },
+      "rule_details": {
+        "vsai.brahmasthan.exact_center": {
+          "status": "PASS",
+          "exact_center": [
+            6650.0,
+            4800.0
+          ],
+          "tolerance": 0.05,
+          "obstructing_objects_count": 0,
+          "obstructing_objects": []
+        },
+        "vsai.dwara_sthana.combination": {
+          "house_type": "Dhruva",
+          "classification": "VERY_GOOD",
+          "directions": [],
+          "traditional_result": "Wealth, grain and prosperity",
+          "doors_count": 0
+        },
+        "vsai.main_entrance.direction": {
+          "identified": false,
+          "reason": "No door representations present."
+        },
+        "vsai.room.direction": {
+          "evaluated_rooms_count": 12
+        }
+      }
+    }
+  },
+  "interior_layout": {},
+  "exterior_landscape": {},
+  "processing": {
+    "gab_gen": {
+      "status": "pending"
+    },
+    "vsai_rectifier": {
+      "status": "completed"
+    },
+    "esai_engine": {
+      "status": "pending"
+    },
+    "elia_engine": {
+      "status": "pending"
+    }
+  }
+}

@@ -3,7 +3,7 @@
   "project_name": "Plan du Rez de Chauss\u00e9e",
   "schema_version": "1.0",
   "land_info": {
-    "orientation": null,
+    "orientation": "North",
     "road_facing": null,
     "area_sqft": null
   },
@@ -1192,7 +1192,8 @@
             ]
           ]
         }
-      ]
+      ],
+      "doors": []
     },
     "rectified_floor_plan": {
       "id": "FP-GROUND-001",
@@ -1782,7 +1783,9 @@
             ]
           ]
         }
-      ]
+      ],
+      "doors": [],
+      "windows": []
     },
     "modifications": [
       {
@@ -1793,12 +1796,12 @@
         "reason": "Shifted cooking hearth out of conflict sector to primary Agni quadrant for health and wealth.",
         "pointsGained": 15,
         "previousCenter": [
-          5950,
-          5960
+          5950.0,
+          5960.0
         ],
         "newCenter": [
-          15815,
-          1910
+          15815.0,
+          1910.0
         ]
       },
       {
@@ -1809,12 +1812,12 @@
         "reason": "Relocated drainage/water waste zone away from Brahmasthan core and sacred zones.",
         "pointsGained": 10,
         "previousCenter": [
-          9800,
-          5915
+          9800.0,
+          5915.0
         ],
         "newCenter": [
-          1980,
-          7370
+          1980.0,
+          7370.0
         ]
       },
       {
@@ -1825,12 +1828,12 @@
         "reason": "Relocated drainage/water waste zone away from Brahmasthan core and sacred zones.",
         "pointsGained": 10,
         "previousCenter": [
-          15805,
-          8005
+          15805.0,
+          8005.0
         ],
         "newCenter": [
-          8955,
-          7600
+          8955.0,
+          7600.0
         ]
       },
       {
@@ -1841,12 +1844,12 @@
         "reason": "Aligned sleeping quarters with favorable energy flow and natural daylight.",
         "pointsGained": 8,
         "previousCenter": [
-          11805,
-          7125
+          11805.0,
+          7125.0
         ],
         "newCenter": [
           5017.5,
-          3265
+          3265.0
         ]
       },
       {
@@ -1857,12 +1860,12 @@
         "reason": "Aligned sleeping quarters with favorable energy flow and natural daylight.",
         "pointsGained": 8,
         "previousCenter": [
-          12045,
-          11475
+          12045.0,
+          11475.0
         ],
         "newCenter": [
-          7690,
-          1670
+          7690.0,
+          1670.0
         ]
       },
       {
@@ -1873,8 +1876,8 @@
         "reason": "Aligned sleeping quarters with favorable energy flow and natural daylight.",
         "pointsGained": 8,
         "previousCenter": [
-          15805,
-          11000
+          15805.0,
+          11000.0
         ],
         "newCenter": [
           8826.7,
@@ -1889,12 +1892,12 @@
         "reason": "Aligned sleeping quarters with favorable energy flow and natural daylight.",
         "pointsGained": 8,
         "previousCenter": [
-          15805,
-          5350
+          15805.0,
+          5350.0
         ],
         "newCenter": [
-          11440,
-          2130
+          11440.0,
+          2130.0
         ]
       }
     ],
@@ -2451,8 +2454,8 @@
           "sector": "EAST",
           "sector_display": "East (Purva / Indra)",
           "centroid": [
-            11805,
-            7125
+            11805.0,
+            7125.0
           ],
           "polygon": [
             [
@@ -2482,8 +2485,8 @@
           "sector": "NORTH_EAST",
           "sector_display": "North-East (Ishanya / Shiva)",
           "centroid": [
-            12045,
-            11475
+            12045.0,
+            11475.0
           ],
           "polygon": [
             [
@@ -2513,8 +2516,8 @@
           "sector": "EAST",
           "sector_display": "East (Purva / Indra)",
           "centroid": [
-            15805,
-            5350
+            15805.0,
+            5350.0
           ],
           "polygon": [
             [
@@ -2544,8 +2547,8 @@
           "sector": "CENTER",
           "sector_display": "Brahmasthan (Center / Brahma Core)",
           "centroid": [
-            5950,
-            5960
+            5950.0,
+            5960.0
           ],
           "polygon": [
             [
@@ -2575,8 +2578,8 @@
           "sector": "SOUTH_EAST",
           "sector_display": "South-East (Agneya / Agni)",
           "centroid": [
-            15815,
-            1910
+            15815.0,
+            1910.0
           ],
           "polygon": [
             [
@@ -2606,8 +2609,8 @@
           "sector": "NORTH_EAST",
           "sector_display": "North-East (Ishanya / Shiva)",
           "centroid": [
-            15805,
-            11000
+            15805.0,
+            11000.0
           ],
           "polygon": [
             [
@@ -2684,8 +2687,8 @@
           "sector": "WEST",
           "sector_display": "West (Pashchima / Varuna)",
           "centroid": [
-            1980,
-            7370
+            1980.0,
+            7370.0
           ],
           "polygon": [
             [
@@ -2715,8 +2718,8 @@
           "sector": "EAST",
           "sector_display": "East (Purva / Indra)",
           "centroid": [
-            15805,
-            8005
+            15805.0,
+            8005.0
           ],
           "polygon": [
             [
@@ -2747,7 +2750,7 @@
           "sector_display": "South-West (Nairutya / Nirrithi)",
           "centroid": [
             5017.5,
-            3265
+            3265.0
           ],
           "polygon": [
             [
@@ -2793,8 +2796,8 @@
           "sector": "NORTH_EAST",
           "sector_display": "North-East (Ishanya / Shiva)",
           "centroid": [
-            11805,
-            9560
+            11805.0,
+            9560.0
           ],
           "polygon": [
             [
@@ -2824,8 +2827,8 @@
           "sector": "SOUTH",
           "sector_display": "South (Dakshina / Yama)",
           "centroid": [
-            7690,
-            1670
+            7690.0,
+            1670.0
           ],
           "polygon": [
             [
@@ -2894,8 +2897,8 @@
           "sector": "CENTER",
           "sector_display": "Brahmasthan (Center / Brahma Core)",
           "centroid": [
-            8955,
-            7600
+            8955.0,
+            7600.0
           ],
           "polygon": [
             [
@@ -2925,8 +2928,8 @@
           "sector": "SOUTH",
           "sector_display": "South (Dakshina / Yama)",
           "centroid": [
-            11440,
-            2130
+            11440.0,
+            2130.0
           ],
           "polygon": [
             [
@@ -2956,8 +2959,8 @@
           "sector": "CENTER",
           "sector_display": "Brahmasthan (Center / Brahma Core)",
           "centroid": [
-            9800,
-            5915
+            9800.0,
+            5915.0
           ],
           "polygon": [
             [
@@ -2984,8 +2987,8 @@
       "brahmasthan": {
         "status": "OBSTRUCTED",
         "exact_center": [
-          8665,
-          6665
+          8665.0,
+          6665.0
         ],
         "tolerance": 0.05,
         "obstructing_objects": [
@@ -3014,14 +3017,14 @@
         "max_y": 12960,
         "width": 17290,
         "height": 12590,
-        "area_sqft": 217681100
+        "area_sqft": 217681100.0
       },
       "rule_details": {
         "vsai.brahmasthan.exact_center": {
           "status": "FAIL",
           "exact_center": [
-            8665,
-            6665
+            8665.0,
+            6665.0
           ],
           "tolerance": 0.05,
           "obstructing_objects_count": 1,
@@ -3058,7 +3061,7 @@
     },
     "vsai_rectifier": {
       "status": "completed",
-      "updatedAt": "2026-10-19T16:29:28.663Z"
+      "updatedAt": "2026-10-21T06:01:50.619Z"
     },
     "esai_engine": {
       "status": "pending"
@@ -4850,7 +4853,9 @@
               ]
             ]
           }
-        ]
+        ],
+        "doors": [],
+        "windows": []
       },
       "modifications": [
         {
@@ -6126,7 +6131,7 @@
       },
       "vsai_rectifier": {
         "status": "completed",
-        "updatedAt": "2026-10-19T16:29:28.663Z"
+        "updatedAt": "2026-10-21T06:01:50.619Z"
       },
       "esai_engine": {
         "status": "pending"
@@ -6136,6 +6141,11 @@
       }
     }
   },
-  "user_confirmations": {},
-  "spatial_metadata": {}
+  "user_confirmations": {
+    "orientation": "NORTH",
+    "has_no_doors_confirmation": "dhruva_no_doors"
+  },
+  "spatial_metadata": {
+    "north_direction": "North"
+  }
 }

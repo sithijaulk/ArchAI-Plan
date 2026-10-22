@@ -1,0 +1,149 @@
+{
+  "project_id": "PRJ-TEST-001",
+  "project_name": "Modern 3BHK Contemporary Villa",
+  "schema_version": "1.0",
+  "land_info": {
+    "orientation": "North",
+    "road_facing": "North",
+    "facing_angle": 0,
+    "area_sqft": 1500
+  },
+  "floor_plan": {
+    "id": "FP-001",
+    "name": "Ground Floor Plan",
+    "units": "ft",
+    "coordinate_system": {
+      "origin": "top_left",
+      "x_axis": "right",
+      "y_axis": "down"
+    },
+    "dimensions": {
+      "width": 42.0,
+      "height": 36.0
+    },
+    "boundary": {
+      "type": "Polygon",
+      "coordinates": [
+        [0, 0],
+        [42, 0],
+        [42, 36],
+        [0, 36],
+        [0, 0]
+      ]
+    },
+    "rooms": [
+      {
+        "id": "room-living",
+        "name": "Living Room",
+        "type": "living_room",
+        "polygon": [
+          [0, 0],
+          [20, 0],
+          [20, 16],
+          [0, 16]
+        ],
+        "dimensions": { "width": 20.0, "height": 16.0 },
+        "area_sqft": 320.0
+      },
+      {
+        "id": "room-kitchen",
+        "name": "Kitchen",
+        "type": "kitchen",
+        "polygon": [
+          [28, 20],
+          [42, 20],
+          [42, 36],
+          [28, 36]
+        ],
+        "dimensions": { "width": 14.0, "height": 16.0 },
+        "area_sqft": 224.0
+      },
+      {
+        "id": "room-master-bed",
+        "name": "Master Bedroom",
+        "type": "master_bedroom",
+        "polygon": [
+          [0, 20],
+          [16, 20],
+          [16, 36],
+          [0, 36]
+        ],
+        "dimensions": { "width": 16.0, "height": 16.0 },
+        "area_sqft": 256.0
+      },
+      {
+        "id": "room-bed2",
+        "name": "Bedroom 2",
+        "type": "bedroom",
+        "polygon": [
+          [24, 0],
+          [42, 0],
+          [42, 16],
+          [24, 16]
+        ],
+        "dimensions": { "width": 18.0, "height": 16.0 },
+        "area_sqft": 288.0
+      },
+      {
+        "id": "room-pooja",
+        "name": "Pooja Room",
+        "type": "pooja",
+        "polygon": [
+          [20, 0],
+          [24, 0],
+          [24, 8],
+          [20, 8]
+        ],
+        "dimensions": { "width": 4.0, "height": 8.0 },
+        "area_sqft": 32.0
+      },
+      {
+        "id": "room-bath",
+        "name": "Bathroom",
+        "type": "bathroom",
+        "polygon": [
+          [16, 24],
+          [24, 24],
+          [24, 36],
+          [16, 36]
+        ],
+        "dimensions": { "width": 8.0, "height": 12.0 },
+        "area_sqft": 96.0
+      }
+    ],
+    "doors": [
+      {
+        "id": "door-main",
+        "name": "Main Entrance",
+        "type": "main_entrance",
+        "start": [10, 0],
+        "end": [14, 0],
+        "swing_direction": "right",
+        "connects": ["room-living", "exterior"]
+      },
+      {
+        "id": "door-bed1",
+        "name": "Master Bed Door",
+        "type": "standard",
+        "start": [12, 20],
+        "end": [15, 20],
+        "swing_direction": "left",
+        "connects": ["room-master-bed", "hallway"]
+      }
+    ],
+    "windows": [
+      {
+        "id": "win-01",
+        "start": [2, 0],
+        "end": [6, 0],
+        "wall_side": "north"
+      },
+      {
+        "id": "win-02",
+        "start": [42, 4],
+        "end": [42, 10],
+        "wall_side": "east"
+      }
+    ]
+  }
+}

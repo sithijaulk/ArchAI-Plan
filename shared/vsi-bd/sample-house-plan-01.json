@@ -1,0 +1,2491 @@
+{
+  "project_id": "sample-house-plan-01",
+  "project_name": "AI Detected Floor Plan",
+  "schema_version": "1.0",
+  "land_info": {
+    "boundary_points": [
+      [
+        0,
+        0
+      ],
+      [
+        42,
+        0
+      ],
+      [
+        42,
+        59.4
+      ],
+      [
+        0,
+        59.4
+      ]
+    ],
+    "area_sqft": 2494.8,
+    "orientation": "North",
+    "road_facing": "North"
+  },
+  "buildable_footprint": {
+    "polygon": [
+      [
+        2,
+        2
+      ],
+      [
+        40,
+        2
+      ],
+      [
+        40,
+        57.4
+      ],
+      [
+        2,
+        57.4
+      ]
+    ]
+  },
+  "floor_plan": {
+    "dimensions": {
+      "width": 42,
+      "height": 59.4
+    },
+    "rooms": [
+      {
+        "id": "room-living-1",
+        "name": "LIVING ROOM",
+        "type": "living",
+        "dimensionText": "11'5\" \u00d7 11'10\"",
+        "polygon": [
+          [
+            21,
+            13.4
+          ],
+          [
+            32.4,
+            13.4
+          ],
+          [
+            32.4,
+            25.2
+          ],
+          [
+            21,
+            25.2
+          ]
+        ],
+        "confidence": 0.65,
+        "is_detected": true
+      },
+      {
+        "id": "room-living-2",
+        "name": "LIVING ROOM 2",
+        "type": "living",
+        "dimensionText": "25'1\" \u00d7 11'5\"",
+        "polygon": [
+          [
+            4.6,
+            29.3
+          ],
+          [
+            29.7,
+            29.3
+          ],
+          [
+            29.7,
+            40.7
+          ],
+          [
+            4.6,
+            40.7
+          ]
+        ],
+        "confidence": 0.81,
+        "is_detected": true
+      },
+      {
+        "id": "room-garage-1",
+        "name": "GARAGE",
+        "type": "garage",
+        "dimensionText": "12'4\" \u00d7 11'4\"",
+        "polygon": [
+          [
+            24.2,
+            13.9
+          ],
+          [
+            36.5,
+            13.9
+          ],
+          [
+            36.5,
+            25.2
+          ],
+          [
+            24.2,
+            25.2
+          ]
+        ],
+        "confidence": 0.65,
+        "is_detected": true
+      },
+      {
+        "id": "room-room-1",
+        "name": "ROOM",
+        "type": "room",
+        "dimensionText": "15'7\" \u00d7 10'11\"",
+        "polygon": [
+          [
+            20.9,
+            10.9
+          ],
+          [
+            36.5,
+            10.9
+          ],
+          [
+            36.5,
+            21.8
+          ],
+          [
+            20.9,
+            21.8
+          ]
+        ],
+        "confidence": 0.6,
+        "is_detected": true
+      },
+      {
+        "id": "room-room-2",
+        "name": "ROOM 2",
+        "type": "room",
+        "dimensionText": "10'6\" \u00d7 6'2\"",
+        "polygon": [
+          [
+            4.6,
+            24.4
+          ],
+          [
+            15.1,
+            24.4
+          ],
+          [
+            15.1,
+            30.6
+          ],
+          [
+            4.6,
+            30.6
+          ]
+        ],
+        "confidence": 0.86,
+        "is_detected": true
+      },
+      {
+        "id": "room-room-3",
+        "name": "ROOM 3",
+        "type": "room",
+        "dimensionText": "13'8\" \u00d7 15'10\"",
+        "polygon": [
+          [
+            16,
+            24.5
+          ],
+          [
+            29.7,
+            24.5
+          ],
+          [
+            29.7,
+            40.3
+          ],
+          [
+            16,
+            40.3
+          ]
+        ],
+        "confidence": 0.78,
+        "is_detected": true
+      },
+      {
+        "id": "room-room-4",
+        "name": "ROOM 4",
+        "type": "room",
+        "dimensionText": "8'0\" \u00d7 8'0\"",
+        "polygon": [
+          [
+            28.3,
+            25.8
+          ],
+          [
+            36.3,
+            25.8
+          ],
+          [
+            36.3,
+            33.8
+          ],
+          [
+            28.3,
+            33.8
+          ]
+        ],
+        "confidence": 0.98,
+        "is_detected": true
+      }
+    ],
+    "doors": [
+      {
+        "id": "door-8",
+        "name": "MAIN ENTRANCE",
+        "type": "single_swing",
+        "center": [
+          33.5,
+          33.8
+        ],
+        "position": [
+          33.5,
+          33.8
+        ],
+        "width": 3,
+        "confidence": 0.88,
+        "is_main_entrance": true
+      },
+      {
+        "id": "door-9",
+        "name": "DOOR 9",
+        "type": "single_swing",
+        "center": [
+          30.1,
+          37.5
+        ],
+        "position": [
+          30.1,
+          37.5
+        ],
+        "width": 3,
+        "confidence": 0.88
+      },
+      {
+        "id": "door-6",
+        "name": "DOOR 6",
+        "type": "single_swing",
+        "center": [
+          12.8,
+          29.8
+        ],
+        "position": [
+          12.8,
+          29.8
+        ],
+        "width": 3,
+        "confidence": 0.88
+      },
+      {
+        "id": "door-5",
+        "name": "DOOR 5",
+        "type": "single_swing",
+        "center": [
+          28.3,
+          30.4
+        ],
+        "position": [
+          28.3,
+          30.4
+        ],
+        "width": 3,
+        "confidence": 0.88
+      },
+      {
+        "id": "door-3",
+        "name": "DOOR 3",
+        "type": "single_swing",
+        "center": [
+          28.2,
+          26.8
+        ],
+        "position": [
+          28.2,
+          26.8
+        ],
+        "width": 3,
+        "confidence": 0.88
+      },
+      {
+        "id": "door-1",
+        "name": "DOOR 1",
+        "type": "single_swing",
+        "center": [
+          27.2,
+          24.3
+        ],
+        "position": [
+          27.2,
+          24.3
+        ],
+        "width": 3,
+        "confidence": 0.88
+      },
+      {
+        "id": "door-10",
+        "name": "DOOR 10",
+        "type": "single_swing",
+        "center": [
+          26.6,
+          41
+        ],
+        "position": [
+          26.6,
+          41
+        ],
+        "width": 3,
+        "confidence": 0.88
+      },
+      {
+        "id": "door-4",
+        "name": "DOOR 4",
+        "type": "single_swing",
+        "center": [
+          16.8,
+          26.3
+        ],
+        "position": [
+          16.8,
+          26.3
+        ],
+        "width": 3,
+        "confidence": 0.88
+      },
+      {
+        "id": "door-7",
+        "name": "DOOR 7",
+        "type": "single_swing",
+        "center": [
+          17.2,
+          30.9
+        ],
+        "position": [
+          17.2,
+          30.9
+        ],
+        "width": 3,
+        "confidence": 0.88
+      },
+      {
+        "id": "door-2",
+        "name": "DOOR 2",
+        "type": "single_swing",
+        "center": [
+          18.2,
+          26.3
+        ],
+        "position": [
+          18.2,
+          26.3
+        ],
+        "width": 3,
+        "confidence": 0.88
+      },
+      {
+        "id": "door-11",
+        "name": "DOOR 11",
+        "type": "single_swing",
+        "center": [
+          20.5,
+          41
+        ],
+        "position": [
+          20.5,
+          41
+        ],
+        "width": 3,
+        "confidence": 0.88
+      }
+    ],
+    "windows": [
+      {
+        "id": "window-1",
+        "name": "WINDOW 1",
+        "center": [
+          20.8,
+          15.8
+        ],
+        "position": [
+          20.8,
+          15.8
+        ],
+        "width": 4,
+        "confidence": 0.88
+      },
+      {
+        "id": "window-2",
+        "name": "WINDOW 2",
+        "center": [
+          36.7,
+          17.8
+        ],
+        "position": [
+          36.7,
+          17.8
+        ],
+        "width": 4,
+        "confidence": 0.88
+      },
+      {
+        "id": "window-3",
+        "name": "WINDOW 3",
+        "center": [
+          20.9,
+          18
+        ],
+        "position": [
+          20.9,
+          18
+        ],
+        "width": 4,
+        "confidence": 0.88
+      },
+      {
+        "id": "window-4",
+        "name": "WINDOW 4",
+        "center": [
+          20.8,
+          19.8
+        ],
+        "position": [
+          20.8,
+          19.8
+        ],
+        "width": 4,
+        "confidence": 0.88
+      },
+      {
+        "id": "window-5",
+        "name": "WINDOW 5",
+        "center": [
+          36.7,
+          20.4
+        ],
+        "position": [
+          36.7,
+          20.4
+        ],
+        "width": 4,
+        "confidence": 0.88
+      },
+      {
+        "id": "window-6",
+        "name": "WINDOW 6",
+        "center": [
+          20.8,
+          21.9
+        ],
+        "position": [
+          20.8,
+          21.9
+        ],
+        "width": 4,
+        "confidence": 0.88
+      },
+      {
+        "id": "window-7",
+        "name": "WINDOW 7",
+        "center": [
+          13,
+          24.1
+        ],
+        "position": [
+          13,
+          24.1
+        ],
+        "width": 4,
+        "confidence": 0.88
+      },
+      {
+        "id": "window-8",
+        "name": "WINDOW 8",
+        "center": [
+          20.8,
+          25.3
+        ],
+        "position": [
+          20.8,
+          25.3
+        ],
+        "width": 4,
+        "confidence": 0.88
+      },
+      {
+        "id": "window-9",
+        "name": "WINDOW 9",
+        "center": [
+          16.3,
+          26.2
+        ],
+        "position": [
+          16.3,
+          26.2
+        ],
+        "width": 4,
+        "confidence": 0.88
+      },
+      {
+        "id": "window-10",
+        "name": "WINDOW 10",
+        "center": [
+          4.3,
+          28.6
+        ],
+        "position": [
+          4.3,
+          28.6
+        ],
+        "width": 4,
+        "confidence": 0.88
+      },
+      {
+        "id": "window-11",
+        "name": "WINDOW 11",
+        "center": [
+          36.6,
+          29.7
+        ],
+        "position": [
+          36.6,
+          29.7
+        ],
+        "width": 4,
+        "confidence": 0.88
+      },
+      {
+        "id": "window-12",
+        "name": "WINDOW 12",
+        "center": [
+          34.8,
+          33.9
+        ],
+        "position": [
+          34.8,
+          33.9
+        ],
+        "width": 4,
+        "confidence": 0.88
+      },
+      {
+        "id": "window-13",
+        "name": "WINDOW 13",
+        "center": [
+          7.9,
+          41
+        ],
+        "position": [
+          7.9,
+          41
+        ],
+        "width": 4,
+        "confidence": 0.88
+      },
+      {
+        "id": "window-14",
+        "name": "WINDOW 14",
+        "center": [
+          14.1,
+          41
+        ],
+        "position": [
+          14.1,
+          41
+        ],
+        "width": 4,
+        "confidence": 0.88
+      },
+      {
+        "id": "window-15",
+        "name": "WINDOW 15",
+        "center": [
+          27.8,
+          41.2
+        ],
+        "position": [
+          27.8,
+          41.2
+        ],
+        "width": 4,
+        "confidence": 0.88
+      },
+      {
+        "id": "window-16",
+        "name": "WINDOW 16",
+        "center": [
+          25.4,
+          41.2
+        ],
+        "position": [
+          25.4,
+          41.2
+        ],
+        "width": 4,
+        "confidence": 0.88
+      }
+    ],
+    "structural_elements": []
+  },
+  "structural_rectification": {
+    "status": "completed",
+    "baseline_score": 67,
+    "rectified_score": 90,
+    "score_delta": 23,
+    "baseline_floor_plan": {
+      "dimensions": {
+        "width": 42,
+        "height": 59.4
+      },
+      "rooms": [
+        {
+          "id": "room-living-1",
+          "name": "LIVING ROOM",
+          "type": "living",
+          "dimensionText": "11'5\" \u00d7 11'10\"",
+          "polygon": [
+            [
+              21,
+              13.4
+            ],
+            [
+              32.4,
+              13.4
+            ],
+            [
+              32.4,
+              25.2
+            ],
+            [
+              21,
+              25.2
+            ]
+          ],
+          "confidence": 0.65,
+          "is_detected": true
+        },
+        {
+          "id": "room-living-2",
+          "name": "LIVING ROOM 2",
+          "type": "living",
+          "dimensionText": "25'1\" \u00d7 11'5\"",
+          "polygon": [
+            [
+              4.6,
+              29.3
+            ],
+            [
+              29.7,
+              29.3
+            ],
+            [
+              29.7,
+              40.7
+            ],
+            [
+              4.6,
+              40.7
+            ]
+          ],
+          "confidence": 0.81,
+          "is_detected": true
+        },
+        {
+          "id": "room-garage-1",
+          "name": "GARAGE",
+          "type": "garage",
+          "dimensionText": "12'4\" \u00d7 11'4\"",
+          "polygon": [
+            [
+              24.2,
+              13.9
+            ],
+            [
+              36.5,
+              13.9
+            ],
+            [
+              36.5,
+              25.2
+            ],
+            [
+              24.2,
+              25.2
+            ]
+          ],
+          "confidence": 0.65,
+          "is_detected": true
+        },
+        {
+          "id": "room-room-1",
+          "name": "ROOM",
+          "type": "room",
+          "dimensionText": "15'7\" \u00d7 10'11\"",
+          "polygon": [
+            [
+              20.9,
+              10.9
+            ],
+            [
+              36.5,
+              10.9
+            ],
+            [
+              36.5,
+              21.8
+            ],
+            [
+              20.9,
+              21.8
+            ]
+          ],
+          "confidence": 0.6,
+          "is_detected": true
+        },
+        {
+          "id": "room-room-2",
+          "name": "ROOM 2",
+          "type": "room",
+          "dimensionText": "10'6\" \u00d7 6'2\"",
+          "polygon": [
+            [
+              4.6,
+              24.4
+            ],
+            [
+              15.1,
+              24.4
+            ],
+            [
+              15.1,
+              30.6
+            ],
+            [
+              4.6,
+              30.6
+            ]
+          ],
+          "confidence": 0.86,
+          "is_detected": true
+        },
+        {
+          "id": "room-room-3",
+          "name": "ROOM 3",
+          "type": "room",
+          "dimensionText": "13'8\" \u00d7 15'10\"",
+          "polygon": [
+            [
+              16,
+              24.5
+            ],
+            [
+              29.7,
+              24.5
+            ],
+            [
+              29.7,
+              40.3
+            ],
+            [
+              16,
+              40.3
+            ]
+          ],
+          "confidence": 0.78,
+          "is_detected": true
+        },
+        {
+          "id": "room-room-4",
+          "name": "ROOM 4",
+          "type": "room",
+          "dimensionText": "8'0\" \u00d7 8'0\"",
+          "polygon": [
+            [
+              28.3,
+              25.8
+            ],
+            [
+              36.3,
+              25.8
+            ],
+            [
+              36.3,
+              33.8
+            ],
+            [
+              28.3,
+              33.8
+            ]
+          ],
+          "confidence": 0.98,
+          "is_detected": true
+        }
+      ],
+      "doors": [
+        {
+          "id": "door-8",
+          "name": "MAIN ENTRANCE",
+          "type": "single_swing",
+          "center": [
+            33.5,
+            33.8
+          ],
+          "position": [
+            33.5,
+            33.8
+          ],
+          "width": 3,
+          "confidence": 0.88,
+          "is_main_entrance": true
+        },
+        {
+          "id": "door-9",
+          "name": "DOOR 9",
+          "type": "single_swing",
+          "center": [
+            30.1,
+            37.5
+          ],
+          "position": [
+            30.1,
+            37.5
+          ],
+          "width": 3,
+          "confidence": 0.88
+        },
+        {
+          "id": "door-6",
+          "name": "DOOR 6",
+          "type": "single_swing",
+          "center": [
+            12.8,
+            29.8
+          ],
+          "position": [
+            12.8,
+            29.8
+          ],
+          "width": 3,
+          "confidence": 0.88
+        },
+        {
+          "id": "door-5",
+          "name": "DOOR 5",
+          "type": "single_swing",
+          "center": [
+            28.3,
+            30.4
+          ],
+          "position": [
+            28.3,
+            30.4
+          ],
+          "width": 3,
+          "confidence": 0.88
+        },
+        {
+          "id": "door-3",
+          "name": "DOOR 3",
+          "type": "single_swing",
+          "center": [
+            28.2,
+            26.8
+          ],
+          "position": [
+            28.2,
+            26.8
+          ],
+          "width": 3,
+          "confidence": 0.88
+        },
+        {
+          "id": "door-1",
+          "name": "DOOR 1",
+          "type": "single_swing",
+          "center": [
+            27.2,
+            24.3
+          ],
+          "position": [
+            27.2,
+            24.3
+          ],
+          "width": 3,
+          "confidence": 0.88
+        },
+        {
+          "id": "door-10",
+          "name": "DOOR 10",
+          "type": "single_swing",
+          "center": [
+            26.6,
+            41
+          ],
+          "position": [
+            26.6,
+            41
+          ],
+          "width": 3,
+          "confidence": 0.88
+        },
+        {
+          "id": "door-4",
+          "name": "DOOR 4",
+          "type": "single_swing",
+          "center": [
+            16.8,
+            26.3
+          ],
+          "position": [
+            16.8,
+            26.3
+          ],
+          "width": 3,
+          "confidence": 0.88
+        },
+        {
+          "id": "door-7",
+          "name": "DOOR 7",
+          "type": "single_swing",
+          "center": [
+            17.2,
+            30.9
+          ],
+          "position": [
+            17.2,
+            30.9
+          ],
+          "width": 3,
+          "confidence": 0.88
+        },
+        {
+          "id": "door-2",
+          "name": "DOOR 2",
+          "type": "single_swing",
+          "center": [
+            18.2,
+            26.3
+          ],
+          "position": [
+            18.2,
+            26.3
+          ],
+          "width": 3,
+          "confidence": 0.88
+        },
+        {
+          "id": "door-11",
+          "name": "DOOR 11",
+          "type": "single_swing",
+          "center": [
+            20.5,
+            41
+          ],
+          "position": [
+            20.5,
+            41
+          ],
+          "width": 3,
+          "confidence": 0.88
+        }
+      ],
+      "windows": [
+        {
+          "id": "window-1",
+          "name": "WINDOW 1",
+          "center": [
+            20.8,
+            15.8
+          ],
+          "position": [
+            20.8,
+            15.8
+          ],
+          "width": 4,
+          "confidence": 0.88
+        },
+        {
+          "id": "window-2",
+          "name": "WINDOW 2",
+          "center": [
+            36.7,
+            17.8
+          ],
+          "position": [
+            36.7,
+            17.8
+          ],
+          "width": 4,
+          "confidence": 0.88
+        },
+        {
+          "id": "window-3",
+          "name": "WINDOW 3",
+          "center": [
+            20.9,
+            18
+          ],
+          "position": [
+            20.9,
+            18
+          ],
+          "width": 4,
+          "confidence": 0.88
+        },
+        {
+          "id": "window-4",
+          "name": "WINDOW 4",
+          "center": [
+            20.8,
+            19.8
+          ],
+          "position": [
+            20.8,
+            19.8
+          ],
+          "width": 4,
+          "confidence": 0.88
+        },
+        {
+          "id": "window-5",
+          "name": "WINDOW 5",
+          "center": [
+            36.7,
+            20.4
+          ],
+          "position": [
+            36.7,
+            20.4
+          ],
+          "width": 4,
+          "confidence": 0.88
+        },
+        {
+          "id": "window-6",
+          "name": "WINDOW 6",
+          "center": [
+            20.8,
+            21.9
+          ],
+          "position": [
+            20.8,
+            21.9
+          ],
+          "width": 4,
+          "confidence": 0.88
+        },
+        {
+          "id": "window-7",
+          "name": "WINDOW 7",
+          "center": [
+            13,
+            24.1
+          ],
+          "position": [
+            13,
+            24.1
+          ],
+          "width": 4,
+          "confidence": 0.88
+        },
+        {
+          "id": "window-8",
+          "name": "WINDOW 8",
+          "center": [
+            20.8,
+            25.3
+          ],
+          "position": [
+            20.8,
+            25.3
+          ],
+          "width": 4,
+          "confidence": 0.88
+        },
+        {
+          "id": "window-9",
+          "name": "WINDOW 9",
+          "center": [
+            16.3,
+            26.2
+          ],
+          "position": [
+            16.3,
+            26.2
+          ],
+          "width": 4,
+          "confidence": 0.88
+        },
+        {
+          "id": "window-10",
+          "name": "WINDOW 10",
+          "center": [
+            4.3,
+            28.6
+          ],
+          "position": [
+            4.3,
+            28.6
+          ],
+          "width": 4,
+          "confidence": 0.88
+        },
+        {
+          "id": "window-11",
+          "name": "WINDOW 11",
+          "center": [
+            36.6,
+            29.7
+          ],
+          "position": [
+            36.6,
+            29.7
+          ],
+          "width": 4,
+          "confidence": 0.88
+        },
+        {
+          "id": "window-12",
+          "name": "WINDOW 12",
+          "center": [
+            34.8,
+            33.9
+          ],
+          "position": [
+            34.8,
+            33.9
+          ],
+          "width": 4,
+          "confidence": 0.88
+        },
+        {
+          "id": "window-13",
+          "name": "WINDOW 13",
+          "center": [
+            7.9,
+            41
+          ],
+          "position": [
+            7.9,
+            41
+          ],
+          "width": 4,
+          "confidence": 0.88
+        },
+        {
+          "id": "window-14",
+          "name": "WINDOW 14",
+          "center": [
+            14.1,
+            41
+          ],
+          "position": [
+            14.1,
+            41
+          ],
+          "width": 4,
+          "confidence": 0.88
+        },
+        {
+          "id": "window-15",
+          "name": "WINDOW 15",
+          "center": [
+            27.8,
+            41.2
+          ],
+          "position": [
+            27.8,
+            41.2
+          ],
+          "width": 4,
+          "confidence": 0.88
+        },
+        {
+          "id": "window-16",
+          "name": "WINDOW 16",
+          "center": [
+            25.4,
+            41.2
+          ],
+          "position": [
+            25.4,
+            41.2
+          ],
+          "width": 4,
+          "confidence": 0.88
+        }
+      ],
+      "structural_elements": []
+    },
+    "rectified_floor_plan": {
+      "dimensions": {
+        "width": 42,
+        "height": 59.4
+      },
+      "rooms": [
+        {
+          "id": "room-living-1",
+          "name": "LIVING ROOM",
+          "type": "living",
+          "dimensionText": "11'5\" \u00d7 11'10\"",
+          "polygon": [
+            [
+              4.6,
+              29.3
+            ],
+            [
+              29.7,
+              29.3
+            ],
+            [
+              29.7,
+              40.7
+            ],
+            [
+              4.6,
+              40.7
+            ]
+          ],
+          "confidence": 0.65,
+          "is_detected": true
+        },
+        {
+          "id": "room-living-2",
+          "name": "LIVING ROOM 2",
+          "type": "living",
+          "dimensionText": "25'1\" \u00d7 11'5\"",
+          "polygon": [
+            [
+              21,
+              13.4
+            ],
+            [
+              32.4,
+              13.4
+            ],
+            [
+              32.4,
+              25.2
+            ],
+            [
+              21,
+              25.2
+            ]
+          ],
+          "confidence": 0.81,
+          "is_detected": true
+        },
+        {
+          "id": "room-garage-1",
+          "name": "GARAGE",
+          "type": "garage",
+          "dimensionText": "12'4\" \u00d7 11'4\"",
+          "polygon": [
+            [
+              24.2,
+              13.9
+            ],
+            [
+              36.5,
+              13.9
+            ],
+            [
+              36.5,
+              25.2
+            ],
+            [
+              24.2,
+              25.2
+            ]
+          ],
+          "confidence": 0.65,
+          "is_detected": true
+        },
+        {
+          "id": "room-room-1",
+          "name": "ROOM",
+          "type": "room",
+          "dimensionText": "15'7\" \u00d7 10'11\"",
+          "polygon": [
+            [
+              20.9,
+              10.9
+            ],
+            [
+              36.5,
+              10.9
+            ],
+            [
+              36.5,
+              21.8
+            ],
+            [
+              20.9,
+              21.8
+            ]
+          ],
+          "confidence": 0.6,
+          "is_detected": true
+        },
+        {
+          "id": "room-room-2",
+          "name": "ROOM 2",
+          "type": "room",
+          "dimensionText": "10'6\" \u00d7 6'2\"",
+          "polygon": [
+            [
+              4.6,
+              24.4
+            ],
+            [
+              15.1,
+              24.4
+            ],
+            [
+              15.1,
+              30.6
+            ],
+            [
+              4.6,
+              30.6
+            ]
+          ],
+          "confidence": 0.86,
+          "is_detected": true
+        },
+        {
+          "id": "room-room-3",
+          "name": "ROOM 3",
+          "type": "room",
+          "dimensionText": "13'8\" \u00d7 15'10\"",
+          "polygon": [
+            [
+              16,
+              24.5
+            ],
+            [
+              29.7,
+              24.5
+            ],
+            [
+              29.7,
+              40.3
+            ],
+            [
+              16,
+              40.3
+            ]
+          ],
+          "confidence": 0.78,
+          "is_detected": true
+        },
+        {
+          "id": "room-room-4",
+          "name": "ROOM 4",
+          "type": "room",
+          "dimensionText": "8'0\" \u00d7 8'0\"",
+          "polygon": [
+            [
+              28.3,
+              25.8
+            ],
+            [
+              36.3,
+              25.8
+            ],
+            [
+              36.3,
+              33.8
+            ],
+            [
+              28.3,
+              33.8
+            ]
+          ],
+          "confidence": 0.98,
+          "is_detected": true
+        }
+      ],
+      "doors": [
+        {
+          "id": "door-8",
+          "name": "MAIN ENTRANCE",
+          "type": "single_swing",
+          "center": [
+            33.5,
+            33.8
+          ],
+          "position": [
+            33.5,
+            33.8
+          ],
+          "width": 3,
+          "confidence": 0.88,
+          "is_main_entrance": true
+        },
+        {
+          "id": "door-9",
+          "name": "DOOR 9",
+          "type": "single_swing",
+          "center": [
+            30.1,
+            37.5
+          ],
+          "position": [
+            30.1,
+            37.5
+          ],
+          "width": 3,
+          "confidence": 0.88
+        },
+        {
+          "id": "door-6",
+          "name": "DOOR 6",
+          "type": "single_swing",
+          "center": [
+            12.8,
+            29.8
+          ],
+          "position": [
+            12.8,
+            29.8
+          ],
+          "width": 3,
+          "confidence": 0.88
+        },
+        {
+          "id": "door-5",
+          "name": "DOOR 5",
+          "type": "single_swing",
+          "center": [
+            28.3,
+            30.4
+          ],
+          "position": [
+            28.3,
+            30.4
+          ],
+          "width": 3,
+          "confidence": 0.88
+        },
+        {
+          "id": "door-3",
+          "name": "DOOR 3",
+          "type": "single_swing",
+          "center": [
+            28.2,
+            26.8
+          ],
+          "position": [
+            28.2,
+            26.8
+          ],
+          "width": 3,
+          "confidence": 0.88
+        },
+        {
+          "id": "door-1",
+          "name": "DOOR 1",
+          "type": "single_swing",
+          "center": [
+            27.2,
+            24.3
+          ],
+          "position": [
+            27.2,
+            24.3
+          ],
+          "width": 3,
+          "confidence": 0.88
+        },
+        {
+          "id": "door-10",
+          "name": "DOOR 10",
+          "type": "single_swing",
+          "center": [
+            26.6,
+            41
+          ],
+          "position": [
+            26.6,
+            41
+          ],
+          "width": 3,
+          "confidence": 0.88
+        },
+        {
+          "id": "door-4",
+          "name": "DOOR 4",
+          "type": "single_swing",
+          "center": [
+            16.8,
+            26.3
+          ],
+          "position": [
+            16.8,
+            26.3
+          ],
+          "width": 3,
+          "confidence": 0.88
+        },
+        {
+          "id": "door-7",
+          "name": "DOOR 7",
+          "type": "single_swing",
+          "center": [
+            17.2,
+            30.9
+          ],
+          "position": [
+            17.2,
+            30.9
+          ],
+          "width": 3,
+          "confidence": 0.88
+        },
+        {
+          "id": "door-2",
+          "name": "DOOR 2",
+          "type": "single_swing",
+          "center": [
+            18.2,
+            26.3
+          ],
+          "position": [
+            18.2,
+            26.3
+          ],
+          "width": 3,
+          "confidence": 0.88
+        },
+        {
+          "id": "door-11",
+          "name": "DOOR 11",
+          "type": "single_swing",
+          "center": [
+            20.5,
+            41
+          ],
+          "position": [
+            20.5,
+            41
+          ],
+          "width": 3,
+          "confidence": 0.88
+        }
+      ],
+      "windows": [
+        {
+          "id": "window-1",
+          "name": "WINDOW 1",
+          "center": [
+            20.8,
+            15.8
+          ],
+          "position": [
+            20.8,
+            15.8
+          ],
+          "width": 4,
+          "confidence": 0.88
+        },
+        {
+          "id": "window-2",
+          "name": "WINDOW 2",
+          "center": [
+            36.7,
+            17.8
+          ],
+          "position": [
+            36.7,
+            17.8
+          ],
+          "width": 4,
+          "confidence": 0.88
+        },
+        {
+          "id": "window-3",
+          "name": "WINDOW 3",
+          "center": [
+            20.9,
+            18
+          ],
+          "position": [
+            20.9,
+            18
+          ],
+          "width": 4,
+          "confidence": 0.88
+        },
+        {
+          "id": "window-4",
+          "name": "WINDOW 4",
+          "center": [
+            20.8,
+            19.8
+          ],
+          "position": [
+            20.8,
+            19.8
+          ],
+          "width": 4,
+          "confidence": 0.88
+        },
+        {
+          "id": "window-5",
+          "name": "WINDOW 5",
+          "center": [
+            36.7,
+            20.4
+          ],
+          "position": [
+            36.7,
+            20.4
+          ],
+          "width": 4,
+          "confidence": 0.88
+        },
+        {
+          "id": "window-6",
+          "name": "WINDOW 6",
+          "center": [
+            20.8,
+            21.9
+          ],
+          "position": [
+            20.8,
+            21.9
+          ],
+          "width": 4,
+          "confidence": 0.88
+        },
+        {
+          "id": "window-7",
+          "name": "WINDOW 7",
+          "center": [
+            13,
+            24.1
+          ],
+          "position": [
+            13,
+            24.1
+          ],
+          "width": 4,
+          "confidence": 0.88
+        },
+        {
+          "id": "window-8",
+          "name": "WINDOW 8",
+          "center": [
+            20.8,
+            25.3
+          ],
+          "position": [
+            20.8,
+            25.3
+          ],
+          "width": 4,
+          "confidence": 0.88
+        },
+        {
+          "id": "window-9",
+          "name": "WINDOW 9",
+          "center": [
+            16.3,
+            26.2
+          ],
+          "position": [
+            16.3,
+            26.2
+          ],
+          "width": 4,
+          "confidence": 0.88
+        },
+        {
+          "id": "window-10",
+          "name": "WINDOW 10",
+          "center": [
+            4.3,
+            28.6
+          ],
+          "position": [
+            4.3,
+            28.6
+          ],
+          "width": 4,
+          "confidence": 0.88
+        },
+        {
+          "id": "window-11",
+          "name": "WINDOW 11",
+          "center": [
+            36.6,
+            29.7
+          ],
+          "position": [
+            36.6,
+            29.7
+          ],
+          "width": 4,
+          "confidence": 0.88
+        },
+        {
+          "id": "window-12",
+          "name": "WINDOW 12",
+          "center": [
+            34.8,
+            33.9
+          ],
+          "position": [
+            34.8,
+            33.9
+          ],
+          "width": 4,
+          "confidence": 0.88
+        },
+        {
+          "id": "window-13",
+          "name": "WINDOW 13",
+          "center": [
+            7.9,
+            41
+          ],
+          "position": [
+            7.9,
+            41
+          ],
+          "width": 4,
+          "confidence": 0.88
+        },
+        {
+          "id": "window-14",
+          "name": "WINDOW 14",
+          "center": [
+            14.1,
+            41
+          ],
+          "position": [
+            14.1,
+            41
+          ],
+          "width": 4,
+          "confidence": 0.88
+        },
+        {
+          "id": "window-15",
+          "name": "WINDOW 15",
+          "center": [
+            27.8,
+            41.2
+          ],
+          "position": [
+            27.8,
+            41.2
+          ],
+          "width": 4,
+          "confidence": 0.88
+        },
+        {
+          "id": "window-16",
+          "name": "WINDOW 16",
+          "center": [
+            25.4,
+            41.2
+          ],
+          "position": [
+            25.4,
+            41.2
+          ],
+          "width": 4,
+          "confidence": 0.88
+        }
+      ],
+      "structural_elements": []
+    },
+    "modifications": [
+      {
+        "roomId": "room-living-1",
+        "roomName": "LIVING ROOM",
+        "previousSector": "South-East (Agneya / Agni)",
+        "newSector": "North (Uttara / Kubera)",
+        "reason": "Positioned welcome and social area to capture welcoming cosmic morning energy.",
+        "pointsGained": 5,
+        "previousCenter": [
+          26.7,
+          19.3
+        ],
+        "newCenter": [
+          17.1,
+          35.0
+        ]
+      }
+    ],
+    "applied_modifications_count": 1,
+    "post_rectification_analysis": {
+      "score": 67,
+      "grade": "B",
+      "grade_description": "Moderate Vastu Harmony: Key elemental or directional rectifications needed.",
+      "good_aspects": [
+        {
+          "rule_id": "vsai.dwara_sthana.combination",
+          "title": "Dwara Sthana: Vijaya Combination (VERY_GOOD)",
+          "room_id": null,
+          "room_name": "Doors (EAST, NORTH, SOUTH, WEST)",
+          "sector": "EAST",
+          "sector_display": "Cardinal Facings: EAST, NORTH, SOUTH, WEST",
+          "polygon": null,
+          "description": "Dwara Sthana classification: Vijaya (VERY_GOOD). Traditional attribution: Great wealth and happiness. Doors present in 4 direction(s): EAST, NORTH, SOUTH, WEST.",
+          "points_earned": 25
+        },
+        {
+          "rule_id": "vsai.main_entrance.direction",
+          "title": "Main Entrance in Auspicious Direction (East (Purva / Indra))",
+          "room_id": "door-8",
+          "room_name": "MAIN ENTRANCE",
+          "sector": "EAST",
+          "sector_display": "East (Purva / Indra)",
+          "polygon": [],
+          "description": "The main entrance 'MAIN ENTRANCE' is auspiciously positioned in the East (Purva / Indra) sector (POSITIVE_SUITABLE), optimizing cosmic energy flow.",
+          "points_earned": 25
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "GARAGE - Acceptable Alternative (South-East (Agneya / Agni))",
+          "room_id": "room-garage-1",
+          "room_name": "GARAGE",
+          "sector": "SOUTH_EAST",
+          "sector_display": "South-East (Agneya / Agni)",
+          "polygon": [
+            [
+              24.2,
+              13.9
+            ],
+            [
+              36.5,
+              13.9
+            ],
+            [
+              36.5,
+              25.2
+            ],
+            [
+              24.2,
+              25.2
+            ]
+          ],
+          "description": "GARAGE is located in South-East (Agneya / Agni), which is listed as an acceptable secondary alternative for Living Room.",
+          "points_earned": 3.0
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "ROOM - Acceptable Alternative (South-East (Agneya / Agni))",
+          "room_id": "room-room-1",
+          "room_name": "ROOM",
+          "sector": "SOUTH_EAST",
+          "sector_display": "South-East (Agneya / Agni)",
+          "polygon": [
+            [
+              20.9,
+              10.9
+            ],
+            [
+              36.5,
+              10.9
+            ],
+            [
+              36.5,
+              21.8
+            ],
+            [
+              20.9,
+              21.8
+            ]
+          ],
+          "description": "ROOM is located in South-East (Agneya / Agni), which is listed as an acceptable secondary alternative for Living Room.",
+          "points_earned": 3.0
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "ROOM 2 - Acceptable Alternative (West (Pashchima / Varuna))",
+          "room_id": "room-room-2",
+          "room_name": "ROOM 2",
+          "sector": "WEST",
+          "sector_display": "West (Pashchima / Varuna)",
+          "polygon": [
+            [
+              4.6,
+              24.4
+            ],
+            [
+              15.1,
+              24.4
+            ],
+            [
+              15.1,
+              30.6
+            ],
+            [
+              4.6,
+              30.6
+            ]
+          ],
+          "description": "ROOM 2 is located in West (Pashchima / Varuna), which is listed as an acceptable secondary alternative for Living Room.",
+          "points_earned": 3.0
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "ROOM 4 - Auspicious Sector (East (Purva / Indra))",
+          "room_id": "room-room-4",
+          "room_name": "ROOM 4",
+          "sector": "EAST",
+          "sector_display": "East (Purva / Indra)",
+          "polygon": [
+            [
+              28.3,
+              25.8
+            ],
+            [
+              36.3,
+              25.8
+            ],
+            [
+              36.3,
+              33.8
+            ],
+            [
+              28.3,
+              33.8
+            ]
+          ],
+          "description": "ROOM 4 is ideally positioned in East (Purva / Indra), which is the primary auspicious sector for Living Room in Vastu Shastra.",
+          "points_earned": 3.6
+        }
+      ],
+      "defects": [
+        {
+          "rule_id": "vsai.brahmasthan.exact_center",
+          "title": "Brahmasthan Exact Center Point Obstructed",
+          "severity": "CRITICAL",
+          "room_id": null,
+          "room_name": "Room 'LIVING ROOM', Room 'ROOM 3'",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "polygon": null,
+          "description": "The exact Brahmasthan center point (21.00, 29.70) is occupied or intersected by 2 represented spatial object(s): Room 'LIVING ROOM', Room 'ROOM 3'.",
+          "remedy": "Ensure the exact plan center point (Brahmasthan core) is left completely free and open. Relocate load-bearing walls, structural columns, pillars, staircases, and enclosed partitions away from the center coordinate.",
+          "points_deducted": 25
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "LIVING ROOM Sub-Optimal Placement (Brahmasthan (Center / Brahma Core))",
+          "severity": "MEDIUM",
+          "room_id": "room-living-1",
+          "room_name": "LIVING ROOM",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "polygon": [
+            [
+              4.6,
+              29.3
+            ],
+            [
+              29.7,
+              29.3
+            ],
+            [
+              29.7,
+              40.7
+            ],
+            [
+              4.6,
+              40.7
+            ]
+          ],
+          "description": "LIVING ROOM is located in Brahmasthan (Center / Brahma Core). Recommended preferred directions are NORTH_WEST, NORTH, NORTH_EAST, EAST.",
+          "remedy": "Align living seating towards North or East during conversations.",
+          "points_deducted": 2.1
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "LIVING ROOM 2 Sub-Optimal Placement (South (Dakshina / Yama))",
+          "severity": "MEDIUM",
+          "room_id": "room-living-2",
+          "room_name": "LIVING ROOM 2",
+          "sector": "SOUTH",
+          "sector_display": "South (Dakshina / Yama)",
+          "polygon": [
+            [
+              21,
+              13.4
+            ],
+            [
+              32.4,
+              13.4
+            ],
+            [
+              32.4,
+              25.2
+            ],
+            [
+              21,
+              25.2
+            ]
+          ],
+          "description": "LIVING ROOM 2 is located in South (Dakshina / Yama). Recommended preferred directions are NORTH_WEST, NORTH, NORTH_EAST, EAST.",
+          "remedy": "Align living seating towards North or East during conversations.",
+          "points_deducted": 2.1
+        },
+        {
+          "rule_id": "vsai.room.direction",
+          "title": "ROOM 3 Sub-Optimal Placement (Brahmasthan (Center / Brahma Core))",
+          "severity": "MEDIUM",
+          "room_id": "room-room-3",
+          "room_name": "ROOM 3",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "polygon": [
+            [
+              16,
+              24.5
+            ],
+            [
+              29.7,
+              24.5
+            ],
+            [
+              29.7,
+              40.3
+            ],
+            [
+              16,
+              40.3
+            ]
+          ],
+          "description": "ROOM 3 is located in Brahmasthan (Center / Brahma Core). Recommended preferred directions are NORTH_WEST, NORTH, NORTH_EAST, EAST.",
+          "remedy": "Align living seating towards North or East during conversations.",
+          "points_deducted": 2.1
+        }
+      ],
+      "total_rules_evaluated": 4,
+      "passed_rules_count": 6,
+      "failed_rules_count": 4,
+      "room_sectors": {
+        "room-living-1": {
+          "id": "room-living-1",
+          "name": "LIVING ROOM",
+          "type": "living",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "centroid": [
+            17.15,
+            35.0
+          ],
+          "polygon": [
+            [
+              4.6,
+              29.3
+            ],
+            [
+              29.7,
+              29.3
+            ],
+            [
+              29.7,
+              40.7
+            ],
+            [
+              4.6,
+              40.7
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": true
+        },
+        "room-living-2": {
+          "id": "room-living-2",
+          "name": "LIVING ROOM 2",
+          "type": "living",
+          "sector": "SOUTH",
+          "sector_display": "South (Dakshina / Yama)",
+          "centroid": [
+            26.7,
+            19.3
+          ],
+          "polygon": [
+            [
+              21,
+              13.4
+            ],
+            [
+              32.4,
+              13.4
+            ],
+            [
+              32.4,
+              25.2
+            ],
+            [
+              21,
+              25.2
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": false
+        },
+        "room-garage-1": {
+          "id": "room-garage-1",
+          "name": "GARAGE",
+          "type": "garage",
+          "sector": "SOUTH_EAST",
+          "sector_display": "South-East (Agneya / Agni)",
+          "centroid": [
+            30.35,
+            19.55
+          ],
+          "polygon": [
+            [
+              24.2,
+              13.9
+            ],
+            [
+              36.5,
+              13.9
+            ],
+            [
+              36.5,
+              25.2
+            ],
+            [
+              24.2,
+              25.2
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": false
+        },
+        "room-room-1": {
+          "id": "room-room-1",
+          "name": "ROOM",
+          "type": "room",
+          "sector": "SOUTH_EAST",
+          "sector_display": "South-East (Agneya / Agni)",
+          "centroid": [
+            28.7,
+            16.35
+          ],
+          "polygon": [
+            [
+              20.9,
+              10.9
+            ],
+            [
+              36.5,
+              10.9
+            ],
+            [
+              36.5,
+              21.8
+            ],
+            [
+              20.9,
+              21.8
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": false
+        },
+        "room-room-2": {
+          "id": "room-room-2",
+          "name": "ROOM 2",
+          "type": "room",
+          "sector": "WEST",
+          "sector_display": "West (Pashchima / Varuna)",
+          "centroid": [
+            9.85,
+            27.5
+          ],
+          "polygon": [
+            [
+              4.6,
+              24.4
+            ],
+            [
+              15.1,
+              24.4
+            ],
+            [
+              15.1,
+              30.6
+            ],
+            [
+              4.6,
+              30.6
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": false
+        },
+        "room-room-3": {
+          "id": "room-room-3",
+          "name": "ROOM 3",
+          "type": "room",
+          "sector": "CENTER",
+          "sector_display": "Brahmasthan (Center / Brahma Core)",
+          "centroid": [
+            22.85,
+            32.4
+          ],
+          "polygon": [
+            [
+              16,
+              24.5
+            ],
+            [
+              29.7,
+              24.5
+            ],
+            [
+              29.7,
+              40.3
+            ],
+            [
+              16,
+              40.3
+            ]
+          ],
+          "overlaps_brahmasthan": true,
+          "occupies_exact_center": true
+        },
+        "room-room-4": {
+          "id": "room-room-4",
+          "name": "ROOM 4",
+          "type": "room",
+          "sector": "EAST",
+          "sector_display": "East (Purva / Indra)",
+          "centroid": [
+            32.3,
+            29.8
+          ],
+          "polygon": [
+            [
+              28.3,
+              25.8
+            ],
+            [
+              36.3,
+              25.8
+            ],
+            [
+              36.3,
+              33.8
+            ],
+            [
+              28.3,
+              33.8
+            ]
+          ],
+          "overlaps_brahmasthan": false,
+          "occupies_exact_center": false
+        }
+      },
+      "brahmasthan": {
+        "status": "OBSTRUCTED",
+        "exact_center": [
+          21.0,
+          29.7
+        ],
+        "tolerance": 0.05,
+        "obstructing_objects": [
+          "LIVING ROOM",
+          "ROOM 3"
+        ],
+        "obstructing_rooms": [
+          "LIVING ROOM",
+          "ROOM 3"
+        ]
+      },
+      "dwara_sthana": {
+        "house_type": "Vijaya",
+        "classification": "VERY_GOOD",
+        "directions": [
+          "EAST",
+          "NORTH",
+          "SOUTH",
+          "WEST"
+        ],
+        "traditional_result": "Great wealth and happiness"
+      },
+      "main_entrance": {
+        "identified": true,
+        "door_id": "door-8",
+        "sector": "EAST",
+        "classification": "POSITIVE_SUITABLE"
+      },
+      "bounding_box": {
+        "min_x": 0,
+        "max_x": 42,
+        "min_y": 0,
+        "max_y": 59.4,
+        "width": 42,
+        "height": 59.4,
+        "area_sqft": 2494.8
+      },
+      "rule_details": {
+        "vsai.brahmasthan.exact_center": {
+          "status": "FAIL",
+          "exact_center": [
+            21.0,
+            29.7
+          ],
+          "tolerance": 0.05,
+          "obstructing_objects_count": 2,
+          "obstructing_objects": [
+            {
+              "id": "room-living-1",
+              "name": "LIVING ROOM",
+              "type": "room"
+            },
+            {
+              "id": "room-room-3",
+              "name": "ROOM 3",
+              "type": "room"
+            }
+          ]
+        },
+        "vsai.dwara_sthana.combination": {
+          "house_type": "Vijaya",
+          "classification": "VERY_GOOD",
+          "directions": [
+            "EAST",
+            "NORTH",
+            "SOUTH",
+            "WEST"
+          ],
+          "traditional_result": "Great wealth and happiness",
+          "doors_count": 11,
+          "door_details": [
+            {
+              "id": "door-8",
+              "name": "MAIN ENTRANCE",
+              "cardinal_direction": "EAST",
+              "sector": "EAST",
+              "is_main_entrance": true
+            },
+            {
+              "id": "door-9",
+              "name": "DOOR 9",
+              "cardinal_direction": "EAST",
+              "sector": "EAST",
+              "is_main_entrance": false
+            },
+            {
+              "id": "door-6",
+              "name": "DOOR 6",
+              "cardinal_direction": "WEST",
+              "sector": "WEST",
+              "is_main_entrance": false
+            },
+            {
+              "id": "door-5",
+              "name": "DOOR 5",
+              "cardinal_direction": "EAST",
+              "sector": "EAST",
+              "is_main_entrance": false
+            },
+            {
+              "id": "door-3",
+              "name": "DOOR 3",
+              "cardinal_direction": "EAST",
+              "sector": "EAST",
+              "is_main_entrance": false
+            },
+            {
+              "id": "door-1",
+              "name": "DOOR 1",
+              "cardinal_direction": "EAST",
+              "sector": "CENTER",
+              "is_main_entrance": false
+            },
+            {
+              "id": "door-10",
+              "name": "DOOR 10",
+              "cardinal_direction": "NORTH",
+              "sector": "NORTH",
+              "is_main_entrance": false
+            },
+            {
+              "id": "door-4",
+              "name": "DOOR 4",
+              "cardinal_direction": "WEST",
+              "sector": "CENTER",
+              "is_main_entrance": false
+            },
+            {
+              "id": "door-7",
+              "name": "DOOR 7",
+              "cardinal_direction": "WEST",
+              "sector": "CENTER",
+              "is_main_entrance": false
+            },
+            {
+              "id": "door-2",
+              "name": "DOOR 2",
+              "cardinal_direction": "SOUTH",
+              "sector": "CENTER",
+              "is_main_entrance": false
+            },
+            {
+              "id": "door-11",
+              "name": "DOOR 11",
+              "cardinal_direction": "NORTH",
+              "sector": "NORTH",
+              "is_main_entrance": false
+            }
+          ]
+        },
+        "vsai.main_entrance.direction": {
+          "identified": true,
+          "door_id": "door-8",
+          "door_name": "MAIN ENTRANCE",
+          "sector": "EAST",
+          "classification": "POSITIVE_SUITABLE"
+        },
+        "vsai.room.direction": {
+          "evaluated_rooms_count": 7
+        }
+      }
+    }
+  },
+  "interior_layout": {},
+  "exterior_landscape": {},
+  "processing": {
+    "gab_gen": {
+      "status": "completed"
+    },
+    "vsai_rectifier": {
+      "status": "completed"
+    },
+    "esai_engine": {
+      "status": "pending"
+    },
+    "elia_engine": {
+      "status": "pending"
+    }
+  },
+  "units": "ft",
+  "segmentation_meta": {
+    "source": "CubiCasa5K",
+    "rooms_detected": 7,
+    "doors_detected": 11,
+    "windows_detected": 16,
+    "average_confidence": 0.76,
+    "original_image_size": [
+      2480,
+      3508
+    ],
+    "scale_factor_ft_per_px": 0.016935483870967744
+  }
+}

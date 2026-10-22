@@ -8,6 +8,8 @@ interface Room {
   name?: string;
   type?: string;
   polygon: [number, number][];
+  dimensionText?: string;
+  dimensions?: { width?: number; height?: number };
 }
 
 interface StructuralElement {
@@ -16,10 +18,45 @@ interface StructuralElement {
   polygon: [number, number][];
 }
 
+export interface DoorElement {
+  id: string;
+  name?: string;
+  type?: string;
+  center?: [number, number];
+  position?: [number, number];
+  width?: number;
+  is_main_entrance?: boolean;
+  orientation?: string;
+}
+
+export interface WindowElement {
+  id: string;
+  name?: string;
+  center?: [number, number];
+  position?: [number, number];
+  width?: number;
+  orientation?: string;
+}
+
+export interface PlanMarker {
+  id: string;
+  label: string; // e.g. "01", "02", "03"
+  roomId?: string;
+  x?: number;
+  y?: number;
+  type?: 'correction' | 'attention' | 'good';
+  tooltip?: string;
+}
+
 interface FloorPlan2DViewerProps {
   floorPlan?: {
     rooms?: Room[];
     structural_elements?: StructuralElement[];
+    doors?: DoorElement[];
+    windows?: WindowElement[];
+    units?: string;
+    dimensions?: { width?: number; height?: number };
+    coordinate_system?: any;
   };
   landInfo?: {
     orientation?: string;
@@ -29,11 +66,18 @@ interface FloorPlan2DViewerProps {
   };
   rectificationResult?: any;
   highlightRoomId?: string | null;
+  rectifiedRoomIds?: string[];
   highlightColor?: string;
   dimOthers?: boolean;
   showVastuGridDefault?: boolean;
   hideLegend?: boolean;
+  hideTopBar?: boolean;
+  compassPosition?: 'top-left' | 'top-right';
   compactTopBar?: boolean;
+  cadStyle?: boolean;
+  outerDimensions?: { top?: string; right?: string };
+  markers?: PlanMarker[];
+  onMarkerClick?: (marker: PlanMarker) => void;
 }
 
 const ROOM_COLORS: Record<string, { fill: string; stroke: string; text: string }> = {
@@ -100,11 +144,18 @@ export function FloorPlan2DViewer({
   landInfo,
   rectificationResult,
   highlightRoomId,
+  rectifiedRoomIds = [],
   highlightColor = '#ef4444',
   dimOthers = false,
   showVastuGridDefault = false,
   hideLegend = false,
+  hideTopBar = false,
+  compassPosition = 'top-right',
   compactTopBar = false,
+  cadStyle = false,
+  outerDimensions,
+  markers = [],
+  onMarkerClick,
 }: FloorPlan2DViewerProps) {
   const [hoveredRoom, setHoveredRoom] = useState<Room | null>(null)
   const [showVastuGrid, setShowVastuGrid] = useState<boolean>(showVastuGridDefault)
@@ -118,6 +169,8 @@ export function FloorPlan2DViewer({
   const rooms = useMemo(() => floorPlan?.rooms || [], [floorPlan])
   const columns = useMemo(() => floorPlan?.structural_elements || [], [floorPlan])
   const boundary = useMemo(() => landInfo?.boundary_points || [], [landInfo])
+  const rawDoors = useMemo(() => ((floorPlan as any)?.doors as DoorElement[]) || [], [floorPlan])
+  const rawWindows = useMemo(() => ((floorPlan as any)?.windows as WindowElement[]) || [], [floorPlan])
 
   // Compute bounding box for auto-scaling
   const bounds = useMemo(() => {
@@ -145,16 +198,19 @@ export function FloorPlan2DViewer({
     const rawH = Math.max(maxY - minY, 1)
     const baseDim = Math.max(rawW, rawH)
 
-    const paddingX = rawW * 0.08
-    const paddingY = rawH * 0.08
+    const isCad = cadStyle || Boolean(outerDimensions)
+    const padLeft = isCad ? rawW * 0.08 : rawW * 0.06
+    const padRight = isCad ? rawW * 0.16 : rawW * 0.06
+    const padTop = isCad ? rawH * 0.14 : rawH * 0.06
+    const padBottom = isCad ? rawH * 0.08 : rawH * 0.06
 
     return {
-      minX: minX - paddingX,
-      minY: minY - paddingY,
-      maxX: maxX + paddingX,
-      maxY: maxY + paddingY,
-      width: rawW + paddingX * 2,
-      height: rawH + paddingY * 2,
+      minX: minX - padLeft,
+      minY: minY - padTop,
+      maxX: maxX + padRight,
+      maxY: maxY + padBottom,
+      width: rawW + padLeft + padRight,
+      height: rawH + padTop + padBottom,
       rawMinX: minX,
       rawMaxX: maxX,
       rawMinY: minY,
@@ -162,8 +218,10 @@ export function FloorPlan2DViewer({
       rawWidth: rawW,
       rawHeight: rawH,
       baseDim,
+      padTop,
+      padRight,
     }
-  }, [rooms, columns, boundary])
+  }, [rooms, columns, boundary, cadStyle, outerDimensions])
 
   // Only invert Y if the coordinate system explicitly declares y_axis as "up" or origin as "bottom_left"
   const isYAxisUp = (floorPlan as any)?.coordinate_system?.y_axis === 'up' || (floorPlan as any)?.coordinate_system?.origin === 'bottom_left'
@@ -177,6 +235,166 @@ export function FloorPlan2DViewer({
   const formatPoints = (points: [number, number][]) => {
     return points.map(p => `${p[0]},${toSvgY(p[1])}`).join(' ')
   }
+
+  // Nearest wall orientation finder
+  const getNearestWallOrientation = (cx: number, cy: number, defaultOrient?: string) => {
+    if (defaultOrient === 'horizontal' || defaultOrient === 'vertical') return defaultOrient
+    let bestDist = Infinity
+    let isHoriz = true
+    rooms.forEach(r => {
+      const poly = r.polygon
+      if (!poly || poly.length < 2) return
+      for (let i = 0; i < poly.length; i++) {
+        const p1 = poly[i]
+        const p2 = poly[(i + 1) % poly.length]
+        const l2 = (p2[0] - p1[0]) * (p2[0] - p1[0]) + (p2[1] - p1[1]) * (p2[1] - p1[1])
+        if (l2 === 0) continue
+        let t = ((cx - p1[0]) * (p2[0] - p1[0]) + (cy - p1[1]) * (p2[1] - p1[1])) / l2
+        t = Math.max(0, Math.min(1, t))
+        const dist = Math.hypot(cx - (p1[0] + t * (p2[0] - p1[0])), cy - (p1[1] + t * (p2[1] - p1[1])))
+        if (dist < bestDist) {
+          bestDist = dist
+          isHoriz = Math.abs(p2[0] - p1[0]) >= Math.abs(p2[1] - p1[1])
+        }
+      }
+    })
+    return isHoriz ? 'horizontal' : 'vertical'
+  }
+
+  // Derive doors if not explicitly provided
+  const effectiveDoors = useMemo<DoorElement[]>(() => {
+    if (rawDoors.length > 0) return rawDoors
+    if (rooms.length === 0) return []
+
+    const generated: DoorElement[] = []
+    let doorIdx = 1
+
+    // Detect shared edges between adjacent rooms
+    for (let i = 0; i < rooms.length; i++) {
+      for (let j = i + 1; j < rooms.length; j++) {
+        const polyA = rooms[i].polygon
+        const polyB = rooms[j].polygon
+        if (!polyA || !polyB) continue
+
+        for (let a = 0; a < polyA.length; a++) {
+          const pa1 = polyA[a]
+          const pa2 = polyA[(a + 1) % polyA.length]
+
+          for (let b = 0; b < polyB.length; b++) {
+            const pb1 = polyB[b]
+            const pb2 = polyB[(b + 1) % polyB.length]
+
+            // Check horizontal shared edge
+            if (
+              Math.abs(pa1[1] - pa2[1]) < 0.25 &&
+              Math.abs(pb1[1] - pb2[1]) < 0.25 &&
+              Math.abs(pa1[1] - pb1[1]) < 0.25
+            ) {
+              const overlapMin = Math.max(Math.min(pa1[0], pa2[0]), Math.min(pb1[0], pb2[0]))
+              const overlapMax = Math.min(Math.max(pa1[0], pa2[0]), Math.max(pb1[0], pb2[0]))
+
+              if (overlapMax - overlapMin >= 3.0) {
+                const midX = (overlapMin + overlapMax) / 2
+                generated.push({
+                  id: `auto-door-${doorIdx++}`,
+                  name: `Door`,
+                  type: 'single_swing',
+                  center: [midX, pa1[1]],
+                  width: 3.0,
+                  orientation: 'horizontal',
+                })
+              }
+            }
+            // Check vertical shared edge
+            else if (
+              Math.abs(pa1[0] - pa2[0]) < 0.25 &&
+              Math.abs(pb1[0] - pb2[0]) < 0.25 &&
+              Math.abs(pa1[0] - pb1[0]) < 0.25
+            ) {
+              const overlapMin = Math.max(Math.min(pa1[1], pa2[1]), Math.min(pb1[1], pb2[1]))
+              const overlapMax = Math.min(Math.max(pa1[1], pa2[1]), Math.max(pb1[1], pb2[1]))
+
+              if (overlapMax - overlapMin >= 3.0) {
+                const midY = (overlapMin + overlapMax) / 2
+                generated.push({
+                  id: `auto-door-${doorIdx++}`,
+                  name: `Door`,
+                  type: 'single_swing',
+                  center: [pa1[0], midY],
+                  width: 3.0,
+                  orientation: 'vertical',
+                })
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Add Main Entrance Door on front exterior wall if no main entrance
+    if (!generated.some(d => d.is_main_entrance)) {
+      const livingRoom = rooms.find(r => (r.type || r.name || '').toLowerCase().includes('verandah')) ||
+                         rooms.find(r => (r.type || r.name || '').toLowerCase().includes('living')) ||
+                         rooms[0]
+      if (livingRoom) {
+        const bbox = getPolygonBBox(livingRoom.polygon)
+        generated.unshift({
+          id: 'auto-door-main',
+          name: 'MAIN ENTRANCE',
+          type: 'single_swing',
+          center: [bbox.cx, bbox.maxY],
+          width: 3.5,
+          is_main_entrance: true,
+          orientation: 'horizontal',
+        })
+      }
+    }
+
+    return generated
+  }, [rawDoors, rooms])
+
+  // Derive windows if not explicitly provided
+  const effectiveWindows = useMemo<WindowElement[]>(() => {
+    if (rawWindows.length > 0) return rawWindows
+    if (rooms.length === 0) return []
+
+    const generated: WindowElement[] = []
+    let winIdx = 1
+
+    rooms.forEach(room => {
+      const poly = room.polygon
+      if (!poly || poly.length < 3) return
+
+      for (let i = 0; i < poly.length; i++) {
+        const p1 = poly[i]
+        const p2 = poly[(i + 1) % poly.length]
+        const len = Math.hypot(p2[0] - p1[0], p2[1] - p1[1])
+        if (len < 5.0) continue
+
+        const midX = (p1[0] + p2[0]) / 2
+        const midY = (p1[1] + p2[1]) / 2
+
+        const isNearBoundary = (
+          Math.abs(midX - bounds.rawMinX) < 1.0 ||
+          Math.abs(midX - bounds.rawMaxX) < 1.0 ||
+          Math.abs(midY - bounds.rawMinY) < 1.0 ||
+          Math.abs(midY - bounds.rawMaxY) < 1.0
+        )
+
+        if (isNearBoundary) {
+          generated.push({
+            id: `auto-win-${winIdx++}`,
+            name: `${room.name || 'Room'} Window`,
+            center: [midX, midY],
+            width: Math.min(4.0, len * 0.5),
+            orientation: Math.abs(p2[0] - p1[0]) >= Math.abs(p2[1] - p1[1]) ? 'horizontal' : 'vertical',
+          })
+        }
+      }
+    })
+
+    return generated
+  }, [rawWindows, rooms, bounds])
 
   // 3x3 Vastu Padavinyasa grid lines calculation
   const vastuGridSectors = useMemo(() => {
@@ -195,88 +413,99 @@ export function FloorPlan2DViewer({
   }, [bounds])
 
   return (
-    <div className="flex flex-col w-full h-full bg-slate-950/70 border border-border/60 rounded-2xl overflow-hidden backdrop-blur">
+    <div className="flex flex-col w-full h-full bg-white border border-slate-300 rounded-2xl overflow-hidden shadow-lg">
       {/* Top Status Bar */}
-      <div className="flex items-center justify-between px-3.5 py-2 bg-card/60 border-b border-border/40 text-xs">
-        <div className="flex items-center gap-2 min-w-0">
-          {!compactTopBar ? (
-            <Badge variant="outline" className="gap-1.5 py-0.5 font-medium border-primary/30 text-primary shrink-0">
-              <Layers className="w-3.5 h-3.5" /> 2D Vector Blueprint
-            </Badge>
-          ) : (
-            <div className="flex items-center gap-1.5 text-primary font-semibold text-xs shrink-0">
-              <Layers className="w-3.5 h-3.5" />
-              <span>Blueprint</span>
-            </div>
-          )}
-          <span className="text-muted-foreground text-[11px] whitespace-nowrap">
-            {rooms.length} Rooms
-            {columns.length > 0 && ` • ${columns.length} Cols`}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => setShowVastuGrid(!showVastuGrid)}
-            className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium transition-colors border shrink-0 ${
-              showVastuGrid
-                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 ring-1 ring-amber-500/30'
-                : 'bg-muted/30 text-muted-foreground border-border/50 hover:text-foreground'
-            }`}
-          >
-            <Grid3X3 className="w-3.5 h-3.5" />
-            <span className="whitespace-nowrap">9×9 Grid</span>
-          </button>
-
-          <div className="flex items-center gap-1 text-muted-foreground text-[11px] shrink-0 whitespace-nowrap">
-            <Compass className="w-3.5 h-3.5 text-primary shrink-0" />
-            <span className="font-semibold text-foreground whitespace-nowrap">
-              {landInfo?.orientation || 'North'}
+      {!hideTopBar && (
+        <div className="flex items-center justify-between px-3.5 py-2.5 bg-slate-50 border-b border-slate-200 text-xs">
+          <div className="flex items-center gap-2 min-w-0">
+            {!compactTopBar ? (
+              <Badge variant="outline" className="gap-1.5 py-0.5 font-bold border-slate-300 text-slate-900 bg-white shadow-xs shrink-0">
+                <Layers className="w-3.5 h-3.5 text-primary" /> Architectural CAD Plan
+              </Badge>
+            ) : (
+              <div className="flex items-center gap-1.5 text-slate-900 font-bold text-xs shrink-0">
+                <Layers className="w-3.5 h-3.5 text-primary" />
+                <span>Architectural Plan</span>
+              </div>
+            )}
+            <span className="text-slate-600 font-medium text-[11px] whitespace-nowrap">
+              {rooms.length} Rooms
+              {columns.length > 0 && ` • ${columns.length} Cols`}
+              {effectiveDoors.length > 0 && ` • ${effectiveDoors.length} Doors`}
+              {effectiveWindows.length > 0 && ` • ${effectiveWindows.length} Windows`}
             </span>
           </div>
-        </div>
-      </div>
 
-      {/* Main SVG Blueprint Canvas */}
-      <div className="relative w-full aspect-[4/3] min-h-[380px] max-h-[520px] p-4 flex items-center justify-center overflow-hidden">
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowVastuGrid(!showVastuGrid)}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors border shrink-0 cursor-pointer ${
+                showVastuGrid
+                  ? 'bg-amber-100 text-amber-900 border-amber-300 ring-1 ring-amber-300'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+              }`}
+            >
+              <Grid3X3 className="w-3.5 h-3.5 text-amber-600" />
+              <span className="whitespace-nowrap">9×9 Vastu Grid</span>
+            </button>
+
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-slate-300 rounded-md text-slate-800 text-[11px] shrink-0 whitespace-nowrap font-medium">
+              <Compass className="w-3.5 h-3.5 text-primary shrink-0" />
+              <span>Orientation: <strong>{landInfo?.orientation || 'North'}</strong></span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main SVG Architectural Plan Canvas (White Drawing Sheet) */}
+      <div className="relative w-full h-full flex-1 p-3 sm:p-6 flex items-center justify-center overflow-hidden min-h-[380px] bg-white">
         <svg
+          id="architectural-plan-svg"
+          xmlns="http://www.w3.org/2000/svg"
           viewBox={`${bounds.minX} ${bounds.minY} ${bounds.width} ${bounds.height}`}
           className="w-full h-full select-none"
           preserveAspectRatio="xMidYMid meet"
         >
           <defs>
-            {/* Grid Pattern */}
+            {/* Architectural Drawing Sheet Grid (faint subtle drafting guidelines) */}
             <pattern
-              id="blueprint-grid"
-              width={bounds.width / 20}
-              height={bounds.height / 20}
+              id="drafting-grid"
+              width={bounds.width / 24}
+              height={bounds.height / 24}
               patternUnits="userSpaceOnUse"
             >
               <path
-                d={`M ${bounds.width / 20} 0 L 0 0 0 ${bounds.height / 20}`}
+                d={`M ${bounds.width / 24} 0 L 0 0 0 ${bounds.height / 24}`}
                 fill="none"
-                stroke="rgba(255, 255, 255, 0.05)"
+                stroke="rgba(0, 0, 0, 0.02)"
                 strokeWidth="0.5"
               />
             </pattern>
-            {/* Column Glow Filter */}
-            <filter id="column-glow" x="-50%" y="-50%" width="200%" height="200%">
-              <feDropShadow dx="0" dy="0" stdDeviation="0.8" floodColor="#f43f5e" floodOpacity="0.8" />
-            </filter>
             {/* Room Highlight Glow Filter */}
             <filter id="room-highlight-glow" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="0" stdDeviation="2.0" floodColor={highlightColor} floodOpacity="0.9" />
+              <feDropShadow dx="0" dy="0" stdDeviation="2.0" floodColor={highlightColor} floodOpacity="0.4" />
+            </filter>
+            {/* Rectified Room Glow Filter */}
+            <filter id="rectified-room-glow" x="-25%" y="-25%" width="150%" height="150%">
+              <feDropShadow dx="0" dy="0" stdDeviation="2.0" floodColor="#059669" floodOpacity="0.3" />
             </filter>
           </defs>
 
-          {/* Grid Background */}
+          {/* Clean Pure White Architectural Paper Sheet */}
           <rect
             x={bounds.minX}
             y={bounds.minY}
             width={bounds.width}
             height={bounds.height}
-            fill="url(#blueprint-grid)"
+            fill="#ffffff"
+          />
+          <rect
+            x={bounds.minX}
+            y={bounds.minY}
+            width={bounds.width}
+            height={bounds.height}
+            fill="url(#drafting-grid)"
           />
 
           {/* 3x3 Vastu Padavinyasa Grid Overlay */}
@@ -418,6 +647,14 @@ export function FloorPlan2DViewer({
               }
             }
 
+            const isRectified = Boolean(
+              rectifiedRoomIds && rectifiedRoomIds.length > 0 && (
+                rectifiedRoomIds.includes(room.id) ||
+                rectifiedRoomIds.includes((room.name || '').toLowerCase()) ||
+                rectifiedRoomIds.some(id => (room.id || '').toLowerCase().includes(id.toLowerCase()))
+              )
+            )
+
             // Dim others when inspecting a specific room
             const opacity = dimOthers && highlightRoomId && !isTargetHighlight ? 0.22 : 1.0
 
@@ -429,64 +666,482 @@ export function FloorPlan2DViewer({
                 className="cursor-pointer transition-all duration-200"
                 style={{ opacity, transition: 'opacity 0.25s ease-in-out' }}
               >
-                {/* Room Geometry */}
+                {/* Room Geometry - Solid Black Walls on Pure White Background (matching Real Architectural Blueprint) */}
                 <polygon
                   points={formatPoints(room.polygon)}
                   fill={
-                    isTargetHighlight
-                      ? `${highlightColor}33`
-                      : (isHovered ? color.fill.replace('0.25', '0.45').replace('0.22', '0.42') : color.fill)
+                    isRectified
+                      ? 'rgba(16, 185, 129, 0.12)'
+                      : isTargetHighlight
+                        ? 'rgba(239, 68, 68, 0.12)'
+                        : (isHovered ? 'rgba(241, 245, 249, 0.9)' : '#ffffff')
                   }
-                  stroke={isTargetHighlight ? highlightColor : color.stroke}
-                  strokeWidth={strokeWidth}
-                  filter={isTargetHighlight ? 'url(#room-highlight-glow)' : undefined}
+                  stroke={
+                    isRectified
+                      ? '#059669'
+                      : isTargetHighlight 
+                        ? highlightColor 
+                        : '#000000'
+                  }
+                  strokeWidth={
+                    isRectified
+                      ? bounds.baseDim * 0.016
+                      : bounds.baseDim * 0.016
+                  }
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                  strokeMiterlimit={2}
                   className="transition-all"
                 />
 
-                {/* Room Name Label */}
+                {/* Room Name Label (Solid Black Architectural Typography) */}
                 <text
                   x={cx}
                   y={nameY}
                   textAnchor="middle"
                   dominantBaseline="middle"
-                  fill={isTargetHighlight ? highlightColor : color.text}
+                  fill="#000000"
                   fontSize={fontSize}
-                  fontWeight={isTargetHighlight ? '800' : '600'}
-                  className="pointer-events-none drop-shadow select-none"
+                  fontWeight="700"
+                  letterSpacing="0.04em"
+                  fontFamily="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+                  className="pointer-events-none select-none uppercase"
                 >
                   {room.name || room.type || `Room ${idx + 1}`}
                 </text>
 
-                {/* Area Tag */}
-                {area > 0 && (
+                {/* Area / Dimension Tag (Under Room Name) */}
+                {(room.dimensionText || area > 0) && (
                   <text
                     x={cx}
                     y={areaY}
                     textAnchor="middle"
                     dominantBaseline="middle"
-                    fill="rgba(255, 255, 255, 0.75)"
+                    fill="#334155"
                     fontSize={areaFontSize}
-                    fontFamily="monospace"
+                    fontWeight="600"
+                    fontFamily="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
                     className="pointer-events-none select-none"
                   >
-                    {areaDisplay}
+                    {room.dimensionText || areaDisplay}
                   </text>
+                )}
+
+                {/* Rectified Badge / Architectural Revision Stamp */}
+                {isRectified && (
+                  <g transform={`translate(${cx}, ${areaY + areaFontSize * 1.45})`} className="pointer-events-none select-none">
+                    <rect
+                      x={-fontSize * 2.8}
+                      y={-areaFontSize * 0.7}
+                      width={fontSize * 5.6}
+                      height={areaFontSize * 1.4}
+                      rx={3}
+                      fill="#ecfdf5"
+                      stroke="#059669"
+                      strokeWidth={1}
+                    />
+                    <text
+                      x={0}
+                      y={0}
+                      textAnchor="middle"
+                      dominantBaseline="central"
+                      fill="#047857"
+                      fontSize={areaFontSize * 0.8}
+                      fontWeight="800"
+                      fontFamily="system-ui, sans-serif"
+                    >
+                      ★ RECTIFIED
+                    </text>
+                  </g>
                 )}
               </g>
             )
           })}
 
-          {/* Structural Columns */}
+          {/* Architectural Windows (Double/Triple Line CAD Symbols on White Cutout Mask) */}
+          {effectiveWindows.map((win, wIdx) => {
+            const center = win.center || win.position
+            if (!center || center.length < 2) return null
+            const [cx, cy] = center
+            const w = win.width || 4.0
+            const orient = getNearestWallOrientation(cx, cy, win.orientation)
+            const isHoriz = orient === 'horizontal'
+            const halfW = w / 2
+            const svgCy = toSvgY(cy)
+            const offset = bounds.baseDim * 0.004
+
+            if (isHoriz) {
+              const x1 = cx - halfW
+              const x2 = cx + halfW
+              return (
+                <g key={win.id || wIdx} className="architectural-window pointer-events-none select-none">
+                  {/* Clean Wall Opening Cutout (White mask that cuts through the black wall) */}
+                  <line x1={x1} y1={svgCy} x2={x2} y2={svgCy} stroke="#ffffff" strokeWidth={bounds.baseDim * 0.024} />
+                  {/* Outer Wall Face Line */}
+                  <line x1={x1} y1={svgCy - offset} x2={x2} y2={svgCy - offset} stroke="#000000" strokeWidth={bounds.baseDim * 0.0025} />
+                  {/* Center Glass Pane */}
+                  <line x1={x1} y1={svgCy} x2={x2} y2={svgCy} stroke="#000000" strokeWidth={bounds.baseDim * 0.0035} />
+                  {/* Inner Wall Face Line */}
+                  <line x1={x1} y1={svgCy + offset} x2={x2} y2={svgCy + offset} stroke="#000000" strokeWidth={bounds.baseDim * 0.0025} />
+                  {/* Window Jambs / Wall Stops on both sides */}
+                  <line x1={x1} y1={svgCy - offset * 1.5} x2={x1} y2={svgCy + offset * 1.5} stroke="#000000" strokeWidth={bounds.baseDim * 0.0035} />
+                  <line x1={x2} y1={svgCy - offset * 1.5} x2={x2} y2={svgCy + offset * 1.5} stroke="#000000" strokeWidth={bounds.baseDim * 0.0035} />
+                </g>
+              )
+            } else {
+              const y1 = cy - halfW
+              const y2 = cy + halfW
+              const svgY1 = toSvgY(y1)
+              const svgY2 = toSvgY(y2)
+              return (
+                <g key={win.id || wIdx} className="architectural-window pointer-events-none select-none">
+                  {/* Clean Wall Opening Cutout */}
+                  <line x1={cx} y1={svgY1} x2={cx} y2={svgY2} stroke="#ffffff" strokeWidth={bounds.baseDim * 0.024} />
+                  {/* Outer Frame Line */}
+                  <line x1={cx - offset} y1={svgY1} x2={cx - offset} y2={svgY2} stroke="#000000" strokeWidth={bounds.baseDim * 0.0025} />
+                  {/* Center Glass Pane */}
+                  <line x1={cx} y1={svgY1} x2={cx} y2={svgY2} stroke="#000000" strokeWidth={bounds.baseDim * 0.0035} />
+                  {/* Inner Frame Line */}
+                  <line x1={cx + offset} y1={svgY1} x2={cx + offset} y2={svgY2} stroke="#000000" strokeWidth={bounds.baseDim * 0.0025} />
+                  {/* Window Jambs */}
+                  <line x1={cx - offset * 1.5} y1={svgY1} x2={cx + offset * 1.5} y2={svgY1} stroke="#000000" strokeWidth={bounds.baseDim * 0.0035} />
+                  <line x1={cx - offset * 1.5} y1={svgY2} x2={cx + offset * 1.5} y2={svgY2} stroke="#000000" strokeWidth={bounds.baseDim * 0.0035} />
+                </g>
+              )
+            }
+          })}
+
+          {/* Architectural Doors (Quarter-circle Swing Arc + Leaf in Black Ink on White Cutout Mask) */}
+          {effectiveDoors.map((door, dIdx) => {
+            const center = door.center || door.position
+            if (!center || center.length < 2) return null
+            const [cx, cy] = center
+            const w = door.width || 3.0
+            const orient = getNearestWallOrientation(cx, cy, door.orientation)
+            const isHoriz = orient === 'horizontal'
+            const halfW = w / 2
+            const svgCy = toSvgY(cy)
+
+            if (isHoriz) {
+              const x1 = cx - halfW
+              const x2 = cx + halfW
+              const hingeX = x1
+              const hingeY = svgCy
+              const leafEndX = x1
+              const leafEndY = svgCy - w * (isYAxisUp ? -1 : 1)
+              const wallPointX = x2
+              const wallPointY = svgCy
+              const arcD = `M ${wallPointX} ${wallPointY} A ${w} ${w} 0 0 ${isYAxisUp ? 1 : 0} ${leafEndX} ${leafEndY}`
+
+              return (
+                <g key={door.id || dIdx} className="architectural-door pointer-events-none select-none">
+                  {/* Clean Wall Opening Cutout (White mask that cuts through the black wall) */}
+                  <line
+                    x1={x1}
+                    y1={svgCy}
+                    x2={x2}
+                    y2={svgCy}
+                    stroke="#ffffff"
+                    strokeWidth={bounds.baseDim * 0.024}
+                  />
+                  {/* Door Swing Arc (Fine black drafting arc) */}
+                  <path
+                    d={arcD}
+                    fill="none"
+                    stroke="#000000"
+                    strokeWidth={bounds.baseDim * 0.002}
+                  />
+                  {/* Door Leaf (Solid black line) */}
+                  <line
+                    x1={hingeX}
+                    y1={hingeY}
+                    x2={leafEndX}
+                    y2={leafEndY}
+                    stroke="#000000"
+                    strokeWidth={bounds.baseDim * 0.004}
+                  />
+                  {/* Door Jambs (Wall stops on both sides) */}
+                  <line x1={x1} y1={svgCy - bounds.baseDim * 0.008} x2={x1} y2={svgCy + bounds.baseDim * 0.008} stroke="#000000" strokeWidth={bounds.baseDim * 0.0035} />
+                  <line x1={x2} y1={svgCy - bounds.baseDim * 0.008} x2={x2} y2={svgCy + bounds.baseDim * 0.008} stroke="#000000" strokeWidth={bounds.baseDim * 0.0035} />
+                  {/* Main Entrance Tag */}
+                  {door.is_main_entrance && (
+                    <g transform={`translate(${cx}, ${svgCy + (isYAxisUp ? -bounds.baseDim * 0.05 : bounds.baseDim * 0.05)})`}>
+                      <rect
+                        x={-bounds.baseDim * 0.09}
+                        y={-bounds.baseDim * 0.016}
+                        width={bounds.baseDim * 0.18}
+                        height={bounds.baseDim * 0.032}
+                        rx={3}
+                        fill="#000000"
+                        stroke="#000000"
+                      />
+                      <text
+                        x={0}
+                        y={0}
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        fill="#ffffff"
+                        fontSize={bounds.baseDim * 0.014}
+                        fontWeight="bold"
+                        fontFamily="system-ui, sans-serif"
+                      >
+                        ▲ MAIN ENTRANCE
+                      </text>
+                    </g>
+                  )}
+                </g>
+              )
+            } else {
+              const y1 = cy - halfW
+              const y2 = cy + halfW
+              const svgY1 = toSvgY(y1)
+              const svgY2 = toSvgY(y2)
+              const svgHingeY = Math.max(svgY1, svgY2)
+              const svgWallPointY = Math.min(svgY1, svgY2)
+              const hingeX = cx
+              const leafEndX = cx + w
+              const leafEndY = svgHingeY
+              const arcD = `M ${cx} ${svgWallPointY} A ${w} ${w} 0 0 1 ${leafEndX} ${leafEndY}`
+
+              return (
+                <g key={door.id || dIdx} className="architectural-door pointer-events-none select-none">
+                  {/* Clean Wall Opening Cutout */}
+                  <line
+                    x1={cx}
+                    y1={svgY1}
+                    x2={cx}
+                    y2={svgY2}
+                    stroke="#ffffff"
+                    strokeWidth={bounds.baseDim * 0.024}
+                  />
+                  {/* Door Swing Arc */}
+                  <path
+                    d={arcD}
+                    fill="none"
+                    stroke="#000000"
+                    strokeWidth={bounds.baseDim * 0.002}
+                  />
+                  {/* Door Leaf */}
+                  <line
+                    x1={hingeX}
+                    y1={svgHingeY}
+                    x2={leafEndX}
+                    y2={leafEndY}
+                    stroke="#000000"
+                    strokeWidth={bounds.baseDim * 0.004}
+                  />
+                  {/* Door Jambs */}
+                  <line x1={cx - bounds.baseDim * 0.008} y1={svgY1} x2={cx + bounds.baseDim * 0.008} y2={svgY1} stroke="#000000" strokeWidth={bounds.baseDim * 0.0035} />
+                  <line x1={cx - bounds.baseDim * 0.008} y1={svgY2} x2={cx + bounds.baseDim * 0.008} y2={svgY2} stroke="#000000" strokeWidth={bounds.baseDim * 0.0035} />
+                </g>
+              )
+            }
+          })}
+
+          {/* CAD Exterior Wall Double-Line Accent */}
+          {cadStyle && (
+            <rect
+              x={bounds.rawMinX - bounds.baseDim * 0.008}
+              y={bounds.rawMinY - bounds.baseDim * 0.008}
+              width={bounds.rawWidth + bounds.baseDim * 0.016}
+              height={bounds.rawHeight + bounds.baseDim * 0.016}
+              fill="none"
+              stroke="#000000"
+              strokeWidth={bounds.baseDim * 0.003}
+              className="pointer-events-none"
+            />
+          )}
+
+          {/* Structural Columns - Solid Black Blocks */}
           {columns.map((col, idx) => (
             <polygon
               key={col.id || idx}
               points={formatPoints(col.polygon)}
-              fill="#f43f5e"
-              stroke="#fb7185"
-              strokeWidth={bounds.baseDim * 0.004}
-              filter="url(#column-glow)"
+              fill="#000000"
+              stroke="#000000"
+              strokeWidth={bounds.baseDim * 0.002}
             />
           ))}
+
+          {/* CAD Exterior Dimension Lines (Crisp Black Architectural Drafting Ticks & Figures) */}
+          {(cadStyle || outerDimensions) && (
+            <g className="cad-dimension-lines pointer-events-none text-slate-900">
+              {/* Top Dimension Line */}
+              <line
+                x1={bounds.rawMinX}
+                y1={bounds.minY + ((bounds as any).padTop || bounds.baseDim * 0.1) * 0.45}
+                x2={bounds.rawMaxX}
+                y2={bounds.minY + ((bounds as any).padTop || bounds.baseDim * 0.1) * 0.45}
+                stroke="#000000"
+                strokeWidth={bounds.baseDim * 0.0025}
+              />
+              {/* Top Dimension Extension Lines */}
+              <line
+                x1={bounds.rawMinX}
+                y1={bounds.minY + ((bounds as any).padTop || bounds.baseDim * 0.1) * 0.25}
+                x2={bounds.rawMinX}
+                y2={bounds.minY + ((bounds as any).padTop || bounds.baseDim * 0.1) * 0.65}
+                stroke="#000000"
+                strokeWidth={bounds.baseDim * 0.002}
+              />
+              <line
+                x1={bounds.rawMaxX}
+                y1={bounds.minY + ((bounds as any).padTop || bounds.baseDim * 0.1) * 0.25}
+                x2={bounds.rawMaxX}
+                y2={bounds.minY + ((bounds as any).padTop || bounds.baseDim * 0.1) * 0.65}
+                stroke="#000000"
+                strokeWidth={bounds.baseDim * 0.002}
+              />
+              {/* Top 45° Architectural Slash Ticks */}
+              <line
+                x1={bounds.rawMinX - bounds.baseDim * 0.006}
+                y1={bounds.minY + ((bounds as any).padTop || bounds.baseDim * 0.1) * 0.45 + bounds.baseDim * 0.006}
+                x2={bounds.rawMinX + bounds.baseDim * 0.006}
+                y2={bounds.minY + ((bounds as any).padTop || bounds.baseDim * 0.1) * 0.45 - bounds.baseDim * 0.006}
+                stroke="#000000"
+                strokeWidth={bounds.baseDim * 0.0035}
+              />
+              <line
+                x1={bounds.rawMaxX - bounds.baseDim * 0.006}
+                y1={bounds.minY + ((bounds as any).padTop || bounds.baseDim * 0.1) * 0.45 + bounds.baseDim * 0.006}
+                x2={bounds.rawMaxX + bounds.baseDim * 0.006}
+                y2={bounds.minY + ((bounds as any).padTop || bounds.baseDim * 0.1) * 0.45 - bounds.baseDim * 0.006}
+                stroke="#000000"
+                strokeWidth={bounds.baseDim * 0.0035}
+              />
+              <text
+                x={(bounds.rawMinX + bounds.rawMaxX) / 2}
+                y={bounds.minY + ((bounds as any).padTop || bounds.baseDim * 0.1) * 0.32}
+                fill="#000000"
+                fontSize={bounds.baseDim * 0.024}
+                fontFamily="system-ui, -apple-system, sans-serif"
+                textAnchor="middle"
+                fontWeight="700"
+              >
+                {outerDimensions?.top || `${Math.round(bounds.rawWidth)}'-0"`}
+              </text>
+
+              {/* Right Dimension Line */}
+              <line
+                x1={bounds.rawMaxX + ((bounds as any).padRight || bounds.baseDim * 0.1) * 0.45}
+                y1={bounds.rawMinY}
+                x2={bounds.rawMaxX + ((bounds as any).padRight || bounds.baseDim * 0.1) * 0.45}
+                y2={bounds.rawMaxY}
+                stroke="#000000"
+                strokeWidth={bounds.baseDim * 0.0025}
+              />
+              {/* Right Dimension Extension Lines */}
+              <line
+                x1={bounds.rawMaxX + ((bounds as any).padRight || bounds.baseDim * 0.1) * 0.25}
+                y1={bounds.rawMinY}
+                x2={bounds.rawMaxX + ((bounds as any).padRight || bounds.baseDim * 0.1) * 0.65}
+                y2={bounds.rawMinY}
+                stroke="#000000"
+                strokeWidth={bounds.baseDim * 0.002}
+              />
+              <line
+                x1={bounds.rawMaxX + ((bounds as any).padRight || bounds.baseDim * 0.1) * 0.25}
+                y1={bounds.rawMaxY}
+                x2={bounds.rawMaxX + ((bounds as any).padRight || bounds.baseDim * 0.1) * 0.65}
+                y2={bounds.rawMaxY}
+                stroke="#000000"
+                strokeWidth={bounds.baseDim * 0.002}
+              />
+              {/* Right 45° Architectural Slash Ticks */}
+              <line
+                x1={bounds.rawMaxX + ((bounds as any).padRight || bounds.baseDim * 0.1) * 0.45 - bounds.baseDim * 0.006}
+                y1={bounds.rawMinY + bounds.baseDim * 0.006}
+                x2={bounds.rawMaxX + ((bounds as any).padRight || bounds.baseDim * 0.1) * 0.45 + bounds.baseDim * 0.006}
+                y2={bounds.rawMinY - bounds.baseDim * 0.006}
+                stroke="#000000"
+                strokeWidth={bounds.baseDim * 0.0035}
+              />
+              <line
+                x1={bounds.rawMaxX + ((bounds as any).padRight || bounds.baseDim * 0.1) * 0.45 - bounds.baseDim * 0.006}
+                y1={bounds.rawMaxY + bounds.baseDim * 0.006}
+                x2={bounds.rawMaxX + ((bounds as any).padRight || bounds.baseDim * 0.1) * 0.45 + bounds.baseDim * 0.006}
+                y2={bounds.rawMaxY - bounds.baseDim * 0.006}
+                stroke="#000000"
+                strokeWidth={bounds.baseDim * 0.0035}
+              />
+              <text
+                x={bounds.rawMaxX + ((bounds as any).padRight || bounds.baseDim * 0.1) * 0.62}
+                y={(bounds.rawMinY + bounds.rawMaxY) / 2}
+                fill="#000000"
+                fontSize={bounds.baseDim * 0.024}
+                fontFamily="system-ui, -apple-system, sans-serif"
+                textAnchor="middle"
+                fontWeight="700"
+                transform={`rotate(90, ${bounds.rawMaxX + ((bounds as any).padRight || bounds.baseDim * 0.1) * 0.62}, ${(bounds.rawMinY + bounds.rawMaxY) / 2})`}
+              >
+                {outerDimensions?.right || `${Math.round(bounds.rawHeight)}'-0"`}
+              </text>
+            </g>
+          )}
+
+          {/* Vastu Issues & Attention Markers (Pins 01, 02, 03) */}
+          {markers.map((marker, mIdx) => {
+            let mx = marker.x
+            let my = marker.y
+            if (mx === undefined || my === undefined) {
+              if (marker.roomId) {
+                const targetRoom = rooms.find(
+                  r => r.id === marker.roomId || r.name?.toLowerCase().includes(marker.roomId!.toLowerCase())
+                )
+                if (targetRoom) {
+                  const bbox = getPolygonBBox(targetRoom.polygon)
+                  mx = bbox.cx + (bbox.width * 0.22)
+                  my = bbox.cy - (bbox.height * 0.22)
+                }
+              }
+            }
+            if (mx === undefined || my === undefined) return null
+
+            const svgMy = toSvgY(my)
+            const markerRadius = bounds.baseDim * 0.024
+            const bg = marker.type === 'attention' ? '#f59e0b' : (marker.type === 'good' ? '#10b981' : '#ef4444')
+
+            return (
+              <g
+                key={marker.id || mIdx}
+                className="cursor-pointer transition-transform hover:scale-125"
+                onClick={() => onMarkerClick?.(marker)}
+              >
+                {/* Outer halo */}
+                <circle
+                  cx={mx}
+                  cy={svgMy}
+                  r={markerRadius * 1.45}
+                  fill={bg}
+                  opacity={0.3}
+                  className="animate-pulse"
+                />
+                {/* Marker Circle */}
+                <circle
+                  cx={mx}
+                  cy={svgMy}
+                  r={markerRadius}
+                  fill={bg}
+                  stroke="#ffffff"
+                  strokeWidth={bounds.baseDim * 0.003}
+                />
+                {/* Marker Number Text (01, 02, etc.) */}
+                <text
+                  x={mx}
+                  y={svgMy}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  fill="#ffffff"
+                  fontSize={markerRadius * 1.05}
+                  fontFamily="monospace"
+                  fontWeight="bold"
+                  className="select-none pointer-events-none"
+                >
+                  {marker.label}
+                </text>
+              </g>
+            )
+          })}
 
           {/* Interactive Tooltip in Canvas */}
           {hoveredRoom && (
@@ -495,17 +1150,18 @@ export function FloorPlan2DViewer({
                 width={Math.min(bounds.width * 0.5, bounds.baseDim * 0.45)}
                 height={bounds.baseDim * 0.055}
                 rx={bounds.baseDim * 0.008}
-                fill="rgba(15, 23, 42, 0.92)"
-                stroke="rgba(56, 189, 248, 0.5)"
-                strokeWidth={bounds.baseDim * 0.003}
+                fill="#ffffff"
+                stroke="#000000"
+                strokeWidth={bounds.baseDim * 0.002}
+                filter="drop-shadow(0 2px 4px rgba(0,0,0,0.1))"
               />
               <text
                 x={bounds.baseDim * 0.015}
                 y={bounds.baseDim * 0.035}
-                fill="#38bdf8"
+                fill="#000000"
                 fontSize={bounds.baseDim * 0.02}
-                fontFamily="monospace"
-                fontWeight="bold"
+                fontFamily="system-ui, sans-serif"
+                fontWeight="700"
               >
                 {hoveredRoom.name || hoveredRoom.id} • {hoveredRoom.polygon?.length || 0} vertices
               </text>
@@ -513,51 +1169,25 @@ export function FloorPlan2DViewer({
           )}
         </svg>
 
-        {/* Compass Rose Widget in Top-Right */}
-        <div className="absolute top-4 right-4 p-2.5 rounded-xl bg-slate-900/90 border border-border/50 backdrop-blur shadow-lg flex flex-col items-center select-none">
-          <div className="text-[10px] font-bold text-red-500 font-mono tracking-tighter">▲ N</div>
-          <div className="w-5 h-5 relative flex items-center justify-center my-0.5">
-            <div className="w-0.5 h-full bg-border" />
-            <div className="h-0.5 w-full bg-border absolute" />
-            <div className="w-2.5 h-2.5 rounded-full border border-primary/50 absolute" />
+        {/* Compass Rose Widget (Architectural Drafting Style) */}
+        <div className={`absolute top-4 ${compassPosition === 'top-left' ? 'left-4' : 'right-4'} p-2 rounded-xl bg-white/95 border border-slate-300 backdrop-blur shadow-md flex flex-col items-center select-none pointer-events-none`}>
+          <div className="w-10 h-10 relative flex items-center justify-center">
+            <svg viewBox="0 0 40 40" className="w-full h-full">
+              <circle cx="20" cy="20" r="17" fill="none" stroke="#cbd5e1" strokeWidth="0.8" />
+              <line x1="20" y1="5" x2="20" y2="35" stroke="#94a3b8" strokeWidth="0.5" />
+              <line x1="5" y1="20" x2="35" y2="20" stroke="#94a3b8" strokeWidth="0.5" />
+              <polygon points="20,6 23,20 20,18" fill="#ef4444" />
+              <polygon points="20,6 17,20 20,18" fill="#b91c1c" />
+              <polygon points="20,34 23,20 20,22" fill="#000000" />
+              <polygon points="20,34 17,20 20,22" fill="#475569" />
+              <text x="20" y="4" textAnchor="middle" fill="#ef4444" fontSize="4.5" fontWeight="bold">N</text>
+              <text x="37" y="21.5" textAnchor="middle" fill="#475569" fontSize="3.5" fontWeight="600">E</text>
+              <text x="20" y="39" textAnchor="middle" fill="#475569" fontSize="3.5" fontWeight="600">S</text>
+              <text x="3" y="21.5" textAnchor="middle" fill="#475569" fontSize="3.5" fontWeight="600">W</text>
+            </svg>
           </div>
-          <div className="text-[9px] font-mono text-muted-foreground">{landInfo?.orientation || 'NORTH'}</div>
         </div>
       </div>
-
-      {/* Legend & Room Pills */}
-      {!hideLegend && (
-        <div className="p-3 bg-card/60 border-t border-border/40 flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] font-semibold text-muted-foreground mr-1">Rooms:</span>
-          {rooms.map((room, idx) => {
-            const color = getRoomColor(room.type, room.name)
-            const isTargetHighlight = highlightRoomId && (room.id === highlightRoomId || room.name?.toLowerCase().includes(highlightRoomId.toLowerCase()))
-            return (
-              <div
-                key={room.id || idx}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium border transition-colors cursor-pointer ${
-                  isTargetHighlight
-                    ? 'ring-2 ring-red-500 border-red-500 bg-red-500/20'
-                    : (hoveredRoom?.id === room.id ? 'border-primary ring-2 ring-primary/20' : 'border-border/50')
-                }`}
-                style={{ backgroundColor: isTargetHighlight ? undefined : color.fill }}
-                onMouseEnter={() => setHoveredRoom(room)}
-                onMouseLeave={() => setHoveredRoom(null)}
-              >
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: isTargetHighlight ? highlightColor : color.stroke }} />
-                <span style={{ color: isTargetHighlight ? '#fff' : color.text }}>{room.name || room.type}</span>
-              </div>
-            )
-          })}
-
-          {columns.length > 0 && (
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium border border-red-500/30 bg-red-500/10 text-red-400 ml-auto">
-              <span className="w-2 h-2 rounded-full bg-red-500" />
-              <span>Columns ({columns.length})</span>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   )
 }

@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     db_password: str = "archai"
 
     # Optional full URL (if not set, constructed from db_* settings)
-    database_url: Optional[str] = None
+    database_url: Optional[str] = "postgresql+psycopg2://archai_team:archai@100.119.58.49:5432/archai_plan"
 
     jwt_secret_key: str = "archai-plan-secret-key-change-in-production-min32chars"
     jwt_algorithm: str = "HS256"
@@ -26,8 +26,14 @@ class Settings(BaseSettings):
     upload_dir: str = "app/uploads"
     max_upload_mb: int = 10
 
-    elia_model_artifact_path: Optional[str] = None
+    # Feature Model Services
+    gab_model_service_url: Optional[str] = None
+    vsai_model_service_url: Optional[str] = None
+    esai_model_service_url: Optional[str] = None
     elia_model_service_url: Optional[str] = None
+    elia_model_artifact_path: Optional[str] = None
+    cubicasa_weights_path: str = "C:/Users/IMAKA/Desktop/CubicasaRoomSegmentation/weights/cubicasa5k.pkl"
+
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -223,25 +223,26 @@ export function MissingInfoCollectionCard({
         })}
 
         {/* Submit Actions */}
-        <div className="pt-2 flex items-center justify-between gap-3">
+        <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <Info className="w-3.5 h-3.5 text-primary" />
-            <span>Answers will be merged into a normalized plan copy; your original uploaded JSON is fully preserved.</span>
+            <Info className="w-3.5 h-3.5 text-primary shrink-0" />
+            <span>Changing orientation or main entrance will trigger a fresh Vastu recalculation.</span>
           </div>
 
           <Button
             type="submit"
             disabled={isSubmitting}
-            className="px-5 py-2 rounded-xl bg-gradient-to-r from-primary to-primary/80 text-primary-foreground font-semibold text-xs shadow-lg hover:shadow-primary/25 transition-all flex items-center gap-2 shrink-0"
+            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-xs shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer"
           >
             {isSubmitting ? (
               <>
-                <span className="w-3.5 h-3.5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                <span>Running Vastu Analysis...</span>
+                <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span>Recalculating Vastu Analysis...</span>
               </>
             ) : (
               <>
-                <span>Confirm & Run Vastu Analysis</span>
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Apply Changes & Re-analyze Vastu</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </>
             )}
@@ -251,3 +252,4 @@ export function MissingInfoCollectionCard({
     </div>
   )
 }
+

@@ -320,6 +320,12 @@ def run_spatial_rectification(
         **floor_plan,
         "rooms": rectified_rooms,
         "structural_elements": floor_plan.get("structural_elements") or [],
+        "doors": floor_plan.get("doors") or [],
+        "windows": floor_plan.get("windows") or [],
+        "dimensions": floor_plan.get("dimensions") or {
+            "width": round(max_x - min_x, 1),
+            "height": round(max_y - min_y, 1),
+        },
     }
 
     # Step 4: Re-evaluate Vastu compliance on the newly rectified plan
