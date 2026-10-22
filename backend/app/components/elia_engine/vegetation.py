@@ -51,13 +51,16 @@ def _score_plant_entry(
     water_avail: str | None,
     maint_pref: str | None,
     climate_zone: str | None,
-    preferred_ids: Sequence[str]
+    preferred_ids: Sequence[str],
+    accepted_alternative_ids: Sequence[str] = (),
 ) -> float:
     score = 1.0
 
-    # Plant ID preference
+    # Plant ID preference & accepted alternatives
     veg_id = entry.get("vegetation_id", "")
-    if veg_id in preferred_ids:
+    if veg_id in accepted_alternative_ids:
+        score += 10.0
+    elif veg_id in preferred_ids:
         score += 5.0
 
     # Sunlight match - only score if sunlight evidence is available
@@ -127,6 +130,10 @@ def place_vegetation(
         landscape.get("garden_required") or
         landscape.get("preferred_vegetation_categories") or
         landscape.get("shade_tree_preference") or
+        landscape.get("trees_required") or
+        landscape.get("tree_count") or
+        landscape.get("tree_quantity") or
+        landscape.get("accepted_plant_alternatives") or
         locked_nodes
     ):
         return VegetationResult([], [])
@@ -145,6 +152,16 @@ def place_vegetation(
     preferred_ids = set(landscape.get("preferred_plant_ids", []))
     avoided_ids = set(landscape.get("plant_ids_to_avoid", []))
     avoided_categories = set(landscape.get("vegetation_to_avoid", []))
+
+    # Accepted Greeny alternatives for ground/container placement
+    raw_alts = list(landscape.get("accepted_plant_alternatives") or requirements.get("accepted_plant_alternatives") or [])
+    accepted_ids = {
+        str(a.get("alternative_plant_id") if isinstance(a, Mapping) else getattr(a, "alternative_plant_id", ""))
+        for a in raw_alts
+        if (isinstance(a, Mapping) and a.get("placement_type") in {"ground", "container"})
+        or getattr(a, "placement_type", "") in {"ground", "container"}
+    }
+    accepted_ids.discard("")
 
     # Concept influence on target density and category mix
     concept = str(requirements.get("design_style") or "contemporary").lower()
@@ -296,7 +313,9 @@ def place_vegetation(
                 if pt.buffer(root_clearance).intersects(blocked):
                     continue
 
-                entry_score = _score_plant_entry(entry, sun, water_avail, maint_pref, climate_zone, preferred_ids)
+                entry_score = _score_plant_entry(
+                    entry, sun, water_avail, maint_pref, climate_zone, preferred_ids, accepted_ids
+                )
                 if entry_score > best_score:
                     best_score = entry_score
                     best_candidate = pt

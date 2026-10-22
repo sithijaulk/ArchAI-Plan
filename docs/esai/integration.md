@@ -2,7 +2,7 @@
 
 ## Stage 1 Current Status
 - **FastAPI Backend**: Fully operational with ESAI routers included.
-- **MySQL Persistence**: Handled via `projects.master_json["interior_layout"]` and dedicated tables (`esai_room_requirements`, `esai_design_preferences`, `esai_saved_configs`). Alembic migration `002_esai_engine.py` is present.
+- **PostgreSQL Persistence**: Handled via `projects.master_json["interior_layout"]` and dedicated tables (`esai_room_requirements`, `esai_design_preferences`, `esai_saved_configs`). Alembic migration `002_esai_engine.py` is present.
 - **Master JSON Preservation**: Structural inputs (`floor_plan`, `buildable_footprint`, `land_info`, etc.) are immutable and strictly preserved.
 - **Controlled 501 Endpoint**: `/api/projects/{project_id}/esai-engine/run` returns HTTP 501 until GA implementation.
 

@@ -7,8 +7,12 @@ import type {
   EliaUnresolvedMutation,
   LockedFeatureRequirement,
   ProjectFeasibilityResponse,
+  PlantCatalogueEntry,
+  PlantAlternativeProposal,
+  AcceptedPlantAlternative,
+  PlantSuitabilityAssessment,
 } from '../types/elia';
-import type { SriLankaLocation, LiveSolarConditions } from './api/elia';
+import { eliaApi, type SriLankaLocation, type LiveSolarConditions } from './api/elia';
 import {
   serializeRequirements,
   deserializeRequirements,
@@ -566,6 +570,8 @@ export function createDefaultFormState(): EliaFormState {
     siteExposure: 'unknown',
     preferredPlantIds: [],
     plantIdsToAvoid: [],
+    acceptedPlantAlternatives: [],
+    rejectedPlantAlternatives: [],
     lockedFeatures: [],
 
     selectedLocation: null,
@@ -636,6 +642,15 @@ export interface EliaWorkflowState {
   isValidatingCandidate: boolean;
   isSavingCandidate: boolean;
   saveCandidateError: string | null;
+
+  // Botanical Catalogue & Greeny Alternatives channel (Stage 3)
+  plantCatalogue: PlantCatalogueEntry[] | null;
+  plantCatalogueVersion: string | null;
+  isLoadingPlantCatalogue: boolean;
+  plantCatalogueError: string | null;
+  plantSuitabilityAssessments: Record<string, PlantSuitabilityAssessment>;
+  isEvaluatingPlant: boolean;
+  plantAlternativeProposals: PlantAlternativeProposal[];
 }
 
 export interface EliaApiInterface {
@@ -649,6 +664,9 @@ export interface EliaApiInterface {
   validateCandidate?(projectId: string, payload: any, options?: { signal?: AbortSignal }): Promise<any>;
   saveCandidate?(projectId: string, payload: any, options?: { signal?: AbortSignal }): Promise<any>;
   getVegetationCatalog?(options?: { signal?: AbortSignal }): Promise<Record<string, unknown>>;
+  getPlantCatalogue?(projectId: string, params?: any, options?: { signal?: AbortSignal }): Promise<{ catalogue_version: string; total_entries: number; entries: PlantCatalogueEntry[]; sources: Record<string, string> }>;
+  evaluatePlantSuitability?(projectId: string, payload: any, options?: { signal?: AbortSignal }): Promise<{ assessment: PlantSuitabilityAssessment; alternatives: PlantAlternativeProposal[] }>;
+  updatePlantAlternatives?(projectId: string, actions: any[], options?: { signal?: AbortSignal }): Promise<any>;
 }
 
 export class EliaWorkflowController {
@@ -730,6 +748,13 @@ export class EliaWorkflowController {
         isValidatingCandidate: false,
         isSavingCandidate: false,
         saveCandidateError: null,
+        plantCatalogue: null,
+        plantCatalogueVersion: null,
+        isLoadingPlantCatalogue: false,
+        plantCatalogueError: null,
+        plantSuitabilityAssessments: {},
+        isEvaluatingPlant: false,
+        plantAlternativeProposals: [],
       }) as EliaWorkflowState;
     }
     return EliaWorkflowController.serverSnapshot;
@@ -791,6 +816,14 @@ export class EliaWorkflowController {
       isValidatingCandidate: false,
       isSavingCandidate: false,
       saveCandidateError: null,
+
+      plantCatalogue: null,
+      plantCatalogueVersion: null,
+      isLoadingPlantCatalogue: false,
+      plantCatalogueError: null,
+      plantSuitabilityAssessments: {},
+      isEvaluatingPlant: false,
+      plantAlternativeProposals: [],
     };
   }
 
@@ -1024,7 +1057,11 @@ export class EliaWorkflowController {
   }
 
   public dismissActionError() {
-    this.setState({ actionError: null });
+    this.setState({ actionError: null, saveCandidateError: null });
+  }
+
+  public dismissSaveCandidateError() {
+    this.setState({ saveCandidateError: null });
   }
 
   public toggleActiveView(view: 'candidate' | 'accepted') {
@@ -2318,6 +2355,149 @@ export class EliaWorkflowController {
     }
   }
 
+  public editFeatureRotation(featureId: string, angleDeg: number) {
+    const candidate = this.state.candidate;
+    if (!candidate || !candidate.landscape) return;
+    const history = [...(this.state.candidateEditHistory || []), deepcopy(candidate.landscape)];
+    const landscape = deepcopy(candidate.landscape);
+    let found = false;
+
+    if (landscape.outdoor_elements) {
+      for (const elem of landscape.outdoor_elements) {
+        if (elem.json_id === featureId) {
+          const oldAngle = Number(elem.orientation_deg ?? elem.rotation_deg ?? elem.azimuth_degrees ?? 0);
+          const deltaDeg = angleDeg - oldAngle;
+          const rad = (deltaDeg * Math.PI) / 180;
+          const cosA = Math.cos(rad);
+          const sinA = Math.sin(rad);
+
+          const center = Array.isArray(elem.position) ? elem.position : [0, 0];
+          const cx = center[0];
+          const cy = center[1];
+
+          if (elem.polygon && Array.isArray(elem.polygon)) {
+            elem.polygon = elem.polygon.map(([px, py]: [number, number]) => {
+              const dx = px - cx;
+              const dy = py - cy;
+              return [
+                Math.round((cx + dx * cosA - dy * sinA) * 100) / 100,
+                Math.round((cy + dx * sinA + dy * cosA) * 100) / 100,
+              ];
+            });
+          }
+
+          elem.orientation_deg = Math.round(angleDeg % 360);
+          elem.rotation_deg = Math.round(angleDeg % 360);
+          elem.azimuth_degrees = Math.round(angleDeg % 360);
+          found = true;
+          break;
+        }
+      }
+    }
+
+    if (found) {
+      this.candidateEditVersion++;
+      const currentLocked = this.syncLockedFeaturesFromLandscape(landscape);
+      this.setState({
+        candidate: {
+          ...candidate,
+          landscape,
+        },
+        candidateEditHistory: history,
+        candidateValidationError: null,
+        candidateValidationViolations: [],
+        formState: {
+          ...this.state.formState,
+          lockedFeatures: currentLocked,
+        },
+      });
+    }
+  }
+
+  public editFeatureDimensions(
+    featureId: string,
+    dimensions: { width_m?: number; length_m?: number; canopy_radius_m?: number }
+  ) {
+    const candidate = this.state.candidate;
+    if (!candidate || !candidate.landscape) return;
+    const history = [...(this.state.candidateEditHistory || []), deepcopy(candidate.landscape)];
+    const landscape = deepcopy(candidate.landscape);
+    let found = false;
+
+    if (dimensions.canopy_radius_m !== undefined && landscape.vegetation_nodes) {
+      for (const node of landscape.vegetation_nodes) {
+        if (node.json_id === featureId) {
+          const clamped = Math.max(0.5, Math.min(10.0, Number(dimensions.canopy_radius_m)));
+          node.canopy_radius_m = Math.round(clamped * 100) / 100;
+          found = true;
+          break;
+        }
+      }
+    }
+
+    if (!found && landscape.outdoor_elements) {
+      for (const elem of landscape.outdoor_elements) {
+        if (elem.json_id === featureId) {
+          const fixedTypes = ['solar_panel_array', 'water_well', 'septic_tank', 'garden_tap'];
+          if (elem.type && fixedTypes.includes(elem.type)) break;
+
+          elem.dimensions = elem.dimensions || {};
+          const w = dimensions.width_m !== undefined ? Math.max(0.5, Math.min(15.0, Number(dimensions.width_m))) : Number(elem.dimensions.width_m || 1.5);
+          const l = dimensions.length_m !== undefined ? Math.max(0.5, Math.min(15.0, Number(dimensions.length_m))) : Number(elem.dimensions.length_m || elem.dimensions.depth_m || 1.5);
+
+          elem.dimensions.width_m = Math.round(w * 100) / 100;
+          elem.dimensions.length_m = Math.round(l * 100) / 100;
+          elem.dimensions.depth_m = Math.round(l * 100) / 100;
+
+          const center = Array.isArray(elem.position) ? elem.position : [0, 0];
+          const cx = center[0];
+          const cy = center[1];
+          const halfW = w / 2;
+          const halfL = l / 2;
+
+          const angle = Number(elem.orientation_deg ?? elem.rotation_deg ?? elem.azimuth_degrees ?? 0);
+          const rad = (angle * Math.PI) / 180;
+          const cosA = Math.cos(rad);
+          const sinA = Math.sin(rad);
+
+          const localCorners: [number, number][] = [
+            [-halfW, -halfL],
+            [halfW, -halfL],
+            [halfW, halfL],
+            [-halfW, halfL],
+            [-halfW, -halfL],
+          ];
+
+          elem.polygon = localCorners.map(([dx, dy]) => [
+            Math.round((cx + dx * cosA - dy * sinA) * 100) / 100,
+            Math.round((cy + dx * sinA + dy * cosA) * 100) / 100,
+          ]);
+
+          found = true;
+          break;
+        }
+      }
+    }
+
+    if (found) {
+      this.candidateEditVersion++;
+      const currentLocked = this.syncLockedFeaturesFromLandscape(landscape);
+      this.setState({
+        candidate: {
+          ...candidate,
+          landscape,
+        },
+        candidateEditHistory: history,
+        candidateValidationError: null,
+        candidateValidationViolations: [],
+        formState: {
+          ...this.state.formState,
+          lockedFeatures: currentLocked,
+        },
+      });
+    }
+  }
+
   public replaceVegetationPlant(featureId: string, newPlantEntry: any) {
     const candidate = this.state.candidate;
     if (!candidate || !candidate.landscape?.vegetation_nodes) return;
@@ -2356,6 +2536,143 @@ export class EliaWorkflowController {
         lockedFeatures: currentLocked,
       },
     });
+  }
+
+  public async loadPlantCatalogue(
+    api: EliaApiInterface = eliaApi,
+    params?: {
+      placement_type?: string;
+      category?: string;
+      sun_requirement?: string;
+      maintenance_level?: string;
+      climate_zone?: string;
+      query?: string;
+      verified_only?: boolean;
+    }
+  ) {
+    if (!this.state.projectId || !api.getPlantCatalogue) return;
+    this.setState({ isLoadingPlantCatalogue: true, plantCatalogueError: null });
+    try {
+      const res = await api.getPlantCatalogue(this.state.projectId, params);
+      this.setState({
+        plantCatalogue: res.entries,
+        plantCatalogueVersion: res.catalogue_version,
+        isLoadingPlantCatalogue: false,
+      });
+    } catch (err: any) {
+      this.setState({
+        isLoadingPlantCatalogue: false,
+        plantCatalogueError: err?.message || 'Failed loading plant catalogue.',
+      });
+    }
+  }
+
+  public async evaluatePlantSuitability(
+    api: EliaApiInterface = eliaApi,
+    plantId: string,
+    placementType = 'ground',
+    surfaceId?: string
+  ) {
+    if (!this.state.projectId || !api.evaluatePlantSuitability) return;
+    this.setState({ isEvaluatingPlant: true });
+    try {
+      const res = await api.evaluatePlantSuitability(this.state.projectId, {
+        plant_id: plantId,
+        placement_type: placementType,
+        surface_id: surfaceId,
+        climate_zone: this.state.formState.climateZone !== 'unknown' ? this.state.formState.climateZone : undefined,
+      });
+      const assessments = { ...this.state.plantSuitabilityAssessments, [plantId]: res.assessment };
+      const newProposals = [...this.state.plantAlternativeProposals];
+      if (res.alternatives && res.alternatives.length > 0) {
+        for (const alt of res.alternatives) {
+          if (!newProposals.some(p => p.proposal_id === alt.proposal_id || (p.original_request === alt.original_request && p.alternative_plant_id === alt.alternative_plant_id))) {
+            newProposals.push(alt);
+          }
+        }
+      }
+      this.setState({
+        plantSuitabilityAssessments: assessments,
+        plantAlternativeProposals: newProposals,
+        isEvaluatingPlant: false,
+      });
+    } catch {
+      this.setState({ isEvaluatingPlant: false });
+    }
+  }
+
+  public acceptPlantAlternative(proposal: PlantAlternativeProposal) {
+    const accepted: AcceptedPlantAlternative = {
+      original_request: proposal.original_request,
+      alternative_plant_id: proposal.alternative_plant_id,
+      alternative_display_name: proposal.alternative_display_name,
+      placement_type: proposal.proposed_placement_type,
+      surface_id: proposal.proposed_surface_id,
+      quantity: proposal.quantity,
+      source_revision: this.state.sourceRevision,
+      catalogue_version: proposal.catalogue_version || '2.1',
+      acceptance_status: 'accepted',
+    };
+    const currentAccepted = [...(this.state.formState.acceptedPlantAlternatives || [])];
+    const filteredAccepted = currentAccepted.filter(
+      a => !(a.original_request === proposal.original_request && a.alternative_plant_id === proposal.alternative_plant_id)
+    );
+    filteredAccepted.push(accepted);
+
+    const preferred = [...(this.state.formState.preferredPlantIds || [])];
+    if (!preferred.includes(proposal.alternative_plant_id)) {
+      preferred.push(proposal.alternative_plant_id);
+    }
+
+    const updatedProposals = this.state.plantAlternativeProposals.map(p =>
+      p.proposal_id === proposal.proposal_id ? { ...p, status: 'accepted' as const } : p
+    );
+
+    this.editRequirement({
+      acceptedPlantAlternatives: filteredAccepted,
+      preferredPlantIds: preferred,
+    });
+    this.setState({ plantAlternativeProposals: updatedProposals });
+  }
+
+  public rejectPlantAlternative(proposalId: string, plantId: string) {
+    const currentRejected = [...(this.state.formState.rejectedPlantAlternatives || [])];
+    if (!currentRejected.includes(plantId)) {
+      currentRejected.push(plantId);
+    }
+    const updatedProposals = this.state.plantAlternativeProposals.map(p =>
+      p.proposal_id === proposalId ? { ...p, status: 'rejected' as const } : p
+    );
+    this.editRequirement({
+      rejectedPlantAlternatives: currentRejected,
+    });
+    this.setState({ plantAlternativeProposals: updatedProposals });
+  }
+
+  public revertPlantAlternative(alternativePlantId: string) {
+    const currentAccepted = [...(this.state.formState.acceptedPlantAlternatives || [])];
+    const filteredAccepted = currentAccepted.filter(a => a.alternative_plant_id !== alternativePlantId);
+    const updatedProposals = this.state.plantAlternativeProposals.map(p =>
+      p.alternative_plant_id === alternativePlantId ? { ...p, status: 'proposed' as const } : p
+    );
+    this.editRequirement({
+      acceptedPlantAlternatives: filteredAccepted,
+    });
+    this.setState({ plantAlternativeProposals: updatedProposals });
+  }
+
+  public selectPreferredPlant(plantId: string, api: EliaApiInterface = eliaApi) {
+    const preferred = [...(this.state.formState.preferredPlantIds || [])];
+    if (!preferred.includes(plantId)) {
+      preferred.push(plantId);
+      this.editRequirement({ preferredPlantIds: preferred });
+      this.evaluatePlantSuitability(api, plantId);
+    }
+  }
+
+  public removePreferredPlant(plantId: string) {
+    const preferred = (this.state.formState.preferredPlantIds || []).filter(id => id !== plantId);
+    this.editRequirement({ preferredPlantIds: preferred });
   }
 
   public removeFeature(featureId: string) {

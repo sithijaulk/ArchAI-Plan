@@ -93,6 +93,11 @@ export interface EliaOutputWrapperProps {
   requiresReconciliation?: boolean;
   selectedFeatureId?: string | null;
   onSelectFeature?: (id: string) => void;
+  gizmoMode?: 'translate' | 'rotate' | 'scale';
+  onGizmoModeChange?: (mode: 'translate' | 'rotate' | 'scale') => void;
+  onFeatureMoved?: (id: string, pos: [number, number]) => void;
+  onFeatureRotated?: (id: string, angleDeg: number) => void;
+  onFeatureScaled?: (id: string, factor: number) => void;
   lockedFeatureIds?: string[];
 }
 
@@ -122,6 +127,11 @@ export function EliaOutputWrapper({
   requiresReconciliation = false,
   selectedFeatureId,
   onSelectFeature,
+  gizmoMode,
+  onGizmoModeChange,
+  onFeatureMoved,
+  onFeatureRotated,
+  onFeatureScaled,
   lockedFeatureIds = [],
 }: EliaOutputWrapperProps) {
   const [jsonViewTab, setJsonViewTab] = useState<'landscape' | 'master'>('landscape');
@@ -422,7 +432,17 @@ export function EliaOutputWrapper({
           {isProcessing ? (
             <LoadingPlaceholder label="Calculating 3D solar and spatial constraints..." />
           ) : (
-            <ExteriorSceneViewer viewModel={viewModel} landscape={landscape} />
+            <ExteriorSceneViewer
+              viewModel={viewModel}
+              landscape={landscape}
+              selectedFeatureId={selectedFeatureId}
+              gizmoMode={gizmoMode}
+              onGizmoModeChange={onGizmoModeChange}
+              onFeatureMoved={onFeatureMoved}
+              onFeatureRotated={onFeatureRotated}
+              onFeatureScaled={onFeatureScaled}
+              lockedFeatureIds={lockedFeatureIds}
+            />
           )}
         </TabsContent>
 

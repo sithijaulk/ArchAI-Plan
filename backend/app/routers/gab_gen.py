@@ -9,13 +9,14 @@ Enforces real user workflow preconditions:
 - Non-destructively merges Master JSON
 - Secure file upload with magic byte / format validation (Pillow verify & PDF signature)
 """
+import copy
 import io
 import json
 import os
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, Response, status
 from sqlalchemy.orm import Session
 from PIL import Image
 
@@ -64,6 +65,46 @@ def _get_project_or_404(project_id: str, db: Session) -> Project:
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     return project
+
+
+def _safe_survey_path(project_id: str, stored_filename: str) -> str:
+    """
+    Safely resolves the stored survey file path, rejecting path traversal attempts.
+    """
+    if not stored_filename or ".." in stored_filename or "/" in stored_filename or "\\" in stored_filename:
+        raise HTTPException(status_code=400, detail="Invalid filename or path traversal detected.")
+    
+    base_dir = os.path.abspath(os.path.join(settings.upload_dir, "surveys", project_id))
+    full_path = os.path.abspath(os.path.join(base_dir, stored_filename))
+    if not full_path.startswith(base_dir):
+        raise HTTPException(status_code=400, detail="Invalid file path outside survey directory.")
+    return full_path
+
+
+def _check_and_bump_revision(project: Project, db: Session, expected_revision: Optional[int] = None) -> int:
+    """
+    Enforces optimistic concurrency control.
+    If expected_revision is provided, verifies that project.revision matches.
+    If mismatched, raises HTTP 409 Conflict.
+    Increments project.revision atomically and synchronizes project_revision in master_json.
+    """
+    current_rev = int(project.revision or 1)
+    if expected_revision is not None and expected_revision != current_rev:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "PROJECT_STALE_REVISION",
+                "message": f"Stale revision conflict. Expected {expected_revision}, but project is currently at revision {current_rev}.",
+                "expected_revision": expected_revision,
+                "current_revision": current_rev
+            }
+        )
+    next_rev = current_rev + 1
+    project.revision = next_rev
+    if isinstance(project.master_json, dict):
+        project.master_json["project_revision"] = next_rev
+    return next_rev
 
 
 def _validate_file_content(contents: bytes, ext: str):
@@ -149,6 +190,15 @@ async def upload_survey_file(
     # Validate actual file payload content
     _validate_file_content(contents, ext)
 
+    # Multi-page PDF inspection
+    total_pages = 1
+    if ext == ".pdf":
+        from ..components.gab_gen.survey_vision.preprocessing import get_pdf_page_count
+        try:
+            total_pages = get_pdf_page_count(contents)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
     upload_dir = os.path.join(settings.upload_dir, "surveys", project_id)
     os.makedirs(upload_dir, exist_ok=True)
     stored_name = f"{uuid.uuid4()}{ext}"
@@ -164,6 +214,7 @@ async def upload_survey_file(
         "file_path": rel_url,
         "content_type": file.content_type,
         "size_bytes": len(contents),
+        "total_pages": total_pages,
         "uploaded_at": datetime.now(timezone.utc).isoformat()
     }
 
@@ -194,7 +245,7 @@ def remove_survey_file(
     source_file = mj.get("input_metadata", {}).get("source_file")
 
     if source_file and source_file.get("stored_filename"):
-        stored_path = os.path.join(settings.upload_dir, "surveys", project_id, source_file["stored_filename"])
+        stored_path = _safe_survey_path(project_id, source_file["stored_filename"])
         if os.path.exists(stored_path):
             try:
                 os.remove(stored_path)
@@ -436,6 +487,12 @@ def generate_blueprint(
             allow_research_test=dev_test_mode
         )
 
+        # Bump project revision for newly generated blueprint
+        next_rev = int(project.revision or 1) + 1
+        project.revision = next_rev
+        if isinstance(output.master_json, dict):
+            output.master_json["project_revision"] = next_rev
+
         # Update Project Master JSON non-destructively
         project.master_json = output.master_json
         project.current_component = "gab_gen"
@@ -465,10 +522,12 @@ def generate_blueprint(
 @router.post("/extract-survey")
 def extract_survey_ocr(
     project_id: str,
+    page_number: int = Query(default=1, ge=1),
     db: Session = Depends(get_db)
 ):
     """
     Triggers automated OpenCV + EasyOCR extraction from the uploaded survey/deed file.
+    Supports specific page selection for multi-page PDF documents.
     Populates candidate boundary measurements with confidence scores and verification flags.
     Never fabricates values; ambiguous results are marked for verification.
     """
@@ -482,7 +541,7 @@ def extract_survey_ocr(
             detail="No uploaded survey/deed plan found. Please upload a file first."
         )
 
-    stored_path = os.path.join(settings.upload_dir, "surveys", project_id, source_file["stored_filename"])
+    stored_path = _safe_survey_path(project_id, source_file["stored_filename"])
     if not os.path.exists(stored_path):
         raise HTTPException(status_code=404, detail="Uploaded survey file not found on disk.")
 
@@ -497,7 +556,8 @@ def extract_survey_ocr(
         extracted = provider.extract_survey({
             "file_bytes": file_bytes,
             "filename": source_file.get("original_filename"),
-            "ext": ext
+            "ext": ext,
+            "page_number": page_number
         })
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Survey OCR extraction failed: {str(e)}")
@@ -519,13 +579,16 @@ def extract_survey_ocr(
 def edit_blueprint_room(
     project_id: str,
     payload: Dict[str, Any],
+    expected_revision: Optional[int] = Query(default=None, ge=1),
     db: Session = Depends(get_db)
 ):
     """
     Validates and applies a live room geometry modification.
     Enforces buildable footprint boundaries and room overlap constraints.
+    Supports optimistic concurrency check using expected_revision.
     """
     project = _get_project_or_404(project_id, db)
+    _check_and_bump_revision(project, db, expected_revision or payload.get("expected_revision"))
     mj = project.master_json or {}
 
     room_id = payload.get("room_id")
@@ -559,36 +622,400 @@ def edit_blueprint_room(
     # Save edited floors into master_json
     updated_floors_dict = [f.model_dump() for f in res["floors"]]
     mj["floor_plan"]["floors"] = updated_floors_dict
+    
+    # Track edit history
+    history = mj.get("edit_history", [])
+    history.append({
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "action": "edit_room",
+        "room_id": room_id,
+        "target_floor_id": target_floor_id
+    })
+    mj["edit_history"] = history
     project.master_json = mj
     db.commit()
 
     return {
         "valid": True,
         "message": "Room edited successfully",
-        "floor_plan": mj["floor_plan"]
+        "floor_plan": mj["floor_plan"],
+        "revision": project.revision
     }
 
 
+@router.post("/remove-room")
+def remove_blueprint_room(
+    project_id: str,
+    payload: Dict[str, Any],
+    expected_revision: Optional[int] = Query(default=None, ge=1),
+    db: Session = Depends(get_db)
+):
+    """Removes a non-structural room from the generated floor plan."""
+    project = _get_project_or_404(project_id, db)
+    _check_and_bump_revision(project, db, expected_revision or payload.get("expected_revision"))
+    mj = project.master_json or {}
+    room_id = payload.get("room_id")
+    if not room_id:
+        raise HTTPException(status_code=400, detail="room_id is required.")
+
+    from ..components.gab_gen.schemas import FloorPlanDefinition
+    from ..components.gab_gen.blueprint.editor import remove_room_from_blueprint
+    from shapely.geometry import Polygon
+
+    floors_raw = mj.get("floor_plan", {}).get("floors", [])
+    floors = [FloorPlanDefinition(**f) for f in floors_raw]
+    buildable_pts = mj.get("buildable_footprint", {}).get("polygon", [])
+    buildable_poly = Polygon([(p["x"], p["y"]) for p in buildable_pts]) if len(buildable_pts) >= 3 else None
+
+    res = remove_room_from_blueprint(room_id, floors, buildable_poly)
+    if not res["success"]:
+        return {"valid": False, "violations": res["violations"]}
+
+    mj["floor_plan"]["floors"] = [f.model_dump() for f in res["floors"]]
+    history = mj.get("edit_history", [])
+    history.append({
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "action": "remove_room",
+        "room_id": room_id
+    })
+    mj["edit_history"] = history
+    project.master_json = mj
+    db.commit()
+
+    return {"valid": True, "message": "Room removed successfully", "floor_plan": mj["floor_plan"]}
+
+
+@router.post("/add-room")
+def add_blueprint_room(
+    project_id: str,
+    payload: Dict[str, Any],
+    expected_revision: Optional[int] = Query(default=None, ge=1),
+    db: Session = Depends(get_db)
+):
+    """Adds a room polygon to a designated floor."""
+    project = _get_project_or_404(project_id, db)
+    _check_and_bump_revision(project, db, expected_revision or payload.get("expected_revision"))
+    mj = project.master_json or {}
+    target_floor_id = payload.get("target_floor_id", "F0")
+    room_data = payload.get("room_data", {})
+
+    from ..components.gab_gen.schemas import FloorPlanDefinition
+    from ..components.gab_gen.blueprint.editor import add_room_to_blueprint
+    from shapely.geometry import Polygon
+
+    floors_raw = mj.get("floor_plan", {}).get("floors", [])
+    floors = [FloorPlanDefinition(**f) for f in floors_raw]
+    buildable_pts = mj.get("buildable_footprint", {}).get("polygon", [])
+    buildable_poly = Polygon([(p["x"], p["y"]) for p in buildable_pts]) if len(buildable_pts) >= 3 else None
+
+    res = add_room_to_blueprint(target_floor_id, room_data, floors, buildable_poly)
+    if not res["success"]:
+        return {"valid": False, "violations": res["violations"]}
+
+    mj["floor_plan"]["floors"] = [f.model_dump() for f in res["floors"]]
+    history = mj.get("edit_history", [])
+    history.append({
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "action": "add_room",
+        "room_id": res.get("created_room_id"),
+        "target_floor_id": target_floor_id
+    })
+    mj["edit_history"] = history
+    project.master_json = mj
+    db.commit()
+
+    return {"valid": True, "message": "Room added successfully", "floor_plan": mj["floor_plan"], "created_room_id": res.get("created_room_id"), "revision": project.revision}
+
+
+@router.post("/edit-door")
+def edit_blueprint_door(
+    project_id: str,
+    payload: Dict[str, Any],
+    expected_revision: Optional[int] = Query(default=None, ge=1),
+    db: Session = Depends(get_db)
+):
+    """Edits an explicit door position and width with circulation revalidation."""
+    project = _get_project_or_404(project_id, db)
+    _check_and_bump_revision(project, db, expected_revision or payload.get("expected_revision"))
+    mj = project.master_json or {}
+    door_id = payload.get("door_id")
+    target_floor_id = payload.get("target_floor_id")
+    pos_data = payload.get("position", {})
+    width_m = payload.get("width_m", 0.90)
+
+    if not door_id or not target_floor_id or not pos_data:
+        raise HTTPException(status_code=400, detail="door_id, target_floor_id, and position are required.")
+
+    from ..components.gab_gen.schemas import FloorPlanDefinition, Point2D
+    from ..components.gab_gen.blueprint.editor import edit_door_in_blueprint
+
+    floors_raw = mj.get("floor_plan", {}).get("floors", [])
+    floors = [FloorPlanDefinition(**f) for f in floors_raw]
+    new_pos = Point2D(x=pos_data["x"], y=pos_data["y"])
+
+    res = edit_door_in_blueprint(door_id, target_floor_id, new_pos, width_m, floors)
+    if not res["success"]:
+        return {"valid": False, "violations": res["violations"]}
+
+    mj["floor_plan"]["floors"] = [f.model_dump() for f in res["floors"]]
+    history = mj.get("edit_history", [])
+    history.append({
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "action": "edit_door",
+        "door_id": door_id,
+        "target_floor_id": target_floor_id
+    })
+    mj["edit_history"] = history
+    project.master_json = mj
+    db.commit()
+
+    return {"valid": True, "message": "Door edited successfully", "floor_plan": mj["floor_plan"], "revision": project.revision}
+
+
+@router.post("/edit-window")
+def edit_blueprint_window(
+    project_id: str,
+    payload: Dict[str, Any],
+    expected_revision: Optional[int] = Query(default=None, ge=1),
+    db: Session = Depends(get_db)
+):
+    """Edits an explicit exterior window position and dimensions."""
+    project = _get_project_or_404(project_id, db)
+    _check_and_bump_revision(project, db, expected_revision or payload.get("expected_revision"))
+    mj = project.master_json or {}
+    window_id = payload.get("window_id")
+    target_floor_id = payload.get("target_floor_id")
+    pos_data = payload.get("position", {})
+    width_m = payload.get("width_m", 1.20)
+    height_m = payload.get("height_m", 1.20)
+
+    if not window_id or not target_floor_id or not pos_data:
+        raise HTTPException(status_code=400, detail="window_id, target_floor_id, and position are required.")
+
+    from ..components.gab_gen.schemas import FloorPlanDefinition, Point2D
+    from ..components.gab_gen.blueprint.editor import edit_window_in_blueprint
+
+    floors_raw = mj.get("floor_plan", {}).get("floors", [])
+    floors = [FloorPlanDefinition(**f) for f in floors_raw]
+    new_pos = Point2D(x=pos_data["x"], y=pos_data["y"])
+
+    res = edit_window_in_blueprint(window_id, target_floor_id, new_pos, width_m, height_m, floors)
+    if not res["success"]:
+        return {"valid": False, "violations": res["violations"]}
+
+    mj["floor_plan"]["floors"] = [f.model_dump() for f in res["floors"]]
+    history = mj.get("edit_history", [])
+    history.append({
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "action": "edit_window",
+        "window_id": window_id,
+        "target_floor_id": target_floor_id
+    })
+    mj["edit_history"] = history
+    project.master_json = mj
+    db.commit()
+
+    return {"valid": True, "message": "Window edited successfully", "floor_plan": mj["floor_plan"], "revision": project.revision}
+
+
+@router.post("/change-roof")
+def change_blueprint_roof_endpoint(
+    project_id: str,
+    payload: Dict[str, Any],
+    expected_revision: Optional[int] = Query(default=None, ge=1),
+    db: Session = Depends(get_db)
+):
+    """Changes the roof type and regenerates validated 3D roof geometry."""
+    project = _get_project_or_404(project_id, db)
+    _check_and_bump_revision(project, db, expected_revision or payload.get("expected_revision"))
+    mj = project.master_json or {}
+    new_roof_type = payload.get("roof_type")
+    pitch_deg = payload.get("pitch_angle_deg")
+
+    if not new_roof_type:
+        raise HTTPException(status_code=400, detail="roof_type is required.")
+
+    from ..components.gab_gen.blueprint.editor import change_blueprint_roof
+    from shapely.geometry import Polygon
+
+    b_pts = mj.get("building_footprint", {}).get("polygon", []) or mj.get("buildable_footprint", {}).get("polygon", [])
+    if len(b_pts) < 3:
+        raise HTTPException(status_code=400, detail="Building footprint polygon is missing or invalid.")
+
+    b_poly = Polygon([(p["x"], p["y"]) for p in b_pts])
+    res = change_blueprint_roof(b_poly, new_roof_type, pitch_deg)
+    if not res["success"]:
+        return {"valid": False, "violations": res["violations"]}
+
+    roof_dict = res["roof_geometry"].model_dump()
+    mj["roof_geometry"] = roof_dict
+    history = mj.get("edit_history", [])
+    history.append({
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "action": "change_roof",
+        "roof_type": new_roof_type
+    })
+    mj["edit_history"] = history
+    project.master_json = mj
+    db.commit()
+
+    return {
+        "valid": True,
+        "message": f"Roof changed to '{new_roof_type}' successfully",
+        "roof_geometry": roof_dict,
+        "revision": project.revision
+    }
+
+
+@router.post("/undo-edit")
+def undo_last_blueprint_edit(
+    project_id: str,
+    payload: Optional[Dict[str, Any]] = None,
+    expected_revision: Optional[int] = Query(default=None, ge=1),
+    db: Session = Depends(get_db)
+):
+    """Undoes the last accepted edit transaction using edit history tracking."""
+    project = _get_project_or_404(project_id, db)
+    _check_and_bump_revision(project, db, expected_revision or (payload.get("expected_revision") if payload else None))
+    mj = project.master_json or {}
+    history = mj.get("edit_history", [])
+    if not history:
+        return {"valid": False, "message": "No edits to undo."}
+
+    last_action = history.pop()
+    # If the candidate was original, we can reset from candidate pool if candidate_generation exists
+    cand_section = mj.get("candidate_generation", {})
+    selected_id = cand_section.get("selected_candidate_id") or mj.get("building_footprint", {}).get("candidate_id")
+    candidates = cand_section.get("candidates", [])
+    cand = next((c for c in candidates if c.get("candidate_id") == selected_id), None)
+    if cand:
+        mj["floor_plan"] = {"floors": cand.get("floors", [])}
+        if cand.get("roof_geometry"):
+            mj["roof_geometry"] = cand.get("roof_geometry")
+
+    mj["edit_history"] = history
+    project.master_json = mj
+    db.commit()
+
+    return {
+        "valid": True,
+        "message": f"Undid action '{last_action.get('action')}'",
+        "floor_plan": mj["floor_plan"],
+        "roof_geometry": mj.get("roof_geometry"),
+        "revision": project.revision
+    }
+
+
+
 @router.get("/result")
-def get_gab_gen_result(project_id: str, db: Session = Depends(get_db)):
-    """Returns the latest generated GAB-Gen results."""
+def get_gab_gen_result(project_id: str, response: Response, db: Session = Depends(get_db)):
+    """Returns the latest generated GAB-Gen results with revision headers."""
     project = _get_project_or_404(project_id, db)
     mj = project.master_json or {}
     floor_plan = mj.get("floor_plan", {})
     if not floor_plan.get("floors"):
         raise HTTPException(status_code=404, detail="No GAB-Gen blueprint has been generated yet for this project.")
+    response.headers["ETag"] = f'"{project.revision}"'
+    response.headers["X-Project-Revision"] = str(project.revision)
     return mj
 
 
 @router.get("/master-json")
-def get_gab_master_json(project_id: str, db: Session = Depends(get_db)):
-    """Returns the full Master JSON."""
+def get_gab_master_json(project_id: str, response: Response, db: Session = Depends(get_db)):
+    """Returns the full Master JSON with schema migration and revision headers."""
     project = _get_project_or_404(project_id, db)
-    return project.master_json
+    mj = project.master_json or {}
+    from ..components.gab_gen.output.master_json_builder import migrate_master_json_schema
+    migrated = migrate_master_json_schema(mj)
+    response.headers["ETag"] = f'"{project.revision}"'
+    response.headers["X-Project-Revision"] = str(project.revision)
+    return migrated
+
+
+@router.get("/candidates")
+def get_generated_candidates(project_id: str, db: Session = Depends(get_db)):
+    """Returns the generated candidates list, ranking, and selection metadata."""
+    project = _get_project_or_404(project_id, db)
+    mj = project.master_json or {}
+    cand_section = mj.get("candidate_generation", {})
+    if not cand_section.get("candidates"):
+        raise HTTPException(status_code=404, detail="No candidates generated yet for this project.")
+    return cand_section
+
+
+@router.post("/select-candidate")
+def select_candidate(
+    project_id: str,
+    payload: Dict[str, Any],
+    expected_revision: Optional[int] = Query(default=None, ge=1),
+    db: Session = Depends(get_db)
+):
+    """
+    Selects a candidate by ID, activating its floors, footprint, roof, and validation in Master JSON.
+    Preserves all unselected candidates in the candidate pool.
+    Supports optimistic concurrency check using expected_revision.
+    """
+    project = _get_project_or_404(project_id, db)
+    _check_and_bump_revision(project, db, expected_revision or payload.get("expected_revision"))
+    mj = project.master_json or {}
+    candidate_id = payload.get("candidate_id")
+    if not candidate_id:
+        raise HTTPException(status_code=400, detail="candidate_id is required.")
+
+    cand_section = mj.get("candidate_generation", {})
+    candidates = cand_section.get("candidates", [])
+    matching_cand = next((c for c in candidates if c.get("candidate_id") == candidate_id), None)
+
+    if not matching_cand:
+        raise HTTPException(status_code=404, detail=f"Candidate with ID '{candidate_id}' not found in candidate pool.")
+
+    # Activate matching candidate geometry
+    mj["floor_plan"] = {"floors": matching_cand.get("floors", [])}
+    if matching_cand.get("roof_geometry"):
+        mj["roof_geometry"] = matching_cand.get("roof_geometry")
+    if matching_cand.get("building_footprint_polygon"):
+        mj["building_footprint"] = {
+            "candidate_id": candidate_id,
+            "shape_type": matching_cand.get("footprint_variant", "conformal_offset"),
+            "polygon": matching_cand.get("building_footprint_polygon", []),
+            "area": matching_cand.get("building_footprint_area_sqm", 0.0)
+        }
+    if matching_cand.get("validation"):
+        mj["gab_gen_validation"] = matching_cand.get("validation")
+
+    # Update active selection in candidate_generation and processing
+    cand_section["selected_candidate_id"] = candidate_id
+    mj["candidate_generation"] = cand_section
+    if "processing" in mj and "gab_gen" in mj["processing"]:
+        mj["processing"]["gab_gen"]["selected_candidate_id"] = candidate_id
+
+    # Record edit history
+    history = mj.get("edit_history", [])
+    history.append({
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "action": "select_candidate",
+        "candidate_id": candidate_id
+    })
+    mj["edit_history"] = history
+
+    from sqlalchemy.orm.attributes import flag_modified
+    project.master_json = copy.deepcopy(mj)
+    flag_modified(project, "master_json")
+    db.commit()
+    db.refresh(project)
+
+    return {
+        "message": f"Candidate '{candidate_id}' selected successfully.",
+        "selected_candidate_id": candidate_id,
+        "floor_plan": mj["floor_plan"],
+        "master_json": mj,
+        "revision": project.revision
+    }
 
 
 @router.post("/run")
 def run_gab_gen_compat(project_id: str, db: Session = Depends(get_db)):
     """Compatibility endpoint for shared run trigger."""
     return generate_blueprint(project_id, dev_test_mode=True, db=db)
+
 

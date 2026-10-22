@@ -1,4 +1,4 @@
-import type { ELIARequirements } from '@/types/elia';
+import type { ELIARequirements, AcceptedPlantAlternative } from '@/types/elia';
 
 // Location & Solar
 export type EliaSelectedLocation = {
@@ -119,6 +119,8 @@ export interface EliaFormState {
   siteExposure?: 'sheltered' | 'moderate' | 'exposed' | 'coastal_wind' | 'unknown';
   preferredPlantIds?: string[];
   plantIdsToAvoid?: string[];
+  acceptedPlantAlternatives?: AcceptedPlantAlternative[];
+  rejectedPlantAlternatives?: string[];
   lockedFeatures?: any[];
 
   // Location & Solar
@@ -568,6 +570,16 @@ export function serializeRequirements(form: Partial<EliaFormState>): ELIARequire
   if (form.plantIdsToAvoid && form.plantIdsToAvoid.length > 0) {
     req.plant_ids_to_avoid = form.plantIdsToAvoid;
   }
+  if (form.acceptedPlantAlternatives && form.acceptedPlantAlternatives.length > 0) {
+    req.accepted_plant_alternatives = form.acceptedPlantAlternatives;
+    if (!req.landscape) req.landscape = {};
+    req.landscape.accepted_plant_alternatives = form.acceptedPlantAlternatives;
+  }
+  if (form.rejectedPlantAlternatives && form.rejectedPlantAlternatives.length > 0) {
+    req.rejected_plant_alternatives = form.rejectedPlantAlternatives;
+    if (!req.landscape) req.landscape = {};
+    req.landscape.rejected_plant_alternatives = form.rejectedPlantAlternatives;
+  }
   if (form.lockedFeatures && form.lockedFeatures.length > 0) {
     req.locked_features = form.lockedFeatures;
   }
@@ -700,6 +712,10 @@ export function deserializeRequirements(req: Partial<ELIARequirements>): Partial
   if (req.site_exposure) form.siteExposure = req.site_exposure as any;
   if (req.preferred_plant_ids) form.preferredPlantIds = req.preferred_plant_ids;
   if (req.plant_ids_to_avoid) form.plantIdsToAvoid = req.plant_ids_to_avoid;
+  const acceptedAlts = req.accepted_plant_alternatives || (req.landscape && req.landscape.accepted_plant_alternatives);
+  if (acceptedAlts) form.acceptedPlantAlternatives = acceptedAlts;
+  const rejectedAlts = req.rejected_plant_alternatives || (req.landscape && req.landscape.rejected_plant_alternatives);
+  if (rejectedAlts) form.rejectedPlantAlternatives = rejectedAlts;
   if (req.locked_features) form.lockedFeatures = req.locked_features;
 
   return form;

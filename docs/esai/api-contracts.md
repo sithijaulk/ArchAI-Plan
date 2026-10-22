@@ -31,7 +31,7 @@ All endpoints are registered on the FastAPI backend under two routers:
 - `GET /api/projects/{project_id}/esai-engine/requirements`
   - Retrieves saved room requirements for the project.
 - `PUT /api/projects/{project_id}/esai-engine/requirements`
-  - Validates and saves room requirements to MySQL (`esai_room_requirements`) and merges them into `projects.master_json["interior_layout"]`.
+  - Validates and saves room requirements to PostgreSQL (`esai_room_requirements`) and merges them into `projects.master_json["interior_layout"]`.
 
 ### 4. Input Validation
 - `POST /api/projects/{project_id}/esai-engine/validate-input`

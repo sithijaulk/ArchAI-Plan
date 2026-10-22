@@ -1,0 +1,180 @@
+{
+  "model_name": "CubiCasa5K Experimental XGBoost Regressor",
+  "training_timestamp": "2026-10-21T06:59:46Z",
+  "target": "ai_proxy_quality_score",
+  "target_origin": "AI_PROXY_NOT_HUMAN_EXPERT",
+  "scientific_integrity_notice": "This model reproduces a deterministic proxy formula. It does NOT represent human architect quality prediction or statutory compliance.",
+  "data_splits": {
+    "train_samples": 4194,
+    "val_samples": 400,
+    "test_samples": 398,
+    "total_samples": 4992
+  },
+  "best_hyperparameters": {
+    "n_estimators": 200,
+    "max_depth": 5,
+    "learning_rate": 0.05,
+    "subsample": 0.85,
+    "colsample_bytree": 0.85
+  },
+  "test_evaluation": {
+    "xgboost": {
+      "mae": 0.00737,
+      "rmse": 0.0101,
+      "r2_score": 0.98024
+    },
+    "baselines": {
+      "mean_predictor": {
+        "mae": 0.05588,
+        "rmse": 0.0722,
+        "r2_score": -0.00953
+      },
+      "ridge_regression": {
+        "mae": 0.03085,
+        "rmse": 0.03786,
+        "r2_score": 0.7224
+      }
+    }
+  },
+  "top_feature_importances": [
+    {
+      "feature": "room_type_entropy",
+      "importance": 0.43512
+    },
+    {
+      "feature": "max_room_aspect_ratio",
+      "importance": 0.13676
+    },
+    {
+      "feature": "mean_room_aspect_ratio",
+      "importance": 0.09273
+    },
+    {
+      "feature": "living_area_ratio",
+      "importance": 0.05711
+    },
+    {
+      "feature": "fenestration_proxy_ratio",
+      "importance": 0.05521
+    },
+    {
+      "feature": "bedroom_area_ratio",
+      "importance": 0.05183
+    },
+    {
+      "feature": "public_private_separation_proxy",
+      "importance": 0.04758
+    },
+    {
+      "feature": "circulation_rooms_count",
+      "importance": 0.02232
+    },
+    {
+      "feature": "circulation_area_ratio",
+      "importance": 0.01933
+    },
+    {
+      "feature": "service_clustering_proxy",
+      "importance": 0.01801
+    }
+  ],
+  "all_feature_importances": [
+    {
+      "feature": "room_type_entropy",
+      "importance": 0.43512
+    },
+    {
+      "feature": "max_room_aspect_ratio",
+      "importance": 0.13676
+    },
+    {
+      "feature": "mean_room_aspect_ratio",
+      "importance": 0.09273
+    },
+    {
+      "feature": "living_area_ratio",
+      "importance": 0.05711
+    },
+    {
+      "feature": "fenestration_proxy_ratio",
+      "importance": 0.05521
+    },
+    {
+      "feature": "bedroom_area_ratio",
+      "importance": 0.05183
+    },
+    {
+      "feature": "public_private_separation_proxy",
+      "importance": 0.04758
+    },
+    {
+      "feature": "circulation_rooms_count",
+      "importance": 0.02232
+    },
+    {
+      "feature": "circulation_area_ratio",
+      "importance": 0.01933
+    },
+    {
+      "feature": "service_clustering_proxy",
+      "importance": 0.01801
+    },
+    {
+      "feature": "room_door_connectivity_ratio",
+      "importance": 0.01559
+    },
+    {
+      "feature": "room_adjacency_edge_count",
+      "importance": 0.00806
+    },
+    {
+      "feature": "room_adjacency_graph_density",
+      "importance": 0.00797
+    },
+    {
+      "feature": "wet_area_ratio",
+      "importance": 0.0062
+    },
+    {
+      "feature": "wet_rooms_count",
+      "importance": 0.00426
+    },
+    {
+      "feature": "bedroom_count",
+      "importance": 0.00391
+    },
+    {
+      "feature": "outdoor_area_ratio",
+      "importance": 0.00314
+    },
+    {
+      "feature": "footprint_boundary_complexity",
+      "importance": 0.00293
+    },
+    {
+      "feature": "footprint_compactness_polsby_popper",
+      "importance": 0.00291
+    },
+    {
+      "feature": "doors_per_room",
+      "importance": 0.00272
+    },
+    {
+      "feature": "windows_per_habitable_room",
+      "importance": 0.00205
+    },
+    {
+      "feature": "habitable_rooms_count",
+      "importance": 0.00145
+    },
+    {
+      "feature": "total_rooms",
+      "importance": 0.00144
+    },
+    {
+      "feature": "outdoor_spaces_count",
+      "importance": 0.0014
+    }
+  ],
+  "model_artifact_path": "/Users/kavindyasithumini/Documents/research/training/cubicasa_proxy_xgboost/cubicasa_experimental_xgboost_model.json"
+}

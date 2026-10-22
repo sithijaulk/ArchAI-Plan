@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import Any, Mapping, Sequence
 
 from shapely import affinity
@@ -197,6 +198,62 @@ def validate_layout(land: Polygon, house: Polygon, gate: Mapping[str, Any] | Non
                 geometry = Polygon(element["polygon"])
         except (TypeError, ValueError):
             geometry = None
+
+        if geometry is None and element.get("position"):
+            pos = element["position"]
+            dims = element.get("dimensions") if isinstance(element.get("dimensions"), Mapping) else {}
+            raw_w = dims.get("width_m") if "width_m" in dims else dims.get("width")
+            raw_d = dims.get("depth_m") if "depth_m" in dims else (dims.get("depth") if "depth" in dims else (dims.get("length_m") if "length_m" in dims else dims.get("length")))
+            w_valid = True
+            d_valid = True
+            if raw_w is not None:
+                if isinstance(raw_w, bool):
+                    w_valid = False
+                else:
+                    try:
+                        fw = float(raw_w)
+                        if not (math.isfinite(fw) and fw > 0):
+                            w_valid = False
+                    except (TypeError, ValueError):
+                        w_valid = False
+            if raw_d is not None:
+                if isinstance(raw_d, bool):
+                    d_valid = False
+                else:
+                    try:
+                        fd = float(raw_d)
+                        if not (math.isfinite(fd) and fd > 0):
+                            d_valid = False
+                    except (TypeError, ValueError):
+                        d_valid = False
+            if w_valid and d_valid:
+                w = float(raw_w) if raw_w is not None else 1.5
+                d = float(raw_d) if raw_d is not None else 1.5
+                if (isinstance(pos, (list, tuple)) and len(pos) == 2
+                        and not isinstance(pos[0], bool) and not isinstance(pos[1], bool)
+                        and math.isfinite(float(pos[0])) and math.isfinite(float(pos[1]))):
+                    px, py = float(pos[0]), float(pos[1])
+                    base_box = box(px - w / 2, py - d / 2, px + w / 2, py + d / 2)
+                    raw_rot = element.get("rotation_deg") if "rotation_deg" in element else (
+                        element.get("orientation_deg") if "orientation_deg" in element else element.get("azimuth_degrees")
+                    )
+                    rot_valid = True
+                    if raw_rot is not None:
+                        if isinstance(raw_rot, bool):
+                            rot_valid = False
+                        else:
+                            try:
+                                frot = float(raw_rot)
+                                if not math.isfinite(frot):
+                                    rot_valid = False
+                            except (TypeError, ValueError):
+                                rot_valid = False
+                    if rot_valid:
+                        angle = float(raw_rot) if raw_rot is not None else 0.0
+                        if (angle % 360) != 0:
+                            geometry = affinity.rotate(base_box, angle, origin=(px, py))
+                        else:
+                            geometry = base_box
         if element.get("type") in {"garden_seating", "garden_table_set"}:
             valid = geometry is not None and geometry.is_valid and land.covers(geometry) and not geometry.intersects(ground_obstacles)
             if driveway is not None:

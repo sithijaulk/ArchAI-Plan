@@ -69,3 +69,77 @@ class ProjectAccessDeniedError(EsaiException):
             code="PROJECT_ACCESS_DENIED",
             details={"project_id": project_id}
         )
+
+
+class GeometryStalenessError(EsaiException):
+    """Raised when attempting to save a design generated against stale geometry."""
+
+    def __init__(self, message: str, project_id: str, generated_fingerprint: Optional[str] = None, current_fingerprint: Optional[str] = None):
+        super().__init__(
+            message=message,
+            code="GEOMETRY_STALENESS_CONFLICT",
+            details={
+                "project_id": project_id,
+                "generated_fingerprint": generated_fingerprint,
+                "current_fingerprint": current_fingerprint,
+            }
+        )
+
+
+class PreferenceStalenessError(EsaiException):
+    """Raised when attempting to save a design generated against stale client preferences."""
+
+    def __init__(self, message: str, project_id: str, room_id: Optional[str] = None, generated_rev: Optional[int] = None, current_rev: Optional[int] = None):
+        super().__init__(
+            message=message,
+            code="PREFERENCE_STALENESS_CONFLICT",
+            details={
+                "project_id": project_id,
+                "room_id": room_id,
+                "generated_preference_revision": generated_rev,
+                "current_preference_revision": current_rev,
+            }
+        )
+
+
+class DesignRevisionConflictError(EsaiException):
+    """Raised when concurrent saves or edits conflict with expected design revision."""
+
+    def __init__(self, message: str, project_id: str, expected_rev: Optional[int] = None, current_rev: Optional[int] = None):
+        super().__init__(
+            message=message,
+            code="DESIGN_REVISION_CONFLICT",
+            details={
+                "project_id": project_id,
+                "expected_design_revision": expected_rev,
+                "current_design_revision": current_rev,
+            }
+        )
+
+
+class InvalidDesignSaveError(EsaiException):
+    """Raised when attempting to save an invalid, unvalidated or infeasible design as valid."""
+
+    def __init__(self, message: str, room_id: Optional[str] = None, violations: Optional[list] = None):
+        super().__init__(
+            message=message,
+            code="INVALID_DESIGN_SAVE_ERROR",
+            details={
+                "room_id": room_id,
+                "violations": violations or [],
+            }
+        )
+
+
+class AlternativeNotFoundError(EsaiException):
+    """Raised when a requested alternative index or ID is not found in the room's generated alternatives."""
+
+    def __init__(self, message: str, room_id: str, alternative_id: str):
+        super().__init__(
+            message=message,
+            code="ALTERNATIVE_NOT_FOUND",
+            details={
+                "room_id": room_id,
+                "alternative_id": alternative_id,
+            }
+        )

@@ -63,8 +63,8 @@ export const gabGenExtendedApi = {
     return res.data;
   },
 
-  extractSurvey: async (projectId: string) => {
-    const res = await apiClient.post(`/projects/${projectId}/gab-gen/extract-survey`);
+  extractSurvey: async (projectId: string, pageNumber: number = 1) => {
+    const res = await apiClient.post(`/projects/${projectId}/gab-gen/extract-survey?page_number=${pageNumber}`);
     return res.data;
   },
 
@@ -73,9 +73,56 @@ export const gabGenExtendedApi = {
     return res.data;
   },
 
+  removeRoom: async (projectId: string, roomId: string) => {
+    const res = await apiClient.post(`/projects/${projectId}/gab-gen/remove-room`, { room_id: roomId });
+    return res.data;
+  },
+
+  addRoom: async (projectId: string, targetFloorId: string, roomData: any) => {
+    const res = await apiClient.post(`/projects/${projectId}/gab-gen/add-room`, {
+      target_floor_id: targetFloorId,
+      room_data: roomData,
+    });
+    return res.data;
+  },
+
   getMasterJson: async (projectId: string): Promise<GabGenMasterJson> => {
     const res = await apiClient.get(`/projects/${projectId}/gab-gen/master-json`);
     return res.data;
   },
+
+  getCandidates: async (projectId: string) => {
+    const res = await apiClient.get(`/projects/${projectId}/gab-gen/candidates`);
+    return res.data;
+  },
+
+  selectCandidate: async (projectId: string, candidateId: string) => {
+    const res = await apiClient.post(`/projects/${projectId}/gab-gen/select-candidate`, {
+      candidate_id: candidateId,
+    });
+    return res.data;
+  },
+
+  editDoor: async (projectId: string, payload: { door_id: string; target_floor_id: string; position: { x: number; y: number }; width_m?: number }) => {
+    const res = await apiClient.post(`/projects/${projectId}/gab-gen/edit-door`, payload);
+    return res.data;
+  },
+
+  editWindow: async (projectId: string, payload: { window_id: string; target_floor_id: string; position: { x: number; y: number }; width_m?: number; height_m?: number }) => {
+    const res = await apiClient.post(`/projects/${projectId}/gab-gen/edit-window`, payload);
+    return res.data;
+  },
+
+  changeRoof: async (projectId: string, payload: { roof_type: string; pitch_angle_deg?: number }) => {
+    const res = await apiClient.post(`/projects/${projectId}/gab-gen/change-roof`, payload);
+    return res.data;
+  },
+
+  undoEdit: async (projectId: string) => {
+    const res = await apiClient.post(`/projects/${projectId}/gab-gen/undo-edit`);
+    return res.data;
+  },
 };
+
+
 

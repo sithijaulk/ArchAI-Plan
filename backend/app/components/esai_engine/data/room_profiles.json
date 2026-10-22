@@ -1,78 +1,820 @@
 {
-  "version": "1.0",
+  "version": "2.0",
   "profiles": [
     {
       "room_type": "master_bedroom",
       "display_name": "Master Bedroom",
-      "recommended_assets": ["bed", "bedside_table", "wardrobe", "dressing_table"],
-      "optional_assets": ["armchair", "tv_console"],
+      "recommended_assets": [
+        "bed",
+        "bedside_table",
+        "wardrobe",
+        "dressing_table"
+      ],
+      "optional_assets": [
+        "armchair",
+        "tv_console",
+        "side_table",
+        "bookshelf",
+        "ceiling_fan"
+      ],
+      "incompatible_assets": [
+        "dining_table",
+        "kitchen_counter",
+        "shower_enclosure",
+        "commode"
+      ],
       "default_min_area_sqm": 12.0,
+      "typical_zones": [
+        "sleeping_zone",
+        "dressing_zone",
+        "relaxation_zone"
+      ],
+      "service_dependencies": [
+        "power_general",
+        "usb_charging",
+        "ac_power",
+        "lighting"
+      ],
       "functional_relationships": [
-        {"from_category": "bedside_table", "to_category": "bed", "affinity": "adjacent", "max_distance_m": 0.3},
-        {"from_category": "wardrobe", "to_category": "bed", "affinity": "clearance_separated", "min_distance_m": 0.9}
+        {
+          "from_category": "bedside_table",
+          "to_category": "bed",
+          "affinity": "adjacent",
+          "max_distance_m": 0.3
+        },
+        {
+          "from_category": "wardrobe",
+          "to_category": "bed",
+          "affinity": "clearance_separated",
+          "min_distance_m": 0.9
+        }
       ]
     },
     {
       "room_type": "bedroom",
       "display_name": "Standard Bedroom",
-      "recommended_assets": ["bed", "bedside_table", "wardrobe", "desk", "office_chair"],
-      "optional_assets": ["bookshelf"],
+      "recommended_assets": [
+        "bed",
+        "bedside_table",
+        "wardrobe",
+        "desk",
+        "office_chair"
+      ],
+      "optional_assets": [
+        "bookshelf",
+        "ceiling_fan",
+        "storage_cabinet"
+      ],
+      "incompatible_assets": [
+        "dining_table",
+        "kitchen_counter",
+        "commode"
+      ],
       "default_min_area_sqm": 9.0,
+      "typical_zones": [
+        "sleeping_zone",
+        "study_zone",
+        "storage_zone"
+      ],
+      "service_dependencies": [
+        "power_general",
+        "usb_charging",
+        "lighting"
+      ],
       "functional_relationships": [
-        {"from_category": "bedside_table", "to_category": "bed", "affinity": "adjacent", "max_distance_m": 0.3},
-        {"from_category": "desk", "to_category": "office_chair", "affinity": "paired", "max_distance_m": 0.1}
+        {
+          "from_category": "bedside_table",
+          "to_category": "bed",
+          "affinity": "adjacent",
+          "max_distance_m": 0.3
+        },
+        {
+          "from_category": "desk",
+          "to_category": "office_chair",
+          "affinity": "paired",
+          "max_distance_m": 0.1
+        }
+      ]
+    },
+    {
+      "room_type": "guest_room",
+      "display_name": "Guest Bedroom",
+      "recommended_assets": [
+        "bed",
+        "bedside_table",
+        "wardrobe"
+      ],
+      "optional_assets": [
+        "armchair",
+        "desk",
+        "office_chair",
+        "ceiling_fan"
+      ],
+      "incompatible_assets": [
+        "kitchen_counter",
+        "commode"
+      ],
+      "default_min_area_sqm": 9.0,
+      "typical_zones": [
+        "sleeping_zone",
+        "luggage_storage"
+      ],
+      "service_dependencies": [
+        "power_general",
+        "lighting"
+      ],
+      "functional_relationships": [
+        {
+          "from_category": "bedside_table",
+          "to_category": "bed",
+          "affinity": "adjacent",
+          "max_distance_m": 0.3
+        }
       ]
     },
     {
       "room_type": "living_room",
       "display_name": "Living Room",
-      "recommended_assets": ["sofa", "coffee_table", "tv_console"],
-      "optional_assets": ["armchair", "side_table", "bookshelf"],
+      "recommended_assets": [
+        "sofa",
+        "coffee_table",
+        "tv_console"
+      ],
+      "optional_assets": [
+        "armchair",
+        "side_table",
+        "bookshelf",
+        "media_wall",
+        "ceiling_fan"
+      ],
+      "incompatible_assets": [
+        "bed",
+        "shower_enclosure",
+        "commode"
+      ],
       "default_min_area_sqm": 16.0,
+      "typical_zones": [
+        "conversation_zone",
+        "entertainment_zone",
+        "transit_aisle"
+      ],
+      "service_dependencies": [
+        "power_general",
+        "tv_power",
+        "tv_data",
+        "ac_power",
+        "lighting"
+      ],
       "functional_relationships": [
-        {"from_category": "coffee_table", "to_category": "sofa", "affinity": "front_facing", "distance_m": 0.45},
-        {"from_category": "tv_console", "to_category": "sofa", "affinity": "opposite_viewing", "min_distance_m": 2.0, "max_distance_m": 3.8}
+        {
+          "from_category": "coffee_table",
+          "to_category": "sofa",
+          "affinity": "front_facing",
+          "distance_m": 0.45
+        },
+        {
+          "from_category": "tv_console",
+          "to_category": "sofa",
+          "affinity": "opposite_viewing",
+          "min_distance_m": 2.0,
+          "max_distance_m": 4.0
+        }
+      ]
+    },
+    {
+      "room_type": "family_living_area",
+      "display_name": "Family Living Area",
+      "recommended_assets": [
+        "sofa",
+        "coffee_table",
+        "tv_console"
+      ],
+      "optional_assets": [
+        "armchair",
+        "bookshelf",
+        "storage_cabinet"
+      ],
+      "incompatible_assets": [
+        "bed",
+        "shower_enclosure"
+      ],
+      "default_min_area_sqm": 14.0,
+      "typical_zones": [
+        "lounge_zone",
+        "media_zone"
+      ],
+      "service_dependencies": [
+        "power_general",
+        "tv_power",
+        "lighting"
+      ],
+      "functional_relationships": [
+        {
+          "from_category": "coffee_table",
+          "to_category": "sofa",
+          "affinity": "front_facing",
+          "distance_m": 0.45
+        }
+      ]
+    },
+    {
+      "room_type": "tv_lobby",
+      "display_name": "TV Lobby",
+      "recommended_assets": [
+        "sofa",
+        "tv_console"
+      ],
+      "optional_assets": [
+        "coffee_table",
+        "side_table"
+      ],
+      "incompatible_assets": [
+        "bed",
+        "kitchen_counter"
+      ],
+      "default_min_area_sqm": 10.0,
+      "typical_zones": [
+        "media_viewing"
+      ],
+      "service_dependencies": [
+        "power_general",
+        "tv_power",
+        "tv_data"
+      ],
+      "functional_relationships": [
+        {
+          "from_category": "tv_console",
+          "to_category": "sofa",
+          "affinity": "opposite_viewing",
+          "min_distance_m": 1.8,
+          "max_distance_m": 3.5
+        }
+      ]
+    },
+    {
+      "room_type": "tv_lounge",
+      "display_name": "TV Lounge",
+      "recommended_assets": [
+        "sofa",
+        "tv_console",
+        "coffee_table"
+      ],
+      "optional_assets": [
+        "armchair",
+        "media_wall"
+      ],
+      "incompatible_assets": [
+        "bed"
+      ],
+      "default_min_area_sqm": 12.0,
+      "typical_zones": [
+        "home_cinema_lounge"
+      ],
+      "service_dependencies": [
+        "tv_power",
+        "tv_data",
+        "power_general"
+      ],
+      "functional_relationships": [
+        {
+          "from_category": "tv_console",
+          "to_category": "sofa",
+          "affinity": "opposite_viewing",
+          "min_distance_m": 2.0,
+          "max_distance_m": 3.8
+        }
+      ]
+    },
+    {
+      "room_type": "lounge",
+      "display_name": "Formal Lounge",
+      "recommended_assets": [
+        "sofa",
+        "coffee_table",
+        "armchair"
+      ],
+      "optional_assets": [
+        "side_table",
+        "bookshelf"
+      ],
+      "incompatible_assets": [
+        "bed",
+        "commode"
+      ],
+      "default_min_area_sqm": 14.0,
+      "typical_zones": [
+        "formal_conversation"
+      ],
+      "service_dependencies": [
+        "power_general",
+        "lighting"
+      ],
+      "functional_relationships": [
+        {
+          "from_category": "coffee_table",
+          "to_category": "sofa",
+          "affinity": "front_facing",
+          "distance_m": 0.45
+        }
       ]
     },
     {
       "room_type": "dining_room",
       "display_name": "Dining Room",
-      "recommended_assets": ["dining_table", "dining_chair"],
-      "optional_assets": ["storage_cabinet"],
+      "recommended_assets": [
+        "dining_table",
+        "dining_chair"
+      ],
+      "optional_assets": [
+        "storage_cabinet",
+        "pendant_light"
+      ],
+      "incompatible_assets": [
+        "bed",
+        "commode",
+        "shower_enclosure"
+      ],
       "default_min_area_sqm": 10.0,
+      "typical_zones": [
+        "dining_table_zone",
+        "buffet_serving"
+      ],
+      "service_dependencies": [
+        "power_general",
+        "lighting"
+      ],
       "functional_relationships": [
-        {"from_category": "dining_chair", "to_category": "dining_table", "affinity": "tucked_under", "max_distance_m": 0.2}
+        {
+          "from_category": "dining_chair",
+          "to_category": "dining_table",
+          "affinity": "tucked_under",
+          "max_distance_m": 0.2
+        }
+      ]
+    },
+    {
+      "room_type": "dining_area",
+      "display_name": "Dining Area",
+      "recommended_assets": [
+        "dining_table",
+        "dining_chair"
+      ],
+      "optional_assets": [
+        "storage_cabinet"
+      ],
+      "incompatible_assets": [
+        "bed",
+        "commode"
+      ],
+      "default_min_area_sqm": 8.0,
+      "typical_zones": [
+        "dining_zone"
+      ],
+      "service_dependencies": [
+        "lighting"
+      ],
+      "functional_relationships": [
+        {
+          "from_category": "dining_chair",
+          "to_category": "dining_table",
+          "affinity": "tucked_under",
+          "max_distance_m": 0.2
+        }
       ]
     },
     {
       "room_type": "kitchen",
       "display_name": "Kitchen",
-      "recommended_assets": ["kitchen_counter", "kitchen_appliance"],
-      "optional_assets": ["kitchen_island"],
+      "recommended_assets": [
+        "kitchen_counter",
+        "sink",
+        "cooktop",
+        "refrigerator"
+      ],
+      "optional_assets": [
+        "kitchen_island",
+        "dishwasher",
+        "range_hood",
+        "oven",
+        "pantry_cabinet"
+      ],
+      "incompatible_assets": [
+        "bed",
+        "sofa",
+        "commode",
+        "bathtub"
+      ],
       "default_min_area_sqm": 7.0,
+      "typical_zones": [
+        "prep_zone",
+        "cooking_zone",
+        "cleaning_zone",
+        "cold_storage"
+      ],
+      "service_dependencies": [
+        "power_appliance",
+        "water_cold",
+        "water_hot",
+        "drainage",
+        "exhaust_duct"
+      ],
       "functional_relationships": [
-        {"from_category": "kitchen_island", "to_category": "kitchen_counter", "affinity": "parallel_aisle", "min_distance_m": 1.2}
+        {
+          "from_category": "kitchen_island",
+          "to_category": "kitchen_counter",
+          "affinity": "parallel_aisle",
+          "min_distance_m": 1.2
+        },
+        {
+          "from_category": "range_hood",
+          "to_category": "cooktop",
+          "affinity": "aligned_above",
+          "distance_m": 0.65
+        }
       ]
+    },
+    {
+      "room_type": "pantry",
+      "display_name": "Pantry",
+      "recommended_assets": [
+        "pantry_cabinet",
+        "kitchen_counter"
+      ],
+      "optional_assets": [
+        "sink",
+        "refrigerator"
+      ],
+      "incompatible_assets": [
+        "bed",
+        "sofa",
+        "commode"
+      ],
+      "default_min_area_sqm": 4.0,
+      "typical_zones": [
+        "dry_storage",
+        "prep"
+      ],
+      "service_dependencies": [
+        "power_general",
+        "lighting"
+      ],
+      "functional_relationships": []
     },
     {
       "room_type": "bathroom",
       "display_name": "Bathroom",
-      "recommended_assets": ["basin", "commode", "shower_enclosure"],
-      "optional_assets": ["bathtub"],
+      "recommended_assets": [
+        "basin",
+        "commode",
+        "shower_enclosure"
+      ],
+      "optional_assets": [
+        "bathtub",
+        "towel_rail",
+        "vanity_unit"
+      ],
+      "incompatible_assets": [
+        "bed",
+        "sofa",
+        "dining_table",
+        "cooktop"
+      ],
       "default_min_area_sqm": 3.5,
+      "typical_zones": [
+        "grooming_zone",
+        "sanitary_zone",
+        "bathing_zone"
+      ],
+      "service_dependencies": [
+        "water_cold",
+        "water_hot",
+        "drainage",
+        "exhaust_duct"
+      ],
       "functional_relationships": [
-        {"from_category": "basin", "to_category": "commode", "affinity": "side_by_side", "min_distance_m": 0.3}
+        {
+          "from_category": "basin",
+          "to_category": "commode",
+          "affinity": "side_by_side",
+          "min_distance_m": 0.3
+        }
+      ]
+    },
+    {
+      "room_type": "attached_bathroom",
+      "display_name": "Attached Bathroom (Ensuite)",
+      "recommended_assets": [
+        "basin",
+        "commode",
+        "shower_enclosure"
+      ],
+      "optional_assets": [
+        "bathtub",
+        "towel_rail",
+        "vanity_unit"
+      ],
+      "incompatible_assets": [
+        "bed",
+        "sofa",
+        "kitchen_counter"
+      ],
+      "default_min_area_sqm": 4.0,
+      "typical_zones": [
+        "private_grooming",
+        "shower_zone",
+        "toilet_zone"
+      ],
+      "service_dependencies": [
+        "water_cold",
+        "water_hot",
+        "drainage"
+      ],
+      "functional_relationships": [
+        {
+          "from_category": "basin",
+          "to_category": "commode",
+          "affinity": "side_by_side",
+          "min_distance_m": 0.3
+        }
+      ]
+    },
+    {
+      "room_type": "common_bathroom",
+      "display_name": "Common Bathroom",
+      "recommended_assets": [
+        "basin",
+        "commode",
+        "shower_enclosure"
+      ],
+      "optional_assets": [
+        "towel_rail"
+      ],
+      "incompatible_assets": [
+        "bed",
+        "kitchen_counter"
+      ],
+      "default_min_area_sqm": 3.2,
+      "typical_zones": [
+        "guest_sanitary",
+        "shower"
+      ],
+      "service_dependencies": [
+        "water_cold",
+        "water_hot",
+        "drainage"
+      ],
+      "functional_relationships": []
+    },
+    {
+      "room_type": "toilet",
+      "display_name": "Powder Room / Toilet",
+      "recommended_assets": [
+        "commode",
+        "basin"
+      ],
+      "optional_assets": [],
+      "incompatible_assets": [
+        "bed",
+        "bathtub",
+        "kitchen_counter",
+        "sofa"
+      ],
+      "default_min_area_sqm": 1.8,
+      "typical_zones": [
+        "guest_wc"
+      ],
+      "service_dependencies": [
+        "water_cold",
+        "drainage"
+      ],
+      "functional_relationships": [
+        {
+          "from_category": "basin",
+          "to_category": "commode",
+          "affinity": "side_by_side",
+          "min_distance_m": 0.25
+        }
       ]
     },
     {
       "room_type": "study",
-      "display_name": "Study / Home Office",
-      "recommended_assets": ["desk", "office_chair", "bookshelf"],
-      "optional_assets": ["armchair"],
+      "display_name": "Study",
+      "recommended_assets": [
+        "desk",
+        "office_chair",
+        "bookshelf"
+      ],
+      "optional_assets": [
+        "armchair",
+        "side_table"
+      ],
+      "incompatible_assets": [
+        "bed",
+        "commode",
+        "cooktop"
+      ],
       "default_min_area_sqm": 7.5,
+      "typical_zones": [
+        "focus_workstation",
+        "reference_library"
+      ],
+      "service_dependencies": [
+        "power_general",
+        "network_data",
+        "lighting"
+      ],
       "functional_relationships": [
-        {"from_category": "office_chair", "to_category": "desk", "affinity": "paired", "max_distance_m": 0.1}
+        {
+          "from_category": "office_chair",
+          "to_category": "desk",
+          "affinity": "paired",
+          "max_distance_m": 0.1
+        }
       ]
+    },
+    {
+      "room_type": "study_office",
+      "display_name": "Study / Office",
+      "recommended_assets": [
+        "desk",
+        "office_chair",
+        "bookshelf"
+      ],
+      "optional_assets": [
+        "workstation",
+        "armchair",
+        "storage_cabinet"
+      ],
+      "incompatible_assets": [
+        "bed",
+        "commode"
+      ],
+      "default_min_area_sqm": 8.0,
+      "typical_zones": [
+        "workstation",
+        "client_consultation"
+      ],
+      "service_dependencies": [
+        "power_general",
+        "network_data"
+      ],
+      "functional_relationships": [
+        {
+          "from_category": "office_chair",
+          "to_category": "desk",
+          "affinity": "paired",
+          "max_distance_m": 0.1
+        }
+      ]
+    },
+    {
+      "room_type": "home_office",
+      "display_name": "Home Office",
+      "recommended_assets": [
+        "desk",
+        "office_chair",
+        "bookshelf"
+      ],
+      "optional_assets": [
+        "storage_cabinet",
+        "armchair"
+      ],
+      "incompatible_assets": [
+        "bed",
+        "commode"
+      ],
+      "default_min_area_sqm": 8.5,
+      "typical_zones": [
+        "primary_desk",
+        "video_call_backdrop"
+      ],
+      "service_dependencies": [
+        "power_general",
+        "network_data",
+        "ac_power"
+      ],
+      "functional_relationships": [
+        {
+          "from_category": "office_chair",
+          "to_category": "desk",
+          "affinity": "paired",
+          "max_distance_m": 0.1
+        }
+      ]
+    },
+    {
+      "room_type": "utility_room",
+      "display_name": "Utility Room",
+      "recommended_assets": [
+        "washing_machine",
+        "storage_cabinet"
+      ],
+      "optional_assets": [
+        "dryer",
+        "sink"
+      ],
+      "incompatible_assets": [
+        "bed",
+        "sofa",
+        "dining_table"
+      ],
+      "default_min_area_sqm": 4.0,
+      "typical_zones": [
+        "laundry_processing",
+        "maintenance_storage"
+      ],
+      "service_dependencies": [
+        "power_appliance",
+        "water_cold",
+        "drainage"
+      ],
+      "functional_relationships": [
+        {
+          "from_category": "dryer",
+          "to_category": "washing_machine",
+          "affinity": "side_by_side",
+          "max_distance_m": 0.1
+        }
+      ]
+    },
+    {
+      "room_type": "laundry_room",
+      "display_name": "Laundry Room",
+      "recommended_assets": [
+        "washing_machine",
+        "dryer",
+        "storage_cabinet"
+      ],
+      "optional_assets": [
+        "sink"
+      ],
+      "incompatible_assets": [
+        "bed",
+        "sofa"
+      ],
+      "default_min_area_sqm": 4.5,
+      "typical_zones": [
+        "wash_dry_cycle",
+        "sorting_folding"
+      ],
+      "service_dependencies": [
+        "power_appliance",
+        "water_cold",
+        "drainage",
+        "exhaust_duct"
+      ],
+      "functional_relationships": [
+        {
+          "from_category": "dryer",
+          "to_category": "washing_machine",
+          "affinity": "side_by_side",
+          "max_distance_m": 0.1
+        }
+      ]
+    },
+    {
+      "room_type": "foyer",
+      "display_name": "Foyer / Entrance Hall",
+      "recommended_assets": [
+        "shoe_cabinet"
+      ],
+      "optional_assets": [
+        "side_table",
+        "bookshelf"
+      ],
+      "incompatible_assets": [
+        "bed",
+        "kitchen_counter",
+        "commode"
+      ],
+      "default_min_area_sqm": 3.0,
+      "typical_zones": [
+        "arrival_transition",
+        "shoe_change"
+      ],
+      "service_dependencies": [
+        "lighting"
+      ],
+      "functional_relationships": []
+    },
+    {
+      "room_type": "hallway",
+      "display_name": "Hallway / Circulation",
+      "recommended_assets": [],
+      "optional_assets": [],
+      "incompatible_assets": [
+        "bed",
+        "dining_table",
+        "kitchen_counter"
+      ],
+      "default_min_area_sqm": 2.5,
+      "typical_zones": [
+        "transit_corridor"
+      ],
+      "service_dependencies": [
+        "lighting"
+      ],
+      "functional_relationships": []
     }
   ]
 }

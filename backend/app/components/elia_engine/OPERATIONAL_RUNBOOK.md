@@ -3,7 +3,7 @@
 > Component 4: Eco-Spatial Landscape Intelligence (ELIA Engine)  
 > Environment: Windows (PowerShell) & Linux/macOS (bash)
 
-This runbook documents operational procedures for backend startup, regression testing, isolated MySQL testing, and live baseline verification for Component 4 (ELIA Engine).
+This runbook documents operational procedures for backend startup, regression testing, isolated PostgreSQL testing, and live baseline verification for Component 4 (ELIA Engine).
 
 ---
 
@@ -12,7 +12,7 @@ This runbook documents operational procedures for backend startup, regression te
 ### Windows (PowerShell)
 ```powershell
 # Navigate to backend directory
-cd C:\Users\MY\OneDrive\Desktop\research\ArchAI-Plan\backend
+cd backend
 
 # Activate the dedicated virtual environment
 .\.venv\Scripts\Activate.ps1
@@ -42,7 +42,7 @@ curl.exe -s http://localhost:8000/api/health
 # Expected: {"status":"ok","app":"ArchAI-Plan","env":"development"}
 ```
 > [!NOTE]
-> `/api/health` verifies process and HTTP server availability; it does not verify MySQL connectivity.
+> `/api/health` verifies process and HTTP server availability; it does not verify PostgreSQL connectivity.
 
 ---
 
@@ -66,28 +66,28 @@ All unit, contract, and SQLite regression tests run with pytest:
 
 ---
 
-## 4. Running the Isolated MySQL Integration Test
+## 4. Running the Isolated PostgreSQL Integration Test
 
-The MySQL persistence integration test ([`tests/test_elia_mysql_integration.py`](file:///c:/Users/MY/OneDrive/Desktop/research/ArchAI-Plan/backend/tests/test_elia_mysql_integration.py)) is opt-in and requires an active MySQL server and disposable test schema.
+The PostgreSQL persistence integration test ([`tests/test_elia_postgres_integration.py`](../../../tests/test_elia_postgres_integration.py)) is opt-in and requires an active PostgreSQL server and disposable test database.
 
 ### Prerequisites
-1. A running MySQL server (local daemon or Docker container).
-2. A designated disposable test schema (e.g. `elia_test_db`).
+1. A running PostgreSQL server (local daemon or Docker container).
+2. A designated disposable test database (e.g. `elia_test_db`).
 
 ### Execution Command
 ```powershell
 # Set process-scoped environment variable (do not commit real credentials)
-$env:ELIA_TEST_MYSQL_URL="mysql+pymysql://<DB_USER>:<DB_PASSWORD>@localhost:3306/<TEST_DB_NAME>"
+$env:ELIA_TEST_POSTGRES_URL="postgresql+psycopg2://<DB_USER>:<DB_PASSWORD>@localhost:5432/<TEST_DB_NAME>"
 
-# Run the MySQL integration test
-.\.venv\Scripts\python -m pytest tests/test_elia_mysql_integration.py -v
+# Run the PostgreSQL integration test
+.\.venv\Scripts\python -m pytest tests/test_elia_postgres_integration.py -v
 
 # Clear the environment variable after testing
-Remove-Item env:ELIA_TEST_MYSQL_URL
+Remove-Item env:ELIA_TEST_POSTGRES_URL
 ```
 
 > [!CAUTION]
-> Never point `ELIA_TEST_MYSQL_URL` at a production or primary development database containing user data.
+> Never point `ELIA_TEST_POSTGRES_URL` at a production or primary development database containing user data.
 
 ---
 
@@ -117,6 +117,6 @@ To verify the live flow against an active backend process with a real upstream p
 To verify frontend coordinate mappings, hole preservation, vegetation dimensions, and view model extraction:
 
 ```powershell
-cd C:\Users\MY\OneDrive\Desktop\research\ArchAI-Plan\frontend
+cd frontend
 npx tsx src/lib/test_elia_geometry.mjs
 ```

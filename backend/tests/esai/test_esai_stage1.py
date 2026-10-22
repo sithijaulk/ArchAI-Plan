@@ -152,14 +152,18 @@ def test_ergonomic_standards_provenance_and_verification():
     rules = standards.get_all()
     assert len(rules) >= 10
 
-    # Verified Neufert standard: exact edition, section, and page
+    # Phase 3 audit: Neufert attribution is preserved, but the page reference could not be
+    # confirmed against licensed material, so it lives in historical_source_claim and the
+    # rule is provisional (advisory), never mandatory compliance.
     bed_rule = standards.get_by_id("BED_ACCESS_PRIMARY")
     assert "Ernst Neufert" in bed_rule.source_title
     assert "4th International English Edition" in bed_rule.source_edition
-    assert "p. 254" in bed_rule.source_section
+    assert "p. 254" not in (bed_rule.source_section or "")
+    assert "UNCONFIRMED" in (bed_rule.historical_source_claim or "")
     assert bed_rule.threshold_m == 0.70
+    assert bed_rule.verification_status == StandardVerificationStatus.PROVISIONAL
     assert bed_rule.is_enforceable is True
-    assert bed_rule.is_mandatory_compliance is True
+    assert bed_rule.is_mandatory_compliance is False
 
     # Separate unverified rule: must NOT be mandatory compliance
     unverified_rule = standards.get_by_id("CUSTOM_EXPERIMENTAL_CLEARANCE")
@@ -680,13 +684,20 @@ def test_global_knowledge_endpoints_are_public(unauthenticated_client):
 
 
 # ============================================================================
-# 8. Controlled 501 Run Endpoint (Single Registration)
+# 8. Real Evolutionary Optimization Run Endpoint
 # ============================================================================
-def test_api_run_returns_controlled_501(admin_client, db_session):
-    project = Project(id="proj_run_01", project_name="Run 501 Test", master_json=BEDROOM_PROJECT_FIXTURE)
+def test_api_run_executes_real_evolutionary_optimization(admin_client, db_session):
+    project = Project(id="proj_run_01", project_name="Run GA Test", master_json=BEDROOM_PROJECT_FIXTURE)
     db_session.add(project)
     db_session.commit()
 
-    response = admin_client.post("/api/projects/proj_run_01/esai-engine/run")
-    assert response.status_code == 501
-    assert "stage 2" in response.json()["detail"].lower()
+    response = admin_client.post(
+        "/api/projects/proj_run_01/esai-engine/run",
+        json={"scope": "room", "room_id": "RM_BED_01", "population_size": 15, "generations": 5, "seed": 42}
+    )
+    assert response.status_code == 200
+    data = response.json()["result"]
+    assert data["project_id"] == "proj_run_01"
+    assert data["total_rooms_discovered"] == 1
+    assert "RM_BED_01" in data["rooms"]
+    assert data["rooms"]["RM_BED_01"]["status"] in ("success", "partial")

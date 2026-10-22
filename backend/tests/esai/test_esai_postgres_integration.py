@@ -1,11 +1,11 @@
 """
-Repeatable MySQL Integration Tests for ESAI-Engine Stage 1
-Validates real MySQL persistence against an explicitly configured disposable schema:
-- Schema migration / table structure with PyMySQL
-- Strict enforcement of MySQL driver (fails if non-MySQL)
-- Unique constraint enforcement on (project_id, room_id) in MySQL
+Repeatable PostgreSQL Integration Tests for ESAI-Engine Stage 1
+Validates real PostgreSQL persistence against an explicitly configured disposable database:
+- Schema migration / table structure with psycopg2
+- Strict enforcement of PostgreSQL driver (fails if non-PostgreSQL)
+- Unique constraint enforcement on (project_id, room_id) in PostgreSQL
 - Transactional persistence of room requirements and Centralized Master JSON
-- Non-destructive preservation of Master JSON fields in MySQL JSON column
+- Non-destructive preservation of Master JSON fields in PostgreSQL JSON column
 """
 import os
 from copy import deepcopy
@@ -27,12 +27,12 @@ from app.components.esai_engine.service import EsaiEngineService
 from tests.esai.fixtures import BEDROOM_PROJECT_FIXTURE
 
 
-def _get_mysql_test_session():
-    database_url = os.getenv("ESAI_TEST_MYSQL_URL") or os.getenv("MYSQL_TEST_URL")
+def _get_postgres_test_session():
+    database_url = os.getenv("ESAI_TEST_POSTGRES_URL") or os.getenv("ESAI_TEST_DB_URL") or os.getenv("POSTGRES_TEST_URL")
     if not database_url:
-        pytest.skip("Set ESAI_TEST_MYSQL_URL to a disposable MySQL test schema to run persistence integration.")
-    if not database_url.startswith("mysql+pymysql://"):
-        pytest.fail("ESAI_TEST_MYSQL_URL must use the existing MySQL PyMySQL driver.")
+        pytest.skip("Set ESAI_TEST_POSTGRES_URL to a disposable PostgreSQL test database to run persistence integration.")
+    if not (database_url.startswith("postgresql://") or database_url.startswith("postgresql+")):
+        pytest.fail("ESAI_TEST_POSTGRES_URL must use the PostgreSQL driver (postgresql+psycopg2:// or postgresql://).")
 
     engine = create_engine(database_url, pool_pre_ping=True)
     Base.metadata.create_all(engine)
@@ -41,10 +41,10 @@ def _get_mysql_test_session():
     return engine, session
 
 
-def test_esai_mysql_transactional_persistence():
-    engine, session = _get_mysql_test_session()
+def test_esai_postgres_transactional_persistence():
+    engine, session = _get_postgres_test_session()
     project = Project(
-        project_name="ESAI MySQL Integration Project",
+        project_name="ESAI PostgreSQL Integration Project",
         master_json=deepcopy(BEDROOM_PROJECT_FIXTURE)
     )
     session.add(project)
@@ -59,7 +59,7 @@ def test_esai_mysql_transactional_persistence():
             room_type=RoomType.MASTER_BEDROOM,
             items=[
                 FurnitureRequirementItem(
-                    instance_id="mysql_bed_1",
+                    instance_id="postgres_bed_1",
                     catalog_id="BED_KING_01",
                     category=AssetCategory.BED,
                     quantity=1
@@ -81,7 +81,7 @@ def test_esai_mysql_transactional_persistence():
         assert stored_req.floor_id == "floor_gf"
         assert stored_project.master_json["interior_layout"]["room_requirements"]["RM_BED_01"]["room_id"] == "RM_BED_01"
         assert stored_project.master_json["processing"]["esai_engine"]["status"] == "pending"
-        # Structural geometry preserved in MySQL
+        # Structural geometry preserved in PostgreSQL
         assert stored_project.master_json["floor_plan"]["floors"][0]["rooms"][0]["polygon"] == BEDROOM_PROJECT_FIXTURE["floor_plan"]["floors"][0]["rooms"][0]["polygon"]
 
     finally:
@@ -93,10 +93,10 @@ def test_esai_mysql_transactional_persistence():
         engine.dispose()
 
 
-def test_esai_mysql_unique_constraint():
-    engine, session = _get_mysql_test_session()
+def test_esai_postgres_unique_constraint():
+    engine, session = _get_postgres_test_session()
     project = Project(
-        project_name="ESAI MySQL Unique Constraint Test",
+        project_name="ESAI PostgreSQL Unique Constraint Test",
         master_json=deepcopy(BEDROOM_PROJECT_FIXTURE)
     )
     session.add(project)

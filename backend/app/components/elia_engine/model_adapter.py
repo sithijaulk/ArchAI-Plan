@@ -89,6 +89,58 @@ class UnavailableModelAdapter:
         raise ELIAError("ELIA_MODEL_UNAVAILABLE", detail, 503)
 
 
+class TrainedModelAdapter:
+    """Production runtime adapter executing learned garden layout inference."""
+
+    def __init__(self, artifact_path: str | Any | None = None):
+        from pathlib import Path
+        from .neural_layout_engine import NeuralGardenLayoutModel
+
+        default_dir = Path(__file__).resolve().parent / "model_artifacts" / "garden_layout_v1"
+        target_path = Path(artifact_path) if artifact_path else default_dir
+
+        if not target_path.exists():
+            raise ELIAError(
+                "ELIA_INVALID_MODEL_ARTIFACT",
+                f"Model artifact directory not found at {target_path}",
+                500,
+            )
+
+        try:
+            self.model = NeuralGardenLayoutModel.load_from_directory(target_path)
+            self.model_version = self.model.version
+            self.artifact_path = str(target_path)
+        except Exception as exc:
+            raise ELIAError(
+                "ELIA_INVALID_MODEL_ARTIFACT",
+                f"Failed loading model artifact from {target_path}: {exc}",
+                500,
+            ) from exc
+
+    def infer(self, prepared_input: Mapping[str, Any]) -> Mapping[str, Any]:
+        from .rasterizer import rasterize_model_input
+        from .layout_decoder import decode_model_layout
+
+        # 1. Preprocessing / Rasterization
+        try:
+            tensor, meta = rasterize_model_input(prepared_input)
+        except Exception as exc:
+            raise ELIAError("ELIA_INVALID_MODEL_INPUT", f"Failed preprocessing model input tensor: {exc}", 400) from exc
+
+        # 2. Forward pass through neural layout model
+        try:
+            heatmaps = self.model.forward(tensor)
+        except Exception as exc:
+            raise ELIAError("ELIA_MODEL_INFERENCE_FAILED", f"Model inference error: {exc}", 500) from exc
+
+        # 3. Constrained decoding and hybrid layout assembly
+        try:
+            candidate = decode_model_layout(heatmaps, meta, prepared_input, self.model_version or "elia-garden-layout-v1.0")
+            return candidate
+        except Exception as exc:
+            raise ELIAError("ELIA_MODEL_DECODE_FAILED", f"Failed decoding model heatmap: {exc}", 500) from exc
+
+
 _registered_adapter: ModelAdapter | None = None
 
 

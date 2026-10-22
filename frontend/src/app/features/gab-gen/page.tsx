@@ -32,7 +32,16 @@ const emptyRequirements: ClientRequirements = {
   occupant_count: 4,
   separate_kitchen: true,
   parking_capacity: 0,
-  attached_bathroom_count: 0
+  attached_bathroom_count: 0,
+  roof_preference: {
+    roof_type: 'flat_slab',
+    material: 'concrete_tile',
+    pitch_angle_deg: 0,
+    overhang_m: 0.6,
+    parapet_height_m: 1.0,
+    rooftop_access: false,
+    drainage_preference: 'concealed_gutters'
+  }
 };
 
 // Empty default-neutral initial survey boundary state

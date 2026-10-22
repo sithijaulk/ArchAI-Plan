@@ -1,99 +1,78 @@
-# ELIA-Engine
+# ELIA Engine — Eco-Spatial Landscape Intelligence
 
-ELIA plans exterior residential space from an existing Centralized Master JSON. It does not parse deeds, generate rooms, change interiors, or run a trained AI model.
+Component 4: Eco-Spatial Landscape Intelligence (ELIA Engine) in ArchAI-Plan.
 
-## Coordinates and rules
+ELIA plans exterior residential space from an authoritative upstream Centralized Master JSON. Production generation operates on a deterministic **Rules + Geometric Layout Planner / Optimizer** architecture.
 
-All planning geometry is converted to meters. `units` at the Master JSON root declares its source length unit; when absent, `data/elia_rules.json` configures the default as meters. User requirement dimensions use meters unless `requirements.units` says otherwise. Latitude and longitude must be supplied in the request or the Master JSON; ELIA never guesses a site location.
+Production generation does not depend on trained neural models, model weights (`weights.npz`), image classifiers, Colab checkpoints, or user-uploaded reference photos.
 
-ELIA consumes an existing constructed-house exterior footprint and land boundary; a buildable zone is not a substitute for the house footprint. The input adapter accepts `land_info.mathematical_polygon`, legacy boundary fields, and supported house-exterior fields from the floor-plan and structural layers. It also maps `floor_plan.ground_floor.utilities.water_well` and `septic_tank`, including `center`, `position`, or `x`/`y` coordinates. Polygon interior rings are preserved. Input snapshots are not rewritten by normalization.
+## Architecture and Core Algorithms
 
-North is inherited from the upstream Master JSON (`land_info.calculated_north_bearing`, `calculated_north_bearing`, or the existing `north_angle`). ELIA does not redetect north. The normalized angle is degrees clockwise from local `+Y` toward local `+X`; zero means local `+Y` is north. Conflicting angles or missing required orientation produce explicit validation errors. North is omitted from the request examples below because it is inherited.
+The production planning pipeline follows:
+Authoritative project geometry + explicit user preferences
+→ Preference normalization and scope validation
+→ Feasibility screening and applicable rule selection
+→ Deterministic geometric layout generation and optimization:
+  - **A\* Ray-Marching Pathfinding**: Generates collision-free driveways, pedestrian walkways, and maintenance corridors.
+  - **2D Oriented Bounding Box (OBB) Packing**: Packs solar photovoltaic arrays and modular exterior elements within verified boundary envelopes.
+  - **Poisson-Disk Clearance Sampling**: Distributes vegetation crown envelopes, seating nodes, and outdoor lighting while respecting mature spread radii and physical setback zones.
+  - **Analytical Directional Solar Simulation**: Samples diurnal sun positions and shadow projections across equinox/solstice ranges.
+→ Final multi-category geometry and rule validation (79 versioned rules)
+→ Safe candidate editing with undo history, form synchronization, and 3D translation gizmo
+→ Centralized Master JSON `exterior_landscape` update and frontend 2D/3D visualization.
 
-The default solar samples use 09:00, 12:00, and 15:00 local time on the configured fixed date `2026-03-20` (March equinox), making runs reproducible. Set `solar_analysis_date` and `solar_analysis_time_range` to analyze another period. Shadow geometry is an analytical directional-prism approximation, not ray tracing.
+Production generation does NOT use neural networks or genetic algorithms. Historical experimental artifacts remain strictly isolated and labeled non-production.
 
-The current configurable well-to-septic separation is 50 ft. The default 5.5 m turning radius is a clearly recorded project configuration fallback, not a universal vehicle fact; vehicle-specific data should be supplied when known. Generic vegetation catalogue entries intentionally have null species measurements. Their configurable plan-view envelopes are rendering/planning envelopes, not verified botanical properties.
+## Coordinates, Orientation, and Evidence Standards
 
-## Versioned Exterior Rule Engine
+All planning geometry is converted to meters. `units` at the Master JSON root declares its source length unit; when absent, the project default is meters. Latitude and longitude must be supplied in the request or the Master JSON; ELIA never guesses a site location.
 
-ELIA implements 54 explicit, versioned exterior rules across 8 operational groups:
-- **Group A (A01–A08)**: Context and legal selection (immutable upstream geometry, unit validity, jurisdiction resolution).
-- **Group G (G01–G12)**: Ground planting and available space (geometric polygon union, mature crown clearances, tree preservation, utility buffers).
-- **Group B (B01–B10)**: Balcony planting (structural zone evidence, load verification, drainage runoff, guard routes).
-- **Group R (R01–R12)**: Rooftop planting and elevated trees (extensive vs accessible roofs, structural load schedules, advisory NParks edge distances).
-- **Group V (V01–V06)**: Vertical greenery (climber vs living wall distinctions, saturated anchorage weight, maintenance access).
-- **Group W (W01–W12)**: Sanitation, terrain, water and drainage (well/septic separation screening, common datum groundwater comparisons, gravity drainage feasibility).
-- **Group X (X01–X11)**: Access, parking, gates, furniture, lighting and solar (turning envelopes, gate opening widths, seating clear zones, PV shadow checks).
-- **Group C (C01–C10)**: User preferences, explanation, candidate locks and CAS persistence.
+ELIA consumes an existing constructed-house exterior footprint and land boundary; a buildable zone is not a substitute for the house footprint. The input adapter accepts `land_info.mathematical_polygon`, legacy boundary fields, and supported house-exterior fields from the floor-plan and structural layers. It maps `floor_plan.ground_floor.utilities.water_well` and `septic_tank` (`center`, `position`, or `x`/`y` coordinates). Polygon interior rings (holes) are strictly preserved.
 
-### Rule Classes and Outcomes
-- **Rule Classes**: `L` (Legal/planning candidate), `E` (Engineering/horticultural guidance), `P` (Planner/product policy), `D` (Data-quality/evidence gate).
-- **Rule Outcomes**: `pass`, `fail`, `unknown`, `not_applicable`, `review_required`. Applicability is evaluated strictly prior to compliance; unknown evidence never counts as a pass.
-- **5 Evaluation Categories**: Geometric Validity, Environmental Suitability, Legal Assessment, Elevated Installation, User Preference Satisfaction.
-- **Approval Lifecycle**: Hard physical/boundary violations block acceptance (`approval_status="blocked"`). Elevated or uncertified proposals without professional structural evidence remain viewable as conditional drafts (`approval_status="conditional_draft_review_required"`).
-- **Conditional Starter Plant Catalogue**: Version 2.1 catalogue includes research citations S1–S12 and verified attributes for *Portulaca grandiflora*, *Nephrolepis exaltata*, *Ixora ‘Sri Lanka’*, *Murraya paniculata*, *Bougainvillea glabra*, and *Lagerstroemia speciosa*. Universal plant clearances and financial metrics are excluded.
+North is inherited from the upstream Master JSON (`land_info.calculated_north_bearing` or `north_angle`). ELIA does not redetect north. The normalized angle is degrees clockwise from local `+Y` toward local `+X`; zero means local `+Y` is north. Conflicting angles or missing required orientation produce explicit validation errors.
 
-## API
+### Zero-Fabrication Solar & Elevated Geometry Contract
+- Roof surfaces must be authoritatively defined in Master JSON (`house.roof.surfaces` or `roof_faces`).
+- ELIA never invents missing roof elevation (no 6m default), missing pitch (no 20°/0° default), or missing azimuth (no 180° default).
+- Missing roof parameters produce an actionable `status="evidence_missing"` requirement, not proven infeasibility.
+- Structural certification requires verifiable professional evidence (`roof_allowance_kg_m2 >= 150` and an engineer license or report reference); bare booleans are rejected.
+- Uncertified solar proposals are presented as provisional geometric previews (`approval_status="provisional_review_required"`), keeping them distinct from accepted authoritative installations.
+- All placed module footprints are preserved with stable IDs, coordinates, dimensions (`width_m`, `length_m`), tilt, and azimuth.
 
-Project endpoints require the existing authenticated administrator role because this shared project model has no owner/permission field:
+## Versioned Exterior Rule Engine (v2.1 Registry)
 
-- `POST /api/projects/{project_id}/elia-engine/run`
-- `GET /api/projects/{project_id}/elia-engine/context`
-- `POST /api/projects/{project_id}/elia-engine/validate-input`
-- `GET /api/projects/{project_id}/elia-engine/result`
-- `GET /api/projects/{project_id}/elia-engine/solar/current`
+The registry defines **79 explicit, versioned exterior rules** across 5 evaluation categories:
+- **Geometric Validity (25 rules)**: Upstream boundary immutability, polygon containment, mature canopy clearances, tree preservation, utility setback buffers, and OBB collision envelopes.
+- **Elevated Installation (23 rules)**: Balcony/terrace load allowances, drainage runoff, guard routes, extensive vs accessible rooftop planting, and structural certification gates.
+- **Environmental Suitability (14 rules)**: Solar shadow analysis, wind exposure, soil moisture drainage, and species climate compatibility.
+- **Legal Assessment (9 rules)**: Setback regulations, boundary clearances, well/septic separation screening, and road access widths.
+- **User Preference Satisfaction (8 rules)**: Style concept satisfaction, plant inclusion/exclusion enforcement, lighting styles, and actionable remedy explanations.
 
-Reference endpoints provide rules, vehicle profiles, vegetation categories, and lighting rules under `/api/elia-engine/*`. `POST /api/elia-engine/preview` accepts a supplied `master_json`, returns a non-persisted enriched copy, and creates no project history. In a project run, a supplied Master JSON is not applied unless `apply_to_project` is true.
+### Rule Applicability and Evaluation Contract
+- **Not all rules evaluate for every request**: Rules are triggered strictly according to applicable target elements and project context. Elevated rules only evaluate when balconies/terraces/roofs are present; sanitation rules only evaluate when septic/well infrastructure is documented.
+- **Rule Outcomes**: `pass`, `fail`, `unknown`, `not_applicable`, `review_required`.
+- **Evidence Integrity**: Missing evidence remains `unknown` or `review_required`; unknown evidence NEVER counts as a pass.
+- **Enforcement Consequence**: Hard boundary and physical violations block acceptance (`approval_status="blocked"`). Uncertified elevated proposals remain provisional drafts (`approval_status="provisional_review_required"`).
 
-`generation_mode` defaults to `trained_model`. Until an inference adapter is installed, this returns HTTP 503 with `ELIA_MODEL_UNAVAILABLE`; ELIA never silently substitutes the procedural baseline. Set `generation_mode` to `baseline` to explicitly request the deterministic demo planner. Its output is labeled `baseline_demo`, is not a trained-model prediction, and does not claim structural-load or full swept-path vehicle feasibility.
+### Vegetation Catalogue v2.1
+The authoritative plant catalogue contains exactly **21 entries**:
+- **14 Verified Sri Lankan Species**: Documented with botanical research citations S1–S12, mature height, canopy radius, root depth, growth rate, and climate tolerance (*Portulaca grandiflora*, *Nephrolepis exaltata*, *Ixora ‘Sri Lanka’*, *Murraya paniculata*, *Bougainvillea glabra*, *Lagerstroemia speciosa*, etc.).
+- **7 Generic Placeholder Templates**: Clearly flagged with `is_generic=true` and null botanical measurements, used solely for geometric envelope planning without claiming verified botanical suitability.
 
-### Example with inherited north
+## API Specification
 
-```json
-{
-	"generation_mode": "baseline",
-	"master_json": {
-		"units": "m",
-		"location": {"latitude": 6.9, "longitude": 79.8},
-		"land_info": {
-			"mathematical_polygon": {
-				"type": "Polygon",
-				"coordinates": [[[0, 0], [30, 0], [30, 20], [0, 20], [0, 0]]]
-			},
-			"calculated_north_bearing": 18.5,
-			"road_facing": "south"
-		},
-		"house": {"exterior_polygon": [[10, 7], [18, 7], [18, 14], [10, 14]]},
-		"floor_plan": {"ground_floor": {"utilities": {
-			"water_well": {"center": {"x": 2, "y": 18}},
-			"septic_tank": {"position": {"x": 25, "y": 18}}
-		}}}
-	},
-	"requirements": {
-		"access": {"road_side": "south", "garage_required": false, "driveway_required": false}
-	}
-}
-```
+Supported Generation Modes:
+- `rules_planner` (Default / Production): Deterministic rule-based layout optimizer.
+- `baseline` (Alias for `rules_planner`).
+- Requests specifying unsupported neural modes return HTTP 400 with `UNSUPPORTED_GENERATION_MODE`.
 
-`POST /api/elia-engine/preview` returns the full non-persisted geometry; a shortened response shape is shown here:
-
-```json
-{
-	"generation_mode": "baseline",
-	"status": "completed",
-	"outcome": "valid",
-	"persisted": false,
-	"exterior_landscape": {
-		"generation_mode": "baseline_demo",
-		"environment": {
-			"north_angle": 18.5,
-			"north_orientation_convention": "degrees clockwise from local +Y toward local +X; 0 means local +Y is north"
-		},
-		"validation_summary": {"valid": true, "violations": []},
-		"structural_load_assessed": false
-	}
-}
-```
+Project Endpoints (Require authenticated administrator role):
+- `POST /api/projects/{project_id}/elia-engine/run` — Executes ELIA exterior planning and persists accepted candidate to Master JSON via compare-and-swap revision locking.
+- `GET /api/projects/{project_id}/elia-engine/context` — Fetches current project geometry, upstream revision, and existing exterior state.
+- `POST /api/projects/{project_id}/elia-engine/validate-input` — Pre-validates requirements and upstream geometry.
+- `GET /api/projects/{project_id}/elia-engine/result` — Retrieves latest accepted exterior landscape.
+- `GET /api/projects/{project_id}/elia-engine/solar/current` — Retrieves live Open-Meteo weather estimates and pvlib solar position.
+- `POST /api/elia-engine/preview` — Non-persisted preview generator for instant feedback.
 
 For model integration, implement `ModelAdapter.infer(prepared_input)` in `model_adapter.py` and register it at application startup with `configure_model_adapter`. The input has `schema_version`, meter-normalized land and house geometry (including holes), normalized requirements, and the inherited north angle. Output must include `schema_version`, `coordinate_reference`, `access`, `site_analysis`, `utility_safety`, `environment`, `metrics`, typed object IDs/positions or geometry, meter units, and exterior collections. ELIA independently validates geometry and requirements and replaces model `valid` flags. Configure the future connection with `ELIA_MODEL_ARTIFACT_PATH` or `ELIA_MODEL_SERVICE_URL`; these settings do not load artifacts or call a service yet.
 
@@ -103,6 +82,6 @@ The ELIA page searches Sri Lankan city/locality names through OpenStreetMap Nomi
 
 ## Persistence and tests
 
-Project runs use the existing MySQL `projects` and `component_runs` tables. A source snapshot and monotonically increasing project revision are recorded for each run. Compare-and-swap checks protect the processing transition and final update. `GET /api/projects/{project_id}/master-json` returns the unchanged JSON body with `ETag` and `X-Project-Revision` headers. Only a valid candidate replaces `exterior_landscape`; infeasible candidates and model/schema failures remain in run history while the accepted design is preserved. Processing metadata updates only `processing.elia_engine`. Applying a supplied project snapshot requires its current `source_revision`.
+Project runs use the existing PostgreSQL `projects` and `component_runs` tables. A source snapshot and monotonically increasing project revision are recorded for each run. Compare-and-swap checks protect the processing transition and final update. `GET /api/projects/{project_id}/master-json` returns the unchanged JSON body with `ETag` and `X-Project-Revision` headers. Only a valid candidate replaces `exterior_landscape`; infeasible candidates and model/schema failures remain in run history while the accepted design is preserved. Processing metadata updates only `processing.elia_engine`. Applying a supplied project snapshot requires its current `source_revision`.
 
-Install test tools from `backend` with `pip install -r requirements-dev.txt`, then run `python -m pytest tests`. Persistence regression tests use isolated SQLite data. The MySQL persistence integration test is opt-in and uses only `ELIA_TEST_MYSQL_URL`, which must point to a disposable MySQL test schema.
+Install test tools from `backend` with `pip install -r requirements-dev.txt`, then run `python -m pytest tests`. Persistence regression tests use isolated SQLite data. The PostgreSQL persistence integration test is opt-in and uses only `ELIA_TEST_POSTGRES_URL`, which must point to a disposable PostgreSQL test database.

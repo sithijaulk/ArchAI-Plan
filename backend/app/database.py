@@ -1,25 +1,24 @@
+import logging
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 from .config import settings
 
-db_url = settings.database_url or ""
+logger = logging.getLogger(__name__)
 
-if db_url.startswith("sqlite"):
-    engine = create_engine(
-        db_url,
-        echo=False,
-        connect_args={"check_same_thread": False},
-    )
-elif db_url.startswith("postgresql://") or db_url.startswith("postgresql+"):
-    engine = create_engine(db_url, echo=False, pool_pre_ping=True)
-elif db_url.startswith("postgres://"):
-    engine = create_engine(db_url, echo=False, pool_pre_ping=True)
-elif db_url.startswith("mysql"):
-    engine = create_engine(db_url, echo=False, pool_pre_ping=True)
-else:
+# Validate PostgreSQL connection string
+if not (settings.database_url.startswith("postgresql://") or settings.database_url.startswith("postgresql+")):
     raise RuntimeError("DATABASE_URL must use PostgreSQL (e.g. postgresql+psycopg2://...)")
 
+
+engine = create_engine(
+    settings.database_url,
+    echo=False,
+    pool_pre_ping=True,
+    pool_size=10,
+    max_overflow=20,
+    connect_args={"connect_timeout": 3},
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
