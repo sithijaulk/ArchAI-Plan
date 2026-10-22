@@ -18,6 +18,7 @@ requests
 python-dotenv
 pillow
 scipy
+scikit-image
 shapely
 networkx
 numpy
