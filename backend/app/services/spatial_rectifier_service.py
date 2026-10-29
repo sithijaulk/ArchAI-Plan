@@ -73,7 +73,15 @@ def _classify_room_function(room: Dict[str, Any]) -> str:
     return str(room.get("type") or "room").lower()
 
 
-def _calculate_polygon_centroid(polygon: List[List[float]]) -> Tuple[float, float]:
+def _extract_pt(pt: Any) -> Tuple[float, float]:
+    if isinstance(pt, dict):
+        return float(pt.get("x", 0.0)), float(pt.get("y", 0.0))
+    elif isinstance(pt, (list, tuple)) and len(pt) >= 2:
+        return float(pt[0]), float(pt[1])
+    return 0.0, 0.0
+
+
+def _calculate_polygon_centroid(polygon: List[Any]) -> Tuple[float, float]:
     """Computes the arithmetic centroid (center of mass) of a 2D polygon."""
     if not polygon:
         return 0.0, 0.0
@@ -81,9 +89,13 @@ def _calculate_polygon_centroid(polygon: List[List[float]]) -> Tuple[float, floa
     n = len(pts)
     if n == 0:
         return 0.0, 0.0
-    cx = sum(p[0] for p in pts) / n
-    cy = sum(p[1] for p in pts) / n
-    return cx, cy
+    sum_x = 0.0
+    sum_y = 0.0
+    for p in pts:
+        px, py = _extract_pt(p)
+        sum_x += px
+        sum_y += py
+    return sum_x / n, sum_y / n
 
 
 def _get_bounding_box(rooms: List[Dict[str, Any]]) -> Tuple[float, float, float, float]:
@@ -93,8 +105,9 @@ def _get_bounding_box(rooms: List[Dict[str, Any]]) -> Tuple[float, float, float,
     for r in rooms:
         poly = r.get("polygon") or []
         for p in poly:
-            all_x.append(float(p[0]))
-            all_y.append(float(p[1]))
+            px, py = _extract_pt(p)
+            all_x.append(px)
+            all_y.append(py)
     if not all_x or not all_y:
         return 0.0, 60.0, 0.0, 60.0
     return min(all_x), max(all_x), min(all_y), max(all_y)
@@ -167,7 +180,20 @@ def run_spatial_rectification(
     baseline_analysis = evaluate_vastu_shastra(source_json)
     baseline_score = int(baseline_analysis.get("score") or 0)
     baseline_defects = baseline_analysis.get("defects") or []
+    # Extract baseline rooms from floor_plan.rooms or from floor_plan.floors
     baseline_rooms = copy.deepcopy(floor_plan.get("rooms") or [])
+    if not baseline_rooms and isinstance(floor_plan.get("floors"), list):
+        for fl in floor_plan["floors"]:
+            if isinstance(fl, dict):
+                for rm in fl.get("rooms", []):
+                    rm_copy = dict(rm)
+                    if "id" not in rm_copy and "room_id" in rm_copy:
+                        rm_copy["id"] = rm_copy["room_id"]
+                    baseline_rooms.append(rm_copy)
+    else:
+        for rm in baseline_rooms:
+            if "id" not in rm and "room_id" in rm:
+                rm["id"] = rm["room_id"]
 
     if not baseline_rooms:
         return {
@@ -328,6 +354,22 @@ def run_spatial_rectification(
         },
     }
 
+    # If original floor_plan had floors, update rooms in floor 0 or matching floor_id
+    if isinstance(floor_plan.get("floors"), list):
+        rectified_floors = copy.deepcopy(floor_plan["floors"])
+        room_by_id = {r["id"]: r for r in rectified_rooms}
+        for fl in rectified_floors:
+            if isinstance(fl, dict) and "rooms" in fl:
+                updated_fl_rooms = []
+                for orig_r in fl["rooms"]:
+                    oid = orig_r.get("id") or orig_r.get("room_id")
+                    if oid in room_by_id:
+                        updated_fl_rooms.append(room_by_id[oid])
+                    else:
+                        updated_fl_rooms.append(orig_r)
+                fl["rooms"] = updated_fl_rooms
+        rectified_floor_plan["floors"] = rectified_floors
+
     # Step 4: Re-evaluate Vastu compliance on the newly rectified plan
     candidate_master_json = copy.deepcopy(source_json)
     candidate_master_json["floor_plan"] = rectified_floor_plan
@@ -358,6 +400,7 @@ def run_spatial_rectification(
     updated_master_json = merge_master_json(
         source_json,
         {
+            "floor_plan": rectified_floor_plan,
             "structural_rectification": rectification_summary,
             "processing": {"vsai_rectifier": {"status": "completed"}},
         },

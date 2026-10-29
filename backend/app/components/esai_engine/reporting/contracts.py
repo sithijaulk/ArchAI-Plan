@@ -149,16 +149,16 @@ class ValidationReportItemDTO(BaseModel):
 
 class OptimizationSummaryDTO(BaseModel):
     algorithm_name: str = "PyGAD Genetic Spatial Optimizer"
-    generations: int
-    population_size: int
-    seed: int
-    fitness_score: float
-    hard_constraints_passed: bool
-    overlap_area_sqm: float
-    out_of_bounds_area_sqm: float
-    door_violations: int
-    window_violations: int
-    ergonomic_score: float
+    generations: Optional[int] = 50
+    population_size: Optional[int] = 100
+    seed: Optional[int] = 42
+    fitness_score: float = 0.0
+    hard_constraints_passed: bool = True
+    overlap_area_sqm: float = 0.0
+    out_of_bounds_area_sqm: float = 0.0
+    door_violations: int = 0
+    window_violations: int = 0
+    ergonomic_score: float = 1.0
     runtime_seconds: Optional[float] = None
 
 

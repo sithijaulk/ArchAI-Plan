@@ -56,7 +56,12 @@ class EasyOCRSurveyExtractionProvider(SurveyExtractionProvider):
         annotations = SurveyOcrExtractor.parse_annotations(ocr_boxes)
 
         # 4. Measurement Association
-        edges = associate_measurements_to_edges(preprocessed.get("lines", []), annotations)
+        target_area_sqm = context.get("target_area_sqm")
+        edges = associate_measurements_to_edges(
+            preprocessed.get("lines", []),
+            annotations,
+            target_area_sqm=target_area_sqm
+        )
 
         # 5. Orientation, Road front, and Scale inference
         inferred = infer_orientation_and_road(

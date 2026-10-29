@@ -428,6 +428,11 @@ export function serializeRequirements(form: Partial<EliaFormState>): ELIARequire
     if (parsedVeh.valid && parsedVeh.value !== undefined) {
       req.access!.vehicle_count = parsedVeh.value;
     }
+    if (form.vehicleType) {
+      req.access!.vehicle_profiles = [{ vehicle_type: form.vehicleType }];
+    } else {
+      req.access!.vehicle_profiles = [{ vehicle_type: 'car' }];
+    }
     if (form.garageRequired) {
       const parsedCap = parseStrictInteger(form.garageCapacity, 'Garage capacity');
       if (parsedCap.valid && parsedCap.value !== undefined) {
@@ -566,6 +571,8 @@ export function serializeRequirements(form: Partial<EliaFormState>): ELIARequire
   }
   if (form.preferredPlantIds && form.preferredPlantIds.length > 0) {
     req.preferred_plant_ids = form.preferredPlantIds;
+    if (!req.landscape) req.landscape = {};
+    req.landscape.preferred_plant_ids = form.preferredPlantIds;
   }
   if (form.plantIdsToAvoid && form.plantIdsToAvoid.length > 0) {
     req.plant_ids_to_avoid = form.plantIdsToAvoid;
@@ -613,6 +620,9 @@ export function deserializeRequirements(req: Partial<ELIARequirements>): Partial
   if (acc.garage_required !== undefined) form.garageRequired = Boolean(acc.garage_required);
   if (acc.garage_capacity !== undefined) form.garageCapacity = acc.garage_capacity;
   if (acc.vehicle_count !== undefined) form.vehicleCount = acc.vehicle_count;
+  if (acc.vehicle_profiles && acc.vehicle_profiles.length > 0 && acc.vehicle_profiles[0]?.vehicle_type) {
+    form.vehicleType = acc.vehicle_profiles[0].vehicle_type;
+  }
   if (acc.turning_space_required !== undefined) form.turningSpaceRequired = Boolean(acc.turning_space_required);
 
   // Group C: Driveway, Walkways, Gate

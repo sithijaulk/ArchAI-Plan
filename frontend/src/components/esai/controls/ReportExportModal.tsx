@@ -38,7 +38,7 @@ export const ReportExportModal: React.FC<ReportExportModalProps> = ({
   captureCurrent3DView,
 }) => {
   const [scope, setScope] = useState<ReportScope>('building');
-  const [mode, setMode] = useState<ReportMode>('final');
+  const [mode, setMode] = useState<ReportMode>('draft');
   const [targetFloorId, setTargetFloorId] = useState<string>(selectedFloorId || (floors[0]?.floor_id || ''));
   const [targetRoomId, setTargetRoomId] = useState<string>(selectedRoomId || '');
   const [include2D, setInclude2D] = useState<boolean>(true);
@@ -154,14 +154,20 @@ export const ReportExportModal: React.FC<ReportExportModalProps> = ({
       setSuccessMessage('Professional Interior Design PDF report generated and downloaded successfully!');
     } catch (err: any) {
       console.error('PDF Export failed:', err);
-      const detail = err.response?.data?.detail;
-      if (typeof detail === 'object' && detail.message) {
-        setErrorMessage(detail.message);
-      } else if (typeof detail === 'string') {
-        setErrorMessage(detail);
-      } else {
-        setErrorMessage('Failed to generate PDF report. Please verify project design status.');
+      let message = 'Failed to generate PDF report. Please verify project design status.';
+      try {
+        if (err.response?.data instanceof Blob) {
+          const text = await err.response.data.text();
+          const parsed = JSON.parse(text);
+          message = parsed.detail?.message || (typeof parsed.detail === 'string' ? parsed.detail : message);
+        } else if (err.response?.data?.detail) {
+          const detail = err.response.data.detail;
+          message = typeof detail === 'object' ? detail.message || JSON.stringify(detail) : detail;
+        }
+      } catch (e) {
+        // fallback to default message
       }
+      setErrorMessage(message);
     } finally {
       setLoading(false);
     }
@@ -489,14 +495,7 @@ export const ReportExportModal: React.FC<ReportExportModalProps> = ({
 
         {/* Footer Actions */}
         <div className="flex items-center justify-between px-6 py-3.5 border-t border-slate-800 bg-slate-950/80">
-          <button
-            onClick={handleExportJson}
-            disabled={loading}
-            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg border border-slate-700 font-medium transition disabled:opacity-50 text-xs"
-            title="Download portable ESAI JSON without altering Centralized Master JSON"
-          >
-            Export JSON
-          </button>
+          <div></div>
 
           <div className="flex items-center gap-2">
             <button

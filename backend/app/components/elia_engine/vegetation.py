@@ -61,7 +61,7 @@ def _score_plant_entry(
     if veg_id in accepted_alternative_ids:
         score += 10.0
     elif veg_id in preferred_ids:
-        score += 5.0
+        score += 50.0
 
     # Sunlight match - only score if sunlight evidence is available
     if sun_score is not None:
@@ -149,7 +149,7 @@ def place_vegetation(
         maint_pref = "low"
     climate_zone = requirements.get("climate_zone") or landscape.get("climate_zone")
 
-    preferred_ids = set(landscape.get("preferred_plant_ids", []))
+    preferred_ids = set(landscape.get("preferred_plant_ids", []) or requirements.get("preferred_plant_ids", []))
     avoided_ids = set(landscape.get("plant_ids_to_avoid", []))
     avoided_categories = set(landscape.get("vegetation_to_avoid", []))
 
@@ -275,12 +275,14 @@ def place_vegetation(
     # Remaining slots to fulfill (only if eligible plants exist)
     remaining_count = max(0, target_count - len(nodes)) if available_catalog else 0
     preferred_categories = landscape.get("preferred_vegetation_categories") or (
-        ["shade_tree"] if landscape.get("shade_tree_preference") else ["shrub", "ground_cover", "small_tree"]
+        ["shade_tree", "small_tree", "palm_tree", "flowering_tree", "shrub"] if (landscape.get("trees_required") or landscape.get("shade_tree_preference")) else ["shrub", "ground_cover", "small_tree"]
     )
 
     for index in range(remaining_count):
         preferred_cat = preferred_categories[index % len(preferred_categories)]
-        matching_entries = [e for e in available_catalog if e.get("category") == preferred_cat]
+        pref_matches = [e for e in available_catalog if e.get("vegetation_id") in preferred_ids]
+        cat_matches = [e for e in available_catalog if e.get("category") == preferred_cat]
+        matching_entries = pref_matches + [e for e in cat_matches if e not in pref_matches]
         if not matching_entries:
             matching_entries = available_catalog
 
@@ -356,6 +358,7 @@ def place_vegetation(
             "plant_id": best_entry.get("vegetation_id"),
             "display_name": best_entry.get("display_name"),
             "scientific_name": best_entry.get("scientific_name"),
+            "is_preferred": best_entry.get("vegetation_id") in preferred_ids,
             "position": [round(best_candidate.x, 3), round(best_candidate.y, 3)],
             "height_m": height,
             "canopy_radius_m": radius,

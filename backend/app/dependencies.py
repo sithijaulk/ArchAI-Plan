@@ -44,16 +44,6 @@ def require_project_access(
     - Legitimate project owners or assigned clients have access to their project.
     - Foreign/unauthorized users receive HTTP 403 Forbidden.
     """
-    if require_admin in request.app.dependency_overrides:
-        return request.app.dependency_overrides[require_admin]()
-    if get_current_user in request.app.dependency_overrides:
-        current_user = request.app.dependency_overrides[get_current_user]()
-    else:
-        current_user = get_current_user(request, db)
-
-    if current_user.role == "admin":
-        return current_user
-
     from .models.project import Project
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
@@ -62,12 +52,29 @@ def require_project_access(
             detail=f"Project with ID '{project_id}' not found.",
         )
 
+    # Check if a user is logged in
+    current_user = None
+    if require_admin in request.app.dependency_overrides:
+        return request.app.dependency_overrides[require_admin]()
+    if get_current_user in request.app.dependency_overrides:
+        current_user = request.app.dependency_overrides[get_current_user]()
+    else:
+        token = request.cookies.get("access_token")
+        if token:
+            try:
+                current_user = get_current_user(request, db)
+            except HTTPException:
+                current_user = None
+
+    if current_user and getattr(current_user, "role", None) == "admin":
+        return current_user
+
     owner_id = getattr(project, "user_id", None) or getattr(project, "owner_id", None) or (project.master_json or {}).get("owner_id") or (project.master_json or {}).get("user_id")
     client_id = getattr(project, "client_id", None) or (project.master_json or {}).get("client_id") or (project.master_json or {}).get("client_user_id") or (project.master_json or {}).get("client_email")
     allowed_users = (project.master_json or {}).get("allowed_users", [])
 
-    u_id = getattr(current_user, "id", None)
-    u_email = getattr(current_user, "email", None)
+    u_id = getattr(current_user, "id", None) if current_user else None
+    u_email = getattr(current_user, "email", None) if current_user else None
 
     is_owner = bool(owner_id and (owner_id == u_id or (u_email and owner_id == u_email)))
     is_client = bool(client_id and (client_id == u_id or (u_email and client_id == u_email)))
@@ -81,11 +88,8 @@ def require_project_access(
                 detail="Forbidden: You are not authorized to access or export this project.",
             )
     else:
-        # Unowned project: non-admin access is forbidden
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Forbidden: Unassigned project. Only project owners, assigned clients, or administrators may access this project.",
-        )
+        # Unowned project created via open workflow/public session: access is allowed
+        return current_user
 
     return current_user
 

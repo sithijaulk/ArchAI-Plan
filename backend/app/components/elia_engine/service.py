@@ -307,6 +307,10 @@ def run_elia(
         output["run_id"] = run_id
         return output, "infeasible"
 
+    veh_count = int(requirements["access"].get("vehicle_count") or 1)
+    if int(requirements["access"].get("garage_capacity") or 1) < veh_count:
+        requirements["access"]["garage_capacity"] = veh_count
+
     garage_obstacles = unary_union([context.house, utility_obstacles]) if not utility_obstacles.is_empty else context.house
     garage = plan_garage(context.land, residual, gate, master_json, requirements["access"], context.unit_scale,
                          garage_obstacles, drive_width / 2 + clearance + 0.1)
@@ -315,13 +319,6 @@ def run_elia(
     turning: dict[str, Any] | None = None
     explored = 0
     path_metadata: dict[str, Any] | None = None
-    if requirements["access"].get("garage_required") and int(requirements["access"].get("garage_capacity", 1)) < int(requirements["access"].get("vehicle_count", 1)):
-        violations = ["garage_capacity"]
-        output = _empty_result(context, requirements, utilities, solar_samples, shadows, violations,
-                               "Requested garage capacity is lower than the vehicle count.", started)
-        output["access"]["gate"] = gate
-        output["run_id"] = run_id
-        return output, "infeasible"
     if (master_json.get("garage") or master_json.get("existing_garage")) and garage is None:
         violations = ["fixed_garage_geometry"]
         output = _empty_result(context, requirements, utilities, solar_samples, shadows, violations,

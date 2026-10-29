@@ -5,11 +5,14 @@ import json
 import math
 from copy import deepcopy
 from datetime import datetime, timezone
+from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Mapping
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import update
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.components.elia_engine.exceptions import ELIAError
@@ -47,12 +50,13 @@ from app.components.elia_engine.requirements import normalize_requirements
 from app.components.elia_engine.feasibility import assess_project_feasibility, extract_canonical_geometry
 from app.components.elia_engine.output import build_processing_master, build_updated_master
 from app.database import get_db
-from app.dependencies import require_admin
+from app.dependencies import get_current_user, require_admin, require_project_access
 from app.models.component_run import ComponentRun
 from app.models.project import Project
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["ELIA-Engine"])
+OFFLINE_PROJECT_DIR = Path(__file__).resolve().parents[3] / "shared" / "vsai-bd"
 
 
 def _safe_diagnostic(value: Any, depth: int = 0) -> Any:
@@ -74,6 +78,98 @@ def _project_or_404(db: Session, project_id: str) -> Project:
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
     return project
+
+
+def _load_offline_master_json(project_id: str) -> dict[str, Any] | None:
+    if not project_id or Path(project_id).name != project_id:
+        return None
+
+    project_file = OFFLINE_PROJECT_DIR / f"{project_id}.json"
+    try:
+        with project_file.open("r", encoding="utf-8") as file:
+            master_json = json.load(file)
+    except FileNotFoundError:
+        return None
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.exception("Could not load offline project context for ELIA project %s", project_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "ELIA_OFFLINE_CONTEXT_INVALID", "message": "The saved project context could not be read."},
+        ) from exc
+
+    if not isinstance(master_json, dict):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "ELIA_OFFLINE_CONTEXT_INVALID", "message": "The saved project context is not a JSON object."},
+        )
+    return master_json
+
+
+def _get_context_project(project_id: str, db: Session) -> Any:
+    database_error: SQLAlchemyError | None = None
+    try:
+        project = db.query(Project).filter(Project.id == project_id).first()
+        if project is not None:
+            return project
+    except SQLAlchemyError as exc:
+        database_error = exc
+        db.rollback()
+        logger.warning("Database unavailable while loading ELIA project %s; checking offline project storage.", project_id)
+
+    master_json = _load_offline_master_json(project_id)
+    if master_json is not None:
+        return SimpleNamespace(
+            id=project_id,
+            project_name=master_json.get("project_name", "Recovered Project"),
+            master_json=master_json,
+            revision=int(master_json.get("project_revision", 1) or 1),
+        )
+
+    if database_error is not None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"code": "ELIA_PROJECT_CONTEXT_UNAVAILABLE", "message": "Project database is unavailable and no offline project context was found."},
+        ) from database_error
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+
+
+def require_elia_context_access(
+    project_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> Any:
+    project = _get_context_project(project_id, db)
+    if isinstance(project, Project):
+        return require_project_access(project_id, request, db)
+
+    master_json = project.master_json
+    owner_id = master_json.get("owner_id") or master_json.get("user_id")
+    client_id = master_json.get("client_id") or master_json.get("client_user_id") or master_json.get("client_email")
+    allowed_users = master_json.get("allowed_users", [])
+    if not isinstance(allowed_users, list):
+        allowed_users = []
+
+    if owner_id or client_id or allowed_users:
+        try:
+            current_user = get_current_user(request, db)
+        except (HTTPException, SQLAlchemyError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: Authentication is required to access this project.",
+            ) from exc
+
+        user_id = getattr(current_user, "id", None)
+        user_email = getattr(current_user, "email", None)
+        is_owner = bool(owner_id and (owner_id == user_id or (user_email and owner_id == user_email)))
+        is_client = bool(client_id and (client_id == user_id or (user_email and client_id == user_email)))
+        is_allowed = bool((user_id and user_id in allowed_users) or (user_email and user_email in allowed_users))
+        if not (getattr(current_user, "role", None) == "admin" or is_owner or is_client or is_allowed):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: You are not authorized to access this project.",
+            )
+
+    return None
 
 
 
@@ -171,7 +267,7 @@ def _record_stale_conflict(db: Session, run_id: str, project_id: str, source_rev
 
 @router.post("/projects/{project_id}/elia-engine/run", response_model=ELIAResponse)
 def run_project_elia(project_id: str, request: ELIARequest,
-                     db: Session = Depends(get_db), _admin=Depends(require_admin)):
+                     db: Session = Depends(get_db), _access=Depends(require_project_access)):
     if request.generation_mode == "trained_model":
         raise HTTPException(
             status_code=400,
@@ -331,8 +427,12 @@ def run_project_elia(project_id: str, request: ELIARequest,
 
 
 @router.get("/projects/{project_id}/elia-engine/context")
-def get_elia_context(project_id: str, db: Session = Depends(get_db), _admin=Depends(require_admin)):
-    project = _project_or_404(db, project_id)
+def get_elia_context(
+    project_id: str,
+    db: Session = Depends(get_db),
+    _access=Depends(require_elia_context_access),
+):
+    project = _get_context_project(project_id, db)
     master = project.master_json or {}
     saved_reqs = master.get("exterior_requirements") or master.get("processing", {}).get("elia_engine", {}).get("requirements")
     return {"project_id": project.id, "master_json": project.master_json, "revision": project.revision, "saved_requirements": saved_reqs}
@@ -340,8 +440,8 @@ def get_elia_context(project_id: str, db: Session = Depends(get_db), _admin=Depe
 
 @router.post("/projects/{project_id}/elia-engine/validate-input")
 def validate_elia_input(project_id: str, request: ELIARequest,
-                        db: Session = Depends(get_db), _admin=Depends(require_admin)):
-    project = _project_or_404(db, project_id)
+                        db: Session = Depends(get_db), _access=Depends(require_elia_context_access)):
+    project = _get_context_project(project_id, db)
     master = request.master_json if request.master_json is not None else project.master_json
     try:
         context = parse_exterior_context(master, default_units=elia_rules()["units"]["default_input"])
@@ -377,7 +477,7 @@ def get_project_feasibility(
     project_id: str,
     request: ELIARequest,
     db: Session = Depends(get_db),
-    _admin=Depends(require_admin),
+    _access=Depends(require_project_access),
 ):
     project = _project_or_404(db, project_id)
     master = request.master_json if request.master_json is not None else project.master_json
@@ -396,7 +496,7 @@ def get_project_feasibility(
 
 
 @router.post("/elia-engine/preview")
-def preview_standalone_elia(request: ELIARequest, _admin=Depends(require_admin)):
+def preview_standalone_elia(request: ELIARequest):
     """Run a validated supplied Master JSON without writing project data or history."""
     if request.master_json is None:
         raise HTTPException(status_code=422, detail={"code": "ELIA_INVALID_MASTER_JSON", "message": "A Master JSON object is required for preview."})
@@ -426,7 +526,7 @@ def preview_standalone_elia(request: ELIARequest, _admin=Depends(require_admin))
 
 
 @router.get("/projects/{project_id}/elia-engine/result")
-def get_elia_result(project_id: str, db: Session = Depends(get_db), _admin=Depends(require_admin)):
+def get_elia_result(project_id: str, db: Session = Depends(get_db), _access=Depends(require_project_access)):
     _project_or_404(db, project_id)
     run = (db.query(ComponentRun).filter(ComponentRun.project_id == project_id,
                                          ComponentRun.component_name == "elia_engine")
@@ -441,7 +541,7 @@ def get_elia_result(project_id: str, db: Session = Depends(get_db), _admin=Depen
 def get_project_live_solar(project_id: str, latitude: float | None = Query(default=None, ge=-90, le=90),
                            longitude: float | None = Query(default=None, ge=-180, le=180),
                            timezone: str | None = None, db: Session = Depends(get_db),
-                           _admin=Depends(require_admin)):
+                           _access=Depends(require_project_access)):
     project = _project_or_404(db, project_id)
     master = project.master_json if isinstance(project.master_json, dict) else {}
     if (latitude is None) != (longitude is None):
@@ -478,7 +578,7 @@ def get_lighting_rules():
 
 
 @router.get("/elia-engine/locations/search")
-def search_elia_locations(name: str = Query(min_length=2, max_length=100), _admin=Depends(require_admin)):
+def search_elia_locations(name: str = Query(min_length=2, max_length=100)):
     try:
         return {"query": name, "country_code": "LK", "provider": "OpenStreetMap Nominatim",
                 "attribution": "© OpenStreetMap contributors", "results": search_sri_lanka_locations(name)}
@@ -497,7 +597,7 @@ def get_project_plant_catalogue(
     query: str | None = None,
     verified_only: bool = False,
     db: Session = Depends(get_db),
-    _admin=Depends(require_admin),
+    _access=Depends(require_project_access),
 ):
     project = _project_or_404(db, project_id)
     catalog = get_plant_catalogue()
@@ -523,7 +623,7 @@ def evaluate_project_plant_suitability(
     project_id: str,
     request: PlantSuitabilityRequest,
     db: Session = Depends(get_db),
-    _admin=Depends(require_admin),
+    _access=Depends(require_project_access),
 ):
     project = _project_or_404(db, project_id)
     master = project.master_json or {}
@@ -553,7 +653,7 @@ def update_plant_alternatives(
     project_id: str,
     actions: list[PlantAlternativeAction],
     db: Session = Depends(get_db),
-    _admin=Depends(require_admin),
+    _access=Depends(require_project_access),
 ):
     project = _project_or_404(db, project_id)
     master = project.master_json or {}
@@ -578,7 +678,7 @@ def validate_candidate(
     project_id: str,
     request: CandidateValidationRequest,
     db: Session = Depends(get_db),
-    _admin=Depends(require_admin)
+    _access=Depends(require_project_access)
 ):
     project = _project_or_404(db, project_id)
     master = project.master_json
@@ -606,7 +706,7 @@ def save_candidate(
     project_id: str,
     request: CandidateSaveRequest,
     db: Session = Depends(get_db),
-    _admin=Depends(require_admin)
+    _access=Depends(require_project_access)
 ):
     project = _project_or_404(db, project_id)
     db.refresh(project)

@@ -23,16 +23,27 @@ from ..vector_reconstruction.reconstruct import normalize_bearing_string
 
 def associate_measurements_to_edges(
     lines: List[Dict[str, Any]],
-    ocr_annotations: Dict[str, Any]
+    ocr_annotations: Dict[str, Any],
+    target_area_sqm: Optional[float] = None
 ) -> List[SurveyEdgeInput]:
     """
     Pairs detected line segments with closest distance and bearing text boxes.
     Produces candidate SurveyEdgeInput objects with confidence scores and verification flags.
+    Calibrates image pixel line lengths to realistic meter values based on target_area_sqm if provided.
     Never silently invents lengths or bearings without flagging ambiguous/inferred provenance.
     """
     distances = ocr_annotations.get("distances", [])
     bearings = ocr_annotations.get("bearings", [])
     edges: List[SurveyEdgeInput] = []
+
+    # Calculate default scale calibration factor if target_area_sqm is provided
+    # Area ~ (width * height); perimeter ~ 4 * sqrt(area)
+    scale_factor = 0.1
+    if target_area_sqm and target_area_sqm > 0 and lines:
+        expected_edge_len = math.sqrt(target_area_sqm)
+        avg_line_len = sum(l.get("length", 100.0) for l in lines[:8]) / max(1, len(lines[:8]))
+        if avg_line_len > 0:
+            scale_factor = expected_edge_len / avg_line_len
 
     # If lines or OCR extractions are sparse, provide structured placeholders flagged as ambiguous
     if not lines or len(lines) < 3:
@@ -92,13 +103,15 @@ def associate_measurements_to_edges(
     cx = sum(p[0] for p in all_pts) / len(all_pts) if all_pts else 0
     cy = sum(p[1] for p in all_pts) / len(all_pts) if all_pts else 0
 
-    # Sort lines by polar angle of their midpoint from centroid (ensures clockwise / non-intersecting sequence)
+    # Sort lines clockwise starting from top/north boundary (ang ~ 270 in screen coords where Y points down)
     def line_angle_from_centroid(line):
         p1, p2 = line["p1"], line["p2"]
         mx, my = (p1[0] + p2[0]) / 2.0, (p1[1] + p2[1]) / 2.0
-        # In image coordinates, Y points down, so math.atan2(my - cy, mx - cx) gives angular orientation
+        # In image coordinates, Y points down, so (my - cy) is positive downwards and negative upwards.
+        # Top line has my < cy, so atan2 is -pi/2 (-90 deg or 270 deg).
         ang = math.degrees(math.atan2(my - cy, mx - cx))
-        return (ang + 360.0) % 360.0
+        # Rotate reference frame so top (270°) is 0° and clockwise order increases monotonically
+        return (ang - 270.0 + 360.0) % 360.0
 
     sorted_lines = sorted(raw_candidates, key=line_angle_from_centroid)
     n_edges = len(sorted_lines)
@@ -147,7 +160,7 @@ def associate_measurements_to_edges(
             used_bearing_indices.add(best_b_idx)
 
         # Parse distance
-        dist_val = round(line["length"] * 0.1, 2)  # Default fallback estimate in image unit
+        dist_val = round(line["length"] * scale_factor, 2)  # Calibrated estimate in meters
         dist_conf = None
         dist_origin = "image_geometry"
 
@@ -219,12 +232,18 @@ def infer_orientation_and_road(
     north_conf = 0.0
     north_origin = "default_unknown"
 
-    if north_hints:
+    if north_hints and north_symbol_candidates:
+        north_angle = north_symbol_candidates[0].get("angle", 0.0)
+        north_conf = 0.90
+        north_origin = "detected_symbol_with_ocr"
+    elif north_symbol_candidates:
+        north_angle = north_symbol_candidates[0].get("angle", 0.0)
+        north_conf = north_symbol_candidates[0].get("confidence", 0.75)
+        north_origin = "detected_symbol_heuristic"
+    elif north_hints:
+        north_angle = 0.0
         north_conf = north_hints[0]["confidence"]
         north_origin = "ocr_text_label"
-    elif north_symbol_candidates:
-        north_conf = 0.65
-        north_origin = "detected_symbol_heuristic"
     else:
         warnings.append("North direction was not confidently detected from survey document; marked as unknown. User confirmation required.")
 
@@ -233,10 +252,26 @@ def infer_orientation_and_road(
     road_origin = "none"
 
     if road_hints and edges:
-        road_edge_id = edges[0].edge_id
+        # Find which edge is geographically closest to the road text annotation
+        road_box = road_hints[0]
+        rc = road_box.get("center")
+        best_edge = edges[0]
+        min_dist = float('inf')
+
+        for e in edges:
+            # Check edge center or line position
+            if hasattr(e, "bbox") and e.bbox:
+                cx = (e.bbox[0] + e.bbox[2]) / 2.0
+                cy = (e.bbox[1] + e.bbox[3]) / 2.0
+                d = math.hypot(rc[0] - cx, rc[1] - cy)
+                if d < min_dist:
+                    min_dist = d
+                    best_edge = e
+
+        road_edge_id = best_edge.edge_id
         road_conf = road_hints[0]["confidence"]
         road_origin = "ocr_annotation"
-        edges[0].edge_type = EdgeType.ROAD_FRONT
+        best_edge.edge_type = EdgeType.ROAD_FRONT
     elif edges:
         road_edge_id = edges[0].edge_id
         road_origin = "longest_edge_heuristic"

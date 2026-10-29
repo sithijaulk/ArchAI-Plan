@@ -57,6 +57,7 @@ export const InteriorViewer: React.FC<InteriorViewerProps> = ({
 
   const [layers, setLayers] = useState<LayerVisibilityState>(DEFAULT_LAYERS);
   const [isolateFloor, setIsolateFloor] = useState(false);
+  const [isRoomIsolated, setIsRoomIsolated] = useState(false);
   const [explodedView, setExplodedView] = useState(false);
 
   // Selection state
@@ -183,6 +184,12 @@ export const InteriorViewer: React.FC<InteriorViewerProps> = ({
       selectedAsset: null,
       selectedFixture: null,
     }));
+    setIsRoomIsolated(false);
+    if (floorId) {
+      setIsolateFloor(true);
+    } else {
+      setIsolateFloor(false);
+    }
   };
 
   const handleSelectRoom = (roomId: string | null) => {
@@ -192,6 +199,25 @@ export const InteriorViewer: React.FC<InteriorViewerProps> = ({
       selectedAsset: null,
       selectedFixture: null,
     }));
+    if (roomId) {
+      setIsRoomIsolated(true);
+      setCameraMode('room_focus');
+    } else {
+      setIsRoomIsolated(false);
+      setCameraMode('perspective');
+    }
+  };
+
+  const handleToggleIsolateRoom = () => {
+    setIsRoomIsolated((prev) => {
+      const next = !prev;
+      if (next && selection.selectedRoomId) {
+        setCameraMode('room_focus');
+      } else if (!next) {
+        setCameraMode('perspective');
+      }
+      return next;
+    });
   };
 
   const handleSelectAsset = (asset: PlacedAssetPersistedDTO) => {
@@ -228,6 +254,8 @@ export const InteriorViewer: React.FC<InteriorViewerProps> = ({
           onSelectFloor={handleSelectFloor}
           selectedRoomId={selection.selectedRoomId}
           onSelectRoom={handleSelectRoom}
+          isRoomIsolated={isRoomIsolated}
+          onToggleIsolateRoom={handleToggleIsolateRoom}
           viewMode={viewMode}
           onChangeViewMode={setViewMode}
           cameraMode={cameraMode}
@@ -333,7 +361,7 @@ export const InteriorViewer: React.FC<InteriorViewerProps> = ({
                     onSelectFixture={handleSelectFixture}
                     layers={layers}
                     isolateFloor={isolateFloor}
-                    isolateRoom={cameraMode === 'room_focus'}
+                    isolateRoom={isRoomIsolated || cameraMode === 'room_focus'}
                     explodedView={explodedView}
                     draftDesign={editor.draftDesign}
                   />
@@ -382,6 +410,7 @@ export const InteriorViewer: React.FC<InteriorViewerProps> = ({
               floor={selectedFloor}
               savedDesigns={activeSavedDesigns}
               selectedRoomId={selection.selectedRoomId}
+              isRoomIsolated={isRoomIsolated}
               onSelectRoom={handleSelectRoom}
               selectedAssetId={selection.selectedAsset?.instance_id || null}
               onSelectAsset={handleSelectAsset}

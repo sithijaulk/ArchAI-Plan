@@ -388,13 +388,14 @@ def plan_garage(land: Polygon, residual: BaseGeometry, gate: Mapping[str, Any], 
     approach_distance = approach_distance or float(elia_rules()["access"]["default_garage_approach_distance_m"])
     access_points = None
     if garage is None:
-        if not access.get("garage_required", False):
+        if not access.get("garage_required", False) and not access.get("parking_required", False):
             return None
         if residual.is_empty:
             return None
         source = "candidate"
         bay_w, bay_l = _bay_dimensions(access, unit_scale)
-        width = bay_w * int(access.get("garage_capacity", 1))
+        req_cap = int(access.get("garage_capacity") or access.get("vehicle_count") or 1)
+        width = bay_w * req_cap
         length = bay_l
         preferred = access.get("preferred_garage_location_m") or access.get("preferred_garage_location")
         if preferred:
@@ -440,15 +441,26 @@ def plan_garage(land: Polygon, residual: BaseGeometry, gate: Mapping[str, Any], 
         return None
     bay_w, bay_l = _bay_dimensions(access, unit_scale)
     actual_capacity = _count_fitting_bays(garage, bay_w, bay_l)
-    requested_capacity = int(access.get("garage_capacity", 1))
+    requested_capacity = int(access.get("garage_capacity") or access.get("vehicle_count") or 1)
     if actual_capacity < requested_capacity:
         return None
     entry, approach = access_points
     rings = [list(garage.exterior.coords), *[list(interior.coords) for interior in garage.interiors]]
     serialized_polygon = rings if garage.interiors else rings[0]
-    return {"json_id": "GARAGE_001", "polygon": serialized_polygon, "entry_point": list(entry),
-            "access_point": list(approach),
-            "capacity": actual_capacity, "source": source, "valid": True}
+    profiles = access.get("vehicle_profiles") or [{"vehicle_type": "car"}]
+    v_type = profiles[0].get("vehicle_type", "car") if profiles else "car"
+    return {
+        "json_id": "GARAGE_001",
+        "polygon": serialized_polygon,
+        "entry_point": list(entry),
+        "access_point": list(approach),
+        "capacity": actual_capacity,
+        "vehicle_type": v_type,
+        "vehicle_count": requested_capacity,
+        "is_enclosed": bool(access.get("garage_required", False)),
+        "source": source,
+        "valid": True,
+    }
 
 
 def _garage_access(garage: Polygon, land: Polygon, gate_point: Point, distance: float,

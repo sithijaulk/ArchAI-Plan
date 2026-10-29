@@ -1148,9 +1148,14 @@ export class EliaWorkflowController {
 
       const hasExteriorKey = 'exterior_landscape' in doc;
       const rawExterior = (doc as any).exterior_landscape;
+      const isEmptyExterior =
+        rawExterior &&
+        typeof rawExterior === 'object' &&
+        !Array.isArray(rawExterior) &&
+        Object.keys(rawExterior).length === 0;
 
-      if (!hasExteriorKey || rawExterior === null || rawExterior === undefined) {
-        // Legitimate absence: exterior_landscape is explicitly absent or null
+      if (!hasExteriorKey || rawExterior === null || rawExterior === undefined || isEmptyExterior) {
+        // Legitimate absence: exterior_landscape is explicitly absent, null, or empty placeholder {}
         acceptedLandscape = null;
         acceptedProvenance = null;
       } else {

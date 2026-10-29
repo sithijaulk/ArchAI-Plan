@@ -575,17 +575,58 @@ async def segment_project_floor_plan(
         content=content,
         target_width_ft=scale_ft,
         project_id=project_id,
-        project_name=project.name,
+        project_name=project.project_name or "Project",
     )
 
-    # Update project master_json
-    try:
-        project.master_json = out["master_json"]
-        db.commit()
-    except Exception as persist_err:
-        logger.warning("Could not persist segmented master json for %s: %s", project_id, persist_err)
+    # Write the segmented geometry into THIS project's centralized Master JSON.
+    # Geometry keys are replaced wholesale (not deep-merged) so stale GAB-Gen geometry
+    # such as floor_plan.floors cannot shadow the uploaded plan in Components 3/4.
+    # Downstream outputs derived from any previous geometry are reset.
+    segmented = out["master_json"]
+    existing = deepcopy(project.master_json or {})
+    previous_processing = existing.get("processing") or {}
+    updated = existing
+    for key in (
+        "units",
+        "land_info",
+        "buildable_footprint",
+        "floor_plan",
+        "land_boundary_polygon",
+        "house_exterior_polygon",
+        "segmentation_meta",
+    ):
+        if key in segmented:
+            updated[key] = deepcopy(segmented[key])
+    updated["project_id"] = project_id
+    updated["project_name"] = project.project_name or segmented.get("project_name")
+    updated["structural_rectification"] = {}
+    updated["interior_layout"] = {}
+    updated["exterior_landscape"] = {}
+    updated["processing"] = {
+        # Floor plan came from an uploaded image, not GAB-Gen: keep GAB-Gen's own status.
+        "gab_gen": previous_processing.get("gab_gen") or {"status": "skipped"},
+        "vsai_rectifier": {"status": "pending"},
+        "esai_engine": {"status": "pending"},
+        "elia_engine": {"status": "pending"},
+    }
+    updated["floor_plan_source"] = "image_upload"
 
+    try:
+        project.master_json = updated
+        project.revision = int(project.revision or 1) + 1
+        db.commit()
+        db.refresh(project)
+    except Exception as persist_err:
+        db.rollback()
+        logger.exception("Could not persist segmented master json for %s: %s", project_id, persist_err)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Floor plan was segmented but could not be saved to the project's Master JSON.",
+        ) from persist_err
+
+    out["master_json"] = updated
     return out
+
 
 
 @router.post(

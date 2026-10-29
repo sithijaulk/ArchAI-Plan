@@ -337,8 +337,10 @@ export const PlanPreview3D: React.FC<PlanPreview3DProps> = ({
     <div className="w-full h-[480px] rounded-xl overflow-hidden border border-border relative bg-slate-950">
       <WebGLErrorBoundary title="GAB-Gen 3D Blueprint Viewport Unavailable">
         <Canvas
+          id="gab-3d-canvas"
           shadows
           gl={{
+            preserveDrawingBuffer: true,
             powerPreference: 'default',
             failIfMajorPerformanceCaveat: false,
           }}

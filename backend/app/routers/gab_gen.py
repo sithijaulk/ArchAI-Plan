@@ -552,12 +552,37 @@ def extract_survey_ocr(
     provider = EasyOCRSurveyExtractionProvider()
 
     ext = os.path.splitext(source_file.get("original_filename", ""))[1].lower() or ".png"
+    target_area_sqm = None
+    reqs = mj.get("client_requirements", {})
+    input_meta = mj.get("input_metadata", {})
+    
+    decl_val = reqs.get("declared_land_extent") or (reqs.get("declared_extent", {}).get("value") if isinstance(reqs.get("declared_extent"), dict) else None)
+    decl_unit = reqs.get("declared_land_unit") or (reqs.get("declared_extent", {}).get("unit") if isinstance(reqs.get("declared_extent"), dict) else None)
+
+    if not decl_val and "declared_land_extent" in input_meta:
+        meta_decl = input_meta.get("declared_land_extent")
+        if isinstance(meta_decl, dict):
+            decl_val = meta_decl.get("value")
+            decl_unit = meta_decl.get("unit")
+        elif isinstance(meta_decl, (int, float)):
+            decl_val = float(meta_decl)
+
+    if decl_val:
+        from ..components.gab_gen.input.units import convert_area_to_sqm
+        from ..components.gab_gen.schemas import LandExtentUnit
+        try:
+            unit_enum = LandExtentUnit(str(decl_unit).lower()) if decl_unit else LandExtentUnit.PERCHES
+            target_area_sqm = convert_area_to_sqm(float(decl_val), unit_enum)
+        except Exception:
+            target_area_sqm = float(decl_val) * 25.29285264
+
     try:
         extracted = provider.extract_survey({
             "file_bytes": file_bytes,
             "filename": source_file.get("original_filename"),
             "ext": ext,
-            "page_number": page_number
+            "page_number": page_number,
+            "target_area_sqm": target_area_sqm
         })
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Survey OCR extraction failed: {str(e)}")

@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+import json
 import pytest
 from types import SimpleNamespace
 from sqlalchemy import create_engine
@@ -206,6 +207,78 @@ def test_baseline_http_endpoints_use_inherited_orientation_and_meter_defaults(tm
     assert light_nodes and all(node["zone"] == "garden" and node["type"] == "wall_light" for node in light_nodes)
     assert stored.json()["master_json"]["upstream_component"] == {"retained": True}
     assert master_response.headers["X-Project-Revision"] == str(stored.json()["revision"])
+
+
+def test_elia_context_and_validation_load_offline_project(tmp_path, monkeypatch):
+    master = {
+        "units": "m",
+        "location": {"latitude": 6.9, "longitude": 79.8, "timezone": "Asia/Colombo"},
+        "land_info": {
+            "mathematical_polygon": [[0, 0], [100, 0], [100, 80], [0, 80]],
+            "road_facing": "south",
+            "calculated_north_bearing": 90,
+        },
+        "house_exterior_polygon": [[20, 20], [50, 20], [50, 50], [20, 50]],
+    }
+    project_id = "offline-elia-context"
+    (tmp_path / f"{project_id}.json").write_text(json.dumps(master), encoding="utf-8")
+    monkeypatch.setattr(elia, "OFFLINE_PROJECT_DIR", tmp_path)
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    sessions = sessionmaker(bind=engine, expire_on_commit=False)
+
+    def override_db():
+        session = sessions()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    previous_overrides = dict(app.dependency_overrides)
+    app.dependency_overrides[get_db] = override_db
+    request_body = {
+        "generation_mode": "baseline",
+        "requirements": {
+            "access": {
+                "road_side": "south",
+                "garage_required": False,
+                "driveway_required": False,
+                "gate_width": 4,
+            },
+        },
+    }
+    try:
+        with TestClient(app) as client:
+            context = client.get(f"/api/projects/{project_id}/elia-engine/context")
+            validated = client.post(
+                f"/api/projects/{project_id}/elia-engine/validate-input",
+                json=request_body,
+            )
+    finally:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(previous_overrides)
+        engine.dispose()
+
+    assert context.status_code == 200, context.text
+    assert context.json()["master_json"] == master
+    assert context.json()["revision"] == 1
+    assert validated.status_code == 200, validated.text
+    assert validated.json()["valid"] is True
+
+    (tmp_path / f"{project_id}.json").write_text(
+        json.dumps({**master, "owner_id": "project-owner"}),
+        encoding="utf-8",
+    )
+    previous_overrides = dict(app.dependency_overrides)
+    app.dependency_overrides[get_db] = override_db
+    try:
+        with TestClient(app) as client:
+            denied = client.get(f"/api/projects/{project_id}/elia-engine/context")
+    finally:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(previous_overrides)
+    assert denied.status_code == 403
 
 
 def test_garage_lighting_api_flow(tmp_path, monkeypatch):
@@ -429,4 +502,3 @@ def test_persisted_run_source_revision_enforcement_without_supplied_master(tmp_p
         app.dependency_overrides.clear()
         app.dependency_overrides.update(previous_overrides)
         engine.dispose()
-

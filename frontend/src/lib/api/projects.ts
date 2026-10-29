@@ -34,6 +34,15 @@ export const projectsApi = {
     return response.data;
   },
 
+  listProjects: async (): Promise<Project[]> => {
+    const response = await apiClient.get('/projects');
+    return response.data;
+  },
+
+  deleteProject: async (projectId: string): Promise<void> => {
+    await apiClient.delete(`/projects/${projectId}`);
+  },
+
   validateMasterJson: async (data: any): Promise<ValidationResult> => {
     const response = await apiClient.post('/projects/validate-master-json', data);
     return response.data;

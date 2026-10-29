@@ -261,20 +261,20 @@
           "sector_display": "West (Pashchima / Varuna)",
           "polygon": [
             [
-              0,
-              0
+              0.0,
+              0.0
             ],
             [
-              4,
-              0
+              4.0,
+              0.0
             ],
             [
-              4,
-              4
+              4.0,
+              4.0
             ],
             [
-              0,
-              4
+              0.0,
+              4.0
             ]
           ],
           "description": "Submitted baseline is located in West (Pashchima / Varuna), which is listed as an acceptable secondary alternative for Living Room.",
@@ -305,20 +305,20 @@
           "sector_display": "East (Purva / Indra)",
           "polygon": [
             [
-              4,
-              0
+              4.0,
+              0.0
             ],
             [
-              8,
-              0
+              8.0,
+              0.0
             ],
             [
-              8,
-              4
+              8.0,
+              4.0
             ],
             [
-              4,
-              4
+              4.0,
+              4.0
             ]
           ],
           "description": "Bedroom is located in East (Purva / Indra). Recommended preferred directions are SOUTH_WEST, SOUTH, WEST, NORTH_WEST.",
@@ -342,20 +342,20 @@
           ],
           "polygon": [
             [
-              0,
-              0
+              0.0,
+              0.0
             ],
             [
-              4,
-              0
+              4.0,
+              0.0
             ],
             [
-              4,
-              4
+              4.0,
+              4.0
             ],
             [
-              0,
-              4
+              0.0,
+              4.0
             ]
           ],
           "overlaps_brahmasthan": true,
@@ -373,20 +373,20 @@
           ],
           "polygon": [
             [
-              4,
-              0
+              4.0,
+              0.0
             ],
             [
-              8,
-              0
+              8.0,
+              0.0
             ],
             [
-              8,
-              4
+              8.0,
+              4.0
             ],
             [
-              4,
-              4
+              4.0,
+              4.0
             ]
           ],
           "overlaps_brahmasthan": true,
@@ -422,12 +422,12 @@
         "classification": null
       },
       "bounding_box": {
-        "min_x": 0,
-        "max_x": 8,
-        "min_y": 0,
-        "max_y": 4,
-        "width": 8,
-        "height": 4,
+        "min_x": 0.0,
+        "max_x": 8.0,
+        "min_y": 0.0,
+        "max_y": 4.0,
+        "width": 8.0,
+        "height": 4.0,
         "area_sqft": 32.0
       },
       "rule_details": {
@@ -560,7 +560,7 @@
       "Automatic floor plan rectification and pretrained model integration are deferred for Stage 2.",
       "Image segmentation and image-to-vector extraction require Stage 2 AI processing."
     ],
-    "processed_at": "2026-10-20T15:21:57.532220+00:00"
+    "processed_at": "2026-10-22T07:00:38.428029+00:00"
   },
   "interior_layout": {
     "furniture": [

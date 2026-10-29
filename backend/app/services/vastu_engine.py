@@ -1310,6 +1310,30 @@ class VastuEngine:
         orientation = raw_orient or "North"
 
         raw_rooms = floor_plan.get("rooms", [])
+        if not raw_rooms and isinstance(floor_plan.get("floors"), list):
+            raw_rooms = []
+            for fl in floor_plan["floors"]:
+                if isinstance(fl, dict):
+                    raw_rooms.extend(fl.get("rooms", []))
+
+        # Normalize point representation to [x, y] floats
+        normalized_raw_rooms = []
+        for r in raw_rooms:
+            r_copy = dict(r)
+            if "id" not in r_copy and "room_id" in r_copy:
+                r_copy["id"] = r_copy["room_id"]
+            poly = r_copy.get("polygon", [])
+            norm_poly = []
+            if isinstance(poly, list):
+                for p in poly:
+                    if isinstance(p, dict):
+                        norm_poly.append([float(p.get("x", 0.0)), float(p.get("y", 0.0))])
+                    elif isinstance(p, (list, tuple)) and len(p) >= 2:
+                        norm_poly.append([float(p[0]), float(p[1])])
+            r_copy["polygon"] = norm_poly
+            normalized_raw_rooms.append(r_copy)
+        raw_rooms = normalized_raw_rooms
+
         raw_doors = floor_plan.get("doors", [])
         raw_walls = floor_plan.get("walls", [])
         raw_structural = floor_plan.get("structural_elements", [])

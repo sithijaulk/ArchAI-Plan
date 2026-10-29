@@ -109,6 +109,7 @@ class SurveyOcrExtractor:
         road_hints = []
         north_hints = []
         extent_hints = []
+        node_hints = []
 
         # Regex patterns
         bearing_pattern = re.compile(
@@ -192,6 +193,15 @@ class SurveyOcrExtractor:
                     "bbox": box["bbox"]
                 })
 
+            # 7. Boundary Node Labels (e.g., A, B, C, D or 1, 2, 3, 4 at vertex pins)
+            if re.match(r"^[A-HJ-NP-Z0-9]{1,2}$", raw_txt.strip()):
+                node_hints.append({
+                    "label": raw_txt.strip().upper(),
+                    "confidence": conf,
+                    "center": box["center"],
+                    "bbox": box["bbox"]
+                })
+
         return {
             "bearings": bearings,
             "distances": distances,
@@ -199,6 +209,7 @@ class SurveyOcrExtractor:
             "road_hints": road_hints,
             "north_hints": north_hints,
             "extent_hints": extent_hints,
+            "node_hints": node_hints,
             "total_boxes": len(ocr_boxes)
         }
 

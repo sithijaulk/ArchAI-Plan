@@ -172,7 +172,7 @@ function FeasibilityNotice({ assessment }: { assessment?: FeatureFeasibilityAsse
 
 export default function EliaEnginePage() {
   const router = useRouter()
-  const { projectId, projectName, masterJson, setComponentStatus, setOutput } = useProjectStore()
+  const { projectId, projectName, masterJson, setComponentStatus, setOutput, skipComponent } = useProjectStore()
 
   // Production state controller instance (strictly null-safe without fabricated demo IDs)
   const controllerRef = useRef<EliaWorkflowController | null>(null)
@@ -289,7 +289,7 @@ export default function EliaEnginePage() {
             type: 'vegetation',
             category: v.category || 'vegetation',
             position: coords,
-            label: `Plant: ${v.category || v.json_id} (${coords[0].toFixed(1)}m, ${coords[1].toFixed(1)}m)`,
+            label: `Tree: ${v.display_name || v.species_name || v.category || v.json_id} (${coords[0].toFixed(1)}m, ${coords[1].toFixed(1)}m)`,
           })
         }
       }
@@ -388,6 +388,11 @@ export default function EliaEnginePage() {
       number="04"
       description="Generates exterior spatial planning including access, parking, safety zoning, solar orientation, and adaptive greenery."
       onPrev={() => router.push('/features/esai-engine')}
+      onNext={() => router.push('/gallery')}
+      onSkip={async () => {
+        await skipComponent('elia_engine')
+        router.push('/gallery')
+      }}
     >
       <div className="p-4 sm:p-6 lg:p-8 space-y-8">
         {/* Banner: Waiting for upstream project data (displayed when no real project context is loaded) */}
@@ -560,6 +565,11 @@ export default function EliaEnginePage() {
                 </Button>
               </CardHeader>
               <CardContent className="p-5 space-y-3 text-xs">
+                {state.contextError && (
+                  <div className="p-2.5 rounded-md border border-rose-500/30 bg-rose-950/20 text-rose-200">
+                    Could not load authoritative project context: {state.contextError}
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-2.5">
                   <div className="p-2.5 rounded-lg border border-border/50 bg-muted/30">
                     <span className="text-muted-foreground block text-[11px]">Land Boundary</span>

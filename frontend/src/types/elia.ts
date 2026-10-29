@@ -211,6 +211,7 @@ export interface EliaAccessRequirements {
   gate_opening_mechanism?: string;
   gate_style?: string;
   turning_space_required?: boolean;
+  vehicle_profiles?: Array<{ vehicle_type?: string; width_m?: number; length_m?: number }>;
 }
 
 export interface EliaLandscapeRequirements {

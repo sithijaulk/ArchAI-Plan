@@ -4,13 +4,13 @@ import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DownloadImageButton, DownloadPdfButton, DownloadJsonButton } from '@/components/output/DownloadButtons';
 import { Button } from '@/components/ui/button';
-import { Layers, AlertTriangle, CheckCircle2, FileCode, RotateCcw } from 'lucide-react';
+import { Layers, AlertTriangle, CheckCircle2, FileCode, RotateCcw, FileText } from 'lucide-react';
 import { PlanPreview2D } from './PlanPreview2D';
-
 import { PlanPreview3D } from './PlanPreview3D';
 import { CandidateComparison } from './CandidateComparison';
 import { GabGenMasterJson } from '../../types';
 import { gabGenExtendedApi } from '../../api';
+import { exportGabBlueprintPdf } from '../../utils/exportGabBlueprintPdf';
 
 interface BlueprintViewerProps {
   data: GabGenMasterJson | null;
@@ -32,6 +32,7 @@ export const BlueprintViewer: React.FC<BlueprintViewerProps> = ({
   const [editMessage, setEditMessage] = useState<string | null>(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isSelectingCand, setIsSelectingCand] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
 
 
   const floors = data?.floor_plan?.floors || [];
@@ -238,6 +239,25 @@ export const BlueprintViewer: React.FC<BlueprintViewerProps> = ({
   const currentRoofType = data?.roof_geometry?.roof_type || 'flat_slab';
 
 
+  const handleExportFullPdf = async () => {
+    if (!data) return;
+    setIsExportingPdf(true);
+    try {
+      await exportGabBlueprintPdf(data, {
+        projectName: projectName || data.project_name || 'Architectural Blueprint',
+        projectId: projectId || data.project_id,
+        capture3DCanvas: () => {
+          const canvas = document.querySelector('#gab-3d-canvas canvas') as HTMLCanvasElement;
+          return canvas ? canvas.toDataURL('image/png') : null;
+        },
+      });
+    } catch (err) {
+      console.error('Failed to export full architectural blueprint PDF:', err);
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Top Header & Export Controls */}
@@ -264,11 +284,17 @@ export const BlueprintViewer: React.FC<BlueprintViewerProps> = ({
             targetId="gab-2d-canvas"
             disabled={!data}
           />
-          <DownloadPdfButton
-            filename={`${projectName || 'gab'}-specification.pdf`}
-            targetId="gab-2d-canvas"
-            disabled={!data}
-          />
+          <Button
+            variant="default"
+            size="sm"
+            onClick={handleExportFullPdf}
+            disabled={!data || isExportingPdf}
+            className="bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs shadow-md shadow-cyan-900/30 gap-1.5"
+            title="Download Complete Architectural Submission Set (Floor Plan, Elevations & 3D Model)"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            {isExportingPdf ? 'Generating Blueprint PDF...' : 'Download Full Architectural PDF'}
+          </Button>
         </div>
       </div>
 

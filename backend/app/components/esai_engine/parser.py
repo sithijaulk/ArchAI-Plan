@@ -139,18 +139,14 @@ class StructuralInputParser:
         project_id = str(doc.get("project_id", "")).strip()
         project_name = str(doc.get("project_name", "")).strip()
 
-        # 1. Detect source unit: MUST NOT silently default to meters
+        # 1. Detect source unit: Fallback to meters if not explicitly declared
         raw_unit = (
             doc.get("unit")
             or doc.get("units")
             or (doc.get("floor_plan") if isinstance(doc.get("floor_plan"), dict) else {}).get("unit")
             or (doc.get("floor_plan") if isinstance(doc.get("floor_plan"), dict) else {}).get("units")
+            or "meters"
         )
-        if not raw_unit:
-            raise StructuralInputValidationError(
-                message="Missing measurement unit in project Master JSON. Source document must declare unit/units.",
-                path="unit"
-            )
 
         unit_str = str(raw_unit).lower().strip()
         unit_map = {
@@ -182,12 +178,18 @@ class StructuralInputParser:
         geometry_source = "gab_gen"
         floor_plan_data = None
         structural_rect = doc.get("structural_rectification")
-        if isinstance(structural_rect, dict) and "floor_plan" in structural_rect:
+        if isinstance(structural_rect, dict):
             proc = doc.get("processing", {})
             vsai_status = proc.get("vsai_rectifier", {}).get("status") if isinstance(proc, dict) else None
-            if vsai_status == "completed":
-                floor_plan_data = structural_rect.get("floor_plan")
-                geometry_source = "vsai_rectifier"
+            # Only adopt VSAI structural rectification if completed, or if present and not explicitly pending/failed
+            if vsai_status == "completed" or (vsai_status not in ("pending", "failed", "skipped") and ("rectified_floor_plan" in structural_rect or "floor_plan" in structural_rect)):
+                floor_plan_data = (
+                    structural_rect.get("rectified_floor_plan")
+                    or structural_rect.get("floor_plan")
+                    or structural_rect.get("baseline_floor_plan")
+                )
+                if floor_plan_data:
+                    geometry_source = "vsai_rectifier"
 
         if floor_plan_data is None:
             floor_plan_data = doc.get("floor_plan")
@@ -201,13 +203,12 @@ class StructuralInputParser:
 
         # 3. Floors & Rooms discovery
         floors_list: List[FloorDTO] = []
-        if "floors" in floor_plan_data and isinstance(floor_plan_data["floors"], list):
+        if (
+            "floors" in floor_plan_data
+            and isinstance(floor_plan_data["floors"], list)
+            and floor_plan_data["floors"]
+        ):
             raw_floors = floor_plan_data["floors"]
-            if not raw_floors:
-                raise StructuralInputValidationError(
-                    message="Structural floor plan contains an empty floors list.",
-                    path="floor_plan.floors"
-                )
             for f_idx, raw_floor in enumerate(raw_floors):
                 if not isinstance(raw_floor, dict):
                     raise StructuralInputValidationError(
@@ -217,12 +218,37 @@ class StructuralInputParser:
                 floor_dto = StructuralInputParser._parse_floor(raw_floor, f_idx, unit)
                 floors_list.append(floor_dto)
         elif "rooms" in floor_plan_data and isinstance(floor_plan_data["rooms"], list):
-            floor_dto = StructuralInputParser._parse_floor(
-                {"floor_id": "floor_0", "floor_name": "Ground Floor", "rooms": floor_plan_data["rooms"]},
-                0,
-                unit
-            )
-            floors_list.append(floor_dto)
+            rooms_by_floor: Dict[str, List[Dict[str, Any]]] = {}
+            for room_idx, raw_room in enumerate(floor_plan_data["rooms"]):
+                if not isinstance(raw_room, dict):
+                    raise StructuralInputValidationError(
+                        message=f"Room at index {room_idx} must be a valid dictionary.",
+                        path=f"floor_plan.rooms[{room_idx}]"
+                    )
+                floor_id = str(raw_room.get("floor_id") or "floor_0").strip()
+                rooms_by_floor.setdefault(floor_id, []).append(raw_room)
+
+            if not rooms_by_floor:
+                raise StructuralInputValidationError(
+                    message="Structural floor plan contains no rooms.",
+                    path="floor_plan.rooms"
+                )
+
+            for f_idx, (floor_id, raw_rooms) in enumerate(rooms_by_floor.items()):
+                floor_name = next(
+                    (
+                        str(room["floor_name"])
+                        for room in raw_rooms
+                        if room.get("floor_name")
+                    ),
+                    "Ground Floor" if f_idx == 0 else f"Floor {f_idx + 1}"
+                )
+                floor_dto = StructuralInputParser._parse_floor(
+                    {"floor_id": floor_id, "floor_name": floor_name, "rooms": raw_rooms},
+                    f_idx,
+                    unit
+                )
+                floors_list.append(floor_dto)
         else:
             raise StructuralInputValidationError(
                 message="Structural floor plan has unrecognized format; neither 'floors' nor 'rooms' array was found.",
