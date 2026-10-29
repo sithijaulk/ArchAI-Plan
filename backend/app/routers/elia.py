@@ -1,0 +1,842 @@
+from __future__ import annotations
+
+import logging
+import json
+import math
+from copy import deepcopy
+from datetime import datetime, timezone
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any, Mapping
+from uuid import uuid4
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy import update
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
+
+from app.components.elia_engine.exceptions import ELIAError
+from app.components.elia_engine.adapter import normalize_master_json
+from app.components.elia_engine.geometry import feet_to_meters
+from app.components.elia_engine.parser import parse_exterior_context
+from app.components.elia_engine.rule_repository import elia_rules, lighting_rules, vehicle_profiles, vegetation_catalog
+from app.components.elia_engine.schemas import (
+    ELIARequest,
+    ELIAResponse,
+    ExteriorLandscapeResponse,
+    CandidateValidationRequest,
+    CandidateValidationResponse,
+    CandidateSaveRequest,
+    ProjectFeasibilityResponse,
+    PlantSuitabilityRequest,
+    PlantSuitabilityResponse,
+    PlantCatalogueResponse,
+    PlantAlternativeAction,
+    AcceptedPlantAlternative,
+)
+from app.components.elia_engine.plants import (
+    get_plant_catalogue,
+    get_plant_entry,
+    filter_plant_catalogue,
+    evaluate_plant_suitability,
+    propose_plant_alternatives,
+    validate_accepted_alternatives,
+)
+from app.components.elia_engine.solar import extract_master_location, fetch_live_solar_conditions, search_sri_lanka_locations
+from app.components.elia_engine.generation import generate_exterior
+from app.components.elia_engine.service import validate_candidate_exterior, evaluate_acceptance_policy
+from app.components.elia_engine.gate_garage import plan_gate
+from app.components.elia_engine.requirements import normalize_requirements
+from app.components.elia_engine.feasibility import assess_project_feasibility, extract_canonical_geometry
+from app.components.elia_engine.output import build_processing_master, build_updated_master
+from app.database import get_db
+from app.dependencies import get_current_user, require_admin, require_project_access
+from app.models.component_run import ComponentRun
+from app.models.project import Project
+
+logger = logging.getLogger(__name__)
+router = APIRouter(tags=["ELIA-Engine"])
+OFFLINE_PROJECT_DIR = Path(__file__).resolve().parents[3] / "shared" / "vsai-bd"
+
+
+def _safe_diagnostic(value: Any, depth: int = 0) -> Any:
+    if depth > 8:
+        return "<truncated>"
+    if value is None or isinstance(value, (str, bool, int)):
+        return value if not isinstance(value, str) else value[:1000]
+    if isinstance(value, float):
+        return value if value == value and abs(value) != float("inf") else "<non_finite>"
+    if isinstance(value, Mapping):
+        return {str(key)[:200]: _safe_diagnostic(item, depth + 1) for key, item in list(value.items())[:500]}
+    if isinstance(value, (list, tuple)):
+        return [_safe_diagnostic(item, depth + 1) for item in value[:500]]
+    return str(value)[:1000]
+
+
+def _project_or_404(db: Session, project_id: str) -> Project:
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if project is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    return project
+
+
+def _load_offline_master_json(project_id: str) -> dict[str, Any] | None:
+    if not project_id or Path(project_id).name != project_id:
+        return None
+
+    project_file = OFFLINE_PROJECT_DIR / f"{project_id}.json"
+    try:
+        with project_file.open("r", encoding="utf-8") as file:
+            master_json = json.load(file)
+    except FileNotFoundError:
+        return None
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.exception("Could not load offline project context for ELIA project %s", project_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "ELIA_OFFLINE_CONTEXT_INVALID", "message": "The saved project context could not be read."},
+        ) from exc
+
+    if not isinstance(master_json, dict):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "ELIA_OFFLINE_CONTEXT_INVALID", "message": "The saved project context is not a JSON object."},
+        )
+    return master_json
+
+
+def _get_context_project(project_id: str, db: Session) -> Any:
+    database_error: SQLAlchemyError | None = None
+    try:
+        project = db.query(Project).filter(Project.id == project_id).first()
+        if project is not None:
+            return project
+    except SQLAlchemyError as exc:
+        database_error = exc
+        db.rollback()
+        logger.warning("Database unavailable while loading ELIA project %s; checking offline project storage.", project_id)
+
+    master_json = _load_offline_master_json(project_id)
+    if master_json is not None:
+        return SimpleNamespace(
+            id=project_id,
+            project_name=master_json.get("project_name", "Recovered Project"),
+            master_json=master_json,
+            revision=int(master_json.get("project_revision", 1) or 1),
+        )
+
+    if database_error is not None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"code": "ELIA_PROJECT_CONTEXT_UNAVAILABLE", "message": "Project database is unavailable and no offline project context was found."},
+        ) from database_error
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+
+
+def require_elia_context_access(
+    project_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> Any:
+    project = _get_context_project(project_id, db)
+    if isinstance(project, Project):
+        return require_project_access(project_id, request, db)
+
+    master_json = project.master_json
+    owner_id = master_json.get("owner_id") or master_json.get("user_id")
+    client_id = master_json.get("client_id") or master_json.get("client_user_id") or master_json.get("client_email")
+    allowed_users = master_json.get("allowed_users", [])
+    if not isinstance(allowed_users, list):
+        allowed_users = []
+
+    if owner_id or client_id or allowed_users:
+        try:
+            current_user = get_current_user(request, db)
+        except (HTTPException, SQLAlchemyError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: Authentication is required to access this project.",
+            ) from exc
+
+        user_id = getattr(current_user, "id", None)
+        user_email = getattr(current_user, "email", None)
+        is_owner = bool(owner_id and (owner_id == user_id or (user_email and owner_id == user_email)))
+        is_client = bool(client_id and (client_id == user_id or (user_email and client_id == user_email)))
+        is_allowed = bool((user_id and user_id in allowed_users) or (user_email and user_email in allowed_users))
+        if not (getattr(current_user, "role", None) == "admin" or is_owner or is_client or is_allowed):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: You are not authorized to access this project.",
+            )
+
+    return None
+
+
+
+def _sanitize_nan(obj: Any) -> Any:
+    if isinstance(obj, dict):
+        return {k: _sanitize_nan(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_sanitize_nan(v) for v in obj]
+    elif isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return '<non_finite>'
+    return obj
+
+
+def _set_processing(project: Project, metadata: dict[str, Any]) -> None:
+    document = deepcopy(project.master_json or {})
+    processing = document.setdefault("processing", {})
+    processing["elia_engine"] = metadata
+    project.master_json = document
+
+
+def _record_failure(db: Session, run_id: str, project_id: str, code: str, message: str,
+                    should_persist: bool, expected_revision: int | None = None,
+                    candidate_output: dict[str, Any] | None = None,
+                    source_revision: int | None = None) -> None:
+    db.rollback()
+    run = db.query(ComponentRun).filter(ComponentRun.id == run_id).first()
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if run is not None:
+        run.status = "failed"
+        run.error_message = f"{code}: {message}"[:4000]
+        run.completed_at = datetime.now(timezone.utc)
+        if candidate_output is not None:
+            try:
+                run.output_json = json.loads(json.dumps(_sanitize_nan(candidate_output), default=str))
+            except Exception:
+                run.output_json = {"error": "output_serialization_failed"}
+    if should_persist and project is not None:
+        revision = expected_revision if expected_revision is not None else project.revision
+        if revision is not None:
+            # Only update metadata if this run still owns the project's elia_engine slot
+            current_elia = (project.master_json or {}).get("processing", {}).get("elia_engine", {})
+            if isinstance(current_elia, dict) and current_elia.get("run_id", run_id) != run_id:
+                # A newer run has already claimed ownership; skip metadata update.
+                db.commit()
+                return
+            document = build_processing_master(project.master_json or {}, {
+                "status": "failed", "run_id": run_id, "version": "1.0", "schema_version": "1.0",
+                "completed_at": datetime.now(timezone.utc).isoformat(), "error_code": code,
+                "source_revision": source_revision if source_revision is not None else revision,
+            })
+            db.execute(update(Project).where(Project.id == project_id, Project.revision == revision).values(
+                master_json=document, revision=revision + 1))
+    db.commit()
+
+
+def _record_stale_conflict(db: Session, run_id: str, project_id: str, source_revision: int,
+                           candidate_output: dict[str, Any]) -> int | None:
+    db.rollback()
+    run = db.query(ComponentRun).filter(ComponentRun.id == run_id).first()
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if run is not None:
+        run.status = "failed"
+        run.output_json = _sanitize_nan(candidate_output)
+        run.error_message = "ELIA_STALE_SOURCE_REVISION: Project changed while ELIA was running."
+        run.completed_at = datetime.now(timezone.utc)
+        processing = (project.master_json or {}).get("processing", {}) if project is not None else {}
+        elia_metadata = processing.get("elia_engine") if isinstance(processing, dict) else None
+        latest_revision = int(project.revision) if project is not None and project.revision is not None else None
+        if (project is not None and latest_revision is not None and
+            isinstance(elia_metadata, dict) and elia_metadata.get("run_id") == run_id):
+            document = build_processing_master(project.master_json or {}, {
+                "status": "failed", "run_id": run_id, "version": "1.0", "schema_version": "1.0",
+                "error_code": "ELIA_STALE_SOURCE_REVISION", "source_revision": source_revision,
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            })
+            changed = db.execute(update(Project).where(
+                Project.id == project_id, Project.revision == latest_revision
+            ).values(master_json=document, revision=latest_revision + 1))
+            if changed.rowcount == 1:
+                latest_revision += 1
+            else:
+                db.rollback()
+                run = db.query(ComponentRun).filter(ComponentRun.id == run_id).first()
+                if run is not None:
+                    run.status = "failed"
+                    run.output_json = _sanitize_nan(candidate_output)
+                    run.error_message = "ELIA_STALE_SOURCE_REVISION: Project changed while ELIA was running."
+                    run.completed_at = datetime.now(timezone.utc)
+                current = db.query(Project).filter(Project.id == project_id).first()
+                latest_revision = int(current.revision) if current is not None else None
+    db.commit()
+    return latest_revision
+
+
+@router.post("/projects/{project_id}/elia-engine/run", response_model=ELIAResponse)
+def run_project_elia(project_id: str, request: ELIARequest,
+                     db: Session = Depends(get_db), _access=Depends(require_project_access)):
+    if request.generation_mode == "trained_model":
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "ELIA_UNSUPPORTED_GENERATION_MODE",
+                "message": (
+                    "Trained model mode is not supported. ELIA is a rule-based, "
+                    "preference-driven exterior planning system using geometric layout generation and optimization."
+                ),
+            },
+        )
+    project = _project_or_404(db, project_id)
+    db.refresh(project)
+    source_revision = int(project.revision or 1)
+    source_is_supplied = request.master_json is not None
+    should_persist = not source_is_supplied or request.apply_to_project
+    source_master = deepcopy(request.master_json if source_is_supplied else project.master_json)
+    if not isinstance(source_master, dict):
+        raise HTTPException(status_code=422, detail={"code": "ELIA_INVALID_MASTER_JSON", "message": "Project has no valid Master JSON object."})
+    if should_persist:
+        if source_is_supplied:
+            if request.source_revision is None:
+                raise HTTPException(status_code=422, detail={"code": "ELIA_SOURCE_REVISION_REQUIRED",
+                                                            "message": "source_revision is required when applying a supplied Master JSON snapshot."})
+            if request.source_revision != source_revision or source_master != (project.master_json or {}):
+                raise HTTPException(status_code=409, detail={"code": "ELIA_STALE_SOURCE_REVISION",
+                                                            "message": "The supplied Master JSON does not match the current project revision.",
+                                                            "current_revision": source_revision})
+        else:
+            if request.source_revision is not None and request.source_revision != source_revision:
+                raise HTTPException(status_code=409, detail={"code": "ELIA_STALE_SOURCE_REVISION",
+                                                            "message": "The supplied source_revision does not match the current project revision.",
+                                                            "expected_revision": request.source_revision,
+                                                            "current_revision": source_revision})
+
+    requirements = request.requirements.model_dump(mode="json", exclude_none=True, exclude_unset=True)
+    run_input = {"requirements": requirements, "master_json_snapshot": source_master,
+                 "source_revision": source_revision,
+                 "master_json_source": "request" if source_is_supplied else "project_database",
+                 "generation_mode": request.generation_mode, "model_version": None,
+                 "effective_requirement_units": requirements.get("units", "m"),
+                 "requirement_units_explicit": "units" in request.requirements.model_fields_set,
+                 "schema_version": "1.0", "applied_to_project": should_persist}
+    run = ComponentRun(
+        project_id=project_id,
+        component_name="elia_engine",
+        status="processing",
+        started_at=datetime.now(timezone.utc),
+        input_json=run_input,
+    )
+    db.add(run)
+    db.flush()
+    expected_revision = source_revision
+    if should_persist:
+        processing_master = build_processing_master(project.master_json or {}, {
+            "status": "processing", "run_id": run.id, "version": "1.0", "schema_version": "1.0",
+            "generation_mode": request.generation_mode, "source_revision": source_revision,
+            "started_at": datetime.now(timezone.utc).isoformat(),
+        })
+        changed = db.execute(update(Project).where(
+            Project.id == project_id, Project.revision == source_revision
+        ).values(master_json=processing_master, revision=source_revision + 1))
+        if changed.rowcount != 1:
+            db.rollback()
+            run.status = "failed"
+            run.error_message = "ELIA_STALE_SOURCE_REVISION: Project changed before ELIA started."
+            run.completed_at = datetime.now(timezone.utc)
+            db.add(run)
+            db.commit()
+            current_rev = int(db.query(Project).filter(Project.id == project_id).one().revision)
+            raise HTTPException(status_code=409, detail={"code": "ELIA_STALE_SOURCE_REVISION",
+                                                        "message": "Project changed before the ELIA run started.",
+                                                        "expected_revision": source_revision,
+                                                        "current_revision": current_rev})
+        expected_revision = source_revision + 1
+    db.commit()
+    db.refresh(run)
+    if should_persist:
+        db.refresh(project)
+
+    try:
+        exterior, outcome = generate_exterior(source_master, requirements, run.id, request.generation_mode)
+        exterior["started_at"] = run.started_at.replace(tzinfo=timezone.utc).isoformat() if run.started_at else None
+        
+        try:
+            exterior = ExteriorLandscapeResponse.model_validate(exterior).model_dump(mode="python")
+            json.dumps(exterior, allow_nan=False)
+            response = ELIAResponse(project_id=project_id, run_id=run.id,
+                                    status="completed" if outcome == "valid" else "infeasible",
+                                    outcome=outcome, exterior_landscape=exterior,
+                                    master_json_updated=should_persist, generation_mode=request.generation_mode)
+            json.dumps(response.model_dump(mode="json"), allow_nan=False)
+        except Exception as exc:
+            # Output validation failure — this is a server-side bug, not malformed client input.
+            # Save raw candidate output directly (preserving NaN etc.) before _record_failure.
+            run.output_json = _sanitize_nan(exterior)
+            run.status = "failed"
+            run.completed_at = datetime.now(timezone.utc)
+            db.commit()
+            _record_failure(db, run.id, project_id, "ELIA_INVALID_OUTPUT",
+                            f"ELIA produced invalid output: {exc}", should_persist,
+                            expected_revision, None, source_revision)
+            raise HTTPException(
+                status_code=500,
+                detail={"code": "ELIA_INVALID_OUTPUT",
+                        "message": f"ELIA produced invalid output: {exc}"}
+            ) from exc
+
+        run.status = "completed"
+        run.output_json = _sanitize_nan(exterior)
+        run.completed_at = datetime.now(timezone.utc)
+        run.input_json = {**(run.input_json or {}), "model_version": exterior.get("model_version")}
+        if should_persist:
+            current_master = project.master_json or {}
+            ext_policy = evaluate_acceptance_policy(
+                validation_result=exterior.get("validation_summary", {}),
+                candidate=exterior,
+                master_json=current_master,
+                requirements=requirements,
+            )
+            persist_outcome = outcome if outcome != "valid" else ("valid" if ext_policy["accepted"] else "provisional")
+            updated_master = build_updated_master(
+                current_master, exterior, run.id, persist_outcome,
+                generation_mode=request.generation_mode,
+                source_revision=source_revision,
+                model_version=exterior.get("model_version"),
+                requirements=requirements,
+            )
+            values: dict[str, Any] = {"master_json": updated_master, "revision": expected_revision + 1}
+            if persist_outcome == "valid":
+                values["current_component"] = "elia_engine"
+            changed = db.execute(update(Project).where(
+                Project.id == project_id, Project.revision == expected_revision
+            ).values(**values))
+            if changed.rowcount != 1:
+                current_revision = _record_stale_conflict(db, run.id, project_id, source_revision, exterior)
+                raise HTTPException(status_code=409, detail={"code": "ELIA_STALE_SOURCE_REVISION",
+                                                            "message": "Project changed while ELIA was running; the candidate was saved to run history.",
+                                                            "expected_revision": expected_revision,
+                                                            "current_revision": current_revision})
+        db.commit()
+        return response
+    except HTTPException:
+        raise
+    except ELIAError as exc:
+        _record_failure(db, run.id, project_id, exc.code, exc.message, should_persist,
+                        expected_revision, getattr(exc, "candidate_output", None), source_revision)
+        detail = {"code": exc.code, "message": exc.message}
+        if exc.code == "ELIA_MODEL_UNAVAILABLE":
+            detail["generation_status"] = "model_unavailable"
+        raise HTTPException(status_code=exc.status_code, detail=detail) from exc
+    except Exception as exc:
+        logger.exception("ELIA processing failed for project %s", project_id)
+        _record_failure(db, run.id, project_id, "ELIA_PROCESSING_FAILED", "ELIA processing failed; see server logs.",
+                        should_persist, expected_revision, getattr(exc, "candidate_output", None), source_revision)
+        raise HTTPException(status_code=500, detail={"code": "ELIA_PROCESSING_FAILED", "message": "ELIA processing failed."}) from exc
+
+
+@router.get("/projects/{project_id}/elia-engine/context")
+def get_elia_context(
+    project_id: str,
+    db: Session = Depends(get_db),
+    _access=Depends(require_elia_context_access),
+):
+    project = _get_context_project(project_id, db)
+    master = project.master_json or {}
+    saved_reqs = master.get("exterior_requirements") or master.get("processing", {}).get("elia_engine", {}).get("requirements")
+    return {"project_id": project.id, "master_json": project.master_json, "revision": project.revision, "saved_requirements": saved_reqs}
+
+
+@router.post("/projects/{project_id}/elia-engine/validate-input")
+def validate_elia_input(project_id: str, request: ELIARequest,
+                        db: Session = Depends(get_db), _access=Depends(require_elia_context_access)):
+    project = _get_context_project(project_id, db)
+    master = request.master_json if request.master_json is not None else project.master_json
+    try:
+        context = parse_exterior_context(master, default_units=elia_rules()["units"]["default_input"])
+        raw_reqs = request.requirements.model_dump(mode="json", exclude_none=True, exclude_unset=True)
+        normalized = normalize_requirements(raw_reqs, master, context.source_units)
+        canonical_master = normalize_master_json(master)
+        if plan_gate(context.land, context.house, canonical_master, normalized["access"], context.unit_scale) is None:
+            raise ELIAError("ELIA_MISSING_ROAD_ACCESS",
+                            "ELIA requires inherited road-side/edge access information or an existing gate.")
+        source_rev = request.source_revision if request.source_revision is not None else project.revision
+        feasibility_result = assess_project_feasibility(master, raw_reqs, source_revision=source_rev)
+    except ELIAError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    return {
+        "valid": True,
+        "project_id": project_id,
+        "normalized_requirements": normalized,
+        "geometry": {
+            "land_area_m2": context.land.area,
+            "house_footprint_area_m2": context.house.area,
+            "source_units": context.source_units,
+        },
+        "orientation": {
+            "north_angle_degrees": normalized["north_angle"],
+            "convention": normalized["north_orientation_convention"],
+        },
+        "feasibility": feasibility_result.model_dump(mode="json"),
+    }
+
+
+@router.post("/projects/{project_id}/elia-engine/feasibility", response_model=ProjectFeasibilityResponse)
+def get_project_feasibility(
+    project_id: str,
+    request: ELIARequest,
+    db: Session = Depends(get_db),
+    _access=Depends(require_project_access),
+):
+    project = _project_or_404(db, project_id)
+    master = request.master_json if request.master_json is not None else project.master_json
+    if not isinstance(master, dict):
+        raise HTTPException(status_code=422, detail={"code": "ELIA_INVALID_MASTER_JSON", "message": "Project has no valid Master JSON object."})
+    try:
+        raw_reqs = request.requirements.model_dump(mode="json", exclude_none=True, exclude_unset=True)
+        source_rev = request.source_revision if request.source_revision is not None else project.revision
+        return assess_project_feasibility(master, raw_reqs, source_revision=source_rev)
+    except ELIAError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    except Exception as exc:
+        logger.exception("Failed calculating feasibility for project %s", project_id)
+        raise HTTPException(status_code=500, detail={"code": "ELIA_FEASIBILITY_ERROR", "message": str(exc)}) from exc
+
+
+
+@router.post("/elia-engine/preview")
+def preview_standalone_elia(request: ELIARequest):
+    """Run a validated supplied Master JSON without writing project data or history."""
+    if request.master_json is None:
+        raise HTTPException(status_code=422, detail={"code": "ELIA_INVALID_MASTER_JSON", "message": "A Master JSON object is required for preview."})
+    run_id = str(uuid4())
+    try:
+        exterior, outcome = generate_exterior(request.master_json,
+                                              request.requirements.model_dump(mode="json", exclude_none=True, exclude_unset=True),
+                                              run_id, request.generation_mode)
+    except ELIAError as exc:
+        detail = {"code": exc.code, "message": exc.message}
+        if exc.code == "ELIA_MODEL_UNAVAILABLE":
+            detail["generation_status"] = "model_unavailable"
+        raise HTTPException(status_code=exc.status_code, detail=detail) from exc
+    try:
+        exterior = ExteriorLandscapeResponse.model_validate(exterior).model_dump(mode="python")
+        json.dumps(exterior, allow_nan=False)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail={"code": "ELIA_SERIALIZATION_ERROR",
+                                                    "message": f"Generated exterior result is not JSON-serializable: {exc}"}) from exc
+    updated = build_updated_master(request.master_json, exterior, run_id, outcome,
+                                   generation_mode=request.generation_mode,
+                                   source_revision=request.source_revision,
+                                   model_version=exterior.get("model_version"))
+    return {"run_id": run_id, "status": "completed" if outcome == "valid" else "infeasible",
+            "outcome": outcome, "exterior_landscape": exterior, "master_json": updated,
+            "generation_mode": request.generation_mode, "persisted": False}
+
+
+@router.get("/projects/{project_id}/elia-engine/result")
+def get_elia_result(project_id: str, db: Session = Depends(get_db), _access=Depends(require_project_access)):
+    _project_or_404(db, project_id)
+    run = (db.query(ComponentRun).filter(ComponentRun.project_id == project_id,
+                                         ComponentRun.component_name == "elia_engine")
+           .order_by(ComponentRun.started_at.desc()).first())
+    if run is None:
+        raise HTTPException(status_code=404, detail="No ELIA run exists for this project")
+    return {"run_id": run.id, "status": run.status, "output": run.output_json,
+            "error_message": run.error_message, "started_at": run.started_at, "completed_at": run.completed_at}
+
+
+@router.get("/projects/{project_id}/elia-engine/solar/current")
+def get_project_live_solar(project_id: str, latitude: float | None = Query(default=None, ge=-90, le=90),
+                           longitude: float | None = Query(default=None, ge=-180, le=180),
+                           timezone: str | None = None, db: Session = Depends(get_db),
+                           _access=Depends(require_project_access)):
+    project = _project_or_404(db, project_id)
+    master = project.master_json if isinstance(project.master_json, dict) else {}
+    if (latitude is None) != (longitude is None):
+        raise HTTPException(status_code=422, detail={"code": "ELIA_INVALID_LOCATION",
+                                                     "message": "latitude and longitude must be provided together."})
+    try:
+        if latitude is None:
+            location = extract_master_location(master)
+            latitude, longitude = location["latitude"], location["longitude"]
+            timezone = timezone or location.get("timezone")
+        return fetch_live_solar_conditions(latitude, longitude, timezone)
+    except ELIAError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+
+
+@router.get("/elia-engine/rules")
+def get_elia_rules():
+    return elia_rules()
+
+
+@router.get("/elia-engine/vehicle-profiles")
+def get_vehicle_profiles():
+    return vehicle_profiles()
+
+
+@router.get("/elia-engine/vegetation-catalog")
+def get_vegetation_catalog():
+    return vegetation_catalog()
+
+
+@router.get("/elia-engine/lighting-rules")
+def get_lighting_rules():
+    return lighting_rules()
+
+
+@router.get("/elia-engine/locations/search")
+def search_elia_locations(name: str = Query(min_length=2, max_length=100)):
+    try:
+        return {"query": name, "country_code": "LK", "provider": "OpenStreetMap Nominatim",
+                "attribution": "© OpenStreetMap contributors", "results": search_sri_lanka_locations(name)}
+    except ELIAError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+
+
+@router.get("/projects/{project_id}/elia-engine/plant-catalogue")
+def get_project_plant_catalogue(
+    project_id: str,
+    placement_type: str | None = None,
+    category: str | None = None,
+    sun_requirement: str | None = None,
+    maintenance_level: str | None = None,
+    climate_zone: str | None = None,
+    query: str | None = None,
+    verified_only: bool = False,
+    db: Session = Depends(get_db),
+    _access=Depends(require_project_access),
+):
+    project = _project_or_404(db, project_id)
+    catalog = get_plant_catalogue()
+    entries = filter_plant_catalogue(
+        placement_type=placement_type,
+        category=category,
+        sun_requirement=sun_requirement,
+        maintenance_level=maintenance_level,
+        climate_zone=climate_zone,
+        query=query,
+        verified_only=verified_only,
+    )
+    return {
+        "catalogue_version": catalog.get("catalogue_version", "2.1"),
+        "total_entries": len(entries),
+        "entries": entries,
+        "sources": catalog.get("sources", {}),
+    }
+
+
+@router.post("/projects/{project_id}/elia-engine/plants/evaluate-suitability", response_model=PlantSuitabilityResponse)
+def evaluate_project_plant_suitability(
+    project_id: str,
+    request: PlantSuitabilityRequest,
+    db: Session = Depends(get_db),
+    _access=Depends(require_project_access),
+):
+    project = _project_or_404(db, project_id)
+    master = project.master_json or {}
+    try:
+        geom = extract_canonical_geometry(master, source_revision=project.revision)
+        assessment = evaluate_plant_suitability(
+            plant=request.plant_id,
+            geom=geom,
+            placement_type=request.placement_type,
+            surface_id=request.surface_id,
+            sunlight_score=request.sunlight_score,
+            climate_zone=request.climate_zone,
+        )
+        return PlantSuitabilityResponse(
+            assessment=assessment,
+            alternatives=assessment.suggested_alternatives,
+        )
+    except ELIAError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    except Exception as exc:
+        logger.exception("Failed evaluating plant suitability for project %s", project_id)
+        raise HTTPException(status_code=500, detail={"code": "ELIA_PLANT_EVALUATION_ERROR", "message": str(exc)}) from exc
+
+
+@router.post("/projects/{project_id}/elia-engine/plants/alternatives")
+def update_plant_alternatives(
+    project_id: str,
+    actions: list[PlantAlternativeAction],
+    db: Session = Depends(get_db),
+    _access=Depends(require_project_access),
+):
+    project = _project_or_404(db, project_id)
+    master = project.master_json or {}
+    geom = extract_canonical_geometry(master, source_revision=project.revision)
+
+    accepted_inputs = [a for a in actions if a.decision == "accept"]
+    validated = validate_accepted_alternatives(accepted_inputs, geom)
+    rejected_ids = [a.alternative_plant_id for a in actions if a.decision == "reject"]
+
+    return {
+        "project_id": project_id,
+        "source_revision": project.revision,
+        "validated_accepted": [v.model_dump() for v in validated],
+        "rejected_plant_ids": rejected_ids,
+    }
+
+
+
+
+@router.post("/projects/{project_id}/elia-engine/validate-candidate")
+def validate_candidate(
+    project_id: str,
+    request: CandidateValidationRequest,
+    db: Session = Depends(get_db),
+    _access=Depends(require_project_access)
+):
+    project = _project_or_404(db, project_id)
+    master = project.master_json
+    if not isinstance(master, dict):
+        raise HTTPException(status_code=422, detail={"code": "ELIA_INVALID_MASTER_JSON", "message": "Project has no valid Master JSON object."})
+    try:
+        raw_reqs = (
+            request.requirements.model_dump(mode="json", exclude_none=True, exclude_unset=True)
+            if hasattr(request.requirements, "model_dump")
+            else request.requirements
+        )
+        validation_result = validate_candidate_exterior(
+            master, request.exterior_landscape, raw_reqs
+        )
+        return validation_result
+    except ELIAError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+    except Exception as exc:
+        logger.exception("Failed validating candidate for project %s", project_id)
+        raise HTTPException(status_code=500, detail={"code": "ELIA_VALIDATION_ERROR", "message": str(exc)}) from exc
+
+
+@router.post("/projects/{project_id}/elia-engine/save-candidate")
+def save_candidate(
+    project_id: str,
+    request: CandidateSaveRequest,
+    db: Session = Depends(get_db),
+    _access=Depends(require_project_access)
+):
+    project = _project_or_404(db, project_id)
+    db.refresh(project)
+    current_revision = int(project.revision or 1)
+    if request.source_revision != current_revision:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "ELIA_STALE_SOURCE_REVISION",
+                "message": "Project was modified by another operation.",
+                "expected_revision": request.source_revision,
+                "current_revision": current_revision
+            }
+        )
+    master = deepcopy(project.master_json)
+    if not isinstance(master, dict):
+        raise HTTPException(status_code=422, detail={"code": "ELIA_INVALID_MASTER_JSON", "message": "Project has no valid Master JSON object."})
+
+    raw_reqs = (
+        request.requirements.model_dump(mode="json", exclude_none=True, exclude_unset=True)
+        if hasattr(request.requirements, "model_dump")
+        else request.requirements
+    )
+    saved_reqs = master.get("exterior_requirements") or master.get("processing", {}).get("elia_engine", {}).get("requirements") or {}
+    effective_raw_reqs = deepcopy(saved_reqs)
+    if isinstance(raw_reqs, Mapping) and raw_reqs:
+        for k, v in raw_reqs.items():
+            if isinstance(v, Mapping) and isinstance(effective_raw_reqs.get(k), Mapping):
+                merged_sub = dict(effective_raw_reqs[k])
+                merged_sub.update(v)
+                effective_raw_reqs[k] = merged_sub
+            else:
+                effective_raw_reqs[k] = v
+
+    try:
+        validation_result = validate_candidate_exterior(
+            master, request.exterior_landscape, effective_raw_reqs
+        )
+    except ELIAError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}) from exc
+
+    if not validation_result.get("valid"):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "ELIA_INVALID_CANDIDATE",
+                "message": "Candidate exterior design violates geometric, safety, or constraint rules and cannot be saved.",
+                "violations": validation_result.get("violations", []),
+                "checks_passed": validation_result.get("checks_passed"),
+                "checks_total": validation_result.get("checks_total"),
+            }
+        )
+
+    canonical_candidate = validation_result.get("canonical_candidate", request.exterior_landscape)
+
+    acceptance_decision = evaluate_acceptance_policy(
+        validation_result=validation_result,
+        candidate=canonical_candidate,
+        master_json=master,
+        requirements=effective_raw_reqs,
+    )
+    if not acceptance_decision["accepted"]:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "ELIA_ACCEPTANCE_BLOCKED",
+                "message": acceptance_decision["message"] or "Candidate exterior design cannot be accepted for persistence due to blocking reviews or missing evidence.",
+                "approval_status": acceptance_decision["approval_status"],
+                "blocking_reasons": acceptance_decision["blocking_reasons"],
+                "blocking_features": acceptance_decision["blocking_features"],
+                "missing_evidence": acceptance_decision["missing_evidence"],
+                "violations": validation_result.get("violations", []),
+            }
+        )
+
+    run_id = str(uuid4())
+    if isinstance(canonical_candidate, dict):
+        canonical_candidate = dict(canonical_candidate)
+        canonical_candidate["run_id"] = run_id
+    run = ComponentRun(
+        id=run_id,
+        project_id=project_id,
+        component_name="elia_engine",
+        status="completed",
+        started_at=datetime.now(timezone.utc),
+        completed_at=datetime.now(timezone.utc),
+        input_json={
+            "source_revision": current_revision,
+            "save_mode": "customer_customized_candidate",
+            "requirements": effective_raw_reqs or {},
+        },
+        output_json=_sanitize_nan(canonical_candidate),
+    )
+    db.add(run)
+
+    updated_master = build_updated_master(
+        master, canonical_candidate, run_id, "valid",
+        generation_mode="customized",
+        source_revision=current_revision,
+        model_version=canonical_candidate.get("model_version"),
+        requirements=effective_raw_reqs,
+    )
+
+    changed = db.execute(
+        update(Project)
+        .where(Project.id == project_id, Project.revision == current_revision)
+        .values(
+            master_json=updated_master,
+            revision=current_revision + 1,
+            current_component="elia_engine"
+        )
+    )
+    if changed.rowcount != 1:
+        db.rollback()
+        current_rev = int(db.query(Project).filter(Project.id == project_id).one().revision)
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "ELIA_STALE_SOURCE_REVISION",
+                "message": "Project changed while saving customized design.",
+                "expected_revision": current_revision,
+                "current_revision": current_rev
+            }
+        )
+    db.commit()
+    return {
+        "project_id": project_id,
+        "run_id": run_id,
+        "status": "completed",
+        "outcome": "valid",
+        "revision": current_revision + 1,
+        "exterior_landscape": canonical_candidate
+    }

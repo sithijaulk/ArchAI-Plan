@@ -1,57 +1,3046 @@
 "use client"
-import React, { useState } from 'react'
+import React, { useState, useEffect, useMemo, useRef, useSyncExternalStore, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { FeatureWorkflowShell } from '@/components/workflow/FeatureWorkflowShell'
-import { OutputPreview } from '@/components/output/OutputPreview'
+import { EliaOutputWrapper } from '@/components/visualization/EliaOutputWrapper'
 import { useProjectStore } from '@/store/projectStore'
 import { eliaApi } from '@/lib/api/elia'
+import { extractNormalizedUpstreamGeometry } from '@/lib/eliaGeometry'
+import { computeRequirementsFingerprint } from '@/lib/eliaSerialization'
+import { EliaWorkflowController } from '@/lib/eliaWorkflowController'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import type {
+  FactorAssessmentRow,
+  FactorsAssessment,
+  RuleEvaluationResult,
+  CategorySummary,
+  FeatureFeasibilityAssessment,
+  CombinedConflictResult,
+  ProjectFeasibilityResponse,
+  PlantCatalogueEntry,
+  PlantAlternativeProposal,
+  AcceptedPlantAlternative,
+  PlantSuitabilityAssessment,
+} from '@/types/elia'
+import {
+  LoaderCircle,
+  MapPin,
+  Search,
+  Sun,
+  RefreshCw,
+  Eye,
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
+  Compass,
+  Car,
+  Trees,
+  Lightbulb,
+  Sparkles,
+  Info,
+  Layers,
+  History,
+  Droplets,
+  Sliders,
+  Lock,
+  Unlock,
+  Trash2,
+  Undo2,
+  RotateCcw,
+  RotateCw,
+  Check,
+  ShieldCheck,
+  Tag,
+  ArrowUp,
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+} from 'lucide-react'
+
+const CATALOG_SPECIES_OPTIONS = [
+  { id: 'areca_catechu', name: 'Areca Palm (Puwak)', scientific: 'Areca catechu', category: 'small_tree' },
+  { id: 'plumeria_obtusa', name: 'Frangipani (Araliya)', scientific: 'Plumeria obtusa', category: 'small_tree' },
+  { id: 'bougainvillea_spectabilis', name: 'Bougainvillea', scientific: 'Bougainvillea spectabilis', category: 'climber' },
+  { id: 'heliconia_psittacorum', name: 'Parrot Flower', scientific: 'Heliconia psittacorum', category: 'shrub' },
+  { id: 'codiaeum_variegatum', name: 'Croton (Kos Gaha)', scientific: 'Codiaeum variegatum', category: 'shrub' },
+  { id: 'mesua_ferrea', name: 'Ceylon Ironwood (Naa)', scientific: 'Mesua ferrea', category: 'shade_tree' },
+  { id: 'shade_tree', name: 'Generic Shade Tree', scientific: 'Unassessed', category: 'shade_tree' },
+  { id: 'small_tree', name: 'Generic Small Tree', scientific: 'Unassessed', category: 'small_tree' },
+  { id: 'shrub', name: 'Generic Shrub', scientific: 'Unassessed', category: 'shrub' },
+  { id: 'ground_cover', name: 'Generic Ground Cover', scientific: 'Unassessed', category: 'ground_cover' },
+  { id: 'climber', name: 'Generic Climber', scientific: 'Unassessed', category: 'climber' },
+]
+
+function getPosCoords(pos: unknown): [number, number] | null {
+  if (Array.isArray(pos) && pos.length >= 2 && typeof pos[0] === 'number' && typeof pos[1] === 'number') {
+    return [pos[0], pos[1]]
+  }
+  if (pos && typeof pos === 'object' && 'x' in pos && 'y' in pos) {
+    const o = pos as { x: number; y: number }
+    if (typeof o.x === 'number' && typeof o.y === 'number') {
+      return [o.x, o.y]
+    }
+  }
+  return null
+}
+
+function FeasibilityBadge({ assessment }: { assessment?: FeatureFeasibilityAssessment }) {
+  if (!assessment) return null
+  const status = assessment.feasibility_status
+  if (status === 'feasible') {
+    return (
+      <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+        <Check className="w-2.5 h-2.5 mr-1" /> Feasible
+      </Badge>
+    )
+  }
+  if (status === 'infeasible') {
+    return (
+      <Badge variant="outline" className="text-[10px] bg-rose-500/10 text-rose-400 border-rose-500/30">
+        <XCircle className="w-2.5 h-2.5 mr-1" /> Infeasible
+      </Badge>
+    )
+  }
+  if (status === 'review_required') {
+    return (
+      <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-300 border-amber-500/30">
+        <AlertTriangle className="w-2.5 h-2.5 mr-1" /> Review Required
+      </Badge>
+    )
+  }
+  if (status === 'not_applicable') {
+    return (
+      <Badge variant="outline" className="text-[10px] bg-muted/30 text-muted-foreground border-border/40">
+        N/A
+      </Badge>
+    )
+  }
+  if (status === 'unsupported') {
+    return (
+      <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-300 border-blue-500/30">
+        Unsupported
+      </Badge>
+    )
+  }
+  return (
+    <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-300 border-amber-500/30">
+      Search Inconclusive
+    </Badge>
+  )
+}
+
+function FeasibilityNotice({ assessment }: { assessment?: FeatureFeasibilityAssessment }) {
+  if (!assessment || assessment.feasibility_status === 'feasible' || assessment.feasibility_status === 'not_applicable') {
+    return null
+  }
+  const isErr = assessment.feasibility_status === 'infeasible'
+  return (
+    <div
+      className={`mt-1.5 p-2 rounded text-[11px] leading-tight border ${
+        isErr
+          ? 'bg-rose-950/20 text-rose-300 border-rose-500/30'
+          : 'bg-amber-950/20 text-amber-300 border-amber-500/30'
+      }`}
+    >
+      <div className="font-medium flex items-center gap-1.5">
+        {isErr ? (
+          <XCircle className="w-3 h-3 text-rose-400 shrink-0" />
+        ) : (
+          <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0" />
+        )}
+        <span>{assessment.explanation}</span>
+      </div>
+      {assessment.missing_evidence && assessment.missing_evidence.length > 0 && (
+        <div className="mt-1 text-[10px] opacity-80">
+          Missing evidence: {assessment.missing_evidence.join(', ')}
+        </div>
+      )}
+      {assessment.suggested_alternatives && assessment.suggested_alternatives.length > 0 && (
+        <div className="mt-1 text-[10px] text-primary/90 font-medium">
+          Suggested alternatives: {assessment.suggested_alternatives.join('; ')}
+        </div>
+      )}
+    </div>
+  )
+}
+
 
 export default function EliaEnginePage() {
   const router = useRouter()
-  const { projectId, projectName, masterJson, setComponentStatus, setOutput, outputs } = useProjectStore()
-  const [isProcessing, setIsProcessing] = useState(false)
+  const { projectId, projectName, masterJson, setComponentStatus, setOutput, skipComponent } = useProjectStore()
 
-  React.useEffect(() => {
-    if (!projectId) router.push('/start')
-  }, [projectId, router])
+  // Production state controller instance (strictly null-safe without fabricated demo IDs)
+  const controllerRef = useRef<EliaWorkflowController | null>(null)
+  if (!controllerRef.current) {
+    controllerRef.current = new EliaWorkflowController(projectId || null)
+  }
+  const controller = controllerRef.current
 
-  if (!projectId) return null;
+  // Synchronize with production workflow controller with stable server snapshot
+  const state = useSyncExternalStore(
+    useCallback((notify) => controller.subscribe(notify), [controller]),
+    useCallback(() => controller.getState(), [controller]),
+    useCallback(() => EliaWorkflowController.getServerSnapshot(), [])
+  )
 
-  const handleProcess = async () => {
-    setIsProcessing(true)
-    try {
-      await eliaApi.run(projectId)
-    } catch (e) {
-      setComponentStatus('elia_engine', 'failed')
-    } finally {
-      setIsProcessing(false)
+  // Local UI state
+  const [cityQuery, setCityQuery] = useState('')
+  const [catalogEntries, setCatalogEntries] = useState(CATALOG_SPECIES_OPTIONS)
+  const [saveCandidateSuccess, setSaveCandidateSuccess] = useState<string | null>(null)
+  const [plantCategoryFilter, setPlantCategoryFilter] = useState<string>('all')
+  const [plantSearchTerm, setPlantSearchTerm] = useState<string>('')
+  const [plantVerifiedOnly, setPlantVerifiedOnly] = useState<boolean>(false)
+
+  // Load botanical catalogue from backend
+  useEffect(() => {
+    controller.loadPlantCatalogue(eliaApi)
+    eliaApi.getVegetationCatalog().then((cat) => {
+      if (cat && Array.isArray(cat.entries) && cat.entries.length > 0) {
+        setCatalogEntries(
+          cat.entries.map((e: any) => ({
+            id: e.vegetation_id,
+            name: e.display_name || e.vegetation_id,
+            scientific: e.scientific_name || 'Unassessed',
+            category: e.category,
+          }))
+        )
+      }
+    }).catch(() => {
+      // Fallback stays active
+    })
+  }, [controller])
+
+  // Coherent project lifecycle: activation on mount/project change, deactivation on cleanup
+  useEffect(() => {
+    controller.activate(projectId || null)
+
+    if (projectId) {
+      controller.loadAuthoritativeContext(eliaApi)
+      controller.loadLatestRun(eliaApi)
+    }
+
+    return () => {
+      controller.deactivate()
+    }
+  }, [projectId, controller])
+
+  // Warn on browser unload if form has unsaved edits
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (state.requirementsDirty) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [state.requirementsDirty])
+
+  // Upstream Site View Model (strictly null if no authoritative project data exists)
+  const displayMasterJson = state.activeView === 'candidate'
+    ? (state.candidate?.sourceSnapshot ?? null)
+    : (state.authoritativeMaster || masterJson || null)
+
+  const displayRevision = state.activeView === 'candidate'
+    ? (state.candidate?.sourceRevision !== undefined ? state.candidate.sourceRevision : null)
+    : state.sourceRevision
+
+  const siteViewModel = useMemo(() => {
+    return extractNormalizedUpstreamGeometry(
+      displayMasterJson,
+      null,
+      projectId || undefined,
+      displayRevision,
+      state.activeView === 'accepted'
+    )
+  }, [displayMasterJson, projectId, displayRevision, state.activeView])
+
+  // Check if form was edited since selected candidate was generated
+  const isFormDirtyAgainstCandidate = useMemo(() => {
+    if (!state.candidate) return false
+    return computeRequirementsFingerprint(state.formState) !== state.candidate.submittedFingerprint
+  }, [state.candidate, state.formState])
+
+  // Selected exterior data
+  const displayedExterior = state.activeView === 'accepted'
+    ? state.acceptedLandscape
+    : (state.candidate?.landscape ?? null)
+
+  const viewStatus: 'accepted' | 'preview' | 'infeasible' = state.activeView === 'accepted'
+    ? 'accepted'
+    : (state.candidate?.outcome === 'infeasible' ? 'infeasible' : 'preview')
+
+  // Candidate editable objects list for customization
+  const candidateFeatures = useMemo(() => {
+    const l = state.candidate?.landscape
+    if (!l) return []
+    const list: { id: string; type: string; category: string; position: [number, number]; label: string }[] = []
+    if (Array.isArray(l.vegetation_nodes)) {
+      for (const v of l.vegetation_nodes) {
+        const coords = getPosCoords(v.position)
+        if (v.json_id && coords) {
+          list.push({
+            id: v.json_id,
+            type: 'vegetation',
+            category: v.category || 'vegetation',
+            position: coords,
+            label: `Tree: ${v.display_name || v.species_name || v.category || v.json_id} (${coords[0].toFixed(1)}m, ${coords[1].toFixed(1)}m)`,
+          })
+        }
+      }
+    }
+    if (Array.isArray(l.outdoor_elements)) {
+      for (const o of l.outdoor_elements) {
+        const coords = getPosCoords(o.position)
+        if (o.json_id && coords) {
+          list.push({
+            id: o.json_id,
+            type: 'outdoor_element',
+            category: o.category || 'amenity',
+            position: coords,
+            label: `Amenity: ${o.category || o.json_id} (${coords[0].toFixed(1)}m, ${coords[1].toFixed(1)}m)`,
+          })
+        }
+      }
+    }
+    if (Array.isArray(l.outdoor_lighting?.nodes)) {
+      for (const lt of l.outdoor_lighting.nodes) {
+        const coords = getPosCoords(lt.position)
+        if (lt.json_id && coords) {
+          const catStr = typeof lt.fixture_style === 'string' ? lt.fixture_style : 'light'
+          list.push({
+            id: lt.json_id,
+            type: 'lighting',
+            category: catStr,
+            position: coords,
+            label: `Light: ${catStr || lt.json_id} (${coords[0].toFixed(1)}m, ${coords[1].toFixed(1)}m)`,
+          })
+        }
+      }
+    }
+    return list
+  }, [state.candidate?.landscape])
+
+  const selectedFeature = candidateFeatures.find((f) => f.id === state.selectedFeatureId)
+  const lockedFeatureIds = useMemo(() => {
+    return (state.formState.lockedFeatures || []).map((lf: any) => lf.json_id || lf.featureId || '')
+  }, [state.formState.lockedFeatures])
+
+  // Factors and Versioned Rule Registry assessment data
+  const [assessmentViewMode, setAssessmentViewMode] = useState<'factors' | 'rules'>('factors')
+  const [selectedRuleCategory, setSelectedRuleCategory] = useState<string>('all')
+
+  const factorsAssessment: FactorsAssessment | undefined = displayedExterior?.factors_assessment
+  const ruleEvaluations: RuleEvaluationResult[] = useMemo(() => {
+    return displayedExterior?.rule_evaluations || factorsAssessment?.rule_evaluations || []
+  }, [displayedExterior, factorsAssessment])
+  const categorySummaries = useMemo(() => {
+    return (displayedExterior?.rule_summary || factorsAssessment?.category_summaries || {}) as Record<string, CategorySummary>
+  }, [displayedExterior, factorsAssessment])
+  const approvalStatus = (displayedExterior?.approval_status || factorsAssessment?.approval_status || 'compliant') as string
+
+  const filteredRules = useMemo(() => {
+    if (selectedRuleCategory === 'all') return ruleEvaluations
+    return ruleEvaluations.filter((r) => r.category === selectedRuleCategory)
+  }, [ruleEvaluations, selectedRuleCategory])
+
+  // Search handler
+  const handleLocationSearch = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (cityQuery.trim().length < 2) return
+    await controller.searchLocations(eliaApi, cityQuery.trim())
+  }
+
+  // Solar handler
+  const handleSolarLookup = async () => {
+    if (!state.formState.selectedLocation) return
+    await controller.loadSolar(eliaApi, state.formState.selectedLocation)
+  }
+
+  // Candidate Save Handler
+  const handleSaveCandidate = async () => {
+    setSaveCandidateSuccess(null)
+    const success = await controller.saveEditedCandidate(eliaApi, {
+      setOutput: (comp, data) => setOutput(comp as any, data),
+      setComponentStatus: (comp, status) => setComponentStatus(comp as any, status),
+    })
+    if (success) {
+      setSaveCandidateSuccess('Customized landscape successfully saved and persisted to Master JSON.')
+      setTimeout(() => setSaveCandidateSuccess(null), 5000)
     }
   }
+
+  const form = state.formState
+  const feasibility: ProjectFeasibilityResponse | null =
+    state.feasibilityResult || state.validationResult?.feasibility || null
+  const featureAssessments = feasibility?.feature_assessments || {}
+  const combinedConflicts = feasibility?.combined_conflicts || []
 
   return (
     <FeatureWorkflowShell
       componentId="elia_engine"
       title="ELIA-Engine: Eco-Spatial Landscape Intelligence"
       number="04"
-      description="Generates exterior spatial planning including access, safety zoning, shading and adaptive greenery."
+      description="Generates exterior spatial planning including access, parking, safety zoning, solar orientation, and adaptive greenery."
       onPrev={() => router.push('/features/esai-engine')}
+      onNext={() => router.push('/gallery')}
+      onSkip={async () => {
+        await skipComponent('elia_engine')
+        router.push('/gallery')
+      }}
     >
-      <div className="p-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-1 border-r border-border/50 pr-8">
-            <h3 className="text-xl font-bold mb-4">Input Panel</h3>
-            <div className="space-y-4 mb-6">
-              <div className="p-4 bg-muted/50 rounded-lg border border-border text-sm">
-                Requires: Master Project JSON
+      <div className="p-4 sm:p-6 lg:p-8 space-y-8">
+        {/* Banner: Waiting for upstream project data (displayed when no real project context is loaded) */}
+        {!projectId && (
+          <div className="p-4 rounded-xl border border-blue-500/40 bg-blue-950/20 text-blue-200 text-sm flex items-start gap-3 shadow-sm">
+            <Info className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <div className="font-semibold text-blue-300">Waiting for upstream project data</div>
+              <p className="mt-0.5 text-xs text-blue-200/90 leading-relaxed">
+                No active project is selected. The requirements form can be reviewed and configured below, but spatial plan generation, validation, and saving require an authoritative project with upstream geometry from Components 1–3.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Top Operational Status Banners */}
+        {state.requiresReconciliation && (
+          <div className="p-4 rounded-xl border border-rose-500/40 bg-rose-950/20 text-rose-200 text-sm flex items-start justify-between gap-3 shadow-sm">
+            <div className="flex items-start gap-2.5">
+              <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+              <div>
+                <div className="font-semibold text-rose-300">
+                  {state.unresolvedMutation?.status === 'processing'
+                    ? 'Mutation Still Processing on Server'
+                    : 'Reconciliation Required'}
+                </div>
+                <p className="mt-0.5 leading-relaxed text-xs">
+                  {state.unresolvedMutation?.status === 'processing'
+                    ? 'The previous exterior layout mutation is still processing on the server. Generate & Save remains blocked until processing completes.'
+                    : state.actionError || 'An uncertain network or transport failure occurred during the previous save request. Generate & Save and authoritative export remain blocked until reconciliation confirms backend state.'}
+                </p>
+                {state.unresolvedMutation && (
+                  <div className="mt-1 text-[11px] font-mono text-rose-300/80">
+                    Source rev: {state.unresolvedMutation.sourceRevision} · Mode: {state.unresolvedMutation.submittedGenerationMode} · Status: {state.unresolvedMutation.status}
+                  </div>
+                )}
               </div>
             </div>
-            <Button className="w-full electric-glow" onClick={handleProcess} disabled={isProcessing}>
-              {isProcessing ? 'Processing...' : 'Generate Landscape'}
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-rose-500/40 text-rose-200 hover:bg-rose-900/30 text-xs"
+                onClick={() => controller.reconcileMutation(eliaApi)}
+                disabled={state.isReconciling}
+              >
+                {state.isReconciling ? (
+                  <LoaderCircle className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                ) : (
+                  <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                )}
+                Check Status & Reconcile
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {state.conflictError && (
+          <div className="p-4 rounded-xl border border-amber-500/40 bg-amber-950/20 text-amber-200 text-sm flex items-start justify-between gap-3 shadow-sm">
+            <div className="flex items-start gap-2.5">
+              <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <div className="font-semibold text-amber-300">Stale Project Revision</div>
+                <p className="mt-0.5 leading-relaxed">{state.conflictError}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-amber-500/40 text-amber-200 shrink-0"
+                onClick={() => {
+                  controller.loadAuthoritativeContext(eliaApi)
+                  controller.loadLatestRun(eliaApi)
+                }}
+              >
+                <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Refresh Context
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-amber-200/70 hover:text-amber-200 text-xs"
+                onClick={() => controller.dismissConflict()}
+              >
+                Dismiss
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {state.actionError && (
+          <div className="p-4 rounded-xl border border-rose-500/40 bg-rose-950/20 text-rose-200 text-sm flex items-start justify-between gap-2.5 shadow-sm">
+            <div className="flex items-start gap-2.5">
+              <XCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <div className="font-semibold text-rose-300">Operation Notice</div>
+                <p className="mt-0.5 leading-relaxed">{state.actionError}</p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-rose-200/70 hover:text-rose-200 text-xs shrink-0"
+              onClick={() => controller.dismissActionError()}
+            >
+              Dismiss
             </Button>
           </div>
-          <div className="lg:col-span-2">
-            <OutputPreview projectName={projectName} component="elia-engine" data={outputs['elia_engine']} />
+        )}
+
+        {state.saveCandidateError && (
+          <div className="p-4 rounded-xl border border-rose-500/40 bg-rose-950/30 text-rose-200 text-sm flex items-start justify-between gap-3 shadow-sm">
+            <div className="flex items-start gap-2.5">
+              <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-rose-100">Save Rejected by Acceptance Policy</p>
+                <p className="mt-1 text-xs text-rose-200/90 leading-relaxed">{state.saveCandidateError}</p>
+                <p className="mt-2 text-xs text-rose-300/70">Your customized edits in the editor have been preserved so you can resolve the compliance issues.</p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-rose-200/70 hover:text-rose-200 text-xs shrink-0"
+              onClick={() => controller.dismissSaveCandidateError()}
+            >
+              Dismiss
+            </Button>
+          </div>
+        )}
+
+        {saveCandidateSuccess && (
+          <div className="p-4 rounded-xl border border-emerald-500/40 bg-emerald-950/20 text-emerald-200 text-sm flex items-center gap-2.5 shadow-sm">
+            <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+            <span className="font-medium">{saveCandidateSuccess}</span>
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------------- */}
+        {/* Main Grid: Input & Context Controls (Left) vs Output Viewer (Right) */}
+        {/* ------------------------------------------------------------------- */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          {/* LEFT COLUMN: Context & Requirements Form (5 cols) */}
+          <div className="lg:col-span-5 space-y-6">
+            {/* 1. Project Context & Upstream Geometry Card */}
+            <Card className="border-border/60 bg-card/60 backdrop-blur-sm">
+              <CardHeader className="pb-3 pt-4 px-5 border-b border-border/40 flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <Compass className="w-4 h-4 text-primary" /> Inherited Site Context
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {projectName || (projectId ? `Project ${projectId}` : 'No active project')} · Authoritative upstream geometry
+                  </p>
+                </div>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8 text-muted-foreground"
+                  onClick={() => {
+                    if (projectId) {
+                      controller.loadAuthoritativeContext(eliaApi)
+                      controller.loadLatestRun(eliaApi)
+                    }
+                  }}
+                  disabled={!projectId || state.isLoadingContext}
+                  title="Reload authoritative project context"
+                >
+                  <RefreshCw className={`w-4 h-4 ${state.isLoadingContext ? 'animate-spin' : ''}`} />
+                </Button>
+              </CardHeader>
+              <CardContent className="p-5 space-y-3 text-xs">
+                {state.contextError && (
+                  <div className="p-2.5 rounded-md border border-rose-500/30 bg-rose-950/20 text-rose-200">
+                    Could not load authoritative project context: {state.contextError}
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="p-2.5 rounded-lg border border-border/50 bg-muted/30">
+                    <span className="text-muted-foreground block text-[11px]">Land Boundary</span>
+                    <span className="font-semibold font-mono text-foreground text-sm">
+                      {siteViewModel.landPolygon
+                        ? `${siteViewModel.landPolygon.coordinates?.[0]?.length || 0} pts`
+                        : projectId ? 'Missing' : 'Waiting'}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground block mt-0.5">
+                      {siteViewModel.geometryState === 'ready' ? 'Polygon verified' : siteViewModel.geometryState}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg border border-border/50 bg-muted/30">
+                    <span className="text-muted-foreground block text-[11px]">House Footprint</span>
+                    <span className="font-semibold font-mono text-foreground text-sm">
+                      {siteViewModel.housePolygon
+                        ? `${siteViewModel.housePolygon.coordinates?.[0]?.length || 0} pts`
+                        : projectId ? 'Missing' : 'Waiting'}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground block mt-0.5">
+                      Height: ~{siteViewModel.buildingHeightM?.toFixed(1) || '3.5'}m {siteViewModel.isHeightEstimated ? '(est)' : ''}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg border border-border/50 bg-muted/30">
+                    <span className="text-muted-foreground block text-[11px]">Project Revision</span>
+                    <span className="font-semibold font-mono text-foreground text-sm">
+                      {state.sourceRevision !== null && state.sourceRevision !== undefined ? state.sourceRevision : 'Unloaded'}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground block mt-0.5">
+                      CAS concurrency key
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg border border-border/50 bg-muted/30">
+                    <span className="text-muted-foreground block text-[11px]">Accepted Exterior</span>
+                    <span className="font-semibold font-mono text-foreground text-sm">
+                      {state.acceptedLandscape ? 'Persisted' : 'None yet'}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground block mt-0.5">
+                      In Master JSON
+                    </span>
+                  </div>
+                </div>
+
+                {siteViewModel.geometryState !== 'ready' && (
+                  <div className="p-2.5 rounded-md border border-amber-500/30 bg-amber-950/20 text-amber-200 text-xs">
+                    {siteViewModel.geometryMessage || 'Upstream site geometry required from previous components.'}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* 2. Client Requirements Form Tabs */}
+            <Card className="border-border/60 bg-card/60 backdrop-blur-sm">
+              <CardHeader className="pb-3 pt-4 px-5 border-b border-border/40">
+                <CardTitle className="text-base font-semibold flex items-center justify-between">
+                  <span>Client Requirements</span>
+                  <div className="flex items-center gap-1.5">
+                    {state.requirementsDirty && (
+                      <Badge variant="outline" className="text-[10px] text-amber-300 border-amber-500/40">
+                        Unsaved Edits
+                      </Badge>
+                    )}
+                    <Badge variant="outline" className="text-[10px] font-mono">
+                      Units: meters
+                    </Badge>
+                  </div>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-5">
+                {/* Stage 2 Feasibility & Combined Conflicts Alert Banner */}
+                {feasibility && (
+                  <div className="mb-4 space-y-2">
+                    {combinedConflicts.length > 0 && (
+                      <div className="p-3 rounded-lg border border-rose-500/40 bg-rose-950/20 text-rose-200 text-xs space-y-1.5">
+                        <div className="flex items-center gap-1.5 font-semibold text-rose-300">
+                          <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                          <span>Combined Preference Conflicts Detected ({combinedConflicts.length})</span>
+                        </div>
+                        {combinedConflicts.map((c, i) => (
+                          <div key={i} className="pl-3 space-y-0.5 border-l-2 border-rose-500/40 ml-1">
+                            <p className="font-medium text-foreground">{c.explanation}</p>
+                            {c.suggested_alternatives && c.suggested_alternatives.length > 0 && (
+                              <p className="text-[11px] text-muted-foreground">
+                                Suggested: {c.suggested_alternatives.join('; ')}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between p-2.5 rounded-lg border border-border/40 bg-muted/20 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground font-medium">Site Feasibility:</span>
+                        {feasibility.overall_status === 'feasible' && (
+                          <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+                            <Check className="w-2.5 h-2.5 mr-1" /> All Options Feasible
+                          </Badge>
+                        )}
+                        {feasibility.overall_status === 'conflicts_detected' && (
+                          <Badge variant="outline" className="text-[10px] bg-rose-500/10 text-rose-400 border-rose-500/30">
+                            <AlertTriangle className="w-2.5 h-2.5 mr-1" /> Conflicts Detected
+                          </Badge>
+                        )}
+                        {feasibility.overall_status === 'infeasible' && (
+                          <Badge variant="outline" className="text-[10px] bg-rose-500/10 text-rose-400 border-rose-500/30">
+                            <XCircle className="w-2.5 h-2.5 mr-1" /> Infeasible Choice(s)
+                          </Badge>
+                        )}
+                        {feasibility.overall_status === 'review_required' && (
+                          <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-300 border-amber-500/30">
+                            <AlertTriangle className="w-2.5 h-2.5 mr-1" /> Review Required
+                          </Badge>
+                        )}
+                      </div>
+                      {typeof feasibility.spatial_metrics?.unoccupied_exterior_m2 === 'number' && (
+                        <span className="text-[11px] font-mono text-muted-foreground">
+                          Open Ground: {Number(feasibility.spatial_metrics.unoccupied_exterior_m2).toFixed(1)} m²
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+                <Tabs defaultValue="concept" className="w-full">
+                  <TabsList className="grid grid-cols-6 mb-4 text-[11px]">
+                    <TabsTrigger value="concept" className="text-[11px] py-1.5"><Sliders className="w-3 h-3 mr-1" /> Style</TabsTrigger>
+                    <TabsTrigger value="access" className="text-[11px] py-1.5"><Car className="w-3 h-3 mr-1" /> Access</TabsTrigger>
+                    <TabsTrigger value="garden" className="text-[11px] py-1.5"><Trees className="w-3 h-3 mr-1" /> Garden</TabsTrigger>
+                    <TabsTrigger value="facades" className="text-[11px] py-1.5"><Layers className="w-3 h-3 mr-1" /> Facades</TabsTrigger>
+                    <TabsTrigger value="lighting" className="text-[11px] py-1.5"><Lightbulb className="w-3 h-3 mr-1" /> Utilities</TabsTrigger>
+                    <TabsTrigger value="solar" className="text-[11px] py-1.5"><Sun className="w-3 h-3 mr-1" /> Solar</TabsTrigger>
+                  </TabsList>
+
+                  {/* TAB 1: GROUP A - DESIGN CONCEPT & STYLE */}
+                  <TabsContent value="concept" className="space-y-4">
+                    <div className="space-y-2 p-3 rounded-lg border border-border/40 bg-muted/20">
+                      <Label htmlFor="design-concept" className="text-xs font-semibold text-foreground">Design Concept</Label>
+                      <select
+                        id="design-concept"
+                        value={
+                          ['modern', 'greeny', 'minimalistic', 'minimalist'].includes((form.designStyle || '').toLowerCase())
+                            ? (form.designStyle.toLowerCase() === 'minimalist' ? 'minimalistic' : form.designStyle.toLowerCase())
+                            : ''
+                        }
+                        onChange={(e) => controller.editRequirement({ designStyle: e.target.value })}
+                        className="mt-1 w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                      >
+                        <option value="" disabled>Select a design concept</option>
+                        <option value="modern">Modern</option>
+                        <option value="greeny">Greeny</option>
+                        <option value="minimalistic">Minimalistic</option>
+                      </select>
+                      <p className="text-[11px] text-muted-foreground leading-tight pt-1">
+                        Influences planting density, open space weighting, and amenity arrangement through explicit planner heuristics. Changing the concept does not silently overwrite explicit choices below.
+                      </p>
+                      <div className="pt-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => controller.reapplyConceptDefaults()}
+                        >
+                          <RotateCcw className="w-3 h-3 mr-1" /> Reapply Concept Defaults
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Maintenance Preference */}
+                    <div className="space-y-2 p-3 rounded-lg border border-border/40 bg-muted/20">
+                      <Label htmlFor="maintenance-pref" className="text-xs font-semibold text-foreground">Maintenance Preference</Label>
+                      <select
+                        id="maintenance-pref"
+                        value={form.maintenancePreference || 'no_preference'}
+                        onChange={(e) => controller.editRequirement({ maintenancePreference: e.target.value as any })}
+                        className="mt-1 w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                      >
+                        <option value="low">Low (Drought-tolerant, slow-growing)</option>
+                        <option value="medium">Medium (Regular pruning &amp; care)</option>
+                        <option value="high">High (Lush ornamental maintenance)</option>
+                        <option value="no_preference">No preference</option>
+                      </select>
+                      <span className="text-[10px] text-muted-foreground block">
+                        Used to filter and score plant species from the botanical catalogue.
+                      </span>
+                    </div>
+
+                    {/* Water Availability / Irrigation */}
+                    <div className="space-y-2 p-3 rounded-lg border border-border/40 bg-muted/20">
+                      <Label htmlFor="water-avail" className="text-xs font-semibold text-foreground">Water Availability / Irrigation</Label>
+                      <select
+                        id="water-avail"
+                        value={form.waterAvailability || 'unknown'}
+                        onChange={(e) => controller.editRequirement({ waterAvailability: e.target.value as any })}
+                        className="mt-1 w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                      >
+                        <option value="limited">Limited (Low irrigation capacity)</option>
+                        <option value="regular">Regular (Standard domestic tap/well supply)</option>
+                        <option value="irrigation_available">Irrigation available (Automated sprinkler/drip)</option>
+                        <option value="unknown">Unknown (Not yet assessed)</option>
+                      </select>
+                      <span className="text-[10px] text-muted-foreground block">
+                        Unknown water availability will not assume optimal hydration.
+                      </span>
+                    </div>
+                  </TabsContent>
+
+                  {/* TAB 2: GROUPS B & C - ACCESS, PARKING, DRIVEWAY & GATE */}
+                  <TabsContent value="access" className="space-y-4">
+                    {/* GROUP B: PARKING & GARAGE */}
+                    <div className="space-y-3 p-3 rounded-lg border border-border/40 bg-muted/20">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="parking-req" className="font-semibold text-xs cursor-pointer">Group B: Parking &amp; Vehicles</Label>
+                          <FeasibilityBadge assessment={featureAssessments.parking} />
+                        </div>
+                        <input
+                          id="parking-req"
+                          type="checkbox"
+                          checked={form.parkingRequired}
+                          onChange={(e) => controller.editRequirement({ parkingRequired: e.target.checked })}
+                          className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
+                        />
+                      </div>
+                      <FeasibilityNotice assessment={featureAssessments.parking} />
+
+                      {form.parkingRequired && (
+                        <div className="space-y-3 pt-2 border-t border-border/30">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <Label htmlFor="vehicle-cnt" className="text-xs text-muted-foreground">Vehicle Count</Label>
+                              <Input
+                                id="vehicle-cnt"
+                                type="number"
+                                min={1}
+                                max={10}
+                                value={form.vehicleCount}
+                                onChange={(e) => controller.editRequirement({ vehicleCount: e.target.value })}
+                                className="mt-1 h-8 text-xs font-mono"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="vehicle-type" className="text-xs text-muted-foreground">Vehicle Type</Label>
+                              <select
+                                id="vehicle-type"
+                                value={form.vehicleType}
+                                onChange={(e) => controller.editRequirement({ vehicleType: e.target.value })}
+                                className="mt-1 w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                              >
+                                <option value="car">Car (Standard Sedan/Hatch)</option>
+                                <option value="suv">SUV / 4x4</option>
+                                <option value="van">Van / Light Commercial</option>
+                                <option value="motorcycle">Motorcycle / Scooter</option>
+                                <option value="bicycle">Bicycle</option>
+                                <option value="electric_vehicle">Electric Vehicle (EV)</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <Label htmlFor="parking-type" className="text-xs text-muted-foreground">Parking Type</Label>
+                              <select
+                                id="parking-type"
+                                value={form.parkingType}
+                                onChange={(e) => controller.editRequirement({ parkingType: e.target.value as any })}
+                                className="mt-1 w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                              >
+                                <option value="open">Open Surface Bay</option>
+                                <option value="covered">Covered Port</option>
+                                <option value="garage">Enclosed Garage</option>
+                                <option value="no_preference">No Preference</option>
+                              </select>
+                            </div>
+                            <div className="flex items-center pt-5">
+                              <label className="flex items-center gap-2 text-xs cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={form.turningSpaceRequired}
+                                  onChange={(e) => controller.editRequirement({ turningSpaceRequired: e.target.checked })}
+                                  className="w-3.5 h-3.5 rounded border-border text-primary"
+                                />
+                                <span>Vehicle Turning Space</span>
+                              </label>
+                            </div>
+                          </div>
+
+                          <div className="p-2.5 rounded border border-border/40 bg-background/50 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Label htmlFor="garage-req" className="text-xs font-medium cursor-pointer">Enclosed Garage Required</Label>
+                                <FeasibilityBadge assessment={featureAssessments.garage} />
+                              </div>
+                              <input
+                                id="garage-req"
+                                type="checkbox"
+                                checked={form.garageRequired}
+                                onChange={(e) => controller.editRequirement({ garageRequired: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                            </div>
+                            <FeasibilityNotice assessment={featureAssessments.garage} />
+                            {form.garageRequired && (
+                              <div>
+                                <Label htmlFor="garage-cap" className="text-[11px] text-muted-foreground">Garage Capacity (Vehicles)</Label>
+                                <Input
+                                  id="garage-cap"
+                                  type="number"
+                                  min={1}
+                                  max={10}
+                                  value={form.garageCapacity}
+                                  onChange={(e) => controller.editRequirement({ garageCapacity: e.target.value })}
+                                  className="mt-1 h-7 text-xs font-mono"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* GROUP C: DRIVEWAY, WALKWAYS & GATE */}
+                    <div className="space-y-3 p-3 rounded-lg border border-border/40 bg-muted/20">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="driveway-req" className="font-semibold text-xs cursor-pointer">Group C: Driveway</Label>
+                          <FeasibilityBadge assessment={featureAssessments.driveway} />
+                        </div>
+                        <input
+                          id="driveway-req"
+                          type="checkbox"
+                          checked={form.drivewayRequired}
+                          onChange={(e) => controller.editRequirement({ drivewayRequired: e.target.checked })}
+                          className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
+                        />
+                      </div>
+                      <FeasibilityNotice assessment={featureAssessments.driveway} />
+
+                      {form.drivewayRequired && (
+                        <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/30">
+                          <div>
+                            <Label htmlFor="drive-style" className="text-xs text-muted-foreground">Driveway Style</Label>
+                            <select
+                              id="drive-style"
+                              value={form.drivewayStyle}
+                              onChange={(e) => controller.editRequirement({ drivewayStyle: e.target.value })}
+                              className="mt-1 w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                            >
+                              <option value="auto">Auto Heuristic</option>
+                              <option value="straight">Direct Straight</option>
+                              <option value="curved">Curved Path</option>
+                            </select>
+                          </div>
+                          <div>
+                            <Label htmlFor="drive-surface" className="text-xs text-muted-foreground">Driveway Surface</Label>
+                            <select
+                              id="drive-surface"
+                              value={form.drivewaySurface}
+                              onChange={(e) => controller.editRequirement({ drivewaySurface: e.target.value })}
+                              className="mt-1 w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                            >
+                              <option value="concrete">Concrete Paving</option>
+                              <option value="asphalt">Asphalt Finish</option>
+                              <option value="pavers">Interlocking Pavers</option>
+                              <option value="gravel">Compacted Gravel</option>
+                            </select>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Walkways */}
+                      <div className="pt-2 border-t border-border/30 space-y-2">
+                        <span className="text-xs font-medium text-foreground block">Pedestrian Pathways</span>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={form.pedestrianPathRequired}
+                              onChange={(e) => controller.editRequirement({ pedestrianPathRequired: e.target.checked })}
+                              className="w-3.5 h-3.5 rounded text-primary"
+                            />
+                            <span>Entrance Walkway</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={form.gardenPathRequired}
+                              onChange={(e) => controller.editRequirement({ gardenPathRequired: e.target.checked })}
+                              className="w-3.5 h-3.5 rounded text-primary"
+                            />
+                            <span>Garden Walking Paths</span>
+                          </label>
+                        </div>
+                        {(form.pedestrianPathRequired || form.gardenPathRequired) && (
+                          <div className="pt-1">
+                            <Label className="text-[11px] text-muted-foreground">Walking Path Surface</Label>
+                            <select
+                              value={form.walkingPathSurface}
+                              onChange={(e) => controller.editRequirement({ walkingPathSurface: e.target.value })}
+                              className="mt-1 w-full h-7 rounded border border-input bg-background px-2 text-xs"
+                            >
+                              <option value="pavers">Stone Pavers</option>
+                              <option value="gravel">Fine Gravel</option>
+                              <option value="stepping_stones">Stepping Stones</option>
+                              <option value="timber">Timber Decking / Planks</option>
+                            </select>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Gate */}
+                      <div className="pt-2 border-t border-border/30 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="gate-req" className="text-xs font-medium cursor-pointer">Property Gate</Label>
+                            <FeasibilityBadge assessment={featureAssessments.gate} />
+                          </div>
+                          <input
+                            id="gate-req"
+                            type="checkbox"
+                            checked={form.gateRequired}
+                            onChange={(e) => controller.editRequirement({ gateRequired: e.target.checked })}
+                            className="w-3.5 h-3.5 rounded text-primary"
+                          />
+                        </div>
+                        <FeasibilityNotice assessment={featureAssessments.gate} />
+                        {form.gateRequired && (
+                          <div className="grid grid-cols-3 gap-2 pt-1 text-xs">
+                            <div>
+                              <Label className="text-[10px] text-muted-foreground">Mechanism</Label>
+                              <select
+                                value={form.gateOpeningMechanism}
+                                onChange={(e) => controller.editRequirement({ gateOpeningMechanism: e.target.value })}
+                                className="mt-1 w-full h-7 rounded border border-input bg-background px-1 text-[11px]"
+                              >
+                                <option value="sliding">Sliding</option>
+                                <option value="swing">Single Swing</option>
+                                <option value="double_swing">Double Swing</option>
+                                <option value="folding">Bi-Folding</option>
+                                <option value="cantilever">Cantilever</option>
+                              </select>
+                            </div>
+                            <div>
+                              <Label className="text-[10px] text-muted-foreground">Style</Label>
+                              <select
+                                value={form.gateStyle}
+                                onChange={(e) => controller.editRequirement({ gateStyle: e.target.value })}
+                                className="mt-1 w-full h-7 rounded border border-input bg-background px-1 text-[11px]"
+                              >
+                                <option value="modern_slat">Modern Slat</option>
+                                <option value="wrought_iron">Wrought Iron</option>
+                                <option value="solid_wood">Solid Wood</option>
+                                <option value="composite">Composite</option>
+                                <option value="minimal_steel">Minimal Steel</option>
+                              </select>
+                            </div>
+                            <div>
+                              <Label className="text-[10px] text-muted-foreground">Width (m)</Label>
+                              <Input
+                                type="number"
+                                step={0.1}
+                                min={2.0}
+                                max={6.0}
+                                value={form.gateWidthM}
+                                onChange={(e) => controller.editRequirement({ gateWidthM: e.target.value })}
+                                className="mt-1 h-7 text-xs font-mono"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  {/* TAB 3: GROUPS D & E - GROUND FINISHES & GARDEN PLANTING */}
+                  <TabsContent value="garden" className="space-y-4">
+                    {/* GROUP D: GROUND FINISHES */}
+                    <div className="space-y-2 p-3 rounded-lg border border-border/40 bg-muted/20">
+                      <Label htmlFor="ground-finish" className="text-xs font-semibold text-foreground">Group D: Ground Finishes</Label>
+                      <select
+                        id="ground-finish"
+                        value={form.gardenGroundFinish}
+                        onChange={(e) => controller.editRequirement({ gardenGroundFinish: e.target.value as any })}
+                        className="mt-1 w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                      >
+                        <option value="grass">Natural Turf / Lawn Grass</option>
+                        <option value="interlock">Interlocking Pavers</option>
+                        <option value="paving_stones">Natural Paving Stones</option>
+                        <option value="mixed">Mixed (Lawn + Stone Paving Zones)</option>
+                      </select>
+                    </div>
+
+                    {/* GROUP E: GARDEN & PLANTING */}
+                    <div className="space-y-3 p-3 rounded-lg border border-border/40 bg-muted/20">
+                      <div className="font-semibold text-xs text-foreground">Group E: Garden &amp; Planting Requirements</div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label htmlFor="green-density" className="text-xs text-muted-foreground">Vegetation Density</Label>
+                          <select
+                            id="green-density"
+                            value={form.greeneryDensity}
+                            onChange={(e) => controller.editRequirement({ greeneryDensity: e.target.value as any })}
+                            className="mt-1 w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                          >
+                            <option value="low">Low (Spacious)</option>
+                            <option value="medium">Medium (Balanced)</option>
+                            <option value="high">High (Lush Garden)</option>
+                          </select>
+                        </div>
+                        <div>
+                          <Label htmlFor="open-ratio" className="text-xs text-muted-foreground">Open Space Ratio</Label>
+                          <Input
+                            id="open-ratio"
+                            type="number"
+                            step={0.05}
+                            min={0.1}
+                            max={0.9}
+                            value={form.openSpaceRatio}
+                            onChange={(e) => controller.editRequirement({ openSpaceRatio: e.target.value })}
+                            className="mt-1 h-8 text-xs font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 pt-2 border-t border-border/30 text-xs">
+                        <div className="grid grid-cols-2 gap-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={form.gardenRequired}
+                              onChange={(e) => controller.editRequirement({ gardenRequired: e.target.checked })}
+                              className="w-3.5 h-3.5 rounded text-primary"
+                            />
+                            <span>Planting Beds</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={form.lawnRequired}
+                              onChange={(e) => controller.editRequirement({ lawnRequired: e.target.checked })}
+                              className="w-3.5 h-3.5 rounded text-primary"
+                            />
+                            <span>Turf / Lawn</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={form.flowerBedsRequired}
+                              onChange={(e) => controller.editRequirement({ flowerBedsRequired: e.target.checked })}
+                              className="w-3.5 h-3.5 rounded text-primary"
+                            />
+                            <span>Flower Beds</span>
+                          </label>
+                        </div>
+
+                        {/* Trees section */}
+                        <div className="p-2 rounded border border-border/30 bg-background/40 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={form.treesRequired}
+                                onChange={(e) => controller.editRequirement({ treesRequired: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span className="font-medium">Trees</span>
+                            </label>
+                            {form.treesRequired && (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] text-muted-foreground">Qty:</span>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  max={50}
+                                  value={form.treeQuantity}
+                                  onChange={(e) => controller.editRequirement({ treeQuantity: e.target.value })}
+                                  className="h-6 w-14 text-xs font-mono px-1"
+                                />
+                              </div>
+                            )}
+                          </div>
+                          {form.treesRequired && (
+                            <div className="flex gap-4 pt-1 text-[11px]">
+                              <label className="flex items-center gap-1.5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={form.shadeTreePreference}
+                                  onChange={(e) => controller.editRequirement({ shadeTreePreference: e.target.checked })}
+                                  className="w-3 h-3 rounded text-primary"
+                                />
+                                <span>Shade Canopy</span>
+                              </label>
+                              <label className="flex items-center gap-1.5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={form.compactTreesPreference}
+                                  onChange={(e) => controller.editRequirement({ compactTreesPreference: e.target.checked })}
+                                  className="w-3 h-3 rounded text-primary"
+                                />
+                                <span>Compact Trees</span>
+                              </label>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Shrubs section */}
+                        <div className="p-2 rounded border border-border/30 bg-background/40 flex items-center justify-between">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={form.shrubsRequired}
+                              onChange={(e) => controller.editRequirement({ shrubsRequired: e.target.checked })}
+                              className="w-3.5 h-3.5 rounded text-primary"
+                            />
+                            <span className="font-medium">Shrubs &amp; Bushes</span>
+                          </label>
+                          {form.shrubsRequired && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-muted-foreground">Qty:</span>
+                              <Input
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={form.shrubsQuantity}
+                                onChange={(e) => controller.editRequirement({ shrubsQuantity: e.target.value })}
+                                className="h-6 w-14 text-xs font-mono px-1"
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Planters section */}
+                        <div className="p-2 rounded border border-border/30 bg-background/40 flex items-center justify-between">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={form.groundPlantersRequired}
+                              onChange={(e) => controller.editRequirement({ groundPlantersRequired: e.target.checked })}
+                              className="w-3.5 h-3.5 rounded text-primary"
+                            />
+                            <span className="font-medium">Ground Planters</span>
+                          </label>
+                          {form.groundPlantersRequired && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-muted-foreground">Count:</span>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={50}
+                                value={form.groundPlantersCount}
+                                onChange={(e) => controller.editRequirement({ groundPlantersCount: e.target.value })}
+                                className="h-6 w-14 text-xs font-mono px-1"
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Seating and Table sets */}
+                        <div className="grid grid-cols-2 gap-2 pt-1">
+                          <div className="p-2 rounded border border-border/30 bg-background/40 space-y-1">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={form.gardenSeatingRequired}
+                                onChange={(e) => controller.editRequirement({ gardenSeatingRequired: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span className="font-medium">Seating Benches</span>
+                            </label>
+                            {form.gardenSeatingRequired && (
+                              <Input
+                                type="number"
+                                min={1}
+                                max={20}
+                                value={form.gardenSeatingCount}
+                                onChange={(e) => controller.editRequirement({ gardenSeatingCount: e.target.value })}
+                                className="h-6 text-xs font-mono mt-1"
+                                placeholder="Count"
+                              />
+                            )}
+                          </div>
+                          <div className="p-2 rounded border border-border/30 bg-background/40 space-y-1">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={form.gardenTableSetRequired}
+                                onChange={(e) => controller.editRequirement({ gardenTableSetRequired: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span className="font-medium">Dining Table Set</span>
+                            </label>
+                            {form.gardenTableSetRequired && (
+                              <Input
+                                type="number"
+                                min={1}
+                                max={10}
+                                value={form.gardenTableSetCount}
+                                onChange={(e) => controller.editRequirement({ gardenTableSetCount: e.target.value })}
+                                className="h-6 text-xs font-mono mt-1"
+                                placeholder="Count"
+                              />
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* STAGE 3: BOTANICAL CATALOGUE & GREENY ALTERNATIVES */}
+                      <div className="space-y-3 pt-3 border-t border-border/40 text-xs">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
+                            <Trees className="w-3.5 h-3.5 text-emerald-500" /> Verified Botanical Catalogue &amp; Greeny Preferences
+                          </Label>
+                          {state.plantCatalogueVersion && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono">
+                              v{state.plantCatalogueVersion}
+                            </Badge>
+                          )}
+                        </div>
+
+                        {/* Search and Category Filter Bar */}
+                        <div className="space-y-2 p-2 rounded-md border border-border/30 bg-background/50">
+                          <div className="flex gap-2">
+                            <div className="relative flex-1">
+                              <Search className="w-3 h-3 absolute left-2 top-2.5 text-muted-foreground" />
+                              <Input
+                                placeholder="Search species or Sinhala name..."
+                                value={plantSearchTerm}
+                                onChange={(e) => setPlantSearchTerm(e.target.value)}
+                                className="h-7 text-xs pl-7"
+                              />
+                            </div>
+                            <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer shrink-0">
+                              <input
+                                type="checkbox"
+                                checked={plantVerifiedOnly}
+                                onChange={(e) => setPlantVerifiedOnly(e.target.checked)}
+                                className="w-3 h-3 rounded text-primary"
+                              />
+                              <span>Verified Only</span>
+                            </label>
+                          </div>
+
+                          <div className="flex flex-wrap gap-1">
+                            {['all', 'tree', 'shrub', 'climber', 'ground_cover'].map((catKey) => {
+                              const labels: Record<string, string> = {
+                                all: 'All Species',
+                                tree: 'Trees',
+                                shrub: 'Shrubs',
+                                climber: 'Climbers',
+                                ground_cover: 'Ground Cover',
+                              }
+                              const isCurrent = plantCategoryFilter === catKey
+                              return (
+                                <button
+                                  key={catKey}
+                                  type="button"
+                                  onClick={() => setPlantCategoryFilter(catKey)}
+                                  className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
+                                    isCurrent
+                                      ? 'bg-primary text-primary-foreground border-primary font-medium'
+                                      : 'bg-muted/40 hover:bg-muted text-muted-foreground border-border/40'
+                                  }`}
+                                >
+                                  {labels[catKey]}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Species Catalogue Card Grid */}
+                        <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                          {((state.plantCatalogue as any[]) || catalogEntries)
+                            .filter((entry: any) => {
+                              const cat = entry.category || ''
+                              if (plantCategoryFilter === 'tree') {
+                                if (!cat.includes('tree') && !cat.includes('shade')) return false
+                              } else if (plantCategoryFilter === 'shrub') {
+                                if (!cat.includes('shrub')) return false
+                              } else if (plantCategoryFilter === 'climber') {
+                                if (!cat.includes('climber') && !cat.includes('creeper')) return false
+                              } else if (plantCategoryFilter === 'ground_cover') {
+                                if (!cat.includes('ground_cover')) return false
+                              }
+                              if (plantVerifiedOnly && !entry.verified_species_data) return false
+                              if (plantSearchTerm.trim()) {
+                                const term = plantSearchTerm.toLowerCase()
+                                const disp = (entry.display_name || entry.name || '').toLowerCase()
+                                const sci = (entry.scientific_name || entry.scientific || '').toLowerCase()
+                                if (!disp.includes(term) && !sci.includes(term)) return false
+                              }
+                              return true
+                            })
+                            .map((plant: any) => {
+                              const pid = plant.vegetation_id || plant.id
+                              const isPreferred = (form.preferredPlantIds || []).includes(pid)
+                              const assessment = state.plantSuitabilityAssessments[pid]
+
+                              return (
+                                <div
+                                  key={pid}
+                                  className={`p-2 rounded border transition-all ${
+                                    isPreferred
+                                      ? 'border-emerald-500/40 bg-emerald-50/10 dark:bg-emerald-950/20'
+                                      : 'border-border/30 bg-background/40 hover:bg-muted/30'
+                                  }`}
+                                >
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="space-y-0.5 min-w-0">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="font-semibold text-xs text-foreground truncate">
+                                          {plant.display_name || plant.name}
+                                        </span>
+                                        {plant.verified_species_data ? (
+                                          <Badge variant="outline" className="text-[9px] px-1 py-0 border-emerald-500/50 text-emerald-600 dark:text-emerald-400 bg-emerald-50/30">
+                                            ✓ Verified
+                                          </Badge>
+                                        ) : plant.verification_status === 'partially_documented' ? (
+                                          <Badge variant="outline" className="text-[9px] px-1 py-0 border-amber-500/50 text-amber-600 dark:text-amber-400">
+                                            Partially Documented
+                                          </Badge>
+                                        ) : (
+                                          <Badge variant="outline" className="text-[9px] px-1 py-0 text-muted-foreground border-border/40">
+                                            Generic
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      <div className="text-[11px] italic text-muted-foreground">
+                                        {plant.scientific_name || plant.scientific}
+                                      </div>
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant={isPreferred ? 'default' : 'outline'}
+                                      onClick={() => {
+                                        if (isPreferred) {
+                                          controller.removePreferredPlant(pid)
+                                        } else {
+                                          controller.selectPreferredPlant(pid, eliaApi)
+                                        }
+                                      }}
+                                      className={`h-6 text-[10px] px-2 shrink-0 ${
+                                        isPreferred ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''
+                                      }`}
+                                    >
+                                      {isPreferred ? '✓ Selected' : '+ Select'}
+                                    </Button>
+                                  </div>
+
+                                  {/* Biological specifications & dimensions */}
+                                  <div className="flex items-center gap-3 mt-1.5 text-[10px] text-muted-foreground font-mono">
+                                    {plant.mature_height_m && (
+                                      <span>H: {plant.mature_height_m}m</span>
+                                    )}
+                                    {plant.canopy_radius_m && (
+                                      <span>Canopy: {plant.canopy_radius_m * 2}m Ø</span>
+                                    )}
+                                    {plant.sun_requirement && (
+                                      <span className="capitalize">{plant.sun_requirement.replace(/_/g, ' ')}</span>
+                                    )}
+                                    {plant.water_demand && (
+                                      <span>Water: {plant.water_demand}</span>
+                                    )}
+                                  </div>
+
+                                  {/* Plant suitability feedback when selected */}
+                                  {isPreferred && assessment && (
+                                    <div className="mt-1.5 pt-1.5 border-t border-border/20 text-[10px]">
+                                      <div className="flex items-center gap-1 font-medium">
+                                        {assessment.overall_status === 'feasible' ? (
+                                          <span className="text-emerald-500 flex items-center gap-1">
+                                            <CheckCircle2 className="w-3 h-3" /> Space &amp; biological requirements satisfied
+                                          </span>
+                                        ) : assessment.overall_status === 'infeasible' ? (
+                                          <span className="text-destructive flex items-center gap-1">
+                                            <XCircle className="w-3 h-3" /> Infeasible: {assessment.explanation}
+                                          </span>
+                                        ) : (
+                                          <span className="text-amber-500 flex items-center gap-1">
+                                            <AlertTriangle className="w-3 h-3" /> Review required: {assessment.explanation}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                        </div>
+
+                        {/* GREENY ALTERNATIVES SECTION */}
+                        {state.plantAlternativeProposals && state.plantAlternativeProposals.length > 0 && (
+                          <div className="space-y-2 p-2.5 rounded-lg border border-amber-500/30 bg-amber-50/10 dark:bg-amber-950/20">
+                            <div className="flex items-center gap-1.5 font-semibold text-amber-600 dark:text-amber-400">
+                              <Sparkles className="w-3.5 h-3.5" />
+                              <span>Supported Greeny Alternatives (Adaptive Substitution)</span>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground">
+                              Requested planting cannot be accommodated in current exterior space. The system identified context-appropriate alternatives requiring explicit user acceptance:
+                            </p>
+
+                            <div className="space-y-2 mt-2">
+                              {state.plantAlternativeProposals.map((prop) => {
+                                const isAccepted = prop.status === 'accepted' || (form.acceptedPlantAlternatives || []).some(
+                                  (a) => a.alternative_plant_id === prop.alternative_plant_id
+                                )
+                                const isRejected = prop.status === 'rejected' || (form.rejectedPlantAlternatives || []).includes(prop.alternative_plant_id)
+
+                                return (
+                                  <div
+                                    key={prop.proposal_id}
+                                    className={`p-2 rounded border text-xs ${
+                                      isAccepted
+                                        ? 'border-emerald-500/50 bg-emerald-50/20 dark:bg-emerald-950/30'
+                                        : isRejected
+                                        ? 'border-border/30 bg-muted/20 opacity-70'
+                                        : 'border-amber-500/40 bg-background/60'
+                                    }`}
+                                  >
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="space-y-0.5">
+                                        <div className="font-semibold text-foreground flex items-center gap-1.5">
+                                          <span>Alternative: {prop.alternative_display_name}</span>
+                                          <Badge variant="outline" className="text-[9px] px-1 py-0 capitalize">
+                                            {prop.proposed_placement_type} ({prop.alternative_category})
+                                          </Badge>
+                                        </div>
+                                        <div className="text-[11px] text-muted-foreground">
+                                          {prop.suitability_explanation}
+                                        </div>
+                                        <div className="text-[10px] text-destructive/90">
+                                          Original Bottleneck: {prop.reason}
+                                        </div>
+                                      </div>
+
+                                      <div className="shrink-0 flex items-center gap-1">
+                                        {isAccepted ? (
+                                          <div className="flex items-center gap-1.5">
+                                            <Badge className="bg-emerald-600 text-white text-[10px] px-1.5 py-0.5">
+                                              ✓ Accepted
+                                            </Badge>
+                                            <Button
+                                              type="button"
+                                              size="sm"
+                                              variant="ghost"
+                                              onClick={() => controller.revertPlantAlternative(prop.alternative_plant_id)}
+                                              className="h-6 text-[10px] px-1.5 text-muted-foreground hover:text-foreground"
+                                            >
+                                              Revert
+                                            </Button>
+                                          </div>
+                                        ) : isRejected ? (
+                                          <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                                            Rejected
+                                          </Badge>
+                                        ) : (
+                                          <div className="flex items-center gap-1">
+                                            <Button
+                                              type="button"
+                                              size="sm"
+                                              onClick={() => controller.acceptPlantAlternative(prop)}
+                                              className="h-6 text-[10px] px-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                                            >
+                                              Accept
+                                            </Button>
+                                            <Button
+                                              type="button"
+                                              size="sm"
+                                              variant="outline"
+                                              onClick={() => controller.rejectPlantAlternative(prop.proposal_id, prop.alternative_plant_id)}
+                                              className="h-6 text-[10px] px-2 text-destructive border-destructive/30 hover:bg-destructive/10"
+                                            >
+                                              Reject
+                                            </Button>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  {/* TAB 4: GROUPS F, G & H - WALLS, BALCONIES & ROOFTOPS */}
+                  <TabsContent value="facades" className="space-y-4">
+                    {/* GROUP F: BOUNDARY WALL & VERTICAL GREENERY */}
+                    <div className="space-y-3 p-3 rounded-lg border border-border/40 bg-muted/20 text-xs">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="wall-req" className="font-semibold text-xs cursor-pointer">Group F: Boundary Enclosure</Label>
+                        <input
+                          id="wall-req"
+                          type="checkbox"
+                          checked={form.boundaryWallRequired}
+                          onChange={(e) => controller.editRequirement({ boundaryWallRequired: e.target.checked })}
+                          className="w-4 h-4 rounded text-primary"
+                        />
+                      </div>
+                      {form.boundaryWallRequired && (
+                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/30">
+                          <div>
+                            <Label className="text-[11px] text-muted-foreground">Wall Type</Label>
+                            <select
+                              value={form.boundaryWallType}
+                              onChange={(e) => controller.editRequirement({ boundaryWallType: e.target.value })}
+                              className="mt-1 w-full h-7 rounded border border-input bg-background px-2 text-xs"
+                            >
+                              <option value="masonry">Masonry Wall</option>
+                              <option value="fence">Perimeter Fence</option>
+                              <option value="hedge">Living Green Hedge</option>
+                              <option value="parapet">Parapet Wall</option>
+                            </select>
+                          </div>
+                          <div>
+                            <Label className="text-[11px] text-muted-foreground">Height (m)</Label>
+                            <Input
+                              type="number"
+                              step={0.1}
+                              min={0.5}
+                              max={4.0}
+                              value={form.boundaryWallHeightM}
+                              onChange={(e) => controller.editRequirement({ boundaryWallHeightM: e.target.value })}
+                              className="mt-1 h-7 text-xs font-mono"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Vertical Greenery */}
+                      <div className="pt-2 border-t border-border/30 space-y-2">
+                        <span className="text-xs font-medium text-foreground block">Vertical Greenery</span>
+                        <div>
+                          <Label className="text-[11px] text-muted-foreground">Greenery Mode</Label>
+                          <select
+                            value={form.verticalGreeneryMode}
+                            onChange={(e) => controller.editRequirement({ verticalGreeneryMode: e.target.value as any })}
+                            className="mt-1 w-full h-7 rounded border border-input bg-background px-2 text-xs"
+                          >
+                            <option value="automatic">Automatic Heuristic</option>
+                            <option value="preferred">Preferred Enclosure</option>
+                            <option value="disabled">Disabled</option>
+                          </select>
+                        </div>
+                        {form.verticalGreeneryMode !== 'disabled' && (
+                          <div className="space-y-1.5 pt-1">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={form.wallClimbingPlants}
+                                onChange={(e) => controller.editRequirement({ wallClimbingPlants: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span>Wall-Climbing Vines</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={form.wallMountedGreenery}
+                                onChange={(e) => controller.editRequirement({ wallMountedGreenery: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span>Wall-Mounted Planters</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={form.hangingTrailingGreenery}
+                                onChange={(e) => controller.editRequirement({ hangingTrailingGreenery: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span>Hanging / Trailing Greenery</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={form.acceptVerticalAlternatives}
+                                onChange={(e) => controller.editRequirement({ acceptVerticalAlternatives: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span className="text-[11px] text-muted-foreground">Accept vertical alternatives when ground space is constrained</span>
+                            </label>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* GROUP G: BALCONIES */}
+                    <div className="space-y-3 p-3 rounded-lg border border-border/40 bg-muted/20 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="balcony-req" className="font-semibold text-xs cursor-pointer">Group G: Balcony Greenery</Label>
+                          <FeasibilityBadge assessment={featureAssessments.balcony_features} />
+                        </div>
+                        <input
+                          id="balcony-req"
+                          type="checkbox"
+                          checked={form.balconyPlantingRequired}
+                          onChange={(e) => controller.editRequirement({ balconyPlantingRequired: e.target.checked })}
+                          className="w-4 h-4 rounded text-primary"
+                        />
+                      </div>
+                      <FeasibilityNotice assessment={featureAssessments.balcony_features} />
+                      <div className="p-2 rounded bg-muted/40 border border-border/30 text-[10px] text-blue-300 flex items-start gap-1.5">
+                        <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                        <span>Stage 1: Intent captured for feasibility check (Balcony spatial layout generation coming in Stage 2).</span>
+                      </div>
+                      {form.balconyPlantingRequired && (
+                        <div className="space-y-2 pt-2 border-t border-border/30">
+                          <div className="grid grid-cols-2 gap-2">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={form.balconyPottedPlants}
+                                onChange={(e) => controller.editRequirement({ balconyPottedPlants: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span>Potted Plants</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={form.balconyHangingPlants}
+                                onChange={(e) => controller.editRequirement({ balconyHangingPlants: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span>Hanging Plants</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={form.balconySeatingRequired}
+                                onChange={(e) => controller.editRequirement({ balconySeatingRequired: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span>Balcony Seating</span>
+                            </label>
+                          </div>
+                          <div>
+                            <Label className="text-[10px] text-muted-foreground">Target Balcony IDs (Optional)</Label>
+                            <Input
+                              value={(form.targetBalconyIds || []).join(', ')}
+                              onChange={(e) => controller.editRequirement({
+                                targetBalconyIds: e.target.value.split(',').map((s) => s.trim()).filter(Boolean)
+                              })}
+                              className="mt-1 h-7 text-xs font-mono"
+                              placeholder="e.g. balcony_1, balcony_2"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* GROUP H: ROOFTOP / TERRACE */}
+                    <div className="space-y-3 p-3 rounded-lg border border-border/40 bg-muted/20 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="terrace-req" className="font-semibold text-xs cursor-pointer">Group H: Rooftop / Terrace Greenery</Label>
+                          <FeasibilityBadge assessment={featureAssessments.rooftop_terrace} />
+                        </div>
+                        <input
+                          id="terrace-req"
+                          type="checkbox"
+                          checked={form.rooftopPlantingRequired}
+                          onChange={(e) => controller.editRequirement({ rooftopPlantingRequired: e.target.checked })}
+                          className="w-4 h-4 rounded text-primary"
+                        />
+                      </div>
+                      <FeasibilityNotice assessment={featureAssessments.rooftop_terrace} />
+                      <div className="p-2 rounded bg-muted/40 border border-border/30 text-[10px] text-blue-300 flex items-start gap-1.5">
+                        <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                        <span>Stage 1: Intent captured for feasibility check (Rooftop layout generation coming in Stage 2).</span>
+                      </div>
+                      {form.rooftopPlantingRequired && (
+                        <div className="space-y-2 pt-2 border-t border-border/30">
+                          <div className="grid grid-cols-2 gap-2">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={form.rooftopPlantersRequired}
+                                onChange={(e) => controller.editRequirement({ rooftopPlantersRequired: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span>Rooftop Planters</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={form.rooftopSeatingRequired}
+                                onChange={(e) => controller.editRequirement({ rooftopSeatingRequired: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span>Terrace Seating</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={form.rooftopTablesRequired}
+                                onChange={(e) => controller.editRequirement({ rooftopTablesRequired: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span>Dining Tables</span>
+                            </label>
+                          </div>
+                          <div>
+                            <Label className="text-[10px] text-muted-foreground">Target Terrace IDs (Optional)</Label>
+                            <Input
+                              value={(form.targetTerraceIds || []).join(', ')}
+                              onChange={(e) => controller.editRequirement({
+                                targetTerraceIds: e.target.value.split(',').map((s) => s.trim()).filter(Boolean)
+                              })}
+                              className="mt-1 h-7 text-xs font-mono"
+                              placeholder="e.g. terrace_main, roof_garden"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </TabsContent>
+
+                  {/* TAB 5: GROUPS I & J - LIGHTING & WATER UTILITIES */}
+                  <TabsContent value="lighting" className="space-y-4">
+                    {/* GROUP I: OUTDOOR LIGHTING */}
+                    <div className="space-y-3 p-3 rounded-lg border border-border/40 bg-muted/20 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="light-req" className="font-semibold text-xs cursor-pointer">Group I: Outdoor Lighting Plan</Label>
+                          <FeasibilityBadge assessment={featureAssessments.outdoor_lighting} />
+                        </div>
+                        <input
+                          id="light-req"
+                          type="checkbox"
+                          checked={form.lightingRequired}
+                          onChange={(e) => controller.editRequirement({ lightingRequired: e.target.checked })}
+                          className="w-4 h-4 rounded text-primary"
+                        />
+                      </div>
+                      <FeasibilityNotice assessment={featureAssessments.outdoor_lighting} />
+                      {form.lightingRequired && (
+                        <div className="space-y-3 pt-2 border-t border-border/30">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <Label className="text-[11px] text-muted-foreground">Fixture Style</Label>
+                              <select
+                                value={form.lightingStyle}
+                                onChange={(e) => controller.editRequirement({ lightingStyle: e.target.value })}
+                                className="mt-1 w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                              >
+                                <option value="minimal">Minimal Bollards</option>
+                                <option value="modern_bollard">Modern Bollard</option>
+                                <option value="accent">Pathway &amp; Tree Accent</option>
+                                <option value="ambient">Ambient Perimeter</option>
+                                <option value="traditional">Traditional Lantern</option>
+                              </select>
+                            </div>
+                            <div>
+                              <Label className="text-[11px] text-muted-foreground">Desired Fixtures</Label>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={50}
+                                value={form.lightingFixtureCount}
+                                onChange={(e) => controller.editRequirement({ lightingFixtureCount: e.target.value })}
+                                className="mt-1 h-8 text-xs font-mono"
+                                placeholder="Auto"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <span className="text-[11px] text-muted-foreground block mb-1">Illumination Zones</span>
+                            <div className="grid grid-cols-2 gap-2">
+                              <label className="flex items-center gap-1.5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={form.gardenLighting}
+                                  onChange={(e) => controller.editRequirement({ gardenLighting: e.target.checked })}
+                                  className="w-3.5 h-3.5 rounded text-primary"
+                                />
+                                <span>Garden</span>
+                              </label>
+                              <label className="flex items-center gap-1.5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={form.pathwayLighting}
+                                  onChange={(e) => controller.editRequirement({ pathwayLighting: e.target.checked })}
+                                  className="w-3.5 h-3.5 rounded text-primary"
+                                />
+                                <span>Pathways</span>
+                              </label>
+                              <label className="flex items-center gap-1.5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={form.seatingLighting}
+                                  onChange={(e) => controller.editRequirement({ seatingLighting: e.target.checked })}
+                                  className="w-3.5 h-3.5 rounded text-primary"
+                                />
+                                <span>Seating</span>
+                              </label>
+                              <label className="flex items-center gap-1.5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={form.wallLighting}
+                                  onChange={(e) => controller.editRequirement({ wallLighting: e.target.checked })}
+                                  className="w-3.5 h-3.5 rounded text-primary"
+                                />
+                                <span>Boundary Wall</span>
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* GROUP J: WATER FEATURES & UTILITIES */}
+                    <div className="space-y-3 p-3 rounded-lg border border-border/40 bg-muted/20 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div className="font-semibold text-xs text-foreground">Group J: Water Features &amp; Utilities</div>
+                        <span className="text-[10px] font-mono text-muted-foreground">Sanitary &amp; Hydraulic Clearance</span>
+                      </div>
+                      
+                      <div className="space-y-3 pt-1">
+                        {/* 1. Domestic Water Well */}
+                        <div className="p-2.5 rounded-lg border border-border/30 bg-background/50 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className={`flex items-center gap-2 ${featureAssessments.well?.feasibility_status === 'infeasible' && !form.wellRequired ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+                              <input
+                                type="checkbox"
+                                checked={form.wellRequired}
+                                disabled={featureAssessments.well?.feasibility_status === 'infeasible' && !form.wellRequired}
+                                onChange={(e) => controller.editRequirement({ wellRequired: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span className="font-medium">Domestic Water Well</span>
+                            </label>
+                            <FeasibilityBadge assessment={featureAssessments.well} />
+                          </div>
+                          <FeasibilityNotice assessment={featureAssessments.well} />
+                        </div>
+
+                        {/* 2. Septic Tank */}
+                        <div className="p-2.5 rounded-lg border border-border/30 bg-background/50 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className={`flex items-center gap-2 ${featureAssessments.septic_tank?.feasibility_status === 'infeasible' && !form.septicTankRequired ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+                              <input
+                                type="checkbox"
+                                checked={form.septicTankRequired}
+                                disabled={featureAssessments.septic_tank?.feasibility_status === 'infeasible' && !form.septicTankRequired}
+                                onChange={(e) => controller.editRequirement({ septicTankRequired: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span className="font-medium">Septic System</span>
+                            </label>
+                            <FeasibilityBadge assessment={featureAssessments.septic_tank} />
+                          </div>
+                          <FeasibilityNotice assessment={featureAssessments.septic_tank} />
+                        </div>
+
+                        {/* 3. Garden Pond */}
+                        <div className="p-2.5 rounded-lg border border-border/30 bg-background/50 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className={`flex items-center gap-2 ${featureAssessments.pond?.feasibility_status === 'infeasible' && !form.pondRequired ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+                              <input
+                                type="checkbox"
+                                checked={form.pondRequired}
+                                disabled={featureAssessments.pond?.feasibility_status === 'infeasible' && !form.pondRequired}
+                                onChange={(e) => controller.editRequirement({ pondRequired: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span className="font-medium">Garden Pond</span>
+                            </label>
+                            <FeasibilityBadge assessment={featureAssessments.pond} />
+                          </div>
+                          <FeasibilityNotice assessment={featureAssessments.pond} />
+                        </div>
+
+                        {/* 4. Swimming Pool */}
+                        <div className="p-2.5 rounded-lg border border-border/30 bg-background/50 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className={`flex items-center gap-2 ${(featureAssessments.swimming_pool?.feasibility_status === 'infeasible' || featureAssessments.pool?.feasibility_status === 'infeasible') && !form.poolRequired ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+                              <input
+                                type="checkbox"
+                                checked={form.poolRequired}
+                                disabled={(featureAssessments.swimming_pool?.feasibility_status === 'infeasible' || featureAssessments.pool?.feasibility_status === 'infeasible') && !form.poolRequired}
+                                onChange={(e) => controller.editRequirement({ poolRequired: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span className="font-medium">Swimming Pool</span>
+                            </label>
+                            <FeasibilityBadge assessment={featureAssessments.swimming_pool || featureAssessments.pool} />
+                          </div>
+                          <FeasibilityNotice assessment={featureAssessments.swimming_pool || featureAssessments.pool} />
+                        </div>
+
+                        {/* 5. Garden Water Taps */}
+                        <div className="p-2.5 rounded-lg border border-border/30 bg-background/50 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={form.gardenTapsRequired}
+                                onChange={(e) => controller.editRequirement({ gardenTapsRequired: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span className="font-medium">Garden Water Taps</span>
+                            </label>
+                            <div className="flex items-center gap-2">
+                              {form.gardenTapsRequired && (
+                                <div className="flex items-center gap-1.5 mr-1">
+                                  <span className="text-[10px] text-muted-foreground">Count:</span>
+                                  <Input
+                                    type="number"
+                                    min={1}
+                                    max={10}
+                                    value={form.gardenTapsCount}
+                                    onChange={(e) => controller.editRequirement({ gardenTapsCount: e.target.value })}
+                                    className="h-6 w-14 text-xs font-mono px-1"
+                                  />
+                                </div>
+                              )}
+                              <FeasibilityBadge assessment={featureAssessments.garden_taps} />
+                            </div>
+                          </div>
+                          <FeasibilityNotice assessment={featureAssessments.garden_taps} />
+                        </div>
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  {/* TAB 6: GROUP K - SOLAR & SUSTAINABILITY */}
+                  <TabsContent value="solar" className="space-y-4">
+                    {/* GROUP K: SOLAR REQUIREMENTS */}
+                    <div className="space-y-3 p-3 rounded-lg border border-border/40 bg-muted/20 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="solar-req" className="font-semibold text-xs cursor-pointer">Group K: Solar Panels</Label>
+                          <FeasibilityBadge assessment={featureAssessments.solar_pv} />
+                        </div>
+                        <input
+                          id="solar-req"
+                          type="checkbox"
+                          checked={form.solarRequired}
+                          onChange={(e) => controller.editRequirement({ solarRequired: e.target.checked })}
+                          className="w-4 h-4 rounded text-primary"
+                        />
+                      </div>
+                      <FeasibilityNotice assessment={featureAssessments.solar_pv} />
+                      <div className="p-2 rounded bg-muted/40 border border-border/30 text-[10px] text-blue-300 flex items-start gap-1.5">
+                        <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                        <span>Stage 1: Intent captured for feasibility check (3D panel spatial layout generation coming in Stage 2).</span>
+                      </div>
+                      {form.solarRequired && (
+                        <div className="space-y-2 pt-2 border-t border-border/30">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <Label className="text-[11px] text-muted-foreground">Preferred Roof Surface</Label>
+                              <select
+                                value={form.preferredRoofSurface}
+                                onChange={(e) => controller.editRequirement({ preferredRoofSurface: e.target.value as any })}
+                                className="mt-1 w-full h-7 rounded border border-input bg-background px-2 text-xs"
+                              >
+                                <option value="auto">Auto Optimum Surface</option>
+                                <option value="flat_roof">Flat Rooftop</option>
+                                <option value="south_facing">South Facing Pitched Roof</option>
+                                <option value="north_facing">North Facing Roof</option>
+                                <option value="any">Any Available Surface</option>
+                              </select>
+                            </div>
+                            <div>
+                              <Label className="text-[11px] text-muted-foreground">Placement Priority</Label>
+                              <select
+                                value={form.placementPriority}
+                                onChange={(e) => controller.editRequirement({ placementPriority: e.target.value as any })}
+                                className="mt-1 w-full h-7 rounded border border-input bg-background px-2 text-xs"
+                              >
+                                <option value="balanced">Balanced</option>
+                                <option value="maximum_yield">Maximum Yield</option>
+                                <option value="concealed_from_street">Concealed from Street</option>
+                              </select>
+                            </div>
+                          </div>
+                          <div className="pt-1">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={form.includeLiveSolar}
+                                onChange={(e) => controller.editRequirement({ includeLiveSolar: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary"
+                              />
+                              <span>Include Live Solar Irradiance in Spatial Scoring</span>
+                            </label>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Climate Zone */}
+                    <div className="space-y-2 p-3 rounded-lg border border-border/40 bg-muted/20">
+                      <Label htmlFor="climate-zone" className="text-xs font-semibold">Sri Lankan Climate Zone</Label>
+                      <select
+                        id="climate-zone"
+                        value={form.climateZone || 'unknown'}
+                        onChange={(e) => controller.editRequirement({ climateZone: e.target.value as any })}
+                        className="mt-1 w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                      >
+                        <option value="unknown">Unknown (Site analysis required)</option>
+                        <option value="wet_zone">Wet Zone (Colombo, Kandy, Galle, Ratnapura)</option>
+                        <option value="intermediate_zone">Intermediate Zone (Kurunegala, Badulla)</option>
+                        <option value="dry_zone">Dry Zone (Jaffna, Anuradhapura, Hambantota)</option>
+                      </select>
+                      <span className="text-[10px] text-muted-foreground block">
+                        Used to match botanical tolerances against regional rainfall and humidity.
+                      </span>
+                    </div>
+
+                    {/* Site Exposure */}
+                    <div className="space-y-2 p-3 rounded-lg border border-border/40 bg-muted/20">
+                      <Label htmlFor="site-exposure" className="text-xs font-semibold">Site Sunlight Exposure</Label>
+                      <select
+                        id="site-exposure"
+                        value={form.siteExposure || 'unknown'}
+                        onChange={(e) => controller.editRequirement({ siteExposure: e.target.value as any })}
+                        className="mt-1 w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                      >
+                        <option value="unknown">Unknown (Calculated from orientation/irradiance)</option>
+                        <option value="sheltered">Sheltered (Protected by surrounding buildings)</option>
+                        <option value="moderate">Moderate Exposure</option>
+                        <option value="exposed">High Sun Exposure</option>
+                        <option value="coastal_wind">Coastal Wind / Maritime Exposure</option>
+                      </select>
+                    </div>
+
+                    {/* Locality Search */}
+                    <form onSubmit={handleLocationSearch} className="space-y-2 pt-1">
+                      <Label htmlFor="elia-city-search" className="text-xs">Search Locality for Solar Positioning</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          id="elia-city-search"
+                          value={cityQuery}
+                          onChange={(e) => setCityQuery(e.target.value)}
+                          placeholder="Colombo, Kandy, Galle..."
+                          className="h-8 text-xs"
+                        />
+                        <Button
+                          type="submit"
+                          variant="outline"
+                          size="sm"
+                          disabled={state.isSearchingLocation || cityQuery.trim().length < 2}
+                          className="h-8 px-2.5"
+                        >
+                          {state.isSearchingLocation ? <LoaderCircle className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                        </Button>
+                      </div>
+                    </form>
+
+                    {state.locations.length > 0 && (
+                      <div className="max-h-32 overflow-y-auto space-y-1 rounded border border-border p-1 text-xs">
+                        {state.locations.map((loc) => (
+                          <button
+                            key={loc.id}
+                            type="button"
+                            onClick={() => controller.selectLocation(loc)}
+                            className={`w-full text-left p-1.5 rounded transition-colors ${form.selectedLocation?.id === loc.id ? 'bg-primary/20 text-primary font-medium' : 'hover:bg-muted'}`}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <MapPin className="w-3 h-3 shrink-0" /> {loc.name}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground pl-4.5 block">
+                              {loc.admin1 || loc.country} ({loc.latitude.toFixed(3)}, {loc.longitude.toFixed(3)})
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {form.selectedLocation && (
+                      <div className="p-2.5 rounded-lg border border-border/50 bg-muted/30 space-y-2 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-primary">{form.selectedLocation.name}</span>
+                          <span className="text-[10px] font-mono text-muted-foreground">
+                            {form.selectedLocation.latitude.toFixed(4)}, {form.selectedLocation.longitude.toFixed(4)}
+                          </span>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="w-full h-7 text-xs"
+                          onClick={handleSolarLookup}
+                          disabled={state.isLoadingSolar}
+                        >
+                          {state.isLoadingSolar ? <LoaderCircle className="w-3.5 h-3.5 animate-spin mr-1" /> : <Sun className="w-3.5 h-3.5 mr-1" />}
+                          Load Live Solar Irradiance
+                        </Button>
+                      </div>
+                    )}
+
+                    {state.solar && (
+                      <div className="p-2.5 rounded-lg border border-border/50 bg-muted/40 space-y-1.5 text-xs">
+                        <div className="flex items-center justify-between font-medium">
+                          <span>Solar Irradiance (GHI)</span>
+                          <span className="font-mono text-primary">{state.solar.irradiance_w_m2.shortwave_radiation ?? '—'} W/m²</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                          <span>Sun Elevation / Azimuth</span>
+                          <span>{state.solar.solar_position.elevation_degrees.toFixed(1)}° / {state.solar.solar_position.azimuth_degrees.toFixed(1)}°</span>
+                        </div>
+                      </div>
+                    )}
+                  </TabsContent>
+                </Tabs>
+              </CardContent>
+            </Card>
+
+            {/* 3. Generation Mode & Operational Actions Card */}
+            <Card className="border-border/60 bg-card/60 backdrop-blur-sm">
+              <CardContent className="p-5 space-y-4">
+                {/* Generation Engine & Planner Architecture */}
+                <div className="space-y-2 p-3 rounded-lg border border-primary/20 bg-primary/5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-foreground flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-primary" /> ELIA Exterior Planning Engine
+                    </span>
+                    <span className="text-[10px] font-mono text-muted-foreground">Rule &amp; Geometric Planner</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    A rule-based, preference-driven exterior planning system using geometric layout generation and optimization.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-[10px] font-mono text-primary/80">
+                    <span className="px-1.5 py-0.5 rounded bg-primary/10 border border-primary/20">79 Rules (v2.1 Registry)</span>
+                    <span className="px-1.5 py-0.5 rounded bg-primary/10 border border-primary/20">Plant Catalogue v2.1</span>
+                    <span className="px-1.5 py-0.5 rounded bg-primary/10 border border-primary/20">A* Pathfinding &amp; OBB Packing</span>
+                  </div>
+                </div>
+
+                {/* Preference Fulfillment & Unsupported Preferences Notice */}
+                {displayedExterior?.preference_fulfillment?.unsupported_preferences && displayedExterior.preference_fulfillment.unsupported_preferences.length > 0 && (
+                  <div className="p-3 rounded-lg border border-blue-500/30 bg-blue-950/20 text-blue-200 text-xs space-y-1">
+                    <div className="font-semibold flex items-center gap-1.5 text-blue-300">
+                      <Info className="w-3.5 h-3.5" /> Stage 1 Preference Scope
+                    </div>
+                    <p className="text-[11px] leading-relaxed">
+                      The following requested preferences are recorded and validated in the Master contract, but spatial layout generation is deferred to Stage 2:
+                    </p>
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      {displayedExterior.preference_fulfillment.unsupported_preferences.map((item: string) => (
+                        <Badge key={item} variant="outline" className="text-[10px] border-blue-400/40 text-blue-300">
+                          {item.replace(/_/g, ' ')}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Validation Response Summary Banner */}
+                {state.validationResult && (
+                  <div className="p-3 rounded-lg border border-emerald-500/30 bg-emerald-950/20 text-emerald-200 text-xs space-y-1">
+                    <div className="font-semibold flex items-center gap-1.5 text-emerald-300">
+                      <CheckCircle2 className="w-4 h-4" /> Requirements Validated
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 text-[11px] pt-1 font-mono">
+                      <span>Land Area: {state.validationResult.geometry.land_area_m2.toFixed(1)} m²</span>
+                      <span>House Footprint: {state.validationResult.geometry.house_footprint_area_m2.toFixed(1)} m²</span>
+                      <span>North: {state.validationResult.orientation.north_angle_degrees.toFixed(1)}°</span>
+                      <span>Units: {state.validationResult.geometry.source_units}</span>
+                    </div>
+                  </div>
+                )}
+
+                {state.validationError && (
+                  <div className="p-3 rounded-lg border border-rose-500/30 bg-rose-950/20 text-rose-200 text-xs">
+                    <div className="font-semibold text-rose-300">Validation Notice</div>
+                    <p className="mt-0.5">{state.validationError}</p>
+                  </div>
+                )}
+
+                {/* Main Action Buttons */}
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full text-xs h-9"
+                    onClick={() => controller.validateRequirements(eliaApi)}
+                    disabled={!projectId || state.isValidating || state.isPreviewing || state.isGenerating}
+                    title={!projectId ? 'Waiting for upstream project context' : 'Validate input requirements against upstream geometry'}
+                  >
+                    {state.isValidating ? <LoaderCircle className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />}
+                    Validate Inputs
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="w-full text-xs h-9"
+                    onClick={() => controller.previewCandidate(eliaApi)}
+                    disabled={!projectId || state.isPreviewing || state.isGenerating || state.isValidating}
+                    title={!projectId ? 'Waiting for upstream project context' : 'Generate candidate proposal in memory without modifying database'}
+                  >
+                    {state.isPreviewing ? <LoaderCircle className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Eye className="w-3.5 h-3.5 mr-1.5" />}
+                    Preview (Unsaved)
+                  </Button>
+                </div>
+
+                <div>
+                  <Button
+                    type="button"
+                    className="w-full electric-glow h-10 text-sm font-semibold"
+                    onClick={() => controller.generateAndSave(eliaApi, { setOutput, setComponentStatus })}
+                    disabled={!projectId || !controller.canGenerateAndSave()}
+                    title={
+                      !projectId
+                        ? 'Waiting for upstream project context'
+                        : state.requiresReconciliation
+                        ? 'Project state must be reconciled before saving'
+                        : state.sourceRevision === null || state.sourceRevision === undefined
+                        ? 'Authoritative project revision required before saving'
+                        : state.contextFreshness !== 'current'
+                        ? 'Authoritative project context must be current before saving'
+                        : 'Generate candidate and persist accepted result to project Master JSON'
+                    }
+                  >
+                    {state.isGenerating ? (
+                      <span className="flex items-center gap-2">
+                        <LoaderCircle className="w-4 h-4 animate-spin" /> Persisting Exterior Spatial Plan...
+                      </span>
+                    ) : (
+                      'Generate & Save Landscape'
+                    )}
+                  </Button>
+                  {!projectId && (
+                    <p className="text-[10px] text-blue-400 text-center mt-1">
+                      Waiting for upstream project data. Open an active project from previous components to enable generation.
+                    </p>
+                  )}
+                  {projectId && state.requiresReconciliation && (
+                    <p className="text-[10px] text-rose-400 text-center mt-1">
+                      Project state must be reconciled before retrying save. Click &quot;Check Status &amp; Reconcile&quot; above.
+                    </p>
+                  )}
+                  {projectId && !state.requiresReconciliation && (state.sourceRevision === null || state.sourceRevision === undefined || state.contextFreshness !== 'current') && (
+                    <p className="text-[10px] text-amber-400/90 text-center mt-1">
+                      Authoritative confirmed project revision required before saving. Click refresh context above.
+                    </p>
+                  )}
+                </div>
+
+                {/* Latest Run Inspector Card */}
+                {state.latestRun && (
+                  <div className="pt-2 border-t border-border/40 text-[11px] text-muted-foreground flex items-center justify-between">
+                    <span className="flex items-center gap-1 font-mono">
+                      <History className="w-3 h-3" /> Run {state.latestRun.run_id.slice(0, 8)}: {state.latestRun.status}
+                    </span>
+                    <time className="text-[10px]">
+                      {state.latestRun.completed_at ? new Date(state.latestRun.completed_at).toLocaleTimeString() : ''}
+                    </time>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* RIGHT COLUMN: Output Viewer, Object Customization & Assessment (7 cols) */}
+          <div className="lg:col-span-7 space-y-6">
+            <EliaOutputWrapper
+              projectName={projectName || ''}
+              projectId={projectId || undefined}
+              masterJson={state.authoritativeMaster || masterJson}
+              data={displayedExterior}
+              isProcessing={state.isGenerating || state.isPreviewing}
+              runError={state.actionError || undefined}
+              viewStatus={viewStatus}
+              sourceRevision={state.sourceRevision}
+              candidateRevision={state.candidate?.sourceRevision}
+              acceptedRevision={state.acceptedProvenance?.sourceRevision}
+              acceptedSnapshot={state.acceptedProvenance?.sourceSnapshot}
+              generationMode={state.candidate?.generationMode || form.generationMode}
+              acceptedData={state.acceptedLandscape}
+              candidateData={state.candidate?.landscape}
+              candidateSnapshot={state.candidate?.sourceSnapshot}
+              candidateKind={state.candidate?.kind}
+              candidateStatus={state.candidate?.outcome === 'infeasible' ? 'infeasible' : 'preview'}
+              contextFreshness={state.contextFreshness}
+              requiresReconciliation={state.requiresReconciliation}
+              isFormDirtyAgainstCandidate={isFormDirtyAgainstCandidate}
+              activeView={state.activeView}
+              onToggleView={(view) => controller.toggleActiveView(view)}
+              validationSummary={displayedExterior?.validation_summary}
+              selectedFeatureId={state.selectedFeatureId}
+              onSelectFeature={(id) => controller.selectFeature(id)}
+              onFeatureMoved={(id, pos) => controller.editFeaturePosition(id, pos)}
+              onFeatureRotated={(id, angleDeg) => controller.editFeatureRotation(id, angleDeg)}
+              onFeatureScaled={(id, factor) => {
+                const veg = (state.candidate?.landscape?.vegetation_nodes ?? []).find(v => v.json_id === id)
+                if (veg) {
+                  controller.editFeatureDimensions(id, { canopy_radius_m: (veg.canopy_radius_m ?? 1.5) * factor })
+                  return
+                }
+                const elem = (state.candidate?.landscape?.outdoor_elements ?? []).find(e => e.json_id === id)
+                if (elem) {
+                  const dims = elem.dimensions || {}
+                  controller.editFeatureDimensions(id, {
+                    width_m: (Number(dims.width_m) || 1.5) * factor,
+                    length_m: (Number(dims.length_m) || 1.5) * factor
+                  })
+                }
+              }}
+              lockedFeatureIds={lockedFeatureIds}
+            />
+
+            {/* 4. CUSTOMER CUSTOMIZATION & PROPERTY EDITOR PANEL */}
+            {state.candidate && state.activeView === 'candidate' && (
+              <Card className="border-border/60 bg-card/60 backdrop-blur-sm">
+                <CardHeader className="pb-3 pt-4 px-5 border-b border-border/40 flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base font-semibold flex items-center gap-2">
+                      <Sliders className="w-4 h-4 text-primary" /> Modify Landscape Proposal
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Select generated plants, seating, or lighting to adjust coordinates, replace species, or lock before regeneration.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={() => controller.undoCandidateEdit()}
+                      disabled={state.candidateEditHistory.length === 0}
+                      title="Undo last modification"
+                    >
+                      <Undo2 className="w-3.5 h-3.5 mr-1" /> Undo
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-xs text-muted-foreground"
+                      onClick={() => controller.resetCandidateEdits()}
+                      disabled={state.candidateEditHistory.length === 0}
+                      title="Reset candidate edits"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5 mr-1" /> Reset
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-5 space-y-4">
+                  {/* Feature Selection Dropdown */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="feature-selector" className="text-xs font-medium">Select Generated Element to Edit</Label>
+                    <select
+                      id="feature-selector"
+                      value={state.selectedFeatureId || ''}
+                      onChange={(e) => controller.selectFeature(e.target.value || null)}
+                      className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                    >
+                      <option value="">-- Choose an exterior object or click it on the 2D Plan --</option>
+                      {candidateFeatures.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {lockedFeatureIds.includes(f.id) ? '🔒 ' : ''}{f.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Property Editor for Selected Feature */}
+                  {selectedFeature ? (
+                    <div className="p-3.5 rounded-lg border border-primary/30 bg-primary/5 space-y-3 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-primary">{selectedFeature.category}</span>
+                          <span className="font-mono text-[10px] text-muted-foreground">({selectedFeature.id})</span>
+                          {lockedFeatureIds.includes(selectedFeature.id) && (
+                            <Badge variant="outline" className="border-amber-500/40 text-amber-300 text-[10px] gap-1">
+                              <Lock className="w-2.5 h-2.5" /> Locked
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            size="sm"
+                            variant={lockedFeatureIds.includes(selectedFeature.id) ? 'default' : 'outline'}
+                            className="h-7 text-xs"
+                            onClick={() => controller.toggleFeatureLock(selectedFeature.id)}
+                            title="Preserve this object position across regenerations"
+                          >
+                            {lockedFeatureIds.includes(selectedFeature.id) ? (
+                              <>
+                                <Unlock className="w-3 h-3 mr-1" /> Unlock
+                              </>
+                            ) : (
+                              <>
+                                <Lock className="w-3 h-3 mr-1" /> Lock
+                              </>
+                            )}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="h-7 text-xs"
+                            onClick={() => controller.removeFeature(selectedFeature.id)}
+                            title="Remove this object from proposal"
+                          >
+                            <Trash2 className="w-3 h-3 mr-1" /> Remove
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Position Coordinates with Nudge Controls */}
+                      <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/30">
+                        <div>
+                          <Label className="text-[11px] text-muted-foreground">X Coordinate (m)</Label>
+                          <div className="flex items-center gap-1 mt-1">
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-7 w-7 text-xs shrink-0"
+                              onClick={() => controller.editFeaturePosition(selectedFeature.id, [selectedFeature.position[0] - 0.5, selectedFeature.position[1]])}
+                              title="Nudge Left -0.5m"
+                            >
+                              <ArrowLeft className="w-3 h-3" />
+                            </Button>
+                            <Input
+                              type="number"
+                              step={0.1}
+                              value={selectedFeature.position[0].toFixed(2)}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value)
+                                if (!isNaN(val)) controller.editFeaturePosition(selectedFeature.id, [val, selectedFeature.position[1]])
+                              }}
+                              className="h-7 text-xs font-mono text-center"
+                            />
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-7 w-7 text-xs shrink-0"
+                              onClick={() => controller.editFeaturePosition(selectedFeature.id, [selectedFeature.position[0] + 0.5, selectedFeature.position[1]])}
+                              title="Nudge Right +0.5m"
+                            >
+                              <ArrowRight className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div>
+                          <Label className="text-[11px] text-muted-foreground">Y Coordinate (m)</Label>
+                          <div className="flex items-center gap-1 mt-1">
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-7 w-7 text-xs shrink-0"
+                              onClick={() => controller.editFeaturePosition(selectedFeature.id, [selectedFeature.position[0], selectedFeature.position[1] - 0.5])}
+                              title="Nudge Down -0.5m"
+                            >
+                              <ArrowDown className="w-3 h-3" />
+                            </Button>
+                            <Input
+                              type="number"
+                              step={0.1}
+                              value={selectedFeature.position[1].toFixed(2)}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value)
+                                if (!isNaN(val)) controller.editFeaturePosition(selectedFeature.id, [selectedFeature.position[0], val])
+                              }}
+                              className="h-7 text-xs font-mono text-center"
+                            />
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-7 w-7 text-xs shrink-0"
+                              onClick={() => controller.editFeaturePosition(selectedFeature.id, [selectedFeature.position[0], selectedFeature.position[1] + 0.5])}
+                              title="Nudge Up +0.5m"
+                            >
+                              <ArrowUp className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Rotation and Dimensions Form Controls */}
+                      {selectedFeature.type === 'outdoor' && (
+                        <div className="pt-2 border-t border-border/30">
+                          <Label className="text-[11px] text-muted-foreground">Orientation / Azimuth Rotation (°)</Label>
+                          <div className="flex items-center gap-1 mt-1">
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-7 w-7 text-xs shrink-0"
+                              onClick={() => {
+                                const curr = Number((selectedFeature as any).rotation_deg ?? (selectedFeature as any).orientation_deg ?? 0)
+                                controller.editFeatureRotation(selectedFeature.id, (curr - 15 + 360) % 360)
+                              }}
+                              title="Rotate Counter-Clockwise -15°"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                            </Button>
+                            <Input
+                              type="number"
+                              step={5}
+                              value={Number((selectedFeature as any).rotation_deg ?? (selectedFeature as any).orientation_deg ?? 0)}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value)
+                                if (!isNaN(val)) controller.editFeatureRotation(selectedFeature.id, (val + 360) % 360)
+                              }}
+                              className="h-7 text-xs font-mono text-center"
+                            />
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-7 w-7 text-xs shrink-0"
+                              onClick={() => {
+                                const curr = Number((selectedFeature as any).rotation_deg ?? (selectedFeature as any).orientation_deg ?? 0)
+                                controller.editFeatureRotation(selectedFeature.id, (curr + 15) % 360)
+                              }}
+                              title="Rotate Clockwise +15°"
+                            >
+                              <RotateCw className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Dimension Editing for Scalable Features */}
+                      {selectedFeature.type === 'vegetation' && (
+                        <div className="pt-2 border-t border-border/30">
+                          <Label className="text-[11px] text-muted-foreground">Canopy Radius (m)</Label>
+                          <div className="flex items-center gap-1 mt-1">
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-7 w-7 text-xs shrink-0"
+                              onClick={() => {
+                                const curr = Number((selectedFeature as any).canopy_radius_m || 1.5)
+                                controller.editFeatureDimensions(selectedFeature.id, { canopy_radius_m: Math.max(0.5, curr - 0.25) })
+                              }}
+                              title="Decrease Canopy -0.25m"
+                            >
+                              -
+                            </Button>
+                            <Input
+                              type="number"
+                              step={0.1}
+                              value={Number((selectedFeature as any).canopy_radius_m || 1.5).toFixed(2)}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value)
+                                if (!isNaN(val)) controller.editFeatureDimensions(selectedFeature.id, { canopy_radius_m: val })
+                              }}
+                              className="h-7 text-xs font-mono text-center"
+                            />
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-7 w-7 text-xs shrink-0"
+                              onClick={() => {
+                                const curr = Number((selectedFeature as any).canopy_radius_m || 1.5)
+                                controller.editFeatureDimensions(selectedFeature.id, { canopy_radius_m: Math.min(10.0, curr + 0.25) })
+                              }}
+                              title="Increase Canopy +0.25m"
+                            >
+                              +
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {selectedFeature.type === 'outdoor' && !['solar_panel_array', 'water_well', 'septic_tank', 'garden_tap'].includes(selectedFeature.category) && (
+                        <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/30">
+                          <div>
+                            <Label className="text-[11px] text-muted-foreground">Width (m)</Label>
+                            <Input
+                              type="number"
+                              step={0.1}
+                              value={Number((selectedFeature as any).dimensions?.width_m || 1.5).toFixed(2)}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value)
+                                if (!isNaN(val)) controller.editFeatureDimensions(selectedFeature.id, { width_m: val })
+                              }}
+                              className="h-7 text-xs font-mono text-center mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-[11px] text-muted-foreground">Length (m)</Label>
+                            <Input
+                              type="number"
+                              step={0.1}
+                              value={Number((selectedFeature as any).dimensions?.length_m || (selectedFeature as any).dimensions?.depth_m || 1.5).toFixed(2)}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value)
+                                if (!isNaN(val)) controller.editFeatureDimensions(selectedFeature.id, { length_m: val })
+                              }}
+                              className="h-7 text-xs font-mono text-center mt-1"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Vegetation Replacement Dropdown */}
+                      {selectedFeature.type === 'vegetation' && (
+                        <div className="pt-2 border-t border-border/30">
+                          <Label className="text-[11px] text-muted-foreground">Replace with Alternative Plant Species</Label>
+                          <select
+                            value={selectedFeature.category}
+                            onChange={(e) => {
+                              const chosen = catalogEntries.find((c) => c.id === e.target.value)
+                              if (chosen) {
+                                controller.replaceVegetationPlant(selectedFeature.id, {
+                                  vegetation_id: chosen.id,
+                                  display_name: chosen.name,
+                                  scientific_name: chosen.scientific,
+                                  category: chosen.category,
+                                })
+                              }
+                            }}
+                            className="mt-1 w-full h-8 rounded border border-input bg-background px-2 text-xs"
+                          >
+                            {catalogEntries.map((sp) => (
+                              <option key={sp.id} value={sp.id}>
+                                {sp.name} ({sp.scientific})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-3 text-center text-xs text-muted-foreground border border-dashed rounded-lg">
+                      Click an element in the 2D Plan above or select from the dropdown to edit its position, lock it, or swap species.
+                    </div>
+                  )}
+
+                  {/* Candidate Validation Violations */}
+                  {state.candidateValidationError && (
+                    <div className="p-3 rounded-lg border border-rose-500/40 bg-rose-950/20 text-rose-200 text-xs space-y-1">
+                      <div className="font-semibold flex items-center gap-1.5 text-rose-300">
+                        <XCircle className="w-4 h-4" /> Customization Boundary Violation
+                      </div>
+                      <p>{state.candidateValidationError}</p>
+                      {state.candidateValidationViolations.length > 0 && (
+                        <ul className="list-disc pl-5 pt-1 space-y-0.5 font-mono text-[11px]">
+                          {state.candidateValidationViolations.map((v, i) => (
+                            <li key={i}>{v}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Candidate Validation & Persistence Action Buttons */}
+                  <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/40">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="text-xs h-9"
+                      onClick={() => controller.validateEditedCandidate(eliaApi)}
+                      disabled={!projectId || state.isValidatingCandidate}
+                    >
+                      {state.isValidatingCandidate ? <LoaderCircle className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <ShieldCheck className="w-3.5 h-3.5 mr-1.5" />}
+                      Validate Customization
+                    </Button>
+
+                    <Button
+                      type="button"
+                      className="text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+                      onClick={handleSaveCandidate}
+                      disabled={!projectId || state.isSavingCandidate || state.requiresReconciliation}
+                    >
+                      {state.isSavingCandidate ? <LoaderCircle className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Check className="w-3.5 h-3.5 mr-1.5" />}
+                      Save Customized Design
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* 5. RECOMMENDATIONS ASSESSMENT PANEL (7 Factors) */}
+            {factorsAssessment && (
+              <Card className="border-border/60 bg-card/60 backdrop-blur-sm">
+                <CardHeader className="pb-3 pt-4 px-5 border-b border-border/40 flex flex-row items-center justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-base font-semibold flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-primary" /> Environmental &amp; Versioned Rule Engine Assessment
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Multi-criteria verification across geometric validity, environmental matching, legal reservations, and elevated safety.
+                    </p>
+                  </div>
+                  <div className="shrink-0">
+                    {approvalStatus === 'blocked' ? (
+                      <Badge variant="outline" className="bg-rose-950/80 text-rose-300 border-rose-500/50 text-[11px] px-2.5 py-0.5 font-medium">
+                        Blocked — Hard Violations
+                      </Badge>
+                    ) : approvalStatus === 'conditional_draft_review_required' ? (
+                      <Badge variant="outline" className="bg-amber-950/80 text-amber-300 border-amber-500/50 text-[11px] px-2.5 py-0.5 font-medium">
+                        Conditional Draft — Review Required
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-emerald-950/80 text-emerald-300 border-emerald-500/50 text-[11px] px-2.5 py-0.5 font-medium">
+                        Compliant
+                      </Badge>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="p-5 space-y-4 text-xs">
+                  {/* Mode Selector Tabs */}
+                  <div className="flex items-center gap-2 border-b border-border/40 pb-3">
+                    <Button
+                      variant={assessmentViewMode === 'factors' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      className="text-xs h-7 px-3"
+                      onClick={() => setAssessmentViewMode('factors')}
+                    >
+                      7 Environmental &amp; Customer Factors
+                    </Button>
+                    <Button
+                      variant={assessmentViewMode === 'rules' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      className="text-xs h-7 px-3 flex items-center gap-1.5"
+                      onClick={() => setAssessmentViewMode('rules')}
+                    >
+                      <span>Versioned Rule Engine</span>
+                      {ruleEvaluations.length > 0 && (
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 bg-muted text-muted-foreground">
+                          {ruleEvaluations.length}
+                        </Badge>
+                      )}
+                    </Button>
+                  </div>
+
+                  {assessmentViewMode === 'factors' ? (
+                    <>
+                      {/* Factor Evaluation Table */}
+                      <div className="overflow-x-auto rounded-lg border border-border/50">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead className="bg-muted/50 text-muted-foreground border-b border-border/50 font-medium text-[11px]">
+                            <tr>
+                              <th className="p-2.5">Factor</th>
+                              <th className="p-2.5">Input Value</th>
+                              <th className="p-2.5">Data Source</th>
+                              <th className="p-2.5">Status</th>
+                              <th className="p-2.5">Reason &amp; Limitations</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border/30">
+                            {factorsAssessment.factors?.map((row: FactorAssessmentRow, idx: number) => {
+                              const statusBadge =
+                                row.status === 'satisfied' ? (
+                                  <Badge variant="outline" className="bg-emerald-950/60 text-emerald-400 border-emerald-500/40 text-[10px]">
+                                    Satisfied
+                                  </Badge>
+                                ) : row.status === 'unmet' ? (
+                                  <Badge variant="outline" className="bg-rose-950/60 text-rose-300 border-rose-500/40 text-[10px]">
+                                    Unmet
+                                  </Badge>
+                                ) : row.status === 'unknown' ? (
+                                  <Badge variant="outline" className="bg-amber-950/60 text-amber-300 border-amber-500/40 text-[10px]">
+                                    Unknown
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-muted-foreground border-border/50 text-[10px]">
+                                    N/A
+                                  </Badge>
+                                )
+
+                              return (
+                                <tr key={idx} className="hover:bg-muted/20">
+                                  <td className="p-2.5 font-medium text-foreground">{row.factor_label || row.factor}</td>
+                                  <td className="p-2.5 font-mono text-[11px] text-muted-foreground">{row.input_value}</td>
+                                  <td className="p-2.5 text-muted-foreground text-[11px]">{row.data_source}</td>
+                                  <td className="p-2.5">{statusBadge}</td>
+                                  <td className="p-2.5 text-muted-foreground leading-relaxed text-[11px]">{row.reason_and_limitations}</td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Object-Level Explanations */}
+                      {factorsAssessment.object_level_explanations && factorsAssessment.object_level_explanations.length > 0 && (
+                        <div className="p-3 rounded-lg border border-border/40 bg-muted/10 space-y-1.5">
+                          <span className="font-semibold text-muted-foreground block text-[11px]">Vegetation Suitability Insights:</span>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px]">
+                            {factorsAssessment.object_level_explanations.slice(0, 6).map((obj, i: number) => (
+                              <div key={i} className="p-1.5 rounded bg-background border border-border/40 font-mono text-[10px]">
+                                <span className="font-semibold text-primary">{obj.json_id}: </span>
+                                <span className="text-muted-foreground">{obj.suitability_explanation}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    /* Versioned Rule Engine Evaluation View */
+                    <div className="space-y-4">
+                      {/* Category Summary Pills */}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                        {[
+                          { key: 'geometric_validity', label: 'Geometric Validity' },
+                          { key: 'environmental_suitability', label: 'Environmental' },
+                          { key: 'legal_assessment', label: 'Legal Assessment' },
+                          { key: 'elevated_installation', label: 'Elevated Systems' },
+                          { key: 'user_preference', label: 'User Preferences' },
+                        ].map((catItem) => {
+                          const catStat = categorySummaries[catItem.key]
+                          const isActive = selectedRuleCategory === catItem.key
+                          return (
+                            <button
+                              key={catItem.key}
+                              type="button"
+                              onClick={() => setSelectedRuleCategory(isActive ? 'all' : catItem.key)}
+                              className={`p-2.5 rounded-lg border text-left transition-all ${
+                                isActive
+                                  ? 'border-primary bg-primary/10 shadow-sm'
+                                  : 'border-border/50 bg-muted/20 hover:bg-muted/40'
+                              }`}
+                            >
+                              <div className="font-medium text-[11px] text-foreground truncate">{catItem.label}</div>
+                              <div className="flex items-center gap-1.5 mt-1 text-[10px] text-muted-foreground">
+                                <span className="text-emerald-400 font-mono">{catStat?.pass || 0} pass</span>
+                                <span>•</span>
+                                <span className="text-amber-300 font-mono">{catStat?.review_required || 0} review</span>
+                                {Boolean(catStat?.fail) && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="text-rose-400 font-mono">{catStat?.fail} fail</span>
+                                  </>
+                                )}
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
+
+                      {/* Category Filter Toolbar */}
+                      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                        <div className="flex items-center gap-2">
+                          <span>Filtering by category:</span>
+                          <Badge variant="outline" className="text-[10px]">
+                            {selectedRuleCategory === 'all' ? 'All Categories' : selectedRuleCategory.replace('_', ' ')}
+                          </Badge>
+                          {selectedRuleCategory !== 'all' && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedRuleCategory('all')}
+                              className="text-primary hover:underline text-[10px]"
+                            >
+                              Reset filter
+                            </button>
+                          )}
+                        </div>
+                        <span>Showing {filteredRules.length} of {ruleEvaluations.length} rules</span>
+                      </div>
+
+                      {/* Rule Table */}
+                      <div className="overflow-x-auto rounded-lg border border-border/50 max-h-96 overflow-y-auto">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead className="bg-muted/50 text-muted-foreground border-b border-border/50 font-medium text-[11px] sticky top-0 z-10 backdrop-blur-sm">
+                            <tr>
+                              <th className="p-2.5 w-16">Rule ID</th>
+                              <th className="p-2.5 w-48">Rule &amp; Category</th>
+                              <th className="p-2.5 w-24">Outcome</th>
+                              <th className="p-2.5 w-36">Affected Objects</th>
+                              <th className="p-2.5">Evidence &amp; Missing Inputs</th>
+                              <th className="p-2.5 w-52">Practical Remedy</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border/30">
+                            {filteredRules.map((r, idx) => {
+                              const outcomeBadge =
+                                r.outcome === 'pass' ? (
+                                  <Badge variant="outline" className="bg-emerald-950/60 text-emerald-400 border-emerald-500/40 text-[10px]">
+                                    Pass
+                                  </Badge>
+                                ) : r.outcome === 'fail' ? (
+                                  <Badge variant="outline" className="bg-rose-950/60 text-rose-300 border-rose-500/40 text-[10px]">
+                                    Fail
+                                  </Badge>
+                                ) : r.outcome === 'review_required' ? (
+                                  <Badge variant="outline" className="bg-amber-950/60 text-amber-300 border-amber-500/40 text-[10px]">
+                                    Review
+                                  </Badge>
+                                ) : r.outcome === 'unknown' ? (
+                                  <Badge variant="outline" className="bg-slate-800 text-slate-300 border-slate-600/40 text-[10px]">
+                                    Unknown
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-muted-foreground border-border/40 text-[10px]">
+                                    N/A
+                                  </Badge>
+                                )
+
+                              const classBadgeColor =
+                                r.rule_class === 'L'
+                                  ? 'bg-purple-950/50 text-purple-300 border-purple-500/30'
+                                  : r.rule_class === 'E'
+                                  ? 'bg-blue-950/50 text-blue-300 border-blue-500/30'
+                                  : r.rule_class === 'D'
+                                  ? 'bg-amber-950/50 text-amber-300 border-amber-500/30'
+                                  : 'bg-muted text-muted-foreground border-border/40'
+
+                              return (
+                                <tr key={idx} className="hover:bg-muted/20">
+                                  <td className="p-2.5 font-mono text-[11px] font-semibold text-foreground">
+                                    <div className="flex items-center gap-1">
+                                      <span>{r.rule_id}</span>
+                                      <Badge variant="outline" className={`text-[9px] px-1 py-0 h-3.5 ${classBadgeColor}`}>
+                                        {r.rule_class}
+                                      </Badge>
+                                    </div>
+                                  </td>
+                                  <td className="p-2.5">
+                                    <div className="font-medium text-foreground text-[11px]">{r.title}</div>
+                                    <div className="text-[10px] text-muted-foreground capitalize mt-0.5">{r.category.replace('_', ' ')}</div>
+                                  </td>
+                                  <td className="p-2.5">{outcomeBadge}</td>
+                                  <td className="p-2.5">
+                                    {r.affected_object_ids && r.affected_object_ids.length > 0 ? (
+                                      <div className="flex flex-wrap gap-1">
+                                        {r.affected_object_ids.slice(0, 3).map((objId, i) => (
+                                          <button
+                                            key={i}
+                                            type="button"
+                                            onClick={() => controller.selectFeature(objId)}
+                                            className="px-1.5 py-0.5 rounded bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 font-mono text-[9px] truncate max-w-[120px]"
+                                            title={`Select ${objId} in viewer`}
+                                          >
+                                            {objId}
+                                          </button>
+                                        ))}
+                                        {r.affected_object_ids.length > 3 && (
+                                          <span className="text-[9px] text-muted-foreground font-mono">
+                                            +{r.affected_object_ids.length - 3}
+                                          </span>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <span className="text-[10px] text-muted-foreground">—</span>
+                                    )}
+                                  </td>
+                                  <td className="p-2.5 text-muted-foreground text-[11px] leading-relaxed">
+                                    <div>{r.evidence}</div>
+                                    {r.missing_inputs && r.missing_inputs.length > 0 && (
+                                      <div className="text-[10px] text-amber-400/90 mt-0.5">
+                                        Missing: {r.missing_inputs.join(', ')}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="p-2.5 text-[10px] text-muted-foreground leading-relaxed">
+                                    {r.practical_remedy ? (
+                                      <span className="text-foreground/90">{r.practical_remedy}</span>
+                                    ) : (
+                                      <span className="text-muted-foreground/60">—</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </div>

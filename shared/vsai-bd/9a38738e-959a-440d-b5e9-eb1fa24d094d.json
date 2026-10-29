@@ -1,0 +1,25 @@
+{
+  "project_id": "9a38738e-959a-440d-b5e9-eb1fa24d094d",
+  "project_name": "villa",
+  "schema_version": "1.0",
+  "land_info": {},
+  "buildable_footprint": {},
+  "floor_plan": {},
+  "structural_rectification": {},
+  "interior_layout": {},
+  "exterior_landscape": {},
+  "processing": {
+    "gab_gen": {
+      "status": "pending"
+    },
+    "vsai_rectifier": {
+      "status": "pending"
+    },
+    "esai_engine": {
+      "status": "pending"
+    },
+    "elia_engine": {
+      "status": "pending"
+    }
+  }
+}

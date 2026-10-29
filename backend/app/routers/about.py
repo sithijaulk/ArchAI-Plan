@@ -131,7 +131,7 @@ async def create_member(
         category=category.strip().lower() if category else "member",
         bio=bio,
         sort_order=sort_order,
-        image_path=image_path
+        image_path=image_path,
     )
     db.add(member)
     db.commit()

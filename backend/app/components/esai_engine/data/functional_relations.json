@@ -1,0 +1,86 @@
+{
+  "version": "2.0",
+  "rules": [
+    {
+      "primary_category": "sofa",
+      "related_category": "coffee_table",
+      "relation_type": "facing",
+      "optimal_distance_m": 0.45,
+      "min_distance_m": 0.35,
+      "max_distance_m": 0.55,
+      "is_hard_constraint": true
+    },
+    {
+      "primary_category": "sofa",
+      "related_category": "tv_console",
+      "relation_type": "viewing",
+      "optimal_distance_m": 2.5,
+      "min_distance_m": 1.8,
+      "max_distance_m": 4.0,
+      "is_hard_constraint": false
+    },
+    {
+      "primary_category": "bed",
+      "related_category": "bedside_table",
+      "relation_type": "flanking",
+      "optimal_distance_m": 0.1,
+      "min_distance_m": 0.05,
+      "max_distance_m": 0.25,
+      "is_hard_constraint": false
+    },
+    {
+      "primary_category": "desk",
+      "related_category": "office_chair",
+      "relation_type": "paired",
+      "optimal_distance_m": 0.2,
+      "min_distance_m": 0.1,
+      "max_distance_m": 0.4,
+      "is_hard_constraint": true
+    },
+    {
+      "primary_category": "dining_table",
+      "related_category": "dining_chair",
+      "relation_type": "surrounding",
+      "optimal_distance_m": 0.15,
+      "min_distance_m": 0.05,
+      "max_distance_m": 0.3,
+      "is_hard_constraint": true
+    },
+    {
+      "primary_category": "kitchen_island",
+      "related_category": "kitchen_counter",
+      "relation_type": "parallel_aisle",
+      "optimal_distance_m": 1.2,
+      "min_distance_m": 1.05,
+      "max_distance_m": 1.5,
+      "is_hard_constraint": true
+    },
+    {
+      "primary_category": "cooktop",
+      "related_category": "range_hood",
+      "relation_type": "aligned_above",
+      "optimal_distance_m": 0.65,
+      "min_distance_m": 0.6,
+      "max_distance_m": 0.75,
+      "is_hard_constraint": true
+    },
+    {
+      "primary_category": "basin",
+      "related_category": "bathroom_mirror",
+      "relation_type": "aligned_above",
+      "optimal_distance_m": 0.3,
+      "min_distance_m": 0.2,
+      "max_distance_m": 0.45,
+      "is_hard_constraint": false
+    },
+    {
+      "primary_category": "washing_machine",
+      "related_category": "dryer",
+      "relation_type": "side_by_side",
+      "optimal_distance_m": 0.05,
+      "min_distance_m": 0.02,
+      "max_distance_m": 0.2,
+      "is_hard_constraint": false
+    }
+  ]
+}

@@ -16,6 +16,7 @@ backend/__pycache__/
 # Environment secrets
 frontend/.env.local
 backend/.env
+.env
 
 # Uploads (keep directory structure, ignore content)
 backend/app/uploads/**
@@ -33,9 +34,14 @@ Thumbs.db
 training/**/runs/
 training/**/cache/
 datasets/
+cubicasa5k/
+data/
 *.zip
 *.pt
 *.pth
+*.pkl
+backend/weights/
+CubicasaRoomSegmentation/
 
 # IDE
 .idea/

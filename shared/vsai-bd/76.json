@@ -1,0 +1,404 @@
+{
+    "project_id": "PRJ-FP-20261021-001",
+    "project_name": "Ground Floor Plan - 10.25m x 9.75m",
+    "schema_version": "1.0",
+    "land_info": {
+        "orientation": null,
+        "road_facing": null,
+        "area_sqft": null
+    },
+    "floor_plan": {
+        "id": "FP-20261021-001",
+        "name": "Ground Floor Plan",
+        "units": "mm",
+        "coordinate_system": {
+            "origin": "top_left",
+            "x_axis": "right",
+            "y_axis": "down"
+        },
+        "dimensions": {
+            "width": 13650,
+            "height": 9750
+        },
+        "boundary": {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    3400,
+                    0
+                ],
+                [
+                    13650,
+                    0
+                ],
+                [
+                    13650,
+                    9750
+                ],
+                [
+                    3400,
+                    9750
+                ],
+                [
+                    3400,
+                    5900
+                ],
+                [
+                    0,
+                    5900
+                ],
+                [
+                    0,
+                    3700
+                ],
+                [
+                    3400,
+                    3700
+                ],
+                [
+                    3400,
+                    0
+                ]
+            ]
+        },
+        "rooms": [
+            {
+                "id": "room-01",
+                "name": "Cellier",
+                "type": "storage_room",
+                "area_sqm": 7.59,
+                "polygon": [
+                    [
+                        0,
+                        4100
+                    ],
+                    [
+                        2900,
+                        4100
+                    ],
+                    [
+                        2900,
+                        5850
+                    ],
+                    [
+                        0,
+                        5850
+                    ]
+                ],
+                "dimensions": {
+                    "width": 2900,
+                    "height": 1750
+                }
+            },
+            {
+                "id": "room-02",
+                "name": "Cuisine",
+                "type": "kitchen",
+                "area_sqm": 11.48,
+                "polygon": [
+                    [
+                        3800,
+                        5600
+                    ],
+                    [
+                        6900,
+                        5600
+                    ],
+                    [
+                        6900,
+                        9300
+                    ],
+                    [
+                        3800,
+                        9300
+                    ]
+                ],
+                "dimensions": {
+                    "width": 3100,
+                    "height": 3700
+                }
+            },
+            {
+                "id": "room-03",
+                "name": "Sejour",
+                "type": "living_room",
+                "area_sqm": 33.29,
+                "polygon": [
+                    [
+                        6900,
+                        4100
+                    ],
+                    [
+                        13300,
+                        4100
+                    ],
+                    [
+                        13300,
+                        9000
+                    ],
+                    [
+                        6900,
+                        9000
+                    ]
+                ],
+                "dimensions": {
+                    "width": 6400,
+                    "height": 4900
+                }
+            },
+            {
+                "id": "room-04",
+                "name": "Chambre 1",
+                "type": "bedroom",
+                "area_sqm": 10.22,
+                "polygon": [
+                    [
+                        3800,
+                        300
+                    ],
+                    [
+                        7000,
+                        300
+                    ],
+                    [
+                        7000,
+                        2900
+                    ],
+                    [
+                        3800,
+                        2900
+                    ]
+                ],
+                "dimensions": {
+                    "width": 3200,
+                    "height": 2600
+                }
+            },
+            {
+                "id": "room-05",
+                "name": "Chambre 2",
+                "type": "bedroom",
+                "area_sqm": 10.36,
+                "polygon": [
+                    [
+                        7000,
+                        300
+                    ],
+                    [
+                        9800,
+                        300
+                    ],
+                    [
+                        9800,
+                        2900
+                    ],
+                    [
+                        7000,
+                        2900
+                    ]
+                ],
+                "dimensions": {
+                    "width": 2800,
+                    "height": 2600
+                }
+            },
+            {
+                "id": "room-06",
+                "name": "Chambre 3",
+                "type": "bedroom",
+                "area_sqm": 11.1,
+                "polygon": [
+                    [
+                        9800,
+                        300
+                    ],
+                    [
+                        13300,
+                        300
+                    ],
+                    [
+                        13300,
+                        3200
+                    ],
+                    [
+                        9800,
+                        3200
+                    ]
+                ],
+                "dimensions": {
+                    "width": 3500,
+                    "height": 2900
+                }
+            },
+            {
+                "id": "room-07",
+                "name": "Bains",
+                "type": "bathroom",
+                "area_sqm": 5.58,
+                "polygon": [
+                    [
+                        4000,
+                        2900
+                    ],
+                    [
+                        6200,
+                        2900
+                    ],
+                    [
+                        6200,
+                        5400
+                    ],
+                    [
+                        4000,
+                        5400
+                    ]
+                ],
+                "dimensions": {
+                    "width": 2200,
+                    "height": 2500
+                }
+            },
+            {
+                "id": "room-08",
+                "name": "Degagement",
+                "type": "hallway",
+                "area_sqm": 3.13,
+                "polygon": [
+                    [
+                        6200,
+                        3300
+                    ],
+                    [
+                        10200,
+                        3300
+                    ],
+                    [
+                        10200,
+                        4100
+                    ],
+                    [
+                        6200,
+                        4100
+                    ]
+                ],
+                "dimensions": {
+                    "width": 4000,
+                    "height": 800
+                }
+            },
+            {
+                "id": "room-09",
+                "name": "Placard 1",
+                "type": "closet",
+                "area_sqm": 0.84,
+                "polygon": [
+                    [
+                        5100,
+                        5000
+                    ],
+                    [
+                        5900,
+                        5000
+                    ],
+                    [
+                        5900,
+                        6050
+                    ],
+                    [
+                        5100,
+                        6050
+                    ]
+                ],
+                "dimensions": {
+                    "width": 800,
+                    "height": 1050
+                }
+            },
+            {
+                "id": "room-10",
+                "name": "Placard 2",
+                "type": "closet",
+                "area_sqm": 1.02,
+                "polygon": [
+                    [
+                        5900,
+                        5000
+                    ],
+                    [
+                        7000,
+                        5000
+                    ],
+                    [
+                        7000,
+                        5930
+                    ],
+                    [
+                        5900,
+                        5930
+                    ]
+                ],
+                "dimensions": {
+                    "width": 1100,
+                    "height": 930
+                }
+            },
+            {
+                "id": "room-11",
+                "name": "Placard 3",
+                "type": "closet",
+                "area_sqm": 0.94,
+                "polygon": [
+                    [
+                        7500,
+                        4700
+                    ],
+                    [
+                        8400,
+                        4700
+                    ],
+                    [
+                        8400,
+                        5740
+                    ],
+                    [
+                        7500,
+                        5740
+                    ]
+                ],
+                "dimensions": {
+                    "width": 900,
+                    "height": 1040
+                }
+            },
+            {
+                "id": "room-12",
+                "name": "Placard 4",
+                "type": "closet",
+                "area_sqm": 0.98,
+                "polygon": [
+                    [
+                        12400,
+                        3000
+                    ],
+                    [
+                        13300,
+                        3000
+                    ],
+                    [
+                        13300,
+                        4090
+                    ],
+                    [
+                        12400,
+                        4090
+                    ]
+                ],
+                "dimensions": {
+                    "width": 900,
+                    "height": 1090
+                }
+            }
+        ],
+        "structural_elements": []
+    }
+}

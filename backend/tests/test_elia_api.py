@@ -1,0 +1,504 @@
+from fastapi.testclient import TestClient
+import json
+import pytest
+from types import SimpleNamespace
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from app.main import app
+from app.routers import elia
+from app.database import Base, get_db
+from app.dependencies import get_current_user
+from app.models.component_run import ComponentRun
+from app.models.project import Project
+from app.components.elia_engine.schemas import ELIARequest
+
+
+def test_elia_reference_endpoints_are_registered_and_rules_are_available():
+    with TestClient(app) as client:
+        response = client.get("/api/elia-engine/rules")
+        assert response.status_code == 200
+        assert response.json()["utility_rules"]["well_septic_min_distance"] == {"value": 50, "unit": "ft"}
+        paths = app.openapi()["paths"]
+        assert "/api/projects/{project_id}/elia-engine/run" in paths
+        assert "/api/projects/{project_id}/elia-engine/context" in paths
+        assert "/api/projects/{project_id}/elia-engine/validate-input" in paths
+        assert "/api/projects/{project_id}/elia-engine/solar/current" in paths
+        assert "/api/elia-engine/locations/search" in paths
+        assert "/api/elia-engine/preview" in paths
+
+
+def test_project_elia_run_requires_existing_authentication():
+    with TestClient(app) as client:
+        response = client.post("/api/projects/private-project/elia-engine/run", json={})
+    assert response.status_code == 401
+
+
+def test_project_crud_and_master_json_require_admin_authentication():
+    with TestClient(app) as client:
+        responses = [
+            client.post("/api/projects", json={"project_name": "private"}),
+            client.get("/api/projects"),
+            client.get("/api/projects/private-project"),
+            client.put("/api/projects/private-project", json={"project_name": "changed"}),
+            client.delete("/api/projects/private-project"),
+            client.get("/api/projects/private-project/master-json"),
+        ]
+
+    assert [response.status_code for response in responses] == [401] * len(responses)
+
+
+def test_project_endpoints_forbid_non_admin_authenticated_users():
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(role="user")
+    try:
+        with TestClient(app) as client:
+            response = client.get("/api/projects")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 403
+
+
+def test_preview_reports_model_unavailable_without_falling_back_to_baseline():
+    app.dependency_overrides[elia.require_admin] = lambda: None
+    payload = {
+        "master_json": {
+            "units": "m", "location": {"latitude": 6.9, "longitude": 79.8},
+            "land_info": {"mathematical_polygon": [[0, 0], [30, 0], [30, 20], [0, 20]],
+                          "calculated_north_bearing": 10},
+            "house_exterior_polygon": [[10, 5], [20, 5], [20, 15], [10, 15]],
+        },
+        "generation_mode": "trained_model",
+        "requirements": {"access": {"driveway_required": False}},
+    }
+    try:
+        with TestClient(app) as client:
+            response = client.post("/api/elia-engine/preview", json=payload)
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 400
+    assert "ELIA_MODEL_UNAVAILABLE" in response.json()["detail"]["code"]
+
+
+def test_project_current_solar_uses_master_location_and_provider(monkeypatch):
+    class Project:
+        id = "p1"
+        master_json = {"location": {"latitude": 6.9, "longitude": 79.8, "timezone": "Asia/Colombo"}}
+
+    class Query:
+        def filter(self, *args):
+            return self
+
+        def first(self):
+            return Project()
+
+    class Database:
+        def query(self, model):
+            return Query()
+
+    calls = []
+    monkeypatch.setattr(elia, "fetch_live_solar_conditions", lambda *args: calls.append(args) or {"status": "available"})
+    result = elia.get_project_live_solar("p1", latitude=None, longitude=None, timezone=None,
+                                         db=Database(), _admin=None)
+
+    assert result["status"] == "available"
+    assert calls == [(6.9, 79.8, "Asia/Colombo")]
+
+
+def test_validate_input_reports_missing_inherited_road_access(monkeypatch):
+    project = SimpleNamespace(id="p1", master_json={
+        "units": "m", "location": {"latitude": 6.9, "longitude": 79.8},
+        "north_angle": 0,
+        "land_boundary_polygon": [[0, 0], [30, 0], [30, 20], [0, 20]],
+        "house_exterior_polygon": [[10, 5], [20, 5], [20, 15], [10, 15]],
+    })
+    monkeypatch.setattr(elia, "_project_or_404", lambda *args: project)
+
+    with pytest.raises(Exception) as error:
+        elia.validate_elia_input("p1", ELIARequest(generation_mode="baseline"), db=None, _admin=None)
+
+    assert error.value.status_code == 422
+    assert error.value.detail["code"] == "ELIA_MISSING_ROAD_ACCESS"
+
+
+def test_sri_lanka_search_includes_provider_and_attribution(monkeypatch):
+    monkeypatch.setattr(elia, "search_sri_lanka_locations", lambda name: [{"name": name, "country_code": "LK"}])
+    result = elia.search_elia_locations(name="Malabe", _admin=None)
+    assert result["provider"] == "OpenStreetMap Nominatim"
+    assert result["attribution"] == "© OpenStreetMap contributors"
+    assert result["results"][0]["name"] == "Malabe"
+
+
+def test_baseline_http_endpoints_use_inherited_orientation_and_meter_defaults(tmp_path):
+    engine = create_engine(f"sqlite:///{tmp_path / 'baseline-api.db'}")
+    Base.metadata.create_all(engine)
+    sessions = sessionmaker(bind=engine, expire_on_commit=False)
+    seed = sessions()
+    master = {
+        "units": "ft",
+        "location": {"latitude": 6.9, "longitude": 79.8, "timezone": "Asia/Colombo"},
+        "land_info": {
+            "mathematical_polygon": [[0, 0], [100, 0], [100, 80], [0, 80]],
+            "road_facing": "south",
+            "calculated_north_bearing": 90,
+        },
+        "house_exterior_polygon": [[20, 20], [50, 20], [50, 50], [20, 50]],
+        "upstream_component": {"retained": True},
+    }
+    project = Project(project_name="Baseline API test", revision=1, master_json=master)
+    seed.add(project)
+    seed.commit()
+    project_id = project.id
+    seed.close()
+
+    def override_db():
+        session = sessions()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    previous_overrides = dict(app.dependency_overrides)
+    app.dependency_overrides[get_db] = override_db
+    app.dependency_overrides[elia.require_admin] = lambda: None
+    request_body = {
+        "generation_mode": "baseline",
+        "requirements": {"access": {"road_side": "south", "garage_required": False,
+                                      "driveway_required": False, "gate_width": 4}},
+    }
+    preview_body = {**request_body, "master_json": master}
+    try:
+        with TestClient(app) as client:
+            validated = client.post(f"/api/projects/{project_id}/elia-engine/validate-input", json=request_body)
+            preview = client.post("/api/elia-engine/preview", json=preview_body)
+            no_lights_run = client.post(f"/api/projects/{project_id}/elia-engine/run", json=request_body)
+            lit_preview = client.post("/api/elia-engine/preview", json={
+                **preview_body,
+                "requirements": {**request_body["requirements"], "lighting": {
+                    "required": True, "style": "architectural", "zones": ["garden"],
+                    "preferred_spacing": 4,
+                }},
+            })
+            stored = client.get(f"/api/projects/{project_id}")
+            master_response = client.get(f"/api/projects/{project_id}/master-json")
+    finally:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(previous_overrides)
+        engine.dispose()
+
+    assert validated.status_code == 200, validated.text
+    assert validated.json()["normalized_requirements"]["access"]["gate_width_m"] == 4.0
+    assert validated.json()["orientation"]["north_angle_degrees"] == 90
+    assert preview.status_code == 200, preview.text
+    assert preview.json()["exterior_landscape"]["access"]["gate"]["width"] == 4.0
+    assert preview.json()["exterior_landscape"]["environment"]["north_angle"] == 90
+    assert preview.json()["exterior_landscape"]["outdoor_lighting"]["nodes"] == []
+    assert no_lights_run.status_code == 200, no_lights_run.text
+    assert no_lights_run.json()["generation_mode"] == "baseline"
+    assert no_lights_run.json()["exterior_landscape"]["outdoor_lighting"]["nodes"] == []
+    history = sessions()
+    stored_run = history.query(ComponentRun).filter(ComponentRun.id == no_lights_run.json()["run_id"]).one()
+    assert stored_run.input_json["effective_requirement_units"] == "m"
+    assert stored_run.input_json["requirement_units_explicit"] is False
+    history.close()
+    assert lit_preview.status_code == 200, lit_preview.text
+    light_nodes = lit_preview.json()["exterior_landscape"]["outdoor_lighting"]["nodes"]
+    assert light_nodes and all(node["zone"] == "garden" and node["type"] == "wall_light" for node in light_nodes)
+    assert stored.json()["master_json"]["upstream_component"] == {"retained": True}
+    assert master_response.headers["X-Project-Revision"] == str(stored.json()["revision"])
+
+
+def test_elia_context_and_validation_load_offline_project(tmp_path, monkeypatch):
+    master = {
+        "units": "m",
+        "location": {"latitude": 6.9, "longitude": 79.8, "timezone": "Asia/Colombo"},
+        "land_info": {
+            "mathematical_polygon": [[0, 0], [100, 0], [100, 80], [0, 80]],
+            "road_facing": "south",
+            "calculated_north_bearing": 90,
+        },
+        "house_exterior_polygon": [[20, 20], [50, 20], [50, 50], [20, 50]],
+    }
+    project_id = "offline-elia-context"
+    (tmp_path / f"{project_id}.json").write_text(json.dumps(master), encoding="utf-8")
+    monkeypatch.setattr(elia, "OFFLINE_PROJECT_DIR", tmp_path)
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    sessions = sessionmaker(bind=engine, expire_on_commit=False)
+
+    def override_db():
+        session = sessions()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    previous_overrides = dict(app.dependency_overrides)
+    app.dependency_overrides[get_db] = override_db
+    request_body = {
+        "generation_mode": "baseline",
+        "requirements": {
+            "access": {
+                "road_side": "south",
+                "garage_required": False,
+                "driveway_required": False,
+                "gate_width": 4,
+            },
+        },
+    }
+    try:
+        with TestClient(app) as client:
+            context = client.get(f"/api/projects/{project_id}/elia-engine/context")
+            validated = client.post(
+                f"/api/projects/{project_id}/elia-engine/validate-input",
+                json=request_body,
+            )
+    finally:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(previous_overrides)
+        engine.dispose()
+
+    assert context.status_code == 200, context.text
+    assert context.json()["master_json"] == master
+    assert context.json()["revision"] == 1
+    assert validated.status_code == 200, validated.text
+    assert validated.json()["valid"] is True
+
+    (tmp_path / f"{project_id}.json").write_text(
+        json.dumps({**master, "owner_id": "project-owner"}),
+        encoding="utf-8",
+    )
+    previous_overrides = dict(app.dependency_overrides)
+    app.dependency_overrides[get_db] = override_db
+    try:
+        with TestClient(app) as client:
+            denied = client.get(f"/api/projects/{project_id}/elia-engine/context")
+    finally:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(previous_overrides)
+    assert denied.status_code == 403
+
+
+def test_garage_lighting_api_flow(tmp_path, monkeypatch):
+    from app.components.elia_engine.exceptions import ELIAError
+    engine = create_engine(f"sqlite:///{tmp_path / 'garage-api.db'}")
+    Base.metadata.create_all(engine)
+    sessions = sessionmaker(bind=engine, expire_on_commit=False)
+    seed = sessions()
+    master = {
+        "units": "m",
+        "location": {"latitude": 6.9, "longitude": 79.8, "timezone": "Asia/Colombo"},
+        "land_info": {
+            "mathematical_polygon": [[0, 0], [40, 0], [40, 40], [0, 40]],
+            "road_facing": "south",
+            "calculated_north_bearing": 0,
+        },
+        "house_exterior_polygon": [[20, 20], [30, 20], [30, 30], [20, 30]],
+        "existing_garage": {
+            "polygon": [[10, 10], [14, 10], [14, 16], [10, 16]],
+            "entry_point": [12, 10]
+        },
+        "accepted_exterior": {"version": 1, "data": "kept"},
+        "upstream_layer": "kept"
+    }
+    project = Project(project_name="Garage API test", revision=1, master_json=master)
+    seed.add(project)
+    seed.commit()
+    project_id = project.id
+    seed.close()
+
+    def override_db():
+        session = sessions()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    previous_overrides = dict(app.dependency_overrides)
+    app.dependency_overrides[get_db] = override_db
+    app.dependency_overrides[elia.require_admin] = lambda: None
+
+    request_body = {
+        "generation_mode": "baseline",
+        "requirements": {
+            "access": {"road_side": "south", "garage_required": False, "driveway_required": False},
+            "lighting": {"required": True, "zones": ["garage"], "preferred_spacing_m": 5.0}
+        },
+    }
+    preview_body = {**request_body, "master_json": master}
+
+    try:
+        with TestClient(app) as client:
+            # 1. validate-input accepts the valid input
+            validated = client.post(f"/api/projects/{project_id}/elia-engine/validate-input", json=request_body)
+            assert validated.status_code == 200, validated.text
+
+            # 2. Preview generates nonempty garage-zone lighting without HTTP 500
+            preview = client.post("/api/elia-engine/preview", json=preview_body)
+            assert preview.status_code == 200, preview.text
+            nodes = preview.json()["exterior_landscape"]["outdoor_lighting"]["nodes"]
+            assert len(nodes) >= 1
+            for node in nodes:
+                assert node["zone"] == "garage"
+
+            # 3. Run returns correctly serialized lighting and actually persists it
+            run_resp = client.post(f"/api/projects/{project_id}/elia-engine/run", json=request_body)
+            assert run_resp.status_code == 200, run_resp.text
+            run_nodes = run_resp.json()["exterior_landscape"]["outdoor_lighting"]["nodes"]
+            assert len(run_nodes) >= 1
+            assert [n["json_id"] for n in run_nodes] == [n["json_id"] for n in nodes]
+            assert [n["position"] for n in run_nodes] == [n["position"] for n in nodes]
+
+            # Verify actual successful persistence
+            s = sessions()
+            p_after_run = s.query(Project).filter(Project.id == project_id).one()
+            persisted_landscape = p_after_run.master_json["exterior_landscape"]
+            assert persisted_landscape == run_resp.json()["exterior_landscape"]
+            assert p_after_run.master_json["upstream_layer"] == "kept"
+            
+            run_id = run_resp.json()["run_id"]
+            run_record = s.query(ComponentRun).filter(ComponentRun.id == run_id).one()
+            assert run_record.project_id == project_id
+            assert run_record.component_name == "elia_engine"
+            assert run_record.status == "completed"
+            assert run_record.output_json == run_resp.json()["exterior_landscape"]
+            
+            # Deep copy the accepted exterior_landscape for preservation check
+            import copy
+            accepted_exterior = copy.deepcopy(persisted_landscape)
+            s.close()
+
+            # 4. Lighting disabled produces no lighting nodes
+            disabled_req = {**request_body, "requirements": {**request_body["requirements"], "lighting": {"required": False}}}
+            disabled_preview = client.post("/api/elia-engine/preview", json={**disabled_req, "master_json": master})
+            assert disabled_preview.status_code == 200
+            assert disabled_preview.json()["exterior_landscape"]["outdoor_lighting"]["nodes"] == []
+
+            # 5. Genuine malformed garage data returns a typed 422 error
+            malformed_master = {**master, "existing_garage": []} # invalid geometry
+            malformed_req = {**request_body, "master_json": malformed_master}
+            
+            malformed_validate = client.post(f"/api/projects/{project_id}/elia-engine/validate-input", json=malformed_req)
+            assert malformed_validate.status_code == 422
+            assert malformed_validate.json()["detail"]["code"] == "ELIA_INVALID_GARAGE_GEOMETRY"
+            
+            malformed_preview = client.post("/api/elia-engine/preview", json=malformed_req)
+            assert malformed_preview.status_code == 422
+            assert malformed_preview.json()["detail"]["code"] == "ELIA_INVALID_GARAGE_GEOMETRY"
+
+            malformed_run = client.post(f"/api/projects/{project_id}/elia-engine/run", json=malformed_req)
+            assert malformed_run.status_code == 422
+            assert malformed_run.json()["detail"]["code"] == "ELIA_INVALID_GARAGE_GEOMETRY"
+
+            # 6. Forced comparison-budget exhaustion returns ELIA_PLANNING_LIMIT_EXCEEDED
+            from app.components.elia_engine import lighting as lighting_mod
+            orig = lighting_mod.lighting_rules
+            def patched():
+                r = orig()
+                return {**r, "max_spacing_comparisons": 0} # Immediate exhaustion
+            monkeypatch.setattr(lighting_mod, "lighting_rules", patched)
+
+            exhaust_run = client.post(f"/api/projects/{project_id}/elia-engine/run", json=request_body)
+            assert exhaust_run.status_code == 500, exhaust_run.text
+            assert exhaust_run.json()["detail"]["code"] == "ELIA_PLANNING_LIMIT_EXCEEDED"
+
+            # 7. Verify preservation of the actual accepted design after failure
+            s = sessions()
+            p_failed = s.query(Project).filter(Project.id == project_id).one()
+            failed_exterior = copy.deepcopy(p_failed.master_json.get("exterior_landscape", {}))
+            
+            # The structure must remain entirely unchanged
+            assert failed_exterior == accepted_exterior
+            
+            # Unrelated upstream layer must be preserved
+            assert p_failed.master_json["upstream_layer"] == "kept"
+            s.close()
+
+    finally:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(previous_overrides)
+        engine.dispose()
+
+
+def test_persisted_run_source_revision_enforcement_without_supplied_master(tmp_path):
+    engine = create_engine(f"sqlite:///{tmp_path / 'revision-api.db'}")
+    Base.metadata.create_all(engine)
+    sessions = sessionmaker(bind=engine, expire_on_commit=False)
+    seed = sessions()
+    master = {
+        "units": "m",
+        "location": {"latitude": 6.9, "longitude": 79.8, "timezone": "Asia/Colombo"},
+        "land_info": {
+            "mathematical_polygon": [[0, 0], [40, 0], [40, 40], [0, 40]],
+            "road_facing": "south",
+            "calculated_north_bearing": 0,
+        },
+        "house_exterior_polygon": [[20, 20], [30, 20], [30, 30], [20, 30]],
+    }
+    project = Project(project_name="Revision Test", revision=2, master_json=master)
+    seed.add(project)
+    seed.commit()
+    project_id = project.id
+    seed.close()
+
+    def override_db():
+        session = sessions()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    previous_overrides = dict(app.dependency_overrides)
+    app.dependency_overrides[get_db] = override_db
+    app.dependency_overrides[elia.require_admin] = lambda: None
+
+    try:
+        with TestClient(app) as client:
+            # 1. Stale revision (1 instead of 2) without supplied master_json is rejected with 409
+            stale_req = {
+                "generation_mode": "baseline",
+                "source_revision": 1,
+                "requirements": {"access": {"road_side": "south", "garage_required": False, "driveway_required": False}},
+            }
+            res_stale = client.post(f"/api/projects/{project_id}/elia-engine/run", json=stale_req)
+            assert res_stale.status_code == 409, res_stale.text
+            assert res_stale.json()["detail"]["code"] == "ELIA_STALE_SOURCE_REVISION"
+            assert res_stale.json()["detail"]["expected_revision"] == 1
+            assert res_stale.json()["detail"]["current_revision"] == 2
+
+            # Check that project revision is unchanged and no component run was created
+            s = sessions()
+            p = s.query(Project).filter(Project.id == project_id).one()
+            assert p.revision == 2
+            runs = s.query(ComponentRun).filter(ComponentRun.project_id == project_id).all()
+            assert len(runs) == 0
+            s.close()
+
+            # 2. Matching revision (2) without supplied master_json succeeds
+            valid_req = {
+                "generation_mode": "baseline",
+                "source_revision": 2,
+                "requirements": {"access": {"road_side": "south", "garage_required": False, "driveway_required": False}},
+            }
+            res_valid = client.post(f"/api/projects/{project_id}/elia-engine/run", json=valid_req)
+            assert res_valid.status_code == 200, res_valid.text
+            assert res_valid.json()["status"] == "completed"
+
+            # 3. Omitting source_revision preserves backward compatibility for callers that omit it
+            s = sessions()
+            p = s.query(Project).filter(Project.id == project_id).one()
+            current_rev = p.revision
+            s.close()
+
+            compat_req = {
+                "generation_mode": "baseline",
+                "requirements": {"access": {"road_side": "south", "garage_required": False, "driveway_required": False}},
+            }
+            res_compat = client.post(f"/api/projects/{project_id}/elia-engine/run", json=compat_req)
+            assert res_compat.status_code == 200, res_compat.text
+    finally:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(previous_overrides)
+        engine.dispose()

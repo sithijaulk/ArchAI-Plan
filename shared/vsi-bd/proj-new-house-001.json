@@ -1,0 +1,687 @@
+{
+  "project_id": "proj-new-house-001",
+  "project_name": "New House",
+  "land_info": {
+    "boundary_points": [
+      [
+        0,
+        0
+      ],
+      [
+        50,
+        0
+      ],
+      [
+        50,
+        60
+      ],
+      [
+        0,
+        60
+      ]
+    ],
+    "area_sqft": 3000,
+    "orientation": "North-East",
+    "road_facing": "North"
+  },
+  "buildable_footprint": {
+    "polygon": [
+      [
+        5,
+        5
+      ],
+      [
+        45,
+        5
+      ],
+      [
+        45,
+        55
+      ],
+      [
+        5,
+        55
+      ]
+    ]
+  },
+  "floor_plan": {
+    "rooms": [
+      {
+        "id": "room-living",
+        "name": "Living Room",
+        "type": "living",
+        "polygon": [
+          [
+            5,
+            5
+          ],
+          [
+            25,
+            5
+          ],
+          [
+            25,
+            20
+          ],
+          [
+            5,
+            20
+          ]
+        ]
+      },
+      {
+        "id": "room-kitchen",
+        "name": "Kitchen",
+        "type": "kitchen",
+        "polygon": [
+          [
+            25,
+            5
+          ],
+          [
+            45,
+            5
+          ],
+          [
+            45,
+            20
+          ],
+          [
+            25,
+            20
+          ]
+        ]
+      },
+      {
+        "id": "room-master-bedroom",
+        "name": "Master Bedroom",
+        "type": "master_bedroom",
+        "polygon": [
+          [
+            5,
+            20
+          ],
+          [
+            25,
+            20
+          ],
+          [
+            25,
+            35
+          ],
+          [
+            5,
+            35
+          ]
+        ]
+      },
+      {
+        "id": "room-bedroom-2",
+        "name": "Bedroom 2",
+        "type": "bedroom",
+        "polygon": [
+          [
+            25,
+            20
+          ],
+          [
+            35,
+            20
+          ],
+          [
+            35,
+            35
+          ],
+          [
+            25,
+            35
+          ]
+        ]
+      },
+      {
+        "id": "room-bedroom-3",
+        "name": "Bedroom 3",
+        "type": "bedroom",
+        "polygon": [
+          [
+            5,
+            35
+          ],
+          [
+            25,
+            35
+          ],
+          [
+            25,
+            50
+          ],
+          [
+            5,
+            50
+          ]
+        ]
+      },
+      {
+        "id": "room-bathroom",
+        "name": "Common Bathroom",
+        "type": "bathroom",
+        "polygon": [
+          [
+            35,
+            20
+          ],
+          [
+            45,
+            20
+          ],
+          [
+            45,
+            30
+          ],
+          [
+            35,
+            30
+          ]
+        ]
+      },
+      {
+        "id": "room-pooja",
+        "name": "Pooja Room",
+        "type": "pooja",
+        "polygon": [
+          [
+            25,
+            35
+          ],
+          [
+            35,
+            35
+          ],
+          [
+            35,
+            45
+          ],
+          [
+            25,
+            45
+          ]
+        ]
+      }
+    ],
+    "structural_elements": [
+      {
+        "id": "col-1",
+        "type": "column",
+        "polygon": [
+          [
+            5,
+            5
+          ],
+          [
+            6,
+            5
+          ],
+          [
+            6,
+            6
+          ],
+          [
+            5,
+            6
+          ]
+        ]
+      },
+      {
+        "id": "col-2",
+        "type": "column",
+        "polygon": [
+          [
+            45,
+            5
+          ],
+          [
+            46,
+            5
+          ],
+          [
+            46,
+            6
+          ],
+          [
+            45,
+            6
+          ]
+        ]
+      },
+      {
+        "id": "col-3",
+        "type": "column",
+        "polygon": [
+          [
+            5,
+            50
+          ],
+          [
+            6,
+            50
+          ],
+          [
+            6,
+            51
+          ],
+          [
+            5,
+            51
+          ]
+        ]
+      },
+      {
+        "id": "col-4",
+        "type": "column",
+        "polygon": [
+          [
+            45,
+            50
+          ],
+          [
+            46,
+            50
+          ],
+          [
+            46,
+            51
+          ],
+          [
+            45,
+            51
+          ]
+        ]
+      }
+    ],
+    "doors": []
+  },
+  "structural_rectification": {},
+  "interior_layout": {
+    "style": "modern",
+    "color_theme": [
+      "white",
+      "light_grey",
+      "wood_brown"
+    ],
+    "features": [
+      "modern_furniture",
+      "large_windows",
+      "natural_lighting",
+      "open_living_area",
+      "built_in_kitchen_cabinets"
+    ]
+  },
+  "exterior_landscape": {
+    "style": "modern",
+    "features": [
+      "front_garden",
+      "paved_walkway",
+      "small_lawn",
+      "front_entrance",
+      "decorative_plants"
+    ]
+  },
+  "processing": {
+    "gab_gen": {
+      "status": "completed"
+    },
+    "vsai_rectifier": {
+      "status": "pending"
+    },
+    "esai_engine": {
+      "status": "pending"
+    },
+    "elia_engine": {
+      "status": "pending"
+    }
+  },
+  "original_source_snapshot": {
+    "project_id": "proj-new-house-001",
+    "project_name": "New House",
+    "land_info": {
+      "boundary_points": [
+        [
+          0,
+          0
+        ],
+        [
+          50,
+          0
+        ],
+        [
+          50,
+          60
+        ],
+        [
+          0,
+          60
+        ]
+      ],
+      "area_sqft": 3000,
+      "orientation": "North-East",
+      "road_facing": "North"
+    },
+    "buildable_footprint": {
+      "polygon": [
+        [
+          5,
+          5
+        ],
+        [
+          45,
+          5
+        ],
+        [
+          45,
+          55
+        ],
+        [
+          5,
+          55
+        ]
+      ]
+    },
+    "floor_plan": {
+      "rooms": [
+        {
+          "id": "room-living",
+          "name": "Living Room",
+          "type": "living",
+          "polygon": [
+            [
+              5,
+              5
+            ],
+            [
+              25,
+              5
+            ],
+            [
+              25,
+              20
+            ],
+            [
+              5,
+              20
+            ]
+          ]
+        },
+        {
+          "id": "room-kitchen",
+          "name": "Kitchen",
+          "type": "kitchen",
+          "polygon": [
+            [
+              25,
+              5
+            ],
+            [
+              45,
+              5
+            ],
+            [
+              45,
+              20
+            ],
+            [
+              25,
+              20
+            ]
+          ]
+        },
+        {
+          "id": "room-master-bedroom",
+          "name": "Master Bedroom",
+          "type": "master_bedroom",
+          "polygon": [
+            [
+              5,
+              20
+            ],
+            [
+              25,
+              20
+            ],
+            [
+              25,
+              35
+            ],
+            [
+              5,
+              35
+            ]
+          ]
+        },
+        {
+          "id": "room-bedroom-2",
+          "name": "Bedroom 2",
+          "type": "bedroom",
+          "polygon": [
+            [
+              25,
+              20
+            ],
+            [
+              35,
+              20
+            ],
+            [
+              35,
+              35
+            ],
+            [
+              25,
+              35
+            ]
+          ]
+        },
+        {
+          "id": "room-bedroom-3",
+          "name": "Bedroom 3",
+          "type": "bedroom",
+          "polygon": [
+            [
+              5,
+              35
+            ],
+            [
+              25,
+              35
+            ],
+            [
+              25,
+              50
+            ],
+            [
+              5,
+              50
+            ]
+          ]
+        },
+        {
+          "id": "room-bathroom",
+          "name": "Common Bathroom",
+          "type": "bathroom",
+          "polygon": [
+            [
+              35,
+              20
+            ],
+            [
+              45,
+              20
+            ],
+            [
+              45,
+              30
+            ],
+            [
+              35,
+              30
+            ]
+          ]
+        },
+        {
+          "id": "room-pooja",
+          "name": "Pooja Room",
+          "type": "pooja",
+          "polygon": [
+            [
+              25,
+              35
+            ],
+            [
+              35,
+              35
+            ],
+            [
+              35,
+              45
+            ],
+            [
+              25,
+              45
+            ]
+          ]
+        }
+      ],
+      "structural_elements": [
+        {
+          "id": "col-1",
+          "type": "column",
+          "polygon": [
+            [
+              5,
+              5
+            ],
+            [
+              6,
+              5
+            ],
+            [
+              6,
+              6
+            ],
+            [
+              5,
+              6
+            ]
+          ]
+        },
+        {
+          "id": "col-2",
+          "type": "column",
+          "polygon": [
+            [
+              45,
+              5
+            ],
+            [
+              46,
+              5
+            ],
+            [
+              46,
+              6
+            ],
+            [
+              45,
+              6
+            ]
+          ]
+        },
+        {
+          "id": "col-3",
+          "type": "column",
+          "polygon": [
+            [
+              5,
+              50
+            ],
+            [
+              6,
+              50
+            ],
+            [
+              6,
+              51
+            ],
+            [
+              5,
+              51
+            ]
+          ]
+        },
+        {
+          "id": "col-4",
+          "type": "column",
+          "polygon": [
+            [
+              45,
+              50
+            ],
+            [
+              46,
+              50
+            ],
+            [
+              46,
+              51
+            ],
+            [
+              45,
+              51
+            ]
+          ]
+        }
+      ]
+    },
+    "structural_rectification": {},
+    "interior_layout": {
+      "style": "modern",
+      "color_theme": [
+        "white",
+        "light_grey",
+        "wood_brown"
+      ],
+      "features": [
+        "modern_furniture",
+        "large_windows",
+        "natural_lighting",
+        "open_living_area",
+        "built_in_kitchen_cabinets"
+      ]
+    },
+    "exterior_landscape": {
+      "style": "modern",
+      "features": [
+        "front_garden",
+        "paved_walkway",
+        "small_lawn",
+        "front_entrance",
+        "decorative_plants"
+      ]
+    },
+    "processing": {
+      "gab_gen": {
+        "status": "completed"
+      },
+      "vsai_rectifier": {
+        "status": "pending"
+      },
+      "esai_engine": {
+        "status": "pending"
+      },
+      "elia_engine": {
+        "status": "pending"
+      }
+    }
+  },
+  "user_confirmations": {},
+  "spatial_metadata": {}
+}

@@ -1,6 +1,6 @@
 import { apiClient } from './client';
 import { MasterJson } from '@/types/master-json';
-import { Project, ProjectCreate, ProjectUpdate } from '@/types/project';
+import { Project, ProjectCreate, ProjectUpdate, UploadMasterJsonResponse, ValidationResult } from '@/types/project';
 
 export const projectsApi = {
   getProject: async (projectId: string): Promise<Project> => {
@@ -20,6 +20,31 @@ export const projectsApi = {
 
   skipComponent: async (projectId: string, component: string): Promise<{ component: string; status: string; master_json: MasterJson }> => {
     const response = await apiClient.post(`/projects/${projectId}/skip/${component}`);
+    return response.data;
+  },
+
+  uploadMasterJson: async (file: File): Promise<UploadMasterJsonResponse> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post('/projects/upload-master-json', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  listProjects: async (): Promise<Project[]> => {
+    const response = await apiClient.get('/projects');
+    return response.data;
+  },
+
+  deleteProject: async (projectId: string): Promise<void> => {
+    await apiClient.delete(`/projects/${projectId}`);
+  },
+
+  validateMasterJson: async (data: any): Promise<ValidationResult> => {
+    const response = await apiClient.post('/projects/validate-master-json', data);
     return response.data;
   }
 };

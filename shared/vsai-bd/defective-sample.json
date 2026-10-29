@@ -1,0 +1,1178 @@
+{
+  "project_id": "defective-sample",
+  "project_name": "Defective Sample Plan",
+  "units": "ft",
+  "land_info": {
+    "boundary_points": [
+      [
+        0,
+        0
+      ],
+      [
+        42,
+        0
+      ],
+      [
+        42,
+        36
+      ],
+      [
+        0,
+        36
+      ]
+    ],
+    "area_sqft": 1512,
+    "orientation": "South",
+    "road_facing": "North"
+  },
+  "buildable_footprint": {
+    "polygon": [
+      [
+        2,
+        2
+      ],
+      [
+        40,
+        2
+      ],
+      [
+        40,
+        34
+      ],
+      [
+        2,
+        34
+      ]
+    ]
+  },
+  "floor_plan": {
+    "dimensions": {
+      "width": 42,
+      "height": 36
+    },
+    "rooms": [
+      {
+        "id": "room-bed-1",
+        "name": "BEDROOM 1",
+        "type": "bedroom",
+        "dimensionText": "14'0\" \u00d7 12'0\"",
+        "polygon": [
+          [
+            0,
+            0
+          ],
+          [
+            14,
+            0
+          ],
+          [
+            14,
+            12
+          ],
+          [
+            0,
+            12
+          ]
+        ]
+      },
+      {
+        "id": "room-toilet-1",
+        "name": "TOILET",
+        "type": "toilet",
+        "dimensionText": "5'6\" \u00d7 8'0\"",
+        "polygon": [
+          [
+            14,
+            0
+          ],
+          [
+            20,
+            0
+          ],
+          [
+            20,
+            8
+          ],
+          [
+            14,
+            8
+          ]
+        ]
+      },
+      {
+        "id": "room-kitchen-1",
+        "name": "KITCHEN",
+        "type": "kitchen",
+        "dimensionText": "11'0\" \u00d7 10'0\"",
+        "polygon": [
+          [
+            26,
+            0
+          ],
+          [
+            42,
+            0
+          ],
+          [
+            42,
+            11
+          ],
+          [
+            26,
+            11
+          ]
+        ]
+      },
+      {
+        "id": "room-living",
+        "name": "LIVING ROOM",
+        "type": "living",
+        "dimensionText": "16'0\" \u00d7 14'0\"",
+        "polygon": [
+          [
+            14,
+            8
+          ],
+          [
+            26,
+            8
+          ],
+          [
+            26,
+            23
+          ],
+          [
+            14,
+            23
+          ]
+        ]
+      },
+      {
+        "id": "room-kitchen-2",
+        "name": "KITCHEN",
+        "type": "kitchen",
+        "dimensionText": "13'0\" \u00d7 10'0\"",
+        "polygon": [
+          [
+            0,
+            12
+          ],
+          [
+            14,
+            12
+          ],
+          [
+            14,
+            24
+          ],
+          [
+            0,
+            24
+          ]
+        ]
+      },
+      {
+        "id": "room-dining",
+        "name": "DINING",
+        "type": "dining",
+        "dimensionText": "11'0\" \u00d7 10'0\"",
+        "polygon": [
+          [
+            0,
+            24
+          ],
+          [
+            14,
+            24
+          ],
+          [
+            14,
+            36
+          ],
+          [
+            0,
+            36
+          ]
+        ]
+      },
+      {
+        "id": "room-verandah",
+        "name": "VERANDAH",
+        "type": "verandah",
+        "dimensionText": "5'0\" \u00d7 8'0\"",
+        "polygon": [
+          [
+            14,
+            23
+          ],
+          [
+            20,
+            23
+          ],
+          [
+            20,
+            31
+          ],
+          [
+            14,
+            31
+          ]
+        ]
+      },
+      {
+        "id": "room-pooja",
+        "name": "POOJA",
+        "type": "pooja",
+        "dimensionText": "5'0\" \u00d7 4'0\"",
+        "polygon": [
+          [
+            20,
+            23
+          ],
+          [
+            26,
+            23
+          ],
+          [
+            26,
+            31
+          ],
+          [
+            20,
+            31
+          ]
+        ]
+      },
+      {
+        "id": "room-bed-2",
+        "name": "BEDROOM 2",
+        "type": "master_bedroom",
+        "dimensionText": "13'0\" \u00d7 12'0\"",
+        "polygon": [
+          [
+            26,
+            11
+          ],
+          [
+            42,
+            11
+          ],
+          [
+            42,
+            24
+          ],
+          [
+            26,
+            24
+          ]
+        ]
+      },
+      {
+        "id": "room-bath-2",
+        "name": "BATHROOM",
+        "type": "bathroom",
+        "dimensionText": "8'0\" \u00d7 5'0\"",
+        "polygon": [
+          [
+            26,
+            24
+          ],
+          [
+            42,
+            24
+          ],
+          [
+            42,
+            36
+          ],
+          [
+            26,
+            36
+          ]
+        ]
+      }
+    ],
+    "structural_elements": [
+      {
+        "id": "col-1",
+        "type": "column",
+        "polygon": [
+          [
+            0,
+            0
+          ],
+          [
+            1,
+            0
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            0,
+            1
+          ]
+        ]
+      },
+      {
+        "id": "col-2",
+        "type": "column",
+        "polygon": [
+          [
+            14,
+            0
+          ],
+          [
+            15,
+            0
+          ],
+          [
+            15,
+            1
+          ],
+          [
+            14,
+            1
+          ]
+        ]
+      },
+      {
+        "id": "col-3",
+        "type": "column",
+        "polygon": [
+          [
+            26,
+            0
+          ],
+          [
+            27,
+            0
+          ],
+          [
+            27,
+            1
+          ],
+          [
+            26,
+            1
+          ]
+        ]
+      },
+      {
+        "id": "col-4",
+        "type": "column",
+        "polygon": [
+          [
+            41,
+            0
+          ],
+          [
+            42,
+            0
+          ],
+          [
+            42,
+            1
+          ],
+          [
+            41,
+            1
+          ]
+        ]
+      }
+    ],
+    "doors": [
+      {
+        "id": "door-main",
+        "name": "MAIN ENTRANCE",
+        "type": "single_swing",
+        "center": [
+          17,
+          31
+        ],
+        "width": 3.5,
+        "is_main_entrance": true
+      },
+      {
+        "id": "door-verandah",
+        "name": "VERANDAH TO LIVING",
+        "type": "single_swing",
+        "center": [
+          17,
+          23
+        ],
+        "width": 3
+      },
+      {
+        "id": "door-bed-1",
+        "name": "BEDROOM 1 DOOR",
+        "type": "single_swing",
+        "center": [
+          14,
+          10
+        ],
+        "width": 3
+      },
+      {
+        "id": "door-toilet-1",
+        "name": "TOILET DOOR",
+        "type": "single_swing",
+        "center": [
+          14,
+          4
+        ],
+        "width": 2.5
+      },
+      {
+        "id": "door-kitchen-1",
+        "name": "KITCHEN DOOR",
+        "type": "single_swing",
+        "center": [
+          26,
+          8
+        ],
+        "width": 2.8
+      },
+      {
+        "id": "door-bed-2",
+        "name": "BEDROOM 2 DOOR",
+        "type": "single_swing",
+        "center": [
+          26,
+          18
+        ],
+        "width": 3
+      },
+      {
+        "id": "door-bath-2",
+        "name": "BATHROOM 2 DOOR",
+        "type": "single_swing",
+        "center": [
+          34,
+          24
+        ],
+        "width": 2.5
+      },
+      {
+        "id": "door-pooja",
+        "name": "POOJA DOOR",
+        "type": "single_swing",
+        "center": [
+          20,
+          27
+        ],
+        "width": 2.5
+      },
+      {
+        "id": "door-dining",
+        "name": "DINING DOOR",
+        "type": "single_swing",
+        "center": [
+          14,
+          26
+        ],
+        "width": 3
+      }
+    ],
+    "windows": [
+      {
+        "id": "win-bed-1-s",
+        "name": "BEDROOM 1 WINDOW",
+        "center": [
+          7,
+          0
+        ],
+        "width": 4
+      },
+      {
+        "id": "win-toilet-1",
+        "name": "TOILET WINDOW",
+        "center": [
+          17,
+          0
+        ],
+        "width": 2.5
+      },
+      {
+        "id": "win-kitchen-1-s",
+        "name": "KITCHEN S WINDOW",
+        "center": [
+          34,
+          0
+        ],
+        "width": 4
+      },
+      {
+        "id": "win-kitchen-1-e",
+        "name": "KITCHEN E WINDOW",
+        "center": [
+          42,
+          5.5
+        ],
+        "width": 4
+      },
+      {
+        "id": "win-bed-2-e",
+        "name": "BEDROOM 2 WINDOW",
+        "center": [
+          42,
+          17.5
+        ],
+        "width": 4.5
+      },
+      {
+        "id": "win-bath-2-n",
+        "name": "BATHROOM WINDOW",
+        "center": [
+          34,
+          36
+        ],
+        "width": 3
+      },
+      {
+        "id": "win-dining-n",
+        "name": "DINING N WINDOW",
+        "center": [
+          7,
+          36
+        ],
+        "width": 4.5
+      },
+      {
+        "id": "win-dining-w",
+        "name": "DINING W WINDOW",
+        "center": [
+          0,
+          30
+        ],
+        "width": 4
+      },
+      {
+        "id": "win-kitchen-2-w",
+        "name": "KITCHEN W WINDOW",
+        "center": [
+          0,
+          18
+        ],
+        "width": 4
+      },
+      {
+        "id": "win-bed-1-w",
+        "name": "BEDROOM 1 W WINDOW",
+        "center": [
+          0,
+          6
+        ],
+        "width": 4
+      }
+    ]
+  },
+  "structural_rectification": {},
+  "interior_layout": {},
+  "exterior_landscape": {},
+  "processing": {
+    "gab_gen": {
+      "status": "completed"
+    },
+    "vsai_rectifier": {
+      "status": "pending"
+    },
+    "esai_engine": {
+      "status": "pending"
+    },
+    "elia_engine": {
+      "status": "pending"
+    }
+  },
+  "original_source_snapshot": {
+    "project_id": "defective-sample",
+    "project_name": "Defective Sample Plan",
+    "units": "ft",
+    "land_info": {
+      "boundary_points": [
+        [
+          0,
+          0
+        ],
+        [
+          42,
+          0
+        ],
+        [
+          42,
+          36
+        ],
+        [
+          0,
+          36
+        ]
+      ],
+      "area_sqft": 1512,
+      "orientation": "South",
+      "road_facing": "North"
+    },
+    "buildable_footprint": {
+      "polygon": [
+        [
+          2,
+          2
+        ],
+        [
+          40,
+          2
+        ],
+        [
+          40,
+          34
+        ],
+        [
+          2,
+          34
+        ]
+      ]
+    },
+    "floor_plan": {
+      "dimensions": {
+        "width": 42,
+        "height": 36
+      },
+      "rooms": [
+        {
+          "id": "room-bed-1",
+          "name": "BEDROOM 1",
+          "type": "bedroom",
+          "dimensionText": "14'0\" \u00d7 12'0\"",
+          "polygon": [
+            [
+              0,
+              0
+            ],
+            [
+              14,
+              0
+            ],
+            [
+              14,
+              12
+            ],
+            [
+              0,
+              12
+            ]
+          ]
+        },
+        {
+          "id": "room-toilet-1",
+          "name": "TOILET",
+          "type": "toilet",
+          "dimensionText": "5'6\" \u00d7 8'0\"",
+          "polygon": [
+            [
+              14,
+              0
+            ],
+            [
+              20,
+              0
+            ],
+            [
+              20,
+              8
+            ],
+            [
+              14,
+              8
+            ]
+          ]
+        },
+        {
+          "id": "room-kitchen-1",
+          "name": "KITCHEN",
+          "type": "kitchen",
+          "dimensionText": "11'0\" \u00d7 10'0\"",
+          "polygon": [
+            [
+              26,
+              0
+            ],
+            [
+              42,
+              0
+            ],
+            [
+              42,
+              11
+            ],
+            [
+              26,
+              11
+            ]
+          ]
+        },
+        {
+          "id": "room-living",
+          "name": "LIVING ROOM",
+          "type": "living",
+          "dimensionText": "16'0\" \u00d7 14'0\"",
+          "polygon": [
+            [
+              14,
+              8
+            ],
+            [
+              26,
+              8
+            ],
+            [
+              26,
+              23
+            ],
+            [
+              14,
+              23
+            ]
+          ]
+        },
+        {
+          "id": "room-kitchen-2",
+          "name": "KITCHEN",
+          "type": "kitchen",
+          "dimensionText": "13'0\" \u00d7 10'0\"",
+          "polygon": [
+            [
+              0,
+              12
+            ],
+            [
+              14,
+              12
+            ],
+            [
+              14,
+              24
+            ],
+            [
+              0,
+              24
+            ]
+          ]
+        },
+        {
+          "id": "room-dining",
+          "name": "DINING",
+          "type": "dining",
+          "dimensionText": "11'0\" \u00d7 10'0\"",
+          "polygon": [
+            [
+              0,
+              24
+            ],
+            [
+              14,
+              24
+            ],
+            [
+              14,
+              36
+            ],
+            [
+              0,
+              36
+            ]
+          ]
+        },
+        {
+          "id": "room-verandah",
+          "name": "VERANDAH",
+          "type": "verandah",
+          "dimensionText": "5'0\" \u00d7 8'0\"",
+          "polygon": [
+            [
+              14,
+              23
+            ],
+            [
+              20,
+              23
+            ],
+            [
+              20,
+              31
+            ],
+            [
+              14,
+              31
+            ]
+          ]
+        },
+        {
+          "id": "room-pooja",
+          "name": "POOJA",
+          "type": "pooja",
+          "dimensionText": "5'0\" \u00d7 4'0\"",
+          "polygon": [
+            [
+              20,
+              23
+            ],
+            [
+              26,
+              23
+            ],
+            [
+              26,
+              31
+            ],
+            [
+              20,
+              31
+            ]
+          ]
+        },
+        {
+          "id": "room-bed-2",
+          "name": "BEDROOM 2",
+          "type": "master_bedroom",
+          "dimensionText": "13'0\" \u00d7 12'0\"",
+          "polygon": [
+            [
+              26,
+              11
+            ],
+            [
+              42,
+              11
+            ],
+            [
+              42,
+              24
+            ],
+            [
+              26,
+              24
+            ]
+          ]
+        },
+        {
+          "id": "room-bath-2",
+          "name": "BATHROOM",
+          "type": "bathroom",
+          "dimensionText": "8'0\" \u00d7 5'0\"",
+          "polygon": [
+            [
+              26,
+              24
+            ],
+            [
+              42,
+              24
+            ],
+            [
+              42,
+              36
+            ],
+            [
+              26,
+              36
+            ]
+          ]
+        }
+      ],
+      "structural_elements": [
+        {
+          "id": "col-1",
+          "type": "column",
+          "polygon": [
+            [
+              0,
+              0
+            ],
+            [
+              1,
+              0
+            ],
+            [
+              1,
+              1
+            ],
+            [
+              0,
+              1
+            ]
+          ]
+        },
+        {
+          "id": "col-2",
+          "type": "column",
+          "polygon": [
+            [
+              14,
+              0
+            ],
+            [
+              15,
+              0
+            ],
+            [
+              15,
+              1
+            ],
+            [
+              14,
+              1
+            ]
+          ]
+        },
+        {
+          "id": "col-3",
+          "type": "column",
+          "polygon": [
+            [
+              26,
+              0
+            ],
+            [
+              27,
+              0
+            ],
+            [
+              27,
+              1
+            ],
+            [
+              26,
+              1
+            ]
+          ]
+        },
+        {
+          "id": "col-4",
+          "type": "column",
+          "polygon": [
+            [
+              41,
+              0
+            ],
+            [
+              42,
+              0
+            ],
+            [
+              42,
+              1
+            ],
+            [
+              41,
+              1
+            ]
+          ]
+        }
+      ],
+      "doors": [
+        {
+          "id": "door-main",
+          "name": "MAIN ENTRANCE",
+          "type": "single_swing",
+          "center": [
+            17,
+            31
+          ],
+          "width": 3.5,
+          "is_main_entrance": true
+        },
+        {
+          "id": "door-verandah",
+          "name": "VERANDAH TO LIVING",
+          "type": "single_swing",
+          "center": [
+            17,
+            23
+          ],
+          "width": 3
+        },
+        {
+          "id": "door-bed-1",
+          "name": "BEDROOM 1 DOOR",
+          "type": "single_swing",
+          "center": [
+            14,
+            10
+          ],
+          "width": 3
+        },
+        {
+          "id": "door-toilet-1",
+          "name": "TOILET DOOR",
+          "type": "single_swing",
+          "center": [
+            14,
+            4
+          ],
+          "width": 2.5
+        },
+        {
+          "id": "door-kitchen-1",
+          "name": "KITCHEN DOOR",
+          "type": "single_swing",
+          "center": [
+            26,
+            8
+          ],
+          "width": 2.8
+        },
+        {
+          "id": "door-bed-2",
+          "name": "BEDROOM 2 DOOR",
+          "type": "single_swing",
+          "center": [
+            26,
+            18
+          ],
+          "width": 3
+        },
+        {
+          "id": "door-bath-2",
+          "name": "BATHROOM 2 DOOR",
+          "type": "single_swing",
+          "center": [
+            34,
+            24
+          ],
+          "width": 2.5
+        },
+        {
+          "id": "door-pooja",
+          "name": "POOJA DOOR",
+          "type": "single_swing",
+          "center": [
+            20,
+            27
+          ],
+          "width": 2.5
+        },
+        {
+          "id": "door-dining",
+          "name": "DINING DOOR",
+          "type": "single_swing",
+          "center": [
+            14,
+            26
+          ],
+          "width": 3
+        }
+      ],
+      "windows": [
+        {
+          "id": "win-bed-1-s",
+          "name": "BEDROOM 1 WINDOW",
+          "center": [
+            7,
+            0
+          ],
+          "width": 4
+        },
+        {
+          "id": "win-toilet-1",
+          "name": "TOILET WINDOW",
+          "center": [
+            17,
+            0
+          ],
+          "width": 2.5
+        },
+        {
+          "id": "win-kitchen-1-s",
+          "name": "KITCHEN S WINDOW",
+          "center": [
+            34,
+            0
+          ],
+          "width": 4
+        },
+        {
+          "id": "win-kitchen-1-e",
+          "name": "KITCHEN E WINDOW",
+          "center": [
+            42,
+            5.5
+          ],
+          "width": 4
+        },
+        {
+          "id": "win-bed-2-e",
+          "name": "BEDROOM 2 WINDOW",
+          "center": [
+            42,
+            17.5
+          ],
+          "width": 4.5
+        },
+        {
+          "id": "win-bath-2-n",
+          "name": "BATHROOM WINDOW",
+          "center": [
+            34,
+            36
+          ],
+          "width": 3
+        },
+        {
+          "id": "win-dining-n",
+          "name": "DINING N WINDOW",
+          "center": [
+            7,
+            36
+          ],
+          "width": 4.5
+        },
+        {
+          "id": "win-dining-w",
+          "name": "DINING W WINDOW",
+          "center": [
+            0,
+            30
+          ],
+          "width": 4
+        },
+        {
+          "id": "win-kitchen-2-w",
+          "name": "KITCHEN W WINDOW",
+          "center": [
+            0,
+            18
+          ],
+          "width": 4
+        },
+        {
+          "id": "win-bed-1-w",
+          "name": "BEDROOM 1 W WINDOW",
+          "center": [
+            0,
+            6
+          ],
+          "width": 4
+        }
+      ]
+    },
+    "structural_rectification": {},
+    "interior_layout": {},
+    "exterior_landscape": {},
+    "processing": {
+      "gab_gen": {
+        "status": "completed"
+      },
+      "vsai_rectifier": {
+        "status": "pending"
+      },
+      "esai_engine": {
+        "status": "pending"
+      },
+      "elia_engine": {
+        "status": "pending"
+      }
+    }
+  },
+  "user_confirmations": {},
+  "spatial_metadata": {}
+}

@@ -1,0 +1,113 @@
+{
+  "project_id": "proj-sample-001",
+  "project_name": "Lotus Villa - Residential Plan",
+  "land_info": {
+    "boundary_points": [
+      [0.0, 0.0],
+      [50.0, 0.0],
+      [50.0, 60.0],
+      [0.0, 60.0]
+    ],
+    "area_sqft": 3000.0,
+    "orientation": "North-East",
+    "road_facing": "North"
+  },
+  "buildable_footprint": {
+    "polygon": [
+      [5.0, 5.0],
+      [45.0, 5.0],
+      [45.0, 55.0],
+      [5.0, 55.0]
+    ]
+  },
+  "floor_plan": {
+    "rooms": [
+      {
+        "id": "room-living",
+        "name": "Living Room",
+        "type": "living",
+        "polygon": [
+          [5.0, 5.0],
+          [25.0, 5.0],
+          [25.0, 25.0],
+          [5.0, 25.0]
+        ]
+      },
+      {
+        "id": "room-kitchen",
+        "name": "Kitchen",
+        "type": "kitchen",
+        "polygon": [
+          [25.0, 5.0],
+          [45.0, 5.0],
+          [45.0, 20.0],
+          [25.0, 20.0]
+        ]
+      },
+      {
+        "id": "room-master-bed",
+        "name": "Master Bedroom",
+        "type": "master_bedroom",
+        "polygon": [
+          [5.0, 25.0],
+          [25.0, 25.0],
+          [25.0, 50.0],
+          [5.0, 50.0]
+        ]
+      },
+      {
+        "id": "room-pooja",
+        "name": "Pooja Room",
+        "type": "pooja",
+        "polygon": [
+          [25.0, 20.0],
+          [35.0, 20.0],
+          [35.0, 30.0],
+          [25.0, 30.0]
+        ]
+      },
+      {
+        "id": "room-bath",
+        "name": "Common Bathroom",
+        "type": "bathroom",
+        "polygon": [
+          [35.0, 20.0],
+          [45.0, 20.0],
+          [45.0, 30.0],
+          [35.0, 30.0]
+        ]
+      }
+    ],
+    "structural_elements": [
+      {
+        "id": "col-1",
+        "type": "column",
+        "polygon": [
+          [5.0, 5.0],
+          [6.0, 5.0],
+          [6.0, 6.0],
+          [5.0, 6.0]
+        ]
+      },
+      {
+        "id": "col-2",
+        "type": "column",
+        "polygon": [
+          [25.0, 5.0],
+          [26.0, 5.0],
+          [26.0, 6.0],
+          [25.0, 6.0]
+        ]
+      }
+    ]
+  },
+  "structural_rectification": {},
+  "interior_layout": {},
+  "exterior_landscape": {},
+  "processing": {
+    "gab_gen": { "status": "completed" },
+    "vsai_rectifier": { "status": "pending" },
+    "esai_engine": { "status": "pending" },
+    "elia_engine": { "status": "pending" }
+  }
+}
