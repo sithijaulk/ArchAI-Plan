@@ -33,3 +33,4 @@ easyocr
 pypdf
 xgboost
 scikit-learn
+pygad

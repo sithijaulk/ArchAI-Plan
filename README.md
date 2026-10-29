@@ -1,228 +1,178 @@
 # ArchAI-Plan
 
-ArchAI-Plan is a research platform for transforming residential spatial information into structured architectural outputs. The shared `main` branch contains the public website, administrative CMS, PostgreSQL persistence, authentication, project workflow, visualization infrastructure, and integration shells for four future research engines.
+ArchAI-Plan is a web-based research platform for turning residential land and
+building information into structured architectural design outputs. It combines
+four spatial-design components with a shared project workflow, an administrative
+website, and interactive 2D/3D previews.
 
-The AI engines are intentionally not implemented in `main`. Their API routes return HTTP `501` until the corresponding feature branches provide the engine integrations.
+Projects are exchanged between components through a shared **Master JSON**
+document. Each component contributes its own output while preserving the
+information produced by earlier steps.
 
-## Architecture
+## Project Components
 
-```
+| Component | Purpose | Current approach |
+|---|---|---|
+| **GAB-Gen — Geo-Spatial AI Blueprint Generator** | Reads survey/deed plans, derives land geometry, applies jurisdiction-specific building rules, and creates editable building/room layouts. | OpenCV and EasyOCR assist survey extraction. Geometry reconstruction, regulations, and space allocation are rule-based; users review extracted measurements before generation. |
+| **VSAI-Rectifier** | Validates and rectifies spatial/floor-plan data and records the result in the Master JSON workflow. | Deterministic geometry and configured-rule checks. A CubiCasa5K segmentation path is available for floor-plan image analysis when the model checkpoint is configured. |
+| **ESAI-Engine** | Generates interior furniture and asset layouts using room geometry, ergonomic constraints, functional relationships, and user preferences. | PyGAD evolutionary optimization with geometric and design constraints; supports alternative layouts, validation, and report generation. |
+| **ELIA-Engine — Eco-Spatial Landscape Intelligence** | Plans exterior areas such as access, paths, vegetation, lighting, and outdoor amenities. | Production generation uses deterministic geometric planning and a versioned rules engine. Neural layout code and research material are optional/experimental and are not required for the default production planner. |
+
+These components are at different stages and do not all use machine learning.
+Generated plans are decision-support outputs and should be reviewed by qualified
+professionals before construction or regulatory submission.
+
+## Application Structure
+
+```text
 ArchAI-Plan/
-├── frontend/          # Next.js + React + TypeScript + Three.js
-├── backend/           # Python FastAPI + SQLAlchemy + PostgreSQL
-├── shared/            # Master JSON schema contract
-├── training/          # Future AI model training data
-└── docs/              # Project documentation
+├── backend/
+│   ├── app/
+│   │   ├── components/       # GAB-Gen, VSAI, ESAI, and ELIA engines
+│   │   ├── ml/                # ML runtime, including CubiCasa5K
+│   │   ├── models/            # SQLAlchemy database models
+│   │   ├── routers/           # FastAPI API endpoints
+│   │   ├── schemas/           # API request and response schemas
+│   │   ├── services/          # Shared project, geometry, and domain services
+│   │   └── utils/             # Backend utilities
+│   ├── alembic/               # Database migrations
+│   ├── scripts/               # Backend administration scripts
+│   ├── tests/                 # Backend tests
+│   └── requirements.txt
+├── frontend/
+│   └── src/
+│       ├── app/               # Next.js routes and pages
+│       ├── components/        # Shared UI, workflow, and visualization
+│       ├── features/          # Feature-specific frontend modules
+│       ├── lib/               # API clients and shared helpers
+│       ├── store/             # Client state
+│       └── types/             # TypeScript types
+├── shared/
+│   ├── vsi-bd/                # Shared VSAI/project JSON data
+│   └── vsai-bd/               # Shared VSAI project JSON data
+├── training/                  # Model training code and research artifacts
+├── docs/                      # Component contracts, runbooks, and research
+└── docker-compose.yml         # Frontend, backend, and PostgreSQL services
 ```
 
-The application is split into a Next.js frontend and a FastAPI backend. PostgreSQL is the only runtime database. Zustand holds UI/cache state; permanent project and Master JSON state is stored through the backend.
-
-## Technology Stack
+## Languages, Frameworks, and Technologies
 
 ### Frontend
-- **Next.js 14** (App Router), React, TypeScript
-- **Tailwind CSS**, shadcn/ui components
-- **Three.js** + @react-three/fiber + @react-three/drei (3D visualization)
-- **Framer Motion** (animations), Lucide React (icons)
-- **Zustand** (state), Axios (API calls), React Hook Form + Zod (validation)
-- **html2canvas + jsPDF** (export)
+
+- **TypeScript, JavaScript, HTML, and CSS**
+- **Next.js 14** (App Router) and **React 18**
+- **Tailwind CSS** and Radix UI-based components
+- **Three.js**, React Three Fiber, and Drei for 3D views
+- **Zustand** for client-side state
+- **Axios**, React Hook Form, and Zod for API requests and form validation
+- **Framer Motion** for animations; **jsPDF** and html2canvas for exports
 
 ### Backend
-- **Python 3.11+**, FastAPI, Uvicorn
-- **SQLAlchemy 2.x** ORM, Alembic (migrations)
-- **PostgreSQL** (psycopg2-binary driver)
-- **JWT** authentication via HttpOnly cookies
-- **Argon2** password hashing (via pwdlib)
-- **Pillow** (image processing), python-multipart (file uploads)
 
-### Database
+- **Python 3.11+**, **FastAPI**, and **Uvicorn**
+- **SQLAlchemy** and **Alembic**
+- **PostgreSQL** (PostgreSQL 16 is used by the provided Docker Compose setup)
+- **Pydantic** for settings and data validation
+- **JWT** authentication and Argon2 password hashing
+- **Shapely, NumPy, SciPy, NetworkX, Pillow, and OpenCV** for spatial and image processing
+- **PyTorch, torchvision, EasyOCR, scikit-learn, and XGBoost** for ML-related runtime and research work
+- **PyMuPDF, ReportLab, and FPDF2** for document and report processing
 
-- PostgreSQL 14+ / 16+
-- SQLAlchemy 2.x and Alembic
-- psycopg2-binary driver
-- No local database fallback
+### Development and Deployment
 
----
+- **Node.js 18+** and npm
+- **Docker Compose** for the frontend, API, and PostgreSQL services
+- **pytest** and **pytest-asyncio** for backend tests
+- **TypeScript** and ESLint for frontend validation
 
-## Requirements
+## AI and Machine-Learning Details
+
+| Area | Model/technique | Runtime status |
+|---|---|---|
+| Survey-plan extraction (GAB-Gen) | EasyOCR text recognition with OpenCV image preprocessing and geometry detection. | Available as an extraction provider; extracted survey details are reviewed and confirmed as part of the workflow. |
+| Blueprint generation (GAB-Gen) | Regulatory rules, geometric reconstruction, and deterministic space allocation. XGBoost training/evaluation materials are also present. | The deterministic generator is the active baseline; the XGBoost model is research/experimental, not the production layout generator. |
+| Floor-plan segmentation (VSAI) | CubiCasa5K multi-task segmentation implemented with PyTorch; predicts room and icon classes from floor-plan images. | The segmentation path requires a compatible checkpoint configured with `CUBICASA_WEIGHTS_PATH`. VSAI's normal rectification and configured-rule checks are deterministic and do not claim complete Vastu compliance. |
+| Interior layout (ESAI) | PyGAD genetic algorithm searches candidate furniture layouts, scored against spatial, ergonomic, functional, and preference constraints. | Used by the ESAI generation endpoint; results can be validated and saved through the project workflow. |
+| Exterior layout (ELIA) | Geometry planners, pathfinding, solar/environmental calculations, and explicit versioned rules. A compact UNet-style layout model and research training/evaluation material are also present. | The default production generation mode is the deterministic rules planner. Neural layout inference is optional and is not required for standard generation. |
+
+ML outputs and automated rules do not replace professional architectural,
+engineering, botanical, or regulatory review.
+
+## Getting Started
+
+### Prerequisites
 
 - Node.js 18+
 - Python 3.11+
-- PostgreSQL 14.0+
+- PostgreSQL 14+ (or Docker with Docker Compose)
 
----
+### Run with Docker Compose
 
-## PostgreSQL Setup
+1. Copy `.env.docker.example` to `.env` and set a secure `JWT_SECRET_KEY` and
+   PostgreSQL credentials.
+2. Start the services from the repository root:
 
-```sql
--- In PostgreSQL psql shell or pgAdmin
-CREATE DATABASE archai_plan;
-```
+   ```bash
+   docker compose up --build
+   ```
 
----
+3. Open the frontend at `http://localhost:3000`. The API is available at
+   `http://localhost:8000`, with interactive documentation at
+   `http://localhost:8000/docs`.
 
-## Backend Setup
+### Run Services Locally
+
+Start PostgreSQL and create the `archai_plan` database, then configure the
+database connection and a strong `JWT_SECRET_KEY` in `backend/.env`. Use
+`backend/.env.example` as a reference and set `DB_HOST`, `DB_PORT`, `DB_NAME`,
+`DB_USER`, and `DB_PASSWORD` for your local environment.
 
 ```bash
+# Terminal 1: backend
 cd backend
-
-# Create virtual environment
 python -m venv .venv
-
-# Activate (macOS/Linux)
-source .venv/bin/activate
-
-# Activate (Windows)
-.\.venv\Scripts\activate
-
-# Install dependencies
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-
-# Configure environment
-copy .env.example .env             # Windows
-# cp .env.example .env             # macOS/Linux
-# Edit .env — set DB_HOST, DB_USER, DB_PASSWORD with your PostgreSQL credentials
-
-# Run database migrations
 alembic upgrade head
-
-# Create the first admin account
-python scripts/create_admin.py
-
-# Start backend server
 uvicorn app.main:app --reload --port 8000
 ```
 
-Backend URLs:
-- API: http://localhost:8000/api
-- Swagger: http://localhost:8000/docs
-- Health: http://localhost:8000/api/health
-
----
-
-## Frontend Setup
-
 ```bash
+# Terminal 2: frontend
 cd frontend
-
-# Install dependencies
 npm install
-
-# Configure environment
-cp .env.example .env.local
-# Verify NEXT_PUBLIC_API_URL=http://localhost:8000/api
-
-# Start development server
+cp .env.example .env.local         # Windows: copy .env.example .env.local
 npm run dev
 ```
 
-Frontend URL: http://localhost:3000
+Set `NEXT_PUBLIC_API_URL=http://localhost:8000/api` in `frontend/.env.local`.
+Open `http://localhost:3000` for the application.
 
----
+The CubiCasa5K image-segmentation path additionally needs model weights accessible
+to the backend and configured through `CUBICASA_WEIGHTS_PATH`. Do not commit
+model checkpoints, credentials, or local environment files.
 
-## Public Routes
+## Main Routes
 
-| Route | Page |
-|-------|------|
-| `/` | Home |
-| `/gallery` | Research Gallery |
-| `/gallery/[slug]` | Gallery Detail |
-| `/features` | Features Overview |
-| `/features/gab-gen` | GAB-Gen Workflow |
-| `/features/vsai-rectifier` | VSAI Workflow |
-| `/features/esai-engine` | ESAI Workflow |
-| `/features/elia-engine` | ELIA Workflow |
-| `/about` | About ArchAI-Plan |
-| `/contact` | Contact Us |
-| `/start` | Start / Create Project |
+| Route | Description |
+|---|---|
+| `/` | Project home |
+| `/gallery` | Published research projects |
+| `/features/gab-gen` | Survey and blueprint workflow |
+| `/features/vsai-rectifier` | VSAI rectification workflow |
+| `/features/esai-engine` | Interior-design workflow |
+| `/features/elia-engine` | Exterior and landscape workflow |
+| `/start` | Start or create a project |
+| `/about`, `/contact` | Project information and contact form |
+| `/admin` | Administrative dashboard and content management |
 
-## Admin Routes
+The backend API is rooted at `/api`. Use `/docs` for the complete, current
+endpoint list and schemas.
 
-| Route | Page |
-|-------|------|
-| `/admin/login` | Admin Login |
-| `/admin` | Dashboard |
-| `/admin/gallery` | Gallery Management |
-| `/admin/gallery/new` | New Project |
-| `/admin/gallery/[id]/edit` | Edit Project |
-| `/admin/messages` | Contact Messages |
-| `/admin/settings` | Website Settings |
+## Shared Project Data
 
----
-
-## REST API Endpoints
-
-### Authentication
-- `POST /api/auth/login` — Admin login (sets HttpOnly cookie)
-- `POST /api/auth/refresh` — Rotate the refresh cookie and issue a new access cookie
-- `POST /api/auth/logout` — Logout (clears cookies)
-- `GET /api/auth/me` — Current authenticated user
-
-### Public Gallery
-- `GET /api/gallery` — Published projects (paginated, filterable)
-- `GET /api/gallery/{slug}` — Single published project
-
-### Admin Gallery
-- `GET /api/admin/gallery` — All projects
-- `POST /api/admin/gallery` — Create project
-- `GET /api/admin/gallery/{id}` — Get project
-- `PUT /api/admin/gallery/{id}` — Update project
-- `DELETE /api/admin/gallery/{id}` — Delete project + files
-- `POST /api/admin/gallery/{id}/images` — Upload image (cover or gallery)
-- `DELETE /api/admin/gallery/{id}/images/{imageId}` — Delete image
-- `PATCH /api/admin/gallery/{id}/publish` — Publish
-- `PATCH /api/admin/gallery/{id}/unpublish` — Unpublish
-
-### Contact
-- `POST /api/contact` — Submit contact form
-- `GET /api/admin/messages` — Admin: list messages
-- `PATCH /api/admin/messages/{id}/read` — Mark as read
-- `PATCH /api/admin/messages/{id}/unread` — Mark as unread
-- `DELETE /api/admin/messages/{id}` — Delete message
-
-### Research Projects
-- `POST /api/projects` — Create project
-- `GET /api/projects` — List projects
-- `GET /api/projects/{id}` — Get project
-- `PUT /api/projects/{id}` — Update project
-- `DELETE /api/projects/{id}` — Delete project
-- `GET /api/projects/{id}/master-json` — Get Master JSON
-- `POST /api/projects/{id}/skip/{component}` — Skip component
-
-### Future AI Component Stubs (HTTP 501)
-- `POST /api/projects/{id}/gab-gen/run`
-- `POST /api/projects/{id}/vsai-rectifier/run`
-- `POST /api/projects/{id}/esai-engine/run`
-- `POST /api/projects/{id}/elia-engine/run`
-
-Each pending engine response is controlled and explicit:
-
-```json
-{ "detail": "Component engine integration pending" }
-```
-
-### Admin & Settings
-- `GET /api/admin/stats` — Dashboard statistics
-- `GET /api/settings` — Site settings
-- `PUT /api/settings` — Update settings (admin)
-
----
-
-## Git Branch Strategy
-
-| Branch | Ownership |
-|--------|-----------|
-| `main` | Shared platform, UI, DB, Auth, Gallery, CMS, Workflow shells |
-| `feature/gab-gen` | `backend/app/components/gab_gen/`, `frontend/src/features/gab-gen/` |
-| `feature/vsai-rectifier` | `backend/app/components/vsai_rectifier/`, `frontend/src/features/vsai/` |
-| `feature/esai-engine` | `backend/app/components/esai_engine/`, `frontend/src/features/esai/` |
-| `feature/elia-engine` | `backend/app/components/elia_engine/`, `frontend/src/features/elia/` |
-
----
-
-## Master JSON Contract
-
-The centralized data contract propagated through all four AI components:
+Components exchange project state through the Master JSON document. Its
+high-level sections include:
 
 ```json
 {
@@ -235,74 +185,38 @@ The centralized data contract propagated through all four AI components:
   "interior_layout": {},
   "exterior_landscape": {},
   "processing": {
-    "gab_gen": { "status": "pending" },
-    "vsai_rectifier": { "status": "pending" },
-    "esai_engine": { "status": "pending" },
-    "elia_engine": { "status": "pending" }
+    "gab_gen": {},
+    "vsai_rectifier": {},
+    "esai_engine": {},
+    "elia_engine": {}
   }
 }
 ```
 
-**Rule:** Each later component enriches the document without deleting prior component output.
-
----
-
-## Gallery Media
-
-Files are stored at: `backend/app/uploads/gallery/{project-id}/cover/` and `.../images/`
-
-The database stores the **relative path** only. The backend serves files via FastAPI `StaticFiles` at `/uploads/*`.
-
-Uploads are validated by extension, MIME type, size, and Pillow image verification. Files receive UUID-based names and are served only from the configured public uploads directory.
-
----
-
-## Security Notes
-
-- Passwords hashed with **Argon2** (via `pwdlib`)
-- JWT stored in **HttpOnly cookies** (not localStorage)
-- CORS locked to `FRONTEND_URL` — no wildcard origin with credentials
-- All admin endpoints enforce `require_admin()` dependency server-side
-- Image uploads: MIME validation + extension check + UUID filenames + path traversal prevention
-- No raw SQL — all queries via SQLAlchemy ORM
-
-## Environment Files
-
-Copy `backend/.env.example` to `backend/.env` and set your PostgreSQL credentials and a long random JWT secret. Copy `frontend/.env.example` to `frontend/.env.local`. Database credentials must never be placed in frontend variables or committed files.
-
-## Master JSON Workflow
-
-Creating a project writes the initial Master JSON to PostgreSQL. The frontend then loads the response into Zustand. Component skips update only the relevant processing status and preserve all other layers. JSON uploads are validated before being persisted as a new project.
-
-## Branch Strategy
-
-The existing feature branches own their isolated integration surfaces:
-
-- `feature/gab-gen` -> GAB-Gen
-- `feature/vsai-rectifier` -> VSAI-Rectifier
-- `feature/esai-engine` -> ESAI-Engine
-- `feature/elia-engine` -> ELIA-Engine
-
-Do not merge engine implementations into `main` until their contracts and tests are ready.
+The exact schema evolves with the component contracts. Components should enrich
+their own section without discarding unrelated project data.
 
 ## Validation
 
-Backend syntax can be checked with:
+Run backend tests from `backend/`:
 
 ```bash
-python -m compileall app alembic scripts
+python -m pytest
 ```
 
-Frontend checks:
+Run frontend checks from `frontend/`:
 
 ```bash
-npm run lint
 npx tsc --noEmit
+npm run lint
 npm run build
 ```
 
-Run database-backed integration checks only after PostgreSQL is available and `alembic upgrade head` has completed.
+Database-backed tests require a configured PostgreSQL database and applied
+migrations.
 
----
+## Documentation
 
-*ArchAI-Plan Research Initiative — v2.0 (FastAPI + PostgreSQL architecture)*
+Component-specific contracts, operating guidance, evaluation material, and
+research notes are available under [`docs/`](./docs/), alongside component
+documentation in `backend/app/components/`.
