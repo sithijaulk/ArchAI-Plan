@@ -9,6 +9,19 @@ Projects are exchanged between components through a shared **Master JSON**
 document. Each component contributes its own output while preserving the
 information produced by earlier steps.
 
+
+## 👥 Team Members & Component
+
+| Name                |Component|
+|---------------------|----------------|
+| **Udayawickrama K D S L N** *(Leader)* | ESAI-Engine |
+| **Sithumini H Y K**  | GAB-Gen — Geo-Spatial AI Blueprint Generator |
+| **Jayathilaka K M K M** | VSAI-Rectifier |
+| **Prasad P A D H**    | ELIA-Engine — Eco-Spatial Landscape Intelligence |
+
+
+---
+
 ## Project Components
 
 | Component | Purpose | Current approach |
