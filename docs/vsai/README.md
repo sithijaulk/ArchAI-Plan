@@ -4,7 +4,7 @@
 
 | Attribute | Details |
 | :--- | :--- |
-| **Research Project ID** | J26-IT339 (ArchAI-Plan) |
+| **Research Project ID** | J26-IT305(ArchAI-Plan) |
 | **Component Name** | Component 2: VSAI-Rectifier |
 | **Student Name** | JAYATHILAKA K.M.K.M |
 | **Student Registration ID** | IT23184794 |
