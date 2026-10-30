@@ -1,308 +1,135 @@
-# ArchAI-Plan
+# Component 4: ELIA-Engine (Eco-Spatial Landscape Intelligence)
 
-ArchAI-Plan is a research platform for transforming residential spatial information into structured architectural outputs. The shared `main` branch contains the public website, administrative CMS, PostgreSQL persistence, authentication, project workflow, visualization infrastructure, and integration shells for four future research engines.
-
-The AI engines are intentionally not implemented in `main`. Their API routes return HTTP `501` until the corresponding feature branches provide the engine integrations.
-
-## Architecture
-
-```
-ArchAI-Plan/
-├── frontend/          # Next.js + React + TypeScript + Three.js
-├── backend/           # Python FastAPI + SQLAlchemy + PostgreSQL
-├── shared/            # Master JSON schema contract
-├── training/          # Future AI model training data
-└── docs/              # Project documentation
-```
-
-The application is split into a Next.js frontend and a FastAPI backend. PostgreSQL is the only runtime database. Zustand holds UI/cache state; permanent project and Master JSON state is stored through the backend.
-
-## Technology Stack
-
-### Frontend
-- **Next.js 14** (App Router), React, TypeScript
-- **Tailwind CSS**, shadcn/ui components
-- **Three.js** + @react-three/fiber + @react-three/drei (3D visualization)
-- **Framer Motion** (animations), Lucide React (icons)
-- **Zustand** (state), Axios (API calls), React Hook Form + Zod (validation)
-- **html2canvas + jsPDF** (export)
-
-### Backend
-- **Python 3.11+**, FastAPI, Uvicorn
-- **SQLAlchemy 2.x** ORM, Alembic (migrations)
-- **PostgreSQL** (psycopg2-binary driver)
-- **JWT** authentication via HttpOnly cookies
-- **Argon2** password hashing (via pwdlib)
-- **Pillow** (image processing), python-multipart (file uploads)
-
-### Database
-
-- PostgreSQL 14+ / 16+
-- SQLAlchemy 2.x and Alembic
-- psycopg2-binary driver
-- No local database fallback
+**Owner / Author:** Prasad P.A.D.H  
+**Project:** ArchAI-Plan  
+**Module:** Component 4 (`backend/app/components/elia_engine`)
 
 ---
 
-## Requirements
+## 📌 Executive Summary
 
-- Node.js 18+
-- Python 3.11+
-- PostgreSQL 14.0+
+**ELIA-Engine (Eco-Spatial Landscape Intelligence)** is Component 4 of the **ArchAI-Plan** platform. It manages ecological, environmental, and exterior landscape architecture for residential developments.
+
+Operating directly on upstream outputs from the Centralized Master JSON (parcel boundary, building footprint, structural openings, orientation, and utility points), ELIA generates deterministic, environmentally sustainable, and regulation-compliant exterior layouts. It plans vehicle access paths, pedestrian walkways, solar photovoltaic arrays, vegetation envelopes, outdoor amenities, exterior lighting, and drainage buffers without fabricating missing evidence.
 
 ---
 
-## PostgreSQL Setup
+## 🚀 Key Responsibilities & Capabilities
 
-```sql
--- In PostgreSQL psql shell or pgAdmin
-CREATE DATABASE archai_plan;
+1. **Exterior Residual Space Analysis:**
+   - Subtracts the house footprint and reserved utility zones from the total land parcel boundary.
+   - Preserves polygon interior holes, courtyards, and verified existing site trees/features.
+   - Inherits authoritative orientation (true north bearing) directly from upstream land data without re-detecting or guessing.
+
+2. **Deterministic Geometric Planning & Optimization:**
+   - **A\* Ray-Marching Pathfinding:** Plans collision-free vehicular driveways, entry walks, and garden service paths connecting gates, carports, and doorways.
+   - **2D Oriented Bounding Box (OBB) Packing:** Optimally places modular exterior assets and rooftop/ground solar photovoltaic (PV) arrays within verified boundary envelopes.
+   - **Poisson-Disk Clearance Sampling:** Distributes mature tree canopies, shrubs, groundcover, lighting fixtures, and seating zones respecting physical root/canopy radii and boundary setbacks.
+   - **Analytical Directional Solar Simulation:** Simulates diurnal solar trajectories and shadow projections across solstice/equinox periods to verify plant lighting and solar collector placement.
+
+3. **Versioned Exterior Rule Engine (79 Explicit Rules):**
+   - **Geometric Validity (25 rules):** Immutability of parcel boundaries, mature canopy clearances, tree preservation zones, utility separation buffers, and OBB collision envelopes.
+   - **Elevated Installation (23 rules):** Roof terrace structural capacity gates (`roof_allowance_kg_m2 >= 150`), drainage runoff clearances, guard railing, and vertical greenery safety.
+   - **Environmental Suitability (14 rules):** Diurnal solar shadow exposure, wind buffers, and soil moisture compatibility.
+   - **Legal Assessment (9 rules):** Municipal boundary clearances, driveway sightlines, and septic tank to drinking well separation buffers.
+   - **User Preference Satisfaction (8 rules):** Aesthetic style compliance, species whitelist/blacklist enforcement, and outdoor living features.
+
+4. **Curated Botanical Catalogue:**
+   - 14 verified tropical species native/adapted to Sri Lankan climatic conditions with complete botanical metrics (mature height, canopy radius, root depth, growth rate, moisture needs).
+   - Structured fallback templates for generic landscape massing.
+
+5. **Safe Master JSON Synthesis & 2D/3D Visualization:**
+   - Non-destructive export into the Centralized Master JSON under `exterior_landscape` and `processing.elia_engine`.
+   - Real-time 2D canvas layers and Three.js 3D exterior asset visualization.
+
+---
+
+## 🏗️ Architectural Sub-Modules
+
+Located at `backend/app/components/elia_engine/`:
+
+| Sub-module / File | Responsibility |
+|---|---|
+| `service.py` | Orchestrates the end-to-end ELIA workflow, lifecycle hooks, and project coordination. |
+| `schemas.py` | Pydantic data schemas, coordinate representations, and API models. |
+| `adapter.py` | Translates upstream Master JSON layers into ELIA's internal spatial domain models. |
+| `feasibility.py` | Evaluates site feasibility, slope, residual buildable zones, and environmental constraints. |
+| `pathfinding.py` | A* ray-marching algorithm for access roads, pedestrian paths, and driveway circulation. |
+| `solar_planner.py` | Rooftop/ground solar panel layout planner, string orientation, and tilt angles. |
+| `solar.py` & `shadow.py` | Sun path calculations, solar azimuth/elevation, and shadow ray casting. |
+| `plants.py` & `vegetation.py` | Botanical catalog resolution, mature canopy distribution, and root clearance enforcement. |
+| `gate_garage.py` | Entrance gate positioning, vehicle turning radius validation, and garage access. |
+| `lighting.py` | Nighttime exterior illumination planning, pathway safety fixtures, and ambient lights. |
+| `outdoor_elements.py` | Sits, patios, water features, gazebos, and modular landscape asset placement. |
+| `rule_registry.py` & `rule_evaluator.py` | Versioned 79-rule evaluation engine scoring compliance across all landscape elements. |
+| `elevated_features.py` | Balcony, terrace, and rooftop greening validation with structural load verification. |
+| `output.py` | Serializes exterior plans into standard GeoJSON and Master JSON structures. |
+
+---
+
+## 🛠️ Tech Stack & Dependencies
+
+- **Language:** Python 3.11+
+- **Spatial Geometry:** Shapely, NumPy, SciPy (Spatial Voronoi / Delaunay, KD-Tree)
+- **Grid & Path Planning:** NetworkX, custom A* Ray-Marching
+- **API & Schemas:** FastAPI, Pydantic v2
+- **Frontend Visualization:** Next.js, Three.js, React Three Fiber
+
+---
+
+## 🔄 End-to-End Execution Pipeline
+
+```text
+[Master JSON: Land, House Footprint, Utilities, North]
+                         │
+                         ▼
+           [Input Adapter & Verification]
+                         │
+                         ▼
+        [Residual Exterior Space Computation]
+                         │
+                         ▼
+           [Site Feasibility Assessment]
+                         │
+                         ▼
+   ┌─────────────────────┴─────────────────────┐
+   │                                           │
+   ▼                                           ▼
+[Vehicle & Pedestrian Pathfinding]   [Analytical Solar & Shadow Analysis]
+   │                                           │
+   ▼                                           ▼
+[Gate, Carport & Utility Buffers]    [Solar PV Array Placement (OBB)]
+   │                                           │
+   └─────────────────────┬─────────────────────┘
+                         │
+                         ▼
+         [Poisson-Disk Vegetation & Lighting]
+                         │
+                         ▼
+       [79-Rule Compliance Engine Evaluation]
+                         │
+                         ▼
+      [Master JSON Update & 2D/3D Synchronization]
 ```
 
 ---
 
-## Backend Setup
+## 🧪 Testing & Verification
+
+To run tests specifically covering Component 4 (ELIA-Engine):
 
 ```bash
+# Navigate to the backend directory
 cd backend
 
-# Create virtual environment
-python -m venv .venv
-
-# Activate (macOS/Linux)
-source .venv/bin/activate
-
-# Activate (Windows)
-.\.venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Configure environment
-copy .env.example .env             # Windows
-# cp .env.example .env             # macOS/Linux
-# Edit .env — set DB_HOST, DB_USER, DB_PASSWORD with your PostgreSQL credentials
-
-# Run database migrations
-alembic upgrade head
-
-# Create the first admin account
-python scripts/create_admin.py
-
-# Start backend server
-uvicorn app.main:app --reload --port 8000
+# Run ELIA-Engine test suite
+pytest tests/ -k "elia" -v
 ```
 
-Backend URLs:
-- API: http://localhost:8000/api
-- Swagger: http://localhost:8000/docs
-- Health: http://localhost:8000/api/health
-
 ---
 
-## Frontend Setup
+## 👤 Author Information
 
-```bash
-cd frontend
-
-# Install dependencies
-npm install
-
-# Configure environment
-cp .env.example .env.local
-# Verify NEXT_PUBLIC_API_URL=http://localhost:8000/api
-
-# Start development server
-npm run dev
-```
-
-Frontend URL: http://localhost:3000
-
----
-
-## Public Routes
-
-| Route | Page |
-|-------|------|
-| `/` | Home |
-| `/gallery` | Research Gallery |
-| `/gallery/[slug]` | Gallery Detail |
-| `/features` | Features Overview |
-| `/features/gab-gen` | GAB-Gen Workflow |
-| `/features/vsai-rectifier` | VSAI Workflow |
-| `/features/esai-engine` | ESAI Workflow |
-| `/features/elia-engine` | ELIA Workflow |
-| `/about` | About ArchAI-Plan |
-| `/contact` | Contact Us |
-| `/start` | Start / Create Project |
-
-## Admin Routes
-
-| Route | Page |
-|-------|------|
-| `/admin/login` | Admin Login |
-| `/admin` | Dashboard |
-| `/admin/gallery` | Gallery Management |
-| `/admin/gallery/new` | New Project |
-| `/admin/gallery/[id]/edit` | Edit Project |
-| `/admin/messages` | Contact Messages |
-| `/admin/settings` | Website Settings |
-
----
-
-## REST API Endpoints
-
-### Authentication
-- `POST /api/auth/login` — Admin login (sets HttpOnly cookie)
-- `POST /api/auth/refresh` — Rotate the refresh cookie and issue a new access cookie
-- `POST /api/auth/logout` — Logout (clears cookies)
-- `GET /api/auth/me` — Current authenticated user
-
-### Public Gallery
-- `GET /api/gallery` — Published projects (paginated, filterable)
-- `GET /api/gallery/{slug}` — Single published project
-
-### Admin Gallery
-- `GET /api/admin/gallery` — All projects
-- `POST /api/admin/gallery` — Create project
-- `GET /api/admin/gallery/{id}` — Get project
-- `PUT /api/admin/gallery/{id}` — Update project
-- `DELETE /api/admin/gallery/{id}` — Delete project + files
-- `POST /api/admin/gallery/{id}/images` — Upload image (cover or gallery)
-- `DELETE /api/admin/gallery/{id}/images/{imageId}` — Delete image
-- `PATCH /api/admin/gallery/{id}/publish` — Publish
-- `PATCH /api/admin/gallery/{id}/unpublish` — Unpublish
-
-### Contact
-- `POST /api/contact` — Submit contact form
-- `GET /api/admin/messages` — Admin: list messages
-- `PATCH /api/admin/messages/{id}/read` — Mark as read
-- `PATCH /api/admin/messages/{id}/unread` — Mark as unread
-- `DELETE /api/admin/messages/{id}` — Delete message
-
-### Research Projects
-- `POST /api/projects` — Create project
-- `GET /api/projects` — List projects
-- `GET /api/projects/{id}` — Get project
-- `PUT /api/projects/{id}` — Update project
-- `DELETE /api/projects/{id}` — Delete project
-- `GET /api/projects/{id}/master-json` — Get Master JSON
-- `POST /api/projects/{id}/skip/{component}` — Skip component
-
-### Future AI Component Stubs (HTTP 501)
-- `POST /api/projects/{id}/gab-gen/run`
-- `POST /api/projects/{id}/vsai-rectifier/run`
-- `POST /api/projects/{id}/esai-engine/run`
-- `POST /api/projects/{id}/elia-engine/run`
-
-Each pending engine response is controlled and explicit:
-
-```json
-{ "detail": "Component engine integration pending" }
-```
-
-### Admin & Settings
-- `GET /api/admin/stats` — Dashboard statistics
-- `GET /api/settings` — Site settings
-- `PUT /api/settings` — Update settings (admin)
-
----
-
-## Git Branch Strategy
-
-| Branch | Ownership |
-|--------|-----------|
-| `main` | Shared platform, UI, DB, Auth, Gallery, CMS, Workflow shells |
-| `feature/gab-gen` | `backend/app/components/gab_gen/`, `frontend/src/features/gab-gen/` |
-| `feature/vsai-rectifier` | `backend/app/components/vsai_rectifier/`, `frontend/src/features/vsai/` |
-| `feature/esai-engine` | `backend/app/components/esai_engine/`, `frontend/src/features/esai/` |
-| `feature/elia-engine` | `backend/app/components/elia_engine/`, `frontend/src/features/elia/` |
-
----
-
-## Master JSON Contract
-
-The centralized data contract propagated through all four AI components:
-
-```json
-{
-  "project_id": "",
-  "project_name": "",
-  "land_info": {},
-  "buildable_footprint": {},
-  "floor_plan": {},
-  "structural_rectification": {},
-  "interior_layout": {},
-  "exterior_landscape": {},
-  "processing": {
-    "gab_gen": { "status": "pending" },
-    "vsai_rectifier": { "status": "pending" },
-    "esai_engine": { "status": "pending" },
-    "elia_engine": { "status": "pending" }
-  }
-}
-```
-
-**Rule:** Each later component enriches the document without deleting prior component output.
-
----
-
-## Gallery Media
-
-Files are stored at: `backend/app/uploads/gallery/{project-id}/cover/` and `.../images/`
-
-The database stores the **relative path** only. The backend serves files via FastAPI `StaticFiles` at `/uploads/*`.
-
-Uploads are validated by extension, MIME type, size, and Pillow image verification. Files receive UUID-based names and are served only from the configured public uploads directory.
-
----
-
-## Security Notes
-
-- Passwords hashed with **Argon2** (via `pwdlib`)
-- JWT stored in **HttpOnly cookies** (not localStorage)
-- CORS locked to `FRONTEND_URL` — no wildcard origin with credentials
-- All admin endpoints enforce `require_admin()` dependency server-side
-- Image uploads: MIME validation + extension check + UUID filenames + path traversal prevention
-- No raw SQL — all queries via SQLAlchemy ORM
-
-## Environment Files
-
-Copy `backend/.env.example` to `backend/.env` and set your PostgreSQL credentials and a long random JWT secret. Copy `frontend/.env.example` to `frontend/.env.local`. Database credentials must never be placed in frontend variables or committed files.
-
-## Master JSON Workflow
-
-Creating a project writes the initial Master JSON to PostgreSQL. The frontend then loads the response into Zustand. Component skips update only the relevant processing status and preserve all other layers. JSON uploads are validated before being persisted as a new project.
-
-## Branch Strategy
-
-The existing feature branches own their isolated integration surfaces:
-
-- `feature/gab-gen` -> GAB-Gen
-- `feature/vsai-rectifier` -> VSAI-Rectifier
-- `feature/esai-engine` -> ESAI-Engine
-- `feature/elia-engine` -> ELIA-Engine
-
-Do not merge engine implementations into `main` until their contracts and tests are ready.
-
-## Validation
-
-Backend syntax can be checked with:
-
-```bash
-python -m compileall app alembic scripts
-```
-
-Frontend checks:
-
-```bash
-npm run lint
-npx tsc --noEmit
-npm run build
-```
-
-Run database-backed integration checks only after PostgreSQL is available and `alembic upgrade head` has completed.
-
----
-
-*ArchAI-Plan Research Initiative — v2.0 (FastAPI + PostgreSQL architecture)*
+- **Developer:** Prasad P.A.D.H
+- **Role:** Component 4 Lead Developer (ELIA-Engine)
+- **Project:** ArchAI-Plan Research Project
