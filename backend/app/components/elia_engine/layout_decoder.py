@@ -86,7 +86,13 @@ def decode_model_layout(
 
     catalog = get_plant_catalogue()
     catalog_items = catalog.get("entries", [])
-    tree_species = [item for item in catalog_items if item.get("category") == "tree"] or catalog_items
+    pref_ids = set(landscape_reqs.get("preferred_plant_ids") or prepared_input.get("preferred_plant_ids") or [])
+    if pref_ids:
+        pref_entries = [e for e in catalog_items if e.get("vegetation_id") in pref_ids or e.get("id") in pref_ids]
+        other_entries = [e for e in catalog_items if e not in pref_entries]
+        tree_species = pref_entries + [e for e in other_entries if e.get("category") == "tree"] or catalog_items
+    else:
+        tree_species = [item for item in catalog_items if item.get("category") == "tree"] or catalog_items
 
     vegetation_nodes: list[dict[str, Any]] = []
     placed_tree_points: list[Point] = []
@@ -113,12 +119,15 @@ def decode_model_layout(
             continue
 
         placed_tree_points.append(pt)
+        is_pref = spec.get("vegetation_id") in pref_ids or spec.get("id") in pref_ids
         vegetation_nodes.append({
             "json_id": f"TREE_{idx:03d}",
             "type": "tree",
             "category": spec.get("category", "tree"),
             "species_id": spec.get("vegetation_id", f"TREE_SPEC_{idx}"),
             "species_name": spec.get("botanical_name", spec.get("common_name", "Garden Tree")),
+            "display_name": spec.get("display_name") or spec.get("common_name") or spec.get("botanical_name", "Garden Tree"),
+            "is_preferred": is_pref,
             "position": [round(wx, 3), round(wy, 3)],
             "canopy_radius_m": round(canopy_r, 2),
             "dimensions": {"width": round(canopy_r * 2, 2), "depth": round(canopy_r * 2, 2), "height": mature_h},
@@ -184,7 +193,7 @@ def decode_model_layout(
 
     gate = plan_gate(land_poly, house_poly, prepared_input, access_reqs, 1.0, obstacles_union)
     residual = land_poly.difference(house_poly)
-    garage = plan_garage(land_poly, residual, gate, prepared_input, access_reqs, 1.0, obstacles_union, 1.5) if (access_reqs.get("garage_required") and gate) else None
+    garage = plan_garage(land_poly, residual, gate, prepared_input, access_reqs, 1.0, obstacles_union, 1.5) if ((access_reqs.get("garage_required") or access_reqs.get("parking_required")) and gate) else None
 
     entrance_target = _entrance_target(prepared_input, house_poly, 1.0)
     main_entrance = entrance_target or prepared_input.get("main_entrance")

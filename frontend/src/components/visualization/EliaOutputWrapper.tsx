@@ -17,8 +17,8 @@ import dynamic from 'next/dynamic'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { DownloadImageButton, DownloadPdfButton, DownloadJsonButton } from '@/components/output/DownloadButtons'
-import { FileJson, Layers, CheckCircle2, AlertTriangle, XCircle, Info } from 'lucide-react'
+import { DownloadImageButton, DownloadPdfButton } from '@/components/output/DownloadButtons'
+import { Layers, CheckCircle2, AlertTriangle, XCircle, Info, Car, Trees } from 'lucide-react'
 import type { ExteriorLandscape, ExteriorValidation, EliaContextFreshness } from '@/types/elia'
 import { extractNormalizedUpstreamGeometry } from '@/lib/eliaGeometry'
 
@@ -269,36 +269,14 @@ export function EliaOutputWrapper({
         <div className="flex items-center gap-2 flex-wrap">
           <DownloadImageButton
             filename={`${projectName || 'project'}_elia_${activeView}_plan.png`}
-            targetId="elia-output-preview"
-            disabled={!data || activeTab !== '2d'}
+            targetId={activeTab === '2d' ? 'elia-output-preview' : 'elia-scene-container'}
+            disabled={!data || isProcessing}
           />
           <DownloadPdfButton
             filename={`${projectName || 'project'}_elia_${activeView}_plan.pdf`}
-            targetId="elia-output-preview"
-            disabled={!data || activeTab !== '2d'}
+            targetId={activeTab === '2d' ? 'elia-output-preview' : 'elia-scene-container'}
+            disabled={!data || isProcessing}
           />
-          <DownloadJsonButton
-            filename={`${projectName || 'project'}_elia_${activeView}_${exportStatusKey}.json`}
-            data={data}
-            disabled={!data}
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDownloadMasterJson}
-            disabled={!masterJson || contextFreshness !== 'current' || requiresReconciliation || activeView === 'candidate'}
-            title={
-              activeView === 'candidate'
-                ? 'Master JSON export is only available from the Saved Accepted Design view'
-                : requiresReconciliation
-                ? 'Master JSON export blocked: project state must be reconciled first'
-                : contextFreshness !== 'current'
-                ? 'Master JSON export requires confirmed current context'
-                : 'Download full project Master JSON with exterior landscape layer'
-            }
-          >
-            <FileJson className="w-4 h-4 mr-2 text-primary" /> Master JSON
-          </Button>
         </div>
       </div>
 
@@ -397,12 +375,90 @@ export function EliaOutputWrapper({
         })()
       )}
 
+      {/* Active Exterior Specifications & User Preferences Card */}
+      {landscape && (
+        <div className="p-3 rounded-lg border border-emerald-500/30 bg-emerald-950/20 text-xs space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-emerald-400 flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              Active User Preferences &amp; Exterior Specifications
+            </span>
+            <Badge variant="outline" className="border-emerald-500/40 text-emerald-300 text-[10px]">
+              Spatial Verified
+            </Badge>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px]">
+            {/* Vehicle & Parking Specs */}
+            <div className="p-2.5 rounded bg-card/60 border border-border/40 space-y-1">
+              <div className="font-medium text-foreground flex items-center gap-1.5">
+                <Car className="w-3.5 h-3.5 text-sky-400" /> Vehicles &amp; Access Planning
+              </div>
+              <div className="text-muted-foreground space-y-0.5">
+                <div>
+                  <span className="text-foreground">Parking Facility:</span>{' '}
+                  {landscape.access?.garage ? 'Enclosed Garage / Carport' : 'Open Surface Bay'}
+                </div>
+                <div>
+                  <span className="text-foreground">Vehicle Capacity:</span>{' '}
+                  {landscape.access?.garage?.capacity || (landscape.access as any)?.vehicle_count || 1} Vehicle(s)
+                </div>
+                <div>
+                  <span className="text-foreground">Vehicle Profile:</span>{' '}
+                  <span className="font-mono text-emerald-400">
+                    {(() => {
+                      const profiles = (landscape.access as any)?.vehicle_profiles;
+                      const vType = (landscape.access?.garage as any)?.vehicle_type || (profiles && profiles[0]?.vehicle_type) || 'car';
+                      const vMap: Record<string, string> = {
+                        electric_vehicle: 'Electric Vehicle (EV)',
+                        car: 'Standard Car (Sedan / Hatch)',
+                        suv: 'SUV / 4x4',
+                        van: 'Van / Light Commercial',
+                        motorcycle: 'Motorcycle / Scooter',
+                        bicycle: 'Bicycle',
+                      };
+                      return vMap[vType] || vType.replace(/_/g, ' ');
+                    })()}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Tree & Vegetation Specs */}
+            <div className="p-2.5 rounded bg-card/60 border border-border/40 space-y-1">
+              <div className="font-medium text-foreground flex items-center gap-1.5">
+                <Trees className="w-3.5 h-3.5 text-emerald-400" /> Placed Trees &amp; Vegetation (&ldquo;Gas&rdquo;)
+              </div>
+              <div className="text-muted-foreground space-y-0.5">
+                <div>
+                  <span className="text-foreground">Canopy Trees Placed:</span>{' '}
+                  {landscape.vegetation_nodes?.length || 0} Trees
+                </div>
+                {Array.isArray(landscape.vegetation_nodes) && landscape.vegetation_nodes.length > 0 ? (
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {landscape.vegetation_nodes.map((node, idx) => (
+                      <span
+                        key={node.json_id || idx}
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-emerald-950/60 border border-emerald-500/40 text-emerald-200"
+                      >
+                        {(node as any).is_preferred ? '★ ' : ''}
+                        {(node as any).display_name || (node as any).species_name || node.category}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-[10px] italic text-muted-foreground">No canopy trees placed.</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tabs */}
       <Tabs defaultValue="2d" value={activeTab} onValueChange={(val: string) => setActiveTab(val as any)} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-4">
+        <TabsList className="grid w-full grid-cols-2 mb-4">
           <TabsTrigger value="2d">2D Plan View</TabsTrigger>
           <TabsTrigger value="3d">3D Exterior View</TabsTrigger>
-          <TabsTrigger value="json">JSON Inspection</TabsTrigger>
         </TabsList>
 
         {/* 2D Plan View Tab */}
@@ -427,6 +483,7 @@ export function EliaOutputWrapper({
         {/* 3D Scene View Tab */}
         <TabsContent
           value="3d"
+          id="elia-scene-container"
           className="bg-card/50 border border-border rounded-xl overflow-hidden min-h-[500px]"
         >
           {isProcessing ? (

@@ -73,9 +73,6 @@ export function OutputPreview({
         <div className="flex gap-2">
           <DownloadImageButton filename={`${projectName}-${component}-output.png`} targetId="output-preview" disabled={!data && !floorPlan && !landscape} />
           <DownloadPdfButton filename={`${projectName}-${component}-output.pdf`} targetId="output-preview" disabled={!data && !floorPlan && !landscape} />
-          {!hideJson && (
-            <DownloadJsonButton filename={`${projectName}-${component}-output.json`} data={data || effectiveMaster} />
-          )}
         </div>
       </div>
 

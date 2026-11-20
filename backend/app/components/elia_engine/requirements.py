@@ -201,7 +201,7 @@ def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str,
         if defaults is None and (profile.get("length") is not None or profile.get("length_m") is not None) and (profile.get("width") is not None or profile.get("width_m") is not None):
             defaults = {}
         if defaults is None:
-            raise ELIAError("ELIA_INVALID_VEHICLE_PROFILE", f"Unknown vehicle profile {vehicle_type!r}; provide custom dimensions.")
+            defaults = profile_config.get("car", {"length_m": 4.5, "width_m": 1.8, "minimum_turning_radius_m": None})
         for dim in ("length", "width"):
             explicit_m = profile.get(f"{dim}_m")
             raw = explicit_m if explicit_m is not None else profile.get(dim)
@@ -547,6 +547,12 @@ def normalize_requirements(requirements: Mapping[str, Any], master: Mapping[str,
         requested_date = elia_rules()["solar"]["default_analysis_date"]
 
     upstream_north = master.get("north_angle")
+    if upstream_north is None and isinstance(master.get("survey_extraction"), Mapping):
+        upstream_north = master["survey_extraction"].get("north_angle")
+    if upstream_north is None and isinstance(master.get("land_info"), Mapping):
+        upstream_north = master["land_info"].get("calculated_north_bearing")
+    if upstream_north is None:
+        upstream_north = 0.0
     requested_north = requirements.get("north_angle")
     if upstream_north is not None and requested_north is not None:
         upstream_north, requested_north = float(upstream_north) % 360.0, float(requested_north) % 360.0

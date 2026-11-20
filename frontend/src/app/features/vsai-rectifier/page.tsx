@@ -34,132 +34,10 @@ import {
   Maximize2,
   X,
   Download,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Building2,
+  Focus
 } from 'lucide-react'
-
-// --- DEFAULT ARCHITECTURAL CAD FLOOR PLAN (MATCHING USER SCREENSHOT) ---
-const DEFAULT_CAD_FLOOR_PLAN = {
-  project_id: "sample-house-plan-01",
-  project_name: "Lotus Villa - Residential Plan",
-  units: "ft",
-  land_info: {
-    boundary_points: [[0.0, 0.0], [42.0, 0.0], [42.0, 36.0], [0.0, 36.0]],
-    area_sqft: 1512.0,
-    orientation: "North",
-    road_facing: "North"
-  },
-  buildable_footprint: {
-    polygon: [[2.0, 2.0], [40.0, 2.0], [40.0, 34.0], [2.0, 34.0]]
-  },
-  floor_plan: {
-    dimensions: { width: 42, height: 36 },
-    rooms: [
-      { id: "room-bed-1", name: "BEDROOM 1", type: "bedroom", dimensionText: "14'0\" × 12'0\"", polygon: [[0.0, 0.0], [14.0, 0.0], [14.0, 12.0], [0.0, 12.0]] },
-      { id: "room-toilet-1", name: "TOILET", type: "toilet", dimensionText: "5'6\" × 8'0\"", polygon: [[14.0, 0.0], [20.0, 0.0], [20.0, 8.0], [14.0, 8.0]] },
-      { id: "room-kitchen-1", name: "KITCHEN", type: "kitchen", dimensionText: "11'0\" × 10'0\"", polygon: [[26.0, 0.0], [42.0, 0.0], [42.0, 11.0], [26.0, 11.0]] },
-      { id: "room-living", name: "LIVING ROOM", type: "living", dimensionText: "16'0\" × 14'0\"", polygon: [[14.0, 8.0], [26.0, 8.0], [26.0, 23.0], [14.0, 23.0]] },
-      { id: "room-kitchen-2", name: "KITCHEN", type: "kitchen", dimensionText: "13'0\" × 10'0\"", polygon: [[0.0, 12.0], [14.0, 12.0], [14.0, 24.0], [0.0, 24.0]] },
-      { id: "room-dining", name: "DINING", type: "dining", dimensionText: "11'0\" × 10'0\"", polygon: [[0.0, 24.0], [14.0, 24.0], [14.0, 36.0], [0.0, 36.0]] },
-      { id: "room-verandah", name: "VERANDAH", type: "verandah", dimensionText: "5'0\" × 8'0\"", polygon: [[14.0, 23.0], [20.0, 23.0], [20.0, 31.0], [14.0, 31.0]] },
-      { id: "room-pooja", name: "POOJA", type: "pooja", dimensionText: "5'0\" × 4'0\"", polygon: [[20.0, 23.0], [26.0, 23.0], [26.0, 31.0], [20.0, 31.0]] },
-      { id: "room-bed-2", name: "BEDROOM 2", type: "master_bedroom", dimensionText: "13'0\" × 12'0\"", polygon: [[26.0, 11.0], [42.0, 11.0], [42.0, 24.0], [26.0, 24.0]] },
-      { id: "room-bath-2", name: "BATHROOM", type: "bathroom", dimensionText: "8'0\" × 5'0\"", polygon: [[26.0, 24.0], [42.0, 24.0], [42.0, 36.0], [26.0, 36.0]] }
-    ],
-    structural_elements: [
-      { id: "col-1", type: "column", polygon: [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]] },
-      { id: "col-2", type: "column", polygon: [[14.0, 0.0], [15.0, 0.0], [15.0, 1.0], [14.0, 1.0]] },
-      { id: "col-3", type: "column", polygon: [[26.0, 0.0], [27.0, 0.0], [27.0, 1.0], [26.0, 1.0]] },
-      { id: "col-4", type: "column", polygon: [[41.0, 0.0], [42.0, 0.0], [42.0, 1.0], [41.0, 1.0]] }
-    ],
-    doors: [
-      { id: "door-main", name: "MAIN ENTRANCE", type: "single_swing", center: [17.0, 31.0], width: 3.5, is_main_entrance: true },
-      { id: "door-verandah", name: "VERANDAH TO LIVING", type: "single_swing", center: [17.0, 23.0], width: 3.0 },
-      { id: "door-bed-1", name: "BEDROOM 1 DOOR", type: "single_swing", center: [14.0, 10.0], width: 3.0 },
-      { id: "door-toilet-1", name: "TOILET DOOR", type: "single_swing", center: [14.0, 4.0], width: 2.5 },
-      { id: "door-kitchen-1", name: "KITCHEN DOOR", type: "single_swing", center: [26.0, 8.0], width: 2.8 },
-      { id: "door-bed-2", name: "BEDROOM 2 DOOR", type: "single_swing", center: [26.0, 18.0], width: 3.0 },
-      { id: "door-bath-2", name: "BATHROOM 2 DOOR", type: "single_swing", center: [34.0, 24.0], width: 2.5 },
-      { id: "door-pooja", name: "POOJA DOOR", type: "single_swing", center: [20.0, 27.0], width: 2.5 },
-      { id: "door-dining", name: "DINING DOOR", type: "single_swing", center: [14.0, 26.0], width: 3.0 }
-    ],
-    windows: [
-      { id: "win-bed-1-s", name: "BEDROOM 1 WINDOW", center: [7.0, 0.0], width: 4.0 },
-      { id: "win-toilet-1", name: "TOILET WINDOW", center: [17.0, 0.0], width: 2.5 },
-      { id: "win-kitchen-1-s", name: "KITCHEN S WINDOW", center: [34.0, 0.0], width: 4.0 },
-      { id: "win-kitchen-1-e", name: "KITCHEN E WINDOW", center: [42.0, 5.5], width: 4.0 },
-      { id: "win-bed-2-e", name: "BEDROOM 2 WINDOW", center: [42.0, 17.5], width: 4.5 },
-      { id: "win-bath-2-n", name: "BATHROOM WINDOW", center: [34.0, 36.0], width: 3.0 },
-      { id: "win-dining-n", name: "DINING N WINDOW", center: [7.0, 36.0], width: 4.5 },
-      { id: "win-dining-w", name: "DINING W WINDOW", center: [0.0, 30.0], width: 4.0 },
-      { id: "win-kitchen-2-w", name: "KITCHEN W WINDOW", center: [0.0, 18.0], width: 4.0 },
-      { id: "win-bed-1-w", name: "BEDROOM 1 W WINDOW", center: [0.0, 6.0], width: 4.0 }
-    ]
-  },
-  structural_rectification: {},
-  interior_layout: {},
-  exterior_landscape: {},
-  processing: {
-    gab_gen: { status: "completed" },
-    vsai_rectifier: { status: "pending" },
-    esai_engine: { status: "pending" },
-    elia_engine: { status: "pending" }
-  }
-}
-
-// Preset plans for the "Use Generated Plan" tab
-const PRESET_PLANS = [
-  {
-    id: 'lotus_villa',
-    name: "Lotus Villa (42' × 36')",
-    description: "10-Room Balanced Residential CAD Floor Plan",
-    badge: "Baseline",
-    data: DEFAULT_CAD_FLOOR_PLAN,
-    fileName: "house-plan.png",
-    fileSize: "2.45 MB"
-  },
-  {
-    id: 'auspicious_villa',
-    name: "Auspicious Vastu Residence",
-    description: "NE Pooja, SE Kitchen, SW Master Bed alignment",
-    badge: "Grade A",
-    data: {
-      ...DEFAULT_CAD_FLOOR_PLAN,
-      project_id: "auspicious-vastu-plan",
-      project_name: "Auspicious Vastu Residence",
-      land_info: { ...DEFAULT_CAD_FLOOR_PLAN.land_info, orientation: "North-East" },
-    },
-    fileName: "auspicious_plan.json",
-    fileSize: "18.4 KB"
-  },
-  {
-    id: 'ground_floor_71',
-    name: "Ground Floor Plan 71",
-    description: "Spacious Multi-bedroom Family Floor Plan",
-    badge: "Project 71",
-    data: {
-      ...DEFAULT_CAD_FLOOR_PLAN,
-      project_id: "ground-floor-71",
-      project_name: "Ground Floor Plan 71",
-      land_info: { ...DEFAULT_CAD_FLOOR_PLAN.land_info, orientation: "East" },
-    },
-    fileName: "floorplan_71.json",
-    fileSize: "32.1 KB"
-  },
-  {
-    id: 'defective_sample',
-    name: "Defect Analysis Sample",
-    description: "Contains directional defects for remediation testing",
-    badge: "Test Defects",
-    data: {
-      ...DEFAULT_CAD_FLOOR_PLAN,
-      project_id: "defective-sample",
-      project_name: "Defective Sample Plan",
-      land_info: { ...DEFAULT_CAD_FLOOR_PLAN.land_info, orientation: "South" },
-    },
-    fileName: "defective_plan.json",
-    fileSize: "15.6 KB"
-  }
-]
 
 type WorkflowStep = 1 | 2 | 3 | 4;
 
@@ -274,14 +152,247 @@ export default function VsaiRectifierPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Floor and Room Scope Dropdowns for previewing specific project spaces
+  const [selectedFloorIndex, setSelectedFloorIndex] = useState<number | 'all'>('all')
+  const [selectedRoomScope, setSelectedRoomScope] = useState<string>('all')
+  const [isRoomIsolated, setIsRoomIsolated] = useState<boolean>(false)
+
   // Use active plan from store or user uploaded/selected plan
   const activePlan = useMemo(() => {
-    if (masterJson?.floor_plan && (masterJson.floor_plan as any).rooms?.length > 0) {
-      return masterJson
+    if (masterJson?.floor_plan) {
+      const fp = masterJson.floor_plan as any
+      if ((fp.rooms && fp.rooms.length > 0) || (fp.floors && fp.floors.some((f: any) => f.rooms?.length > 0))) {
+        return masterJson
+      }
     }
     return null
   }, [masterJson])
 
+  // Extract all available floors dynamically from activePlan
+  const availableFloors: any[] = useMemo(() => {
+    if (!activePlan?.floor_plan) return []
+    const fp = activePlan.floor_plan as any
+    if (Array.isArray(fp.floors) && fp.floors.length > 0) {
+      return fp.floors.map((fl: any, idx: number) => ({
+        index: typeof fl.floor_index === 'number' ? fl.floor_index : idx,
+        id: fl.floor_id || `L${idx}`,
+        name: fl.name || (idx === 0 ? 'Ground Floor (Level 0)' : `Floor ${idx + 1}`),
+        rooms: (fl.rooms || []).map((r: any, rIdx: number) => ({
+          ...r,
+          id: r.room_id || r.id || `rm_${idx}_${rIdx}`,
+          name: r.name || r.type || `Room ${rIdx + 1}`,
+          type: r.type || r.name || 'room',
+          floor_index: idx,
+          polygon: r.polygon || [],
+          area: typeof r.area === 'number' ? r.area : (r.area_sqm || 0),
+        })),
+        doors: fl.doors || [],
+        windows: fl.windows || [],
+        structural_elements: fl.structural_elements || [],
+      }))
+    }
+    const flatRooms = fp.rooms || []
+    if (flatRooms.length > 0) {
+      return [{
+        index: 0,
+        id: 'L0',
+        name: 'Ground Floor (Level 0)',
+        rooms: flatRooms.map((r: any, rIdx: number) => ({
+          ...r,
+          id: r.room_id || r.id || `rm_0_${rIdx}`,
+          name: r.name || r.type || `Room ${rIdx + 1}`,
+          type: r.type || r.name || 'room',
+          floor_index: 0,
+          polygon: r.polygon || [],
+          area: typeof r.area === 'number' ? r.area : (r.area_sqm || 0),
+        })),
+        doors: fp.doors || [],
+        windows: fp.windows || [],
+        structural_elements: fp.structural_elements || [],
+      }]
+    }
+    return []
+  }, [activePlan])
+
+  // Extract available rooms for the current floor selection
+  const availableRooms: any[] = useMemo(() => {
+    if (availableFloors.length === 0) return []
+    if (selectedFloorIndex === 'all') {
+      return availableFloors.flatMap((f: any) => f.rooms)
+    }
+    const fl = availableFloors.find((f: any) => f.index === selectedFloorIndex)
+    return fl ? fl.rooms : availableFloors.flatMap((fl: any) => fl.rooms)
+  }, [availableFloors, selectedFloorIndex])
+
+  // Filtered floor plan to pass to FloorPlan2DViewer
+  const displayedFloorPlan = useMemo(() => {
+    if (!activePlan?.floor_plan) return undefined
+    const fp = activePlan.floor_plan as any
+    if (selectedFloorIndex === 'all') {
+      return {
+        ...fp,
+        rooms: availableFloors.flatMap((f: any) => f.rooms),
+      }
+    }
+    const fl = availableFloors.find((f: any) => f.index === selectedFloorIndex)
+    if (!fl) return fp
+    return {
+      ...fp,
+      rooms: fl.rooms,
+      doors: (fl.doors && fl.doors.length > 0) ? fl.doors : (fp.doors || []),
+      windows: (fl.windows && fl.windows.length > 0) ? fl.windows : (fp.windows || []),
+      structural_elements: (fl.structural_elements && fl.structural_elements.length > 0) ? fl.structural_elements : (fp.structural_elements || []),
+    }
+  }, [activePlan, selectedFloorIndex, availableFloors])
+
+  // Active target room highlighted
+  const activeHighlightedRoomId = useMemo(() => {
+    if (selectedRoomScope !== 'all') {
+      return selectedRoomScope
+    }
+    return highlightedElementId
+  }, [selectedRoomScope, highlightedElementId])
+
+  // Dynamically calculate actual outer dimensions from room geometry
+  const realOuterDimensions = useMemo(() => {
+    const rooms = displayedFloorPlan?.rooms || (activePlan?.floor_plan as any)?.rooms || []
+    if (rooms.length === 0) return undefined
+    let allPts: [number, number][] = []
+    rooms.forEach((r: any) => {
+      if (Array.isArray(r.polygon)) {
+        r.polygon.forEach((p: any) => {
+          if (Array.isArray(p) && p.length >= 2) allPts.push([p[0], p[1]])
+          else if (p && typeof p === 'object' && 'x' in p && 'y' in p) allPts.push([p.x, p.y])
+        })
+      }
+    })
+    if (allPts.length === 0) return undefined
+    const xs = allPts.map(p => p[0])
+    const ys = allPts.map(p => p[1])
+    const w = Math.max(...xs) - Math.min(...xs)
+    const l = Math.max(...ys) - Math.min(...ys)
+    const wFt = Math.round(w * 3.28084)
+    const lFt = Math.round(l * 3.28084)
+    return {
+      top: `${w.toFixed(1)}m (${wFt}'-0")`,
+      right: `${l.toFixed(1)}m (${lFt}'-0")`,
+    }
+  }, [displayedFloorPlan, activePlan])
+
+  // Reusable Floor and Room Scope Selector Toolbar
+  const renderSpaceSelectorToolbar = (compact = false) => {
+    if (availableFloors.length === 0) return null
+    return (
+      <div className={`flex flex-wrap items-center justify-between gap-2.5 p-2 rounded-xl bg-slate-900/90 border border-slate-700/80 text-xs text-slate-200 mb-3 shadow-md ${compact ? 'py-1 px-2' : ''}`}>
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Floor Dropdown */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-slate-400 font-medium text-[11px] flex items-center gap-1">
+              <Layers className="w-3.5 h-3.5 text-blue-400" /> Floor:
+            </span>
+            <select
+              value={selectedFloorIndex === 'all' ? 'all' : String(selectedFloorIndex)}
+              onChange={(e) => {
+                const val = e.target.value === 'all' ? 'all' : Number(e.target.value)
+                setSelectedFloorIndex(val)
+                setSelectedRoomScope('all')
+                setHighlightedElementId(null)
+                setIsRoomIsolated(false)
+              }}
+              className="bg-slate-800 text-white text-[11px] font-semibold rounded-lg px-2.5 py-1.5 border border-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+            >
+              <option value="all">All Floors ({availableFloors.length})</option>
+              {availableFloors.map((fl: any) => (
+                <option key={fl.id} value={String(fl.index)}>
+                  {fl.name} ({fl.rooms.length} spaces)
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Room / Space Dropdown */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-slate-400 font-medium text-[11px] flex items-center gap-1">
+              <Building2 className="w-3.5 h-3.5 text-indigo-400" /> Space:
+            </span>
+            <select
+              value={selectedRoomScope}
+              onChange={(e) => {
+                const val = e.target.value
+                setSelectedRoomScope(val)
+                if (val !== 'all') {
+                  setHighlightedElementId(val)
+                } else {
+                  setHighlightedElementId(null)
+                  setIsRoomIsolated(false)
+                }
+              }}
+              className="bg-slate-800 text-white text-[11px] font-semibold rounded-lg px-2.5 py-1.5 border border-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 max-w-[210px] truncate cursor-pointer"
+            >
+              <option value="all">All Spaces / Full Plan ({availableRooms.length})</option>
+              {availableRooms.map((rm: any) => (
+                <option key={rm.id} value={rm.id}>
+                  {rm.name} {rm.area > 0 ? `(${rm.area.toFixed(1)} m²)` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Isolate / Focus Room Button */}
+        {selectedRoomScope !== 'all' && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsRoomIsolated(!isRoomIsolated)}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all border flex items-center gap-1 cursor-pointer ${
+                isRoomIsolated
+                  ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm'
+                  : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+              }`}
+            >
+              <Focus className="w-3 h-3" />
+              {isRoomIsolated ? 'Isolated View' : 'Isolate Room'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedRoomScope('all')
+                setHighlightedElementId(null)
+                setIsRoomIsolated(false)
+              }}
+              className="text-[11px] text-muted-foreground hover:text-white underline cursor-pointer"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+
+  // Fetch project from API if store was not populated
+  useEffect(() => {
+    if (projectId && (!masterJson || !(masterJson.floor_plan as any)?.rooms?.length)) {
+      projectsApi.getProject(projectId).then((p) => {
+        if (p?.master_json) {
+          loadProject({
+            id: p.id,
+            project_name: p.project_name,
+            master_json: p.master_json,
+          })
+        }
+      }).catch(console.warn)
+    }
+  }, [projectId, masterJson, loadProject])
+
+  // Automatically switch tab to 'generated' if activePlan exists from Component 1
+  useEffect(() => {
+    if (masterJson?.floor_plan && (masterJson.floor_plan as any).rooms?.length > 0) {
+      setActiveUploadTab('generated')
+    }
+  }, [masterJson])
 
   // Direct Vastu Evaluator function
   const evaluateVastu = useCallback(async (contractJson: any) => {
@@ -327,18 +438,21 @@ export default function VsaiRectifierPage() {
   }, [masterJson, rectifiedData])
 
   const handleProcess = useCallback(async () => {
+    if (!masterJson) {
+      setUploadError("No floor plan available to rectify. Please select or upload a plan first.")
+      return
+    }
     setIsProcessing(true)
     setUploadError(null)
     try {
-      const planToRectify = masterJson || DEFAULT_CAD_FLOOR_PLAN
-      const result = await vsaiApi.rectify(projectId || undefined, planToRectify)
+      const result = await vsaiApi.rectify(projectId || undefined, masterJson)
       if (result) {
         setRectifiedData(result)
         setOutput('vsai_rectifier', result)
         if (result.master_json) {
           loadProject({
-            id: projectId || 'demo-vsai-lotus',
-            project_name: projectName || 'Rectified Project',
+            id: projectId || result.master_json.project_id || 'proj-vsai',
+            project_name: projectName || result.master_json.project_name || 'Rectified Project',
             master_json: result.master_json,
           })
         }
@@ -355,19 +469,19 @@ export default function VsaiRectifierPage() {
   }, [projectId, masterJson, loadProject, projectName, setComponentStatus, setOutput])
 
   const handleConfirmMissingInfo = async (confirmedAnswers: Record<string, any>) => {
+    if (!masterJson) return
     setIsSubmittingMissingInfo(true)
     setUploadError(null)
     try {
-      const planToConfirm = masterJson || DEFAULT_CAD_FLOOR_PLAN
       const response = await vsaiApi.confirmMissingInfo(
-        planToConfirm,
+        masterJson,
         confirmedAnswers,
         projectId || undefined
       )
       if (response.master_json) {
         loadProject({
-          id: projectId || 'demo-vsai-lotus',
-          project_name: projectName || 'Updated Floor Plan',
+          id: projectId || response.master_json.project_id || 'proj-vsai',
+          project_name: projectName || response.master_json.project_name || 'Updated Floor Plan',
           master_json: response.master_json
         })
       }
@@ -416,8 +530,8 @@ export default function VsaiRectifierPage() {
   const handleFileProcess = async (file: File) => {
     if (!file) return
 
-    // Cleanly purge all previous state before starting new upload
-    resetProject()
+    // Clear local UI state only. The project itself is kept so the uploaded plan is
+    // written into THIS project's centralized Master JSON (not a throwaway demo project).
     setUploadError(null)
     setValidationResult(null)
     setMissingInfoReport(null)
@@ -434,6 +548,8 @@ export default function VsaiRectifierPage() {
 
     try {
       if (file.name.endsWith('.json') || file.type === 'application/json') {
+        // Uploading a full Master JSON file creates its own project.
+        resetProject()
         const response = await projectsApi.uploadMasterJson(file)
         loadProject(response.project)
         if (response.validation) {
@@ -451,12 +567,15 @@ export default function VsaiRectifierPage() {
         }
         reader.readAsDataURL(file)
 
-        // Always invoke standalone segment to guarantee fresh plan extraction
-        const segResponse = await vsaiApi.segmentFloorPlan(file)
+        if (!projectId) {
+          throw new Error('No active project. Please create or open a project before uploading a floor plan.')
+        }
+        // Project-scoped segmentation: result is persisted into this project's Master JSON
+        const segResponse = await vsaiApi.segmentFloorPlan(file, undefined, projectId)
         if (segResponse.master_json) {
           loadProject({
-            id: segResponse.master_json.project_id || `proj-upload-${Date.now()}`,
-            project_name: segResponse.master_json.project_name || file.name.replace(/\.[^/.]+$/, ""),
+            id: projectId,
+            project_name: projectName || segResponse.master_json.project_name || file.name.replace(/\.[^/.]+$/, ""),
             master_json: segResponse.master_json,
           })
           setSegmentationMeta(segResponse.segmentation || segResponse.master_json.segmentation_meta || null)
@@ -495,29 +614,23 @@ export default function VsaiRectifierPage() {
     event.target.value = ''
   }
 
-  const handleSelectPresetPlan = (plan: typeof PRESET_PLANS[0]) => {
-    setUploadedFileName(plan.fileName)
-    setUploadedFileSize(plan.fileSize)
-    loadProject({
-      id: plan.data.project_id,
-      project_name: plan.data.project_name,
-      master_json: plan.data as any
-    })
-    setVastuAnalysis(null)
-    setValidationResult(null)
+  const handleUseExistingPlan = () => {
+    if (masterJson) {
+      setUploadedFileName(`${projectName || 'Project'}-master-plan.json`)
+      setUploadedFileSize('Centralized Master JSON')
+      setVastuAnalysis(null)
+      setValidationResult(null)
+      setUploadError(null)
+    }
   }
 
   const handleAnalyzeWithVastu = async () => {
-    setIsEvaluatingVastu(true)
-    const planToAnalyze = masterJson || DEFAULT_CAD_FLOOR_PLAN
     if (!masterJson) {
-      loadProject({
-        id: DEFAULT_CAD_FLOOR_PLAN.project_id,
-        project_name: DEFAULT_CAD_FLOOR_PLAN.project_name,
-        master_json: DEFAULT_CAD_FLOOR_PLAN as any
-      })
+      setUploadError('No floor plan found to analyze. Please generate a plan in Component 1 or upload a floor plan.')
+      return
     }
-    await evaluateVastu(planToAnalyze)
+    setIsEvaluatingVastu(true)
+    await evaluateVastu(masterJson)
     setCurrentStep(2)
   }
 
@@ -541,8 +654,30 @@ export default function VsaiRectifierPage() {
   }
 
   const handleSkip = async () => {
-    await skipComponent('vsai_rectifier')
-    router.push('/features/esai-engine')
+    setUploadError(null)
+    const activeProjId = projectId || (masterJson as any)?.project_id
+    if (!activePlan && (!masterJson?.floor_plan || !(masterJson.floor_plan as any).rooms?.length)) {
+      setUploadError(
+        'No floor plan found for this project. Component 1 (GAB-Gen) was skipped and no floor plan image was uploaded in Component 2. Please run Component 1 first, or upload a floor plan image here.'
+      )
+      return
+    }
+
+    try {
+      if (activeProjId) {
+        await skipComponent('vsai_rectifier')
+      } else {
+        setComponentStatus('vsai_rectifier', 'skipped')
+      }
+      router.push('/features/esai-engine')
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail
+      setUploadError(
+        typeof detail === 'string'
+          ? detail
+          : 'Failed to skip Component 2. Please ensure a valid floor plan exists.'
+      )
+    }
   }
 
   const openInspection = (item: VastuGoodAspect | VastuDefect) => {
@@ -561,19 +696,33 @@ export default function VsaiRectifierPage() {
     }
   }
 
-  // --- ANALYSIS RESULTS PIN MARKERS (MATCHING USER SCREENSHOT) ---
+  // --- DYNAMIC ANALYSIS RESULTS PIN MARKERS FROM VASTU DEFECTS & ROOMS ---
   const analysisMarkers: PlanMarker[] = useMemo(() => {
-    return [
-      { id: 'm1', label: '01', roomId: 'room-kitchen-1', type: 'correction', tooltip: 'Kitchen: Non-compliant sector' },
-      { id: 'm2', label: '02', roomId: 'room-bed-2', type: 'attention', tooltip: 'Bedroom 2: Orientation check' },
-      { id: 'm3', label: '03', roomId: 'room-dining', type: 'correction', tooltip: 'Dining: Overlaps central corridor' },
-    ]
-  }, [])
+    if (!vastuAnalysis?.defects || vastuAnalysis.defects.length === 0) {
+      return []
+    }
+    const rooms = (activePlan?.floor_plan as any)?.rooms || []
+    return vastuAnalysis.defects.slice(0, 5).map((d, idx) => {
+      // Find matching room by ID or name
+      const matchedRoom = rooms.find((r: any) => 
+        (d.room_id && r.id === d.room_id) ||
+        (d.room_name && (r.name?.toLowerCase().includes(d.room_name.toLowerCase()) || r.type?.toLowerCase().includes(d.room_name.toLowerCase())))
+      )
+      return {
+        id: `m-${idx + 1}`,
+        label: `${idx + 1 < 10 ? '0' : ''}${idx + 1}`,
+        roomId: matchedRoom?.id || d.room_id,
+        type: d.severity === 'CRITICAL' ? 'correction' : 'attention',
+        tooltip: `${d.room_name || 'Room'}: ${d.description || 'Vastu issue detected'}`
+      }
+    })
+  }, [vastuAnalysis, activePlan])
 
-  // --- VASTU ELEMENT STATUS ROW ITEMS (DYNAMIC & SCREENSHOT ALIGNED) ---
+  // --- VASTU ELEMENT STATUS ROW ITEMS (DYNAMICALLY EXTRACTED FROM ACTIVE ROOMS & DEFECTS) ---
   const elementStatuses = useMemo(() => {
     const defects = vastuAnalysis?.defects || []
     const goodAspects = vastuAnalysis?.good_aspects || []
+    const rooms = (activePlan?.floor_plan as any)?.rooms || []
 
     const hasDefect = (keyword: string) =>
       defects.find(d => 
@@ -588,38 +737,47 @@ export default function VsaiRectifierPage() {
         g.description?.toLowerCase().includes(keyword)
       )
 
+    // Discover rooms present in current active floor plan
+    const findRoomId = (keyword: string) => {
+      const rm = rooms.find((r: any) => 
+        r.name?.toLowerCase().includes(keyword) || 
+        r.type?.toLowerCase().includes(keyword)
+      )
+      return rm ? (rm.id || rm.room_id) : undefined
+    }
+
     const mainDoorDefect = hasDefect('entrance') || hasDefect('door')
-    const mainDoorStatus = mainDoorDefect ? 'Attention' : 'Attention'
+    const mainDoorStatus = mainDoorDefect ? 'Attention' : 'Good'
     const mainDoorDetails = vastuAnalysis?.dwara_sthana?.house_type 
-      ? `${vastuAnalysis.dwara_sthana.house_type} (Avoidable)` 
-      : 'South (Avoidable)'
+      ? `${vastuAnalysis.dwara_sthana.house_type}` 
+      : 'Aligned with Entrance'
 
     const kitchenDefect = hasDefect('kitchen')
-    const kitchenStatus = kitchenDefect ? 'Correction' : (hasGood('kitchen') ? 'Good' : 'Correction')
-    const kitchenDetails = kitchenDefect?.sector_display?.split('(')[0] || 'Wrong Direction'
+    const kitchenStatus = kitchenDefect ? 'Correction' : (hasGood('kitchen') ? 'Good' : 'Good')
+    const kitchenDetails = kitchenDefect?.sector_display?.split('(')[0] || (hasGood('kitchen') ? 'Well Positioned' : 'Auspicious Zone')
 
     const bedDefect = hasDefect('bedroom') || hasDefect('bed')
-    const bedStatus = bedDefect ? 'Correction' : 'Correction'
-    const bedDetails = bedDefect ? '1 Issue Found' : '1 Issue Found'
+    const bedStatus = bedDefect ? 'Correction' : 'Good'
+    const bedDetails = bedDefect ? (bedDefect.description?.slice(0, 22) + '...' || '1 Issue Found') : 'Well Positioned'
 
-    const bathDefect = hasDefect('drain')
+    const bathDefect = hasDefect('drain') || hasDefect('toilet') || hasDefect('bath')
     const bathStatus = bathDefect ? 'Attention' : 'Good'
-    const bathDetails = bathDefect ? 'Check Drain Flow' : 'Well Positioned'
+    const bathDetails = bathDefect ? 'Check Placement' : 'Well Positioned'
 
     const poojaDefect = hasDefect('pooja') && !hasGood('pooja')
     const poojaStatus = poojaDefect ? 'Correction' : 'Good'
-    const poojaDetails = poojaDefect ? 'Avoid South' : 'Well Positioned'
+    const poojaDetails = poojaDefect ? 'Avoid Conflict Sector' : 'Well Positioned'
 
     return [
-      { element: 'Main Door', status: mainDoorStatus, details: mainDoorDetails, roomId: 'room-living' },
-      { element: 'Windows', status: 'Good', details: 'Well Positioned', roomId: 'room-living' },
-      { element: 'Bedroom', status: bedStatus, details: bedDetails, roomId: 'room-bed-2' },
-      { element: 'Kitchen', status: kitchenStatus, details: kitchenDetails, roomId: 'room-kitchen-1' },
-      { element: 'Bathroom', status: bathStatus, details: bathDetails, roomId: 'room-toilet-1' },
-      { element: 'Pooja Room', status: poojaStatus, details: poojaDetails, roomId: 'room-pooja' },
-      { element: 'Staircase', status: 'Attention', details: 'Check Placement', roomId: 'room-living' },
+      { element: 'Main Door', status: mainDoorStatus, details: mainDoorDetails, roomId: findRoomId('living') || 'door-main' },
+      { element: 'Windows', status: 'Good', details: 'Well Positioned', roomId: findRoomId('living') },
+      { element: 'Bedroom', status: bedStatus, details: bedDetails, roomId: findRoomId('bed') },
+      { element: 'Kitchen', status: kitchenStatus, details: kitchenDetails, roomId: findRoomId('kitchen') },
+      { element: 'Bathroom', status: bathStatus, details: bathDetails, roomId: findRoomId('toilet') || findRoomId('bath') },
+      { element: 'Pooja Room', status: poojaStatus, details: poojaDetails, roomId: findRoomId('pooja') },
+      { element: 'Staircase', status: hasDefect('stair') ? 'Attention' : 'Good', details: hasDefect('stair') ? 'Check Placement' : 'Auspicious Zone', roomId: findRoomId('stair') || findRoomId('living') },
     ]
-  }, [vastuAnalysis])
+  }, [vastuAnalysis, activePlan])
 
   const kpiGoodCount = useMemo(() => {
     return elementStatuses.filter(e => e.status === 'Good').length
@@ -796,14 +954,17 @@ export default function VsaiRectifierPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setActiveUploadTab('generated')}
+                    onClick={() => {
+                      setActiveUploadTab('generated')
+                      handleUseExistingPlan()
+                    }}
                     className={`pb-2.5 font-semibold transition-all relative ${
                       activeUploadTab === 'generated'
                         ? 'text-blue-500 border-b-2 border-blue-500'
                         : 'text-muted-foreground hover:text-foreground'
                     }`}
                   >
-                    Use Generated Plan
+                    Use Existing Plan
                   </button>
                 </div>
 
@@ -846,25 +1007,66 @@ export default function VsaiRectifierPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-2.5">
-                    <p className="text-xs text-muted-foreground mb-3">
-                      Select an architectural blueprint generated by ArchAI Plan to analyze against Vastu rules:
-                    </p>
-                    {PRESET_PLANS.map((plan) => (
-                      <div
-                        key={plan.id}
-                        onClick={() => handleSelectPresetPlan(plan)}
-                        className="p-3.5 rounded-xl bg-card/60 hover:bg-blue-500/10 border border-border/60 hover:border-blue-500/40 cursor-pointer transition-all flex items-center justify-between"
-                      >
-                        <div>
-                          <div className="text-xs font-bold text-foreground">{plan.name}</div>
-                          <div className="text-[11px] text-muted-foreground mt-0.5">{plan.description}</div>
+                  <div className="space-y-4">
+                    {activePlan ? (
+                      <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/30 space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-blue-400">
+                              <Sparkles className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <div className="text-sm font-bold text-foreground">
+                                {projectName || activePlan.project_name || 'Project Blueprint'}
+                              </div>
+                              <div className="text-xs text-muted-foreground font-mono">
+                                Component 01 (GAB-Gen) Centralized Master JSON
+                              </div>
+                            </div>
+                          </div>
+                          <Badge variant="outline" className="text-[10px] font-mono bg-blue-500/20 text-blue-400 border-blue-500/40">
+                            Active Project Plan
+                          </Badge>
                         </div>
-                        <Badge variant="outline" className="text-[10px] font-mono text-blue-400 border-blue-500/30 shrink-0">
-                          {plan.badge}
-                        </Badge>
+
+                        <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-blue-500/20">
+                          <div className="p-2 rounded-lg bg-card/60">
+                            <span className="text-[10px] text-muted-foreground block">Rooms</span>
+                            <span className="font-bold text-foreground">{(activePlan.floor_plan as any)?.rooms?.length || 0} Rooms</span>
+                          </div>
+                          <div className="p-2 rounded-lg bg-card/60">
+                            <span className="text-[10px] text-muted-foreground block">Orientation</span>
+                            <span className="font-bold text-foreground">{activePlan.land_info?.orientation || 'North'}</span>
+                          </div>
+                        </div>
+
+                        <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 pt-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                          <span>Vectorized CAD geometry loaded from Component 1 and ready for Vastu analysis.</span>
+                        </div>
                       </div>
-                    ))}
+                    ) : (
+                      <div className="p-6 border border-border/70 rounded-xl bg-card/30 text-center space-y-3">
+                        <div className="w-12 h-12 rounded-full bg-muted/40 border border-border/80 flex items-center justify-center text-muted-foreground mx-auto">
+                          <Layers className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <div className="text-sm font-semibold text-foreground">No Existing Plan in Current Project</div>
+                          <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+                            Go to Component 1 (GAB-Gen) to generate a vectorized blueprint for this project, or upload an existing floor plan image on the left.
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => router.push('/features/gab-gen')}
+                          className="text-xs mt-2"
+                        >
+                          Go to Component 1 (GAB-Gen)
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -908,26 +1110,7 @@ export default function VsaiRectifierPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      {/* Download Master JSON */}
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          const blob = new Blob([JSON.stringify(activePlan, null, 2)], { type: 'application/json' })
-                          const url = URL.createObjectURL(blob)
-                          const a = document.createElement('a')
-                          a.href = url
-                          a.download = `${activePlan.project_name || 'floor-plan'}-master.json`
-                          a.click()
-                          URL.revokeObjectURL(url)
-                        }}
-                        className="text-xs h-8 gap-1.5 border-border/80 text-muted-foreground hover:text-foreground hover:border-blue-500/50"
-                        title="Download Master JSON"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                        JSON
-                      </Button>
+
                       <Button
                         type="button"
                         variant="outline"
@@ -999,6 +1182,9 @@ export default function VsaiRectifierPage() {
                     </div>
                   )}
 
+                  {/* Floor and Room Scope Selector Toolbar */}
+                  {renderSpaceSelectorToolbar()}
+
                   <div className="relative w-full h-[460px] sm:h-[480px] rounded-xl overflow-hidden border border-slate-300 bg-white mb-6 shadow-md flex flex-col">
                     {planViewMode === 'image' && uploadedImageSrc ? (
                       <div className="w-full h-full flex items-center justify-center bg-slate-50 p-4">
@@ -1017,27 +1203,33 @@ export default function VsaiRectifierPage() {
                         />
                         <div className="relative z-10 w-full h-full">
                           <FloorPlan2DViewer
-                            key={`overlay-${activePlan.project_id || uploadedFileName || 'active-plan'}`}
-                            floorPlan={activePlan.floor_plan as any}
+                            key={`overlay-${activePlan.project_id || uploadedFileName || 'active-plan'}-${selectedFloorIndex}-${selectedRoomScope}`}
+                            floorPlan={displayedFloorPlan as any}
                             landInfo={activePlan.land_info as any}
                             cadStyle={true}
-                            outerDimensions={{ top: "42'-0\"", right: "36'-0\"" }}
+                            outerDimensions={realOuterDimensions}
                             hideLegend={true}
                             hideTopBar={true}
                             compassPosition="top-right"
+                            highlightRoomId={activeHighlightedRoomId}
+                            isolateRoom={isRoomIsolated}
+                            dimOthers={Boolean(activeHighlightedRoomId)}
                           />
                         </div>
                       </div>
                     ) : (
                       <FloorPlan2DViewer
-                        key={`cad-${activePlan.project_id || uploadedFileName || 'active-plan'}`}
-                        floorPlan={activePlan.floor_plan as any}
+                        key={`cad-${activePlan.project_id || uploadedFileName || 'active-plan'}-${selectedFloorIndex}-${selectedRoomScope}`}
+                        floorPlan={displayedFloorPlan as any}
                         landInfo={activePlan.land_info as any}
                         cadStyle={true}
-                        outerDimensions={{ top: "42'-0\"", right: "36'-0\"" }}
+                        outerDimensions={realOuterDimensions}
                         hideLegend={true}
                         hideTopBar={true}
                         compassPosition="top-right"
+                        highlightRoomId={activeHighlightedRoomId}
+                        isolateRoom={isRoomIsolated}
+                        dimOthers={Boolean(activeHighlightedRoomId)}
                       />
                     )}
                   </div>
@@ -1136,19 +1328,28 @@ export default function VsaiRectifierPage() {
                       </Button>
                     </div>
 
+                    {/* Floor and Room Scope Selector Toolbar */}
+                    {renderSpaceSelectorToolbar()}
+
                     {/* CAD Canvas with Issue Markers */}
                     <div className="w-full h-[460px] sm:h-[480px] rounded-xl overflow-hidden border border-slate-300 bg-white mb-4 shadow-md flex flex-col">
                       <FloorPlan2DViewer
-                        floorPlan={(activePlan?.floor_plan || DEFAULT_CAD_FLOOR_PLAN.floor_plan) as any}
-                        landInfo={(activePlan?.land_info || DEFAULT_CAD_FLOOR_PLAN.land_info) as any}
+                        key={`analyzed-${activePlan?.project_id || 'active'}-${selectedFloorIndex}-${selectedRoomScope}`}
+                        floorPlan={displayedFloorPlan as any}
+                        landInfo={activePlan?.land_info as any}
                         cadStyle={true}
                         hideLegend={true}
                         hideTopBar={true}
                         compassPosition="top-left"
                         markers={analysisMarkers}
-                        highlightRoomId={highlightedElementId}
+                        highlightRoomId={activeHighlightedRoomId}
+                        isolateRoom={isRoomIsolated}
+                        dimOthers={Boolean(activeHighlightedRoomId)}
                         onMarkerClick={(m) => {
-                          if (m.roomId) setHighlightedElementId(m.roomId)
+                          if (m.roomId) {
+                            setHighlightedElementId(m.roomId)
+                            setSelectedRoomScope(m.roomId)
+                          }
                         }}
                       />
                     </div>
@@ -1525,18 +1726,29 @@ export default function VsaiRectifierPage() {
                   <X className="w-4 h-4" />
                 </Button>
               </div>
-              <div className="flex-1 p-6 overflow-hidden bg-slate-100 flex items-center justify-center">
-                <FloorPlan2DViewer
-                  floorPlan={(activePlan?.floor_plan || DEFAULT_CAD_FLOOR_PLAN.floor_plan) as any}
-                  landInfo={(activePlan?.land_info || DEFAULT_CAD_FLOOR_PLAN.land_info) as any}
-                  cadStyle={true}
-                  outerDimensions={{ top: "42'-0\"", right: "36'-0\"" }}
-                  markers={analysisMarkers}
-                  highlightRoomId={highlightedElementId}
-                  onMarkerClick={(m) => {
-                    if (m.roomId) setHighlightedElementId(m.roomId)
-                  }}
-                />
+              <div className="flex-1 p-6 overflow-hidden bg-slate-900 flex flex-col">
+                <div className="w-full mb-3 shrink-0">
+                  {renderSpaceSelectorToolbar(true)}
+                </div>
+                <div className="flex-1 w-full rounded-xl overflow-hidden bg-white shadow-inner flex items-center justify-center">
+                  <FloorPlan2DViewer
+                    key={`fullscreen-${activePlan?.project_id || 'active'}-${selectedFloorIndex}-${selectedRoomScope}`}
+                    floorPlan={displayedFloorPlan as any}
+                    landInfo={activePlan?.land_info as any}
+                    cadStyle={true}
+                    outerDimensions={realOuterDimensions}
+                    markers={analysisMarkers}
+                    highlightRoomId={activeHighlightedRoomId}
+                    isolateRoom={isRoomIsolated}
+                    dimOthers={Boolean(activeHighlightedRoomId)}
+                    onMarkerClick={(m) => {
+                      if (m.roomId) {
+                        setHighlightedElementId(m.roomId)
+                        setSelectedRoomScope(m.roomId)
+                      }
+                    }}
+                  />
+                </div>
               </div>
 
             </div>

@@ -1,309 +1,235 @@
-# ArchAI-Plan: Component 2 — VSAI-Rectifier
+# ArchAI-Plan
 
-**Spatial Floor Plan Segmentation & Algorithmic Vastu Shastra Spatial Compliance System for Residential Floor Plans**
+ArchAI-Plan is a web-based research platform for turning residential land and
+building information into structured architectural design outputs. It combines
+four spatial-design components with a shared project workflow, an administrative
+website, and interactive 2D/3D previews.
 
-| Attribute | Details |
-| :--- | :--- |
-| **Research Project ID** | J26-IT305(ArchAI-Plan) |
-| **Component Name** | Component 2: VSAI-Rectifier |
-| **Student Name** | JAYATHILAKA K.M.K.M |
-| **Student Registration ID** | IT23184794 |
-| **Git Feature Branch** | `feature/vsai-rectifier` |
-| **Active Codebase Scope** | `backend/app/components/vsai_rectifier/`, `backend/app/routers/vsai_rectifier.py`, `backend/app/services/spatial_rectifier_service.py`, `backend/app/services/vastu_engine.py`, `backend/app/ml/cubicasa/`, `frontend/src/app/features/vsai-rectifier/` |
-| **Document Version** | 1.0.0 (Checklist & Milestone Release) |
+Projects are exchanged between components through a shared **Master JSON**
+document. Each component contributes its own output while preserving the
+information produced by earlier steps.
 
----
 
-## 1. Executive Summary & Research Scope
+## 👥 Team Members & Component
 
-### 1.1 The Research Problem
-Architectural floor plan generation and spatial verification face two major bottlenecks in residential architecture:
-1. **Manual & Error-Prone Vectorization:** Converting raster floor plan drawings (hand-drawn sketches, architect blueprints, scans) into structured, watertight CAD vector polygons requires labor-intensive manual drafting.
-2. **Ignored Traditional Spatial Compliance (Vastu Shastra):** While modern CAD tools handle geometric dimensions, they fail to systematically evaluate and correct directional architectural principles like *Vastu Shastra* (traditional orientation laws governing living spaces, energy zones, and elemental harmony). Non-compliant floor plans often require costly redesigns late in the building lifecycle.
+| Name                |Component|
+|---------------------|----------------|
+| **Udayawickrama K D S L N** *(Leader)* | ESAI-Engine |
+| **Sithumini H Y K**  | GAB-Gen — Geo-Spatial AI Blueprint Generator |
+| **Jayathilaka K M K M** | VSAI-Rectifier |
+| **Prasad P A D H**    | ELIA-Engine — Eco-Spatial Landscape Intelligence |
 
-### 1.2 Research Objectives
-Component 2 (**VSAI-Rectifier**) develops a combined **Deep Learning Segmentation & Heuristic Geometric Rectification Pipeline** that:
-- Ingests 2D raster floor plan images and automatically segments them into semantic architectural elements (walls, rooms, doors, windows, openings).
-- Vectorizes pixel masks into clean, orthogonal CAD polygons regularized by watertight boundary geometry.
-- Translates extracted spatial layouts into the shared research **Master JSON schema**.
-- Evaluates spatial compliance across a **9-Quadrant Vastu Grid** (Ashta Dikpalakas + Brahmasthan).
-- Algorithmicly rectifies detected spatial conflicts and defects without destructive alterations to structural boundaries.
 
 ---
 
-## 2. End-to-End System Architecture
+## Project Components
 
-```
-                                  +---------------------------------------------------+
-                                  | 2D Raster Architectural Plan (PNG / JPG / PDF)   |
-                                  +---------------------------------------------------+
-                                                            |
-                                                            v
-                                  +---------------------------------------------------+
-                                  | Stage 1: Deep Vision Segmentation Pipeline        |
-                                  |   - Multi-Task Stacked Hourglass CNN              |
-                                  |   - Room Classification Head (Multiclass Softmax) |
-                                  |   - Wall Boundary Heatmap Head (Distance Fields)  |
-                                  +---------------------------------------------------+
-                                                            |
-                                                            v
-                                  +---------------------------------------------------+
-                                  | Stage 2: Orthogonal Vectorization & CAD Regularizer|
-                                  |   - Scikit-image Marching Squares Contours        |
-                                  |   - Douglas-Peucker & Orthogonal Snapping (10 deg)|
-                                  |   - Watertight CAD Polygon Reconstruction         |
-                                  +---------------------------------------------------+
-                                                            |
-                                                            v
-                                  +---------------------------------------------------+
-                                  | Stage 3: Master JSON Serialization & Validation   |
-                                  |   - Geo-coordinates, Boundaries, Room Metadata    |
-                                  |   - Strict Master JSON Schema Validation          |
-                                  +---------------------------------------------------+
-                                                            |
-                                                            v
-                                  +---------------------------------------------------+
-                                  | Stage 4: 9-Quadrant Vastu Compliance Engine       |
-                                  |   - Cardinal Orientation & Quadrant Partitioning  |
-                                  |   - Zone-to-Function Affinity Scoring             |
-                                  |   - Brahmasthan (Center Zone) Clearance Check     |
-                                  +---------------------------------------------------+
-                                                            |
-                                                            v
-                                  +---------------------------------------------------+
-                                  | Stage 5: Spatial Rectifier & Conflict Resolver   |
-                                  |   - Non-destructive Spatial Swapping / Relocation |
-                                  |   - Defect Scoring & Remediation Explanations     |
-                                  |   - Final Rectified CAD Blueprint & Audit Report  |
-                                  +---------------------------------------------------+
+| Component | Purpose | Current approach |
+|---|---|---|
+| **GAB-Gen — Geo-Spatial AI Blueprint Generator** | Reads survey/deed plans, derives land geometry, applies jurisdiction-specific building rules, and creates editable building/room layouts. | OpenCV and EasyOCR assist survey extraction. Geometry reconstruction, regulations, and space allocation are rule-based; users review extracted measurements before generation. |
+| **VSAI-Rectifier** | Validates and rectifies spatial/floor-plan data and records the result in the Master JSON workflow. | Deterministic geometry and configured-rule checks. A CubiCasa5K segmentation path is available for floor-plan image analysis when the model checkpoint is configured. |
+| **ESAI-Engine** | Generates interior furniture and asset layouts using room geometry, ergonomic constraints, functional relationships, and user preferences. | PyGAD evolutionary optimization with geometric and design constraints; supports alternative layouts, validation, and report generation. |
+| **ELIA-Engine — Eco-Spatial Landscape Intelligence** | Plans exterior areas such as access, paths, vegetation, lighting, and outdoor amenities. | Production generation uses deterministic geometric planning and a versioned rules engine. Neural layout code and research material are optional/experimental and are not required for the default production planner. |
+
+These components are at different stages and do not all use machine learning.
+Generated plans are decision-support outputs and should be reviewed by qualified
+professionals before construction or regulatory submission.
+
+## Application Structure
+
+```text
+ArchAI-Plan/
+├── backend/
+│   ├── app/
+│   │   ├── components/       # GAB-Gen, VSAI, ESAI, and ELIA engines
+│   │   ├── ml/                # ML runtime, including CubiCasa5K
+│   │   ├── models/            # SQLAlchemy database models
+│   │   ├── routers/           # FastAPI API endpoints
+│   │   ├── schemas/           # API request and response schemas
+│   │   ├── services/          # Shared project, geometry, and domain services
+│   │   └── utils/             # Backend utilities
+│   ├── alembic/               # Database migrations
+│   ├── scripts/               # Backend administration scripts
+│   ├── tests/                 # Backend tests
+│   └── requirements.txt
+├── frontend/
+│   └── src/
+│       ├── app/               # Next.js routes and pages
+│       ├── components/        # Shared UI, workflow, and visualization
+│       ├── features/          # Feature-specific frontend modules
+│       ├── lib/               # API clients and shared helpers
+│       ├── store/             # Client state
+│       └── types/             # TypeScript types
+├── shared/
+│   ├── vsi-bd/                # Shared VSAI/project JSON data
+│   └── vsai-bd/               # Shared VSAI project JSON data
+├── training/                  # Model training code and research artifacts
+├── docs/                      # Component contracts, runbooks, and research
+└── docker-compose.yml         # Frontend, backend, and PostgreSQL services
 ```
 
----
+## Languages, Frameworks, and Technologies
 
-## 3. Machine Learning & Core Algorithms
+### Frontend
 
-### 3.1 Neural Network Architecture
-The segmentation backbone utilizes a **Multi-Task Stacked Hourglass Deep Convolutional Neural Network (CNN)** (`hg_furukawa_original` / FPN feature pyramid), trained on the benchmark **CubiCasa5K** dataset:
-- **Input Dimensions:** Multi-channel RGB raster floor plan tensor ($512 \times 512$ / $1024 \times 1024$).
-- **Dual Prediction Heads:**
-  1. *Room Mask Head:* Multi-class semantic segmentation for rooms (`Living`, `Bedroom`, `Kitchen`, `Bathroom`, `Balcony`, etc.).
-  2. *Wall Boundary Head:* Distance transform regression identifying wall junctions, structural cores, and openings.
-- **Model Checkpoint:** `CubicasaRoomSegmentation/weights/cubicasa5k.pkl` (~198.99 MB).
+- **TypeScript, JavaScript, HTML, and CSS**
+- **Next.js 14** (App Router) and **React 18**
+- **Tailwind CSS** and Radix UI-based components
+- **Three.js**, React Three Fiber, and Drei for 3D views
+- **Zustand** for client-side state
+- **Axios**, React Hook Form, and Zod for API requests and form validation
+- **Framer Motion** for animations; **jsPDF** and html2canvas for exports
 
-### 3.2 Orthogonal CAD Regularization Layer
-Raw CNN mask output produces jagged contours. The post-processing pipeline uses **Scikit-image** and **Shapely** to:
-1. Extract zero-level boundary contours.
-2. Apply orthogonal snapping within a $\pm 10^\circ$ angular tolerance to ensure parallel and perpendicular walls.
-3. Rectify miter spikes and close open gaps to guarantee watertight topological boundaries.
+### Backend
 
-### 3.3 9-Quadrant Vastu Shastra Engine
-The geometric layout is divided into a $3 \times 3$ Vedic directional matrix relative to true North:
+- **Python 3.11+**, **FastAPI**, and **Uvicorn**
+- **SQLAlchemy** and **Alembic**
+- **PostgreSQL** (PostgreSQL 16 is used by the provided Docker Compose setup)
+- **Pydantic** for settings and data validation
+- **JWT** authentication and Argon2 password hashing
+- **Shapely, NumPy, SciPy, NetworkX, Pillow, and OpenCV** for spatial and image processing
+- **PyTorch, torchvision, EasyOCR, scikit-learn, and XGBoost** for ML-related runtime and research work
+- **PyMuPDF, ReportLab, and FPDF2** for document and report processing
 
-| Zone / Quadrant | Direction | Element | Prescribed Residential Function |
-| :--- | :--- | :--- | :--- |
-| **Ishanya** | North-East (NE) | Water / Divine | Prayer Room (Puja), Meditation, Study, Open Verandah |
-| **Purva** | East (E) | Light / Solar | Main Entrance, Living, Foyer |
-| **Agni** | South-East (SE) | Fire (Agni) | Kitchen, Pantry, Electrical / Utility Room |
-| **Dakshin** | South (S) | Earth / Rest | Bedrooms, Storage |
-| **Nairutya** | South-West (SW) | Earth / Stability | Master Bedroom, Heavy Storage (Strictly no water/toilets) |
-| **Pashchim** | West (W) | Air / Water | Dining Area, Children's Bedroom, Study |
-| **Vayavya** | North-West (NW) | Air (Vayu) | Guest Room, Secondary Bathrooms, Garage |
-| **Uttara** | North (N) | Wealth / Air | Living Room, Safe/Treasury, Open Garden |
-| **Brahmasthan**| Center Core | Ether / Space | Zero structural load, skylight, central courtyard/atrium |
+### Development and Deployment
 
----
+- **Node.js 18+** and npm
+- **Docker Compose** for the frontend, API, and PostgreSQL services
+- **pytest** and **pytest-asyncio** for backend tests
+- **TypeScript** and ESLint for frontend validation
 
-## 4. Empirical Research Evaluation & Milestone Results
+## AI and Machine-Learning Details
 
-The model and heuristic optimizer were evaluated on the complete **CubiCasa5k Benchmark Dataset** expanded into **42,850 archetype-stratified room instances**:
+| Area | Model/technique | Runtime status |
+|---|---|---|
+| Survey-plan extraction (GAB-Gen) | EasyOCR text recognition with OpenCV image preprocessing and geometry detection. | Available as an extraction provider; extracted survey details are reviewed and confirmed as part of the workflow. |
+| Blueprint generation (GAB-Gen) | Regulatory rules, geometric reconstruction, and deterministic space allocation. XGBoost training/evaluation materials are also present. | The deterministic generator is the active baseline; the XGBoost model is research/experimental, not the production layout generator. |
+| Floor-plan segmentation (VSAI) | CubiCasa5K multi-task segmentation implemented with PyTorch; predicts room and icon classes from floor-plan images. | The segmentation path requires a compatible checkpoint configured with `CUBICASA_WEIGHTS_PATH`. VSAI's normal rectification and configured-rule checks are deterministic and do not claim complete Vastu compliance. |
+| Interior layout (ESAI) | PyGAD genetic algorithm searches candidate furniture layouts, scored against spatial, ergonomic, functional, and preference constraints. | Used by the ESAI generation endpoint; results can be validated and saved through the project workflow. |
+| Exterior layout (ELIA) | Geometry planners, pathfinding, solar/environmental calculations, and explicit versioned rules. A compact UNet-style layout model and research training/evaluation material are also present. | The default production generation mode is the deterministic rules planner. Neural layout inference is optional and is not required for standard generation. |
 
-### 4.1 Evaluation Against Research Proposal Targets
+ML outputs and automated rules do not replace professional architectural,
+engineering, botanical, or regulatory review.
 
-| Evaluation Metric | Proposal Target | Achieved Result | Evaluation Status |
-| :--- | :---: | :---: | :---: |
-| **Test Set Mean Intersection over Union (mIoU)** | $\ge 0.75$ | **$0.8842$** | **PASSED** (+17.9% over benchmark) |
-| **5-Fold Cross-Validation mIoU** | $\ge 0.75$ | **$0.8816$** ($\pm 0.0018$) | **PASSED** (High fold stability) |
-| **Pixel Accuracy (Room Polygons)** | $\ge 0.85$ (85%) | **$92.34\%$** | **PASSED** (High segmentation fidelity) |
-| **Boundary F1-Score (Wall Extraction)** | $\ge 0.80$ (80%) | **$87.12\%$** | **PASSED** (Watertight CAD boundaries) |
-| **Vastu Shastra Compliance Rate** | $\ge 80.0\%$ | **$94.18\%$** | **PASSED** (Optimal alignment) |
-| **Mean Absolute Directional Error (MAE)** | Contextual | **$0.0412\text{ rad}$** | **Optimal** (Minimal orientation drift) |
-| **Unrectified Baseline Compliance** | Baseline | **$35.83\%$** | Reference baseline score |
-| **Relative Improvement over Baseline** | N/A | **$+58.35\%$** | **Highly Significant Gain** |
+## Getting Started
 
-### 4.2 5-Fold Cross-Validation Performance Breakdown
+### Prerequisites
 
-| Validation Fold | Training Samples | Validation Samples | Fold mIoU Score | Status |
-| :---: | :---: | :---: | :---: | :---: |
-| **Fold 1** | 3,200 | 800 | **0.8821** | Passed |
-| **Fold 2** | 3,200 | 800 | **0.8804** | Passed |
-| **Fold 3** | 3,200 | 800 | **0.8835** | Passed |
-| **Fold 4** | 3,200 | 800 | **0.8810** | Passed |
-| **Fold 5** | 3,200 | 800 | **0.8812** | Passed |
-| **Mean Aggregate** | **3,200 (Per Fold)** | **800 (Per Fold)** | **0.8816** ($\pm 0.0018$) | **Passed** |
-
----
-
-## 5. Technology Stack & Dependencies
-
-### Backend Stack
-- **Language & Runtime:** Python 3.11+
-- **API Framework:** FastAPI, Uvicorn, Starlette
-- **Deep Learning:** PyTorch, Torchvision
-- **Computer Vision & Geometry:** OpenCV (`opencv-python-headless`), Pillow (`PIL`), Scikit-image (`scikit-image`), Shapely
-- **Database & Persistence:** PostgreSQL, SQLAlchemy 2.x, Alembic
-- **Testing:** Pytest, HTTPX
-
-### Frontend Stack
-- **Framework:** Next.js 14 (App Router), React, TypeScript
-- **Visualization:** Three.js, React Three Fiber, SVG 2D Interactive Viewers
-- **Styling & UI:** Tailwind CSS, shadcn/ui components, Lucide React
-- **State Management:** Zustand, Axios
-
----
-
-## 6. Installation & Execution Runbook
-
-### 6.1 Prerequisites
-Ensure the following are installed:
-- Node.js 18.x or 20.x
+- Node.js 18+
 - Python 3.11+
-- PostgreSQL 14+ or 16+
+- PostgreSQL 14+ (or Docker with Docker Compose)
 
-### 6.2 Backend Installation & Startup
+### Run with Docker Compose
+
+1. Copy `.env.docker.example` to `.env` and set a secure `JWT_SECRET_KEY` and
+   PostgreSQL credentials.
+2. Start the services from the repository root:
+
+   ```bash
+   docker compose up --build
+   ```
+
+3. Open the frontend at `http://localhost:3000`. The API is available at
+   `http://localhost:8000`, with interactive documentation at
+   `http://localhost:8000/docs`.
+
+### Run Services Locally
+
+Start PostgreSQL and create the `archai_plan` database, then configure the
+database connection and a strong `JWT_SECRET_KEY` in `backend/.env`. Use
+`backend/.env.example` as a reference and set `DB_HOST`, `DB_PORT`, `DB_NAME`,
+`DB_USER`, and `DB_PASSWORD` for your local environment.
+
 ```bash
-# 1. Navigate to backend directory
+# Terminal 1: backend
 cd backend
-
-# 2. Create and activate virtual environment
 python -m venv .venv
-# On Windows:
-.\.venv\Scripts\activate
-# On Linux/macOS:
-source .venv/bin/activate
-
-# 3. Install core dependencies
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-
-# 4. Configure environment
-copy .env.example .env
-# Verify DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD in .env
-
-# 5. Run database migrations
 alembic upgrade head
-
-# 6. Launch FastAPI backend
 uvicorn app.main:app --reload --port 8000
 ```
-- **Interactive Swagger Docs:** `http://localhost:8000/docs`
-- **Health Check:** `http://localhost:8000/api/health`
 
-### 6.3 Frontend Installation & Startup
 ```bash
-# 1. Navigate to frontend directory
+# Terminal 2: frontend
 cd frontend
-
-# 2. Install Node dependencies
 npm install
-
-# 3. Configure local environment
-copy .env.example .env.local
-# Set NEXT_PUBLIC_API_URL=http://localhost:8000/api
-
-# 4. Start Next.js development server
+cp .env.example .env.local         # Windows: copy .env.example .env.local
 npm run dev
 ```
-- **VSAI Rectifier Interface:** `http://localhost:3000/features/vsai-rectifier`
 
----
+Set `NEXT_PUBLIC_API_URL=http://localhost:8000/api` in `frontend/.env.local`.
+Open `http://localhost:3000` for the application.
 
-## 7. REST API Endpoints & Master JSON Integration
+The CubiCasa5K image-segmentation path additionally needs model weights accessible
+to the backend and configured through `CUBICASA_WEIGHTS_PATH`. Do not commit
+model checkpoints, credentials, or local environment files.
 
-### 7.1 Key Component Endpoints
+## Main Routes
 
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `POST` | `/api/projects/{id}/vsai-rectifier/run` | Execute end-to-end VSAI rectification pipeline |
-| `POST` | `/api/projects/{id}/vsai-rectifier/segment-plan` | Ingest raster floor plan image and generate vector CAD polygon layout |
-| `POST` | `/api/projects/{id}/vsai-rectifier/validate-vastu` | Perform 9-quadrant Vastu compliance audit and score calculation |
-| `POST` | `/api/projects/{id}/vsai-rectifier/rectify` | Generate spatial rectification proposals for non-compliant rooms |
-| `POST` | `/api/projects/{id}/vsai-rectifier/missing-info` | Submit missing architectural metadata (cardinal north orientation, scale) |
-| `GET` | `/api/projects/{id}/master-json` | Retrieve current multi-stage Master JSON payload |
+| Route | Description |
+|---|---|
+| `/` | Project home |
+| `/gallery` | Published research projects |
+| `/features/gab-gen` | Survey and blueprint workflow |
+| `/features/vsai-rectifier` | VSAI rectification workflow |
+| `/features/esai-engine` | Interior-design workflow |
+| `/features/elia-engine` | Exterior and landscape workflow |
+| `/start` | Start or create a project |
+| `/about`, `/contact` | Project information and contact form |
+| `/admin` | Administrative dashboard and content management |
 
-### 7.2 Master JSON Schema Contract
-The component ingests and enriches the shared research contract without mutating prior stage outputs:
+The backend API is rooted at `/api`. Use `/docs` for the complete, current
+endpoint list and schemas.
+
+## Shared Project Data
+
+Components exchange project state through the Master JSON document. Its
+high-level sections include:
 
 ```json
 {
-  "project_id": "PRJ-2026-001",
-  "project_name": "Modern Residential Villa",
-  "floor_plan": {
-    "rooms": [
-      {
-        "room_id": "RM_01",
-        "room_type": "kitchen",
-        "quadrant": "SE",
-        "polygon": [[10.0, 5.0], [15.0, 5.0], [15.0, 10.0], [10.0, 10.0]]
-      }
-    ]
-  },
-  "structural_rectification": {
-    "status": "completed",
-    "vastu_compliance_score": 94.18,
-    "baseline_compliance_score": 35.83,
-    "quadrant_assignments": {
-      "RM_01": { "quadrant": "SE", "verdict": "compliant" }
-    },
-    "rectification_actions": [
-      {
-        "room_id": "RM_02",
-        "action": "reassigned_quadrant",
-        "from": "NE",
-        "to": "SW",
-        "reason": "Master bedroom relocated from Northeast to Southwest for spatial stability."
-      }
-    ]
-  },
+  "project_id": "",
+  "project_name": "",
+  "land_info": {},
+  "buildable_footprint": {},
+  "floor_plan": {},
+  "structural_rectification": {},
+  "interior_layout": {},
+  "exterior_landscape": {},
   "processing": {
-    "vsai_rectifier": {
-      "status": "completed",
-      "updated_at": "2026-10-30T20:00:00Z"
-    }
+    "gab_gen": {},
+    "vsai_rectifier": {},
+    "esai_engine": {},
+    "elia_engine": {}
   }
 }
 ```
 
----
+The exact schema evolves with the component contracts. Components should enrich
+their own section without discarding unrelated project data.
 
-## 8. Automated Testing & Verification Suite
+## Validation
 
-The component is rigorously verified via an automated Pytest test suite covering geometric constraints, schema compliance, and Vastu rules:
+Run backend tests from `backend/`:
 
 ```bash
-# Run all VSAI-specific unit and integration tests
-cd backend
-pytest tests/test_vsai_rectifier.py tests/test_vsai_validator.py tests/test_finalized_vastu_rules.py tests/test_cubicasa_converter.py -v
+python -m pytest
 ```
 
-### Test Coverage Highlights
-- `tests/test_vsai_rectifier.py`: Tests execution lifecycle, non-destructive Master JSON propagation, and stage states.
-- `tests/test_vsai_validator.py`: Enforces polygon vertex closure, self-intersection rejection, and room overlap checks.
-- `tests/test_finalized_vastu_rules.py`: Validates all 9-quadrant directional constraints and scoring algorithms.
-- `tests/test_cubicasa_converter.py`: Tests raster-to-vector conversion and Master JSON format serialization.
+Run frontend checks from `frontend/`:
 
----
+```bash
+npx tsc --noEmit
+npm run lint
+npm run build
+```
 
-## 9. Current Limitations & Future Work
+Database-backed tests require a configured PostgreSQL database and applied
+migrations.
 
-1. **Non-Orthogonal Wall Geometries:** Current Douglas-Peucker CAD snapping optimizes for orthogonal (90-degree) wall boundaries. Complex organic or curved walls require Voronoi arc decomposition.
-2. **Multi-Story Vertical Shaft Constraints:** While horizontal 2D room layouts are fully verified, multi-story staircase and plumbing shaft vertical alignment is being extended to full 3D BIM integration.
-3. **Automated DXF/DWG Export:** Vector CAD outputs are currently rendered in GeoJSON and Master JSON formats, with direct Autodesk DXF format export planned for final integration.
+## Documentation
 
----
-
-## 10. Research References
-
-1. Kalervo, A., et al. (2019). *CubiCasa5k: A Dataset and an Improved Multi-Task Model for Floorplan Image Analysis*. Scandinavian Conference on Image Analysis.
-2. Newell, A., Yang, K., & Deng, J. (2016). *Stacked Hourglass Networks for Human Pose Estimation*. European Conference on Computer Vision (ECCV).
-3. Acharya, P. K. (1996). *Indian Architecture According to Manasara-Silpasastra*. Oxford University Press.
-4. Sri Lanka Urban Development Authority (UDA). *Extraordinary Gazette No. 2235/54: Planning & Building Regulations*.
-
+Component-specific contracts, operating guidance, evaluation material, and
+research notes are available under [`docs/`](./docs/), alongside component
+documentation in `backend/app/components/`.

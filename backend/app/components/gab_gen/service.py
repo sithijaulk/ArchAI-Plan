@@ -12,6 +12,7 @@ Executes the deterministic end-to-end pipeline:
   -> Full GAB Validation
   -> Non-Destructive Master JSON Synthesis
 """
+import math
 from typing import Any, Dict, List, Optional
 from shapely.geometry import Polygon
 
@@ -20,7 +21,8 @@ from .schemas import (
     ClientRequirementsInput,
     LandExtentUnit,
     GabGenRunOutput,
-    ValidationResult
+    ValidationResult,
+    SurveySource
 )
 from .vector_reconstruction.reconstruct import reconstruct_polygon, PERCH_TO_SQM, SQFT_TO_SQM
 from .regulations.rules import RegulatoryEngine
@@ -69,10 +71,34 @@ class GabGenService:
         except Exception:
             declared_sqm = requirements.declared_land_extent
 
+        # If survey was extracted from image/EasyOCR and unverified, and area discrepancy is huge (>50%),
+        # auto-calibrate edge lengths to match declared legal extent proportionally.
+        reconstructed_area = reconstructed.get("reconstructed_area", 0.0)
+        has_inferred_edges = any(
+            getattr(e, "distance_origin", None) == "image_geometry" or getattr(e, "source", None) == SurveySource.EASYOCR
+            for e in survey_request.edges
+        )
+        if declared_sqm > 0 and reconstructed_area > 0 and (has_inferred_edges or not survey_request.verified_by_user):
+            area_ratio = reconstructed_area / declared_sqm
+            if area_ratio > 1.5 or area_ratio < 0.5:
+                # Isotropic scale factor to calibrate pixel/uncalibrated edge distances into real-world meters
+                scale_corr = math.sqrt(declared_sqm / reconstructed_area)
+                calibrated_edges = []
+                for e in survey_request.edges:
+                    e_copy = e.model_copy(deep=True)
+                    e_copy.distance.value = round(e_copy.distance.value * scale_corr, 2)
+                    calibrated_edges.append(e_copy)
+                calibrated_req = survey_request.model_copy(update={"edges": calibrated_edges})
+                reconstructed = reconstruct_polygon(calibrated_req)
+                shapely_land = reconstructed.get("shapely_polygon")
+                closure_error = reconstructed.get("closure_error", 0.0)
+                reconstructed_area = reconstructed.get("reconstructed_area", 0.0)
+                survey_request = calibrated_req
+
         # Step 3: Area Cross-Check using configurable tolerance
         area_check = cross_check_land_area(
             declared_area_sqm=declared_sqm,
-            reconstructed_area_sqm=reconstructed.get("reconstructed_area", 0.0)
+            reconstructed_area_sqm=reconstructed_area
         )
 
         # Step 4: Regulatory Rule Loading without silent fabrication

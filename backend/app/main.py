@@ -104,6 +104,17 @@ app.include_router(about.admin_router, prefix="/api")
 from .routers import research_cubicasa
 app.include_router(research_cubicasa.router, prefix="/api")
 
+
+@app.get("/")
+def root():
+    return {
+        "app": settings.app_name,
+        "status": "online",
+        "docs": "/docs",
+        "health": "/api/health"
+    }
+
+
 @app.get("/api/health")
 def health_check():
     db_connected = False

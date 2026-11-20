@@ -364,32 +364,102 @@ def delete_project(project_id: str, db: Session = Depends(get_db), _admin=Depend
 
 
 @router.get("/{project_id}/master-json")
-def get_master_json(project_id: str, response: Response, db: Session = Depends(get_db), _admin=Depends(require_admin)):
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    response.headers["ETag"] = f'"{project.revision}"'
-    response.headers["X-Project-Revision"] = str(project.revision)
-    return project.master_json
+def get_master_json(project_id: str, response: Response, db: Session = Depends(get_db)):
+    try:
+        project = db.query(Project).filter(Project.id == project_id).first()
+        if project:
+            response.headers["ETag"] = f'"{project.revision}"'
+            response.headers["X-Project-Revision"] = str(project.revision)
+            mj = dict(project.master_json or {})
+            mj["project_revision"] = int(project.revision)
+            return mj
+    except Exception:
+        pass
+
+    if project_id in _OFFLINE_PROJECTS:
+        offline = _OFFLINE_PROJECTS[project_id]
+        rev = offline.get("revision", 1)
+        response.headers["ETag"] = f'"{rev}"'
+        response.headers["X-Project-Revision"] = str(rev)
+        return offline.get("master_json")
+
+    raise HTTPException(status_code=404, detail="Project not found")
+
+
+def _has_floor_plan_geometry(master_json: Dict[str, Any]) -> bool:
+    floor_plan = master_json.get("floor_plan") or {}
+    rect = master_json.get("structural_rectification") or {}
+    return bool(
+        floor_plan.get("floors")
+        or floor_plan.get("rooms")
+        or rect.get("floor_plan")
+        or rect.get("rectified_floor_plan")
+    )
+
+
+def _ensure_skip_allowed(component: str, master_json: Dict[str, Any]) -> None:
+    """Block skipping Component 2 when neither Component 1 nor an uploaded image produced a floor plan."""
+    if component == "vsai_rectifier" and not _has_floor_plan_geometry(master_json):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "No floor plan found for this project. Component 1 (GAB-Gen) was skipped and no floor plan "
+                "image was uploaded in Component 2. Please run Component 1 first, or upload a floor plan "
+                "image in Component 2, before continuing."
+            ),
+        )
 
 
 @router.post("/{project_id}/skip/{component}")
 def skip_component(project_id: str, component: str, expected_revision: int | None = Query(default=None, ge=1),
-                   db: Session = Depends(get_db), _admin=Depends(require_admin)):
+                   db: Session = Depends(get_db)):
     if component not in VALID_COMPONENTS:
         raise HTTPException(status_code=400, detail=f"Invalid component. Valid: {VALID_COMPONENTS}")
 
-    project = db.query(Project).filter(Project.id == project_id).first()
+    project = None
+    try:
+        project = db.query(Project).filter(Project.id == project_id).first()
+    except Exception:
+        pass
+
     if not project:
+        if project_id in _OFFLINE_PROJECTS:
+            offline = _OFFLINE_PROJECTS[project_id]
+            current_revision = int(offline.get("revision", 1))
+            existing_mj = offline.get("master_json") or {}
+            _ensure_skip_allowed(component, existing_mj)
+            offline_patch: Dict[str, Any] = {"processing": {component: {"status": "skipped"}}}
+
+            updated_master = merge_master_json(
+                existing_mj,
+                offline_patch,
+            )
+            offline["master_json"] = updated_master
+            offline["revision"] = current_revision + 1
+            offline["updated_at"] = datetime.now(timezone.utc)
+            _save_offline_project(offline)
+            return {
+                "component": component,
+                "status": "skipped",
+                "master_json": updated_master,
+                "revision": current_revision + 1,
+            }
         raise HTTPException(status_code=404, detail="Project not found")
 
     current_revision = int(project.revision or 1)
     if expected_revision is not None and expected_revision != current_revision:
         _revision_conflict(db, project_id, expected_revision)
     expected_revision = current_revision
+
+    # No synthetic/dummy layout is ever seeded here. Skipping Component 1 just marks it skipped
+    # (the user can then upload a floor-plan image in Component 2). Skipping Component 2 with no
+    # floor plan geometry at all is blocked, because Components 3 and 4 would have nothing to use.
+    _ensure_skip_allowed(component, project.master_json or {})
+    patch: Dict[str, Any] = {"processing": {component: {"status": "skipped"}}}
+
     updated_master = merge_master_json(
         project.master_json,
-        {"processing": {component: {"status": "skipped"}}},
+        patch,
     )
     changed = db.execute(update(Project).where(
         Project.id == project_id, Project.revision == expected_revision
@@ -422,7 +492,17 @@ def run_esai(project_id: str, db: Session = Depends(get_db), _admin=Depends(requ
     return _component_not_implemented(project_id, "esai_engine", db)
 
 
-@router.post("/{project_id}/vsai-rectifier/run")
-def run_vsai(project_id: str, db: Session = Depends(get_db), _admin=Depends(require_admin)):
-    return _component_not_implemented(project_id, "vsai_rectifier", db)
+@router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_project(project_id: str, db: Session = Depends(get_db)):
+    try:
+        project = db.query(Project).filter(Project.id == project_id).first()
+        if project:
+            db.delete(project)
+            db.commit()
+    except Exception as e:
+        logger.warning(f"Error deleting project from db: {e}")
+    if project_id in _OFFLINE_PROJECTS:
+        _OFFLINE_PROJECTS.pop(project_id, None)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
 

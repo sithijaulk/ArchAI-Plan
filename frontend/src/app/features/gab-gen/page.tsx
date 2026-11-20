@@ -54,7 +54,7 @@ const emptySurveyData: ManualSurveyData = {
 
 export default function GabGenPage() {
   const router = useRouter();
-  const { projectId, projectName, setOutput, setComponentStatus, skipComponent } = useProjectStore();
+  const { projectId, projectName, setOutput, setComponentStatus, skipComponent, loadProject } = useProjectStore();
 
   const [activeStep, setActiveStep] = useState<'upload' | 'requirements' | 'survey' | 'generate'>('upload');
   const [requirements, setRequirements] = useState<ClientRequirements>(emptyRequirements);
@@ -93,14 +93,19 @@ export default function GabGenPage() {
 
     // Check if result already generated
     gabGenExtendedApi.getResult(projectId).then((res) => {
-      if (res?.floor_plan?.floors) {
+      if (res?.floor_plan?.floors || (res?.floor_plan as any)?.rooms) {
         setOutputData(res);
         setOutput('gab_gen', res);
+        loadProject({
+          id: projectId,
+          project_name: projectName || res.project_name || 'Project',
+          master_json: res as any,
+        });
       }
     }).catch(() => {
       // Not yet generated
     });
-  }, [projectId, router, setOutput]);
+  }, [projectId, router, setOutput, loadProject, projectName]);
 
   if (!projectId) return null;
 
@@ -194,6 +199,13 @@ export default function GabGenPage() {
       const result = await gabGenExtendedApi.generate(projectId);
       setOutputData(result.master_json);
       setOutput('gab_gen', result.master_json);
+      if (result.master_json) {
+        loadProject({
+          id: projectId,
+          project_name: projectName || (result.master_json as any).project_name || 'Project',
+          master_json: result.master_json as any,
+        });
+      }
 
       // Map status safely
       if (result.status === 'completed') {

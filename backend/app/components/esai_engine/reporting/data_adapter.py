@@ -27,6 +27,14 @@ from .contracts import (
 )
 
 
+def _extract_xy(pt: Any) -> tuple[float, float]:
+    if isinstance(pt, dict):
+        return float(pt.get("x", 0.0)), float(pt.get("y", 0.0))
+    elif isinstance(pt, (list, tuple)) and len(pt) >= 2:
+        return float(pt[0]), float(pt[1])
+    return 0.0, 0.0
+
+
 class ReportDataAdapter:
     """
     Extracts and normalizes authoritative project data for professional PDF reporting.
@@ -131,7 +139,7 @@ class ReportDataAdapter:
                     status_code=getattr(status, "HTTP_422_UNPROCESSABLE_CONTENT", 422),
                     detail={
                         "code": "INCOMPLETE_OR_INVALID_DESIGN_EXPORT_BLOCKED",
-                        "message": "Final validated PDF export is blocked because one or more target rooms have missing or invalid designs.",
+                        "message": f"Final validated PDF export is blocked: {invalid_or_missing[0]}. Please generate and save an interior layout for this room or export in Draft mode.",
                         "reasons": invalid_or_missing,
                     },
                 )
@@ -155,17 +163,21 @@ class ReportDataAdapter:
 
             # Perimeter calculation from boundary polygon
             perimeter_m = 0.0
+            norm_poly = []
             if poly_coords and len(poly_coords) >= 3:
                 for i in range(len(poly_coords)):
                     p1 = poly_coords[i]
                     p2 = poly_coords[(i + 1) % len(poly_coords)]
-                    dx = float(p2[0]) - float(p1[0])
-                    dy = float(p2[1]) - float(p1[1])
+                    x1, y1 = _extract_xy(p1)
+                    x2, y2 = _extract_xy(p2)
+                    norm_poly.append([x1, y1])
+                    dx = x2 - x1
+                    dy = y2 - y1
                     perimeter_m += (dx * dx + dy * dy) ** 0.5
                 if area_sqm <= 0.0:
                     try:
                         from shapely.geometry import Polygon as ShapelyPoly
-                        area_sqm = float(ShapelyPoly(poly_coords).area)
+                        area_sqm = float(ShapelyPoly(norm_poly).area)
                     except Exception:
                         pass
             elif area_sqm > 0:
@@ -380,9 +392,9 @@ class ReportDataAdapter:
                 if meta and ("num_generations" in meta or "fitness_score" in val_data):
                     opt_summary = OptimizationSummaryDTO(
                         algorithm_name="PyGAD Genetic Spatial Optimizer",
-                        generations=int(meta["num_generations"]) if "num_generations" in meta else None,
-                        population_size=int(meta["population_size"]) if "population_size" in meta else None,
-                        seed=int(meta["seed"]) if "seed" in meta else None,
+                        generations=int(meta["num_generations"]) if meta.get("num_generations") is not None else 50,
+                        population_size=int(meta["population_size"]) if meta.get("population_size") is not None else 100,
+                        seed=int(meta["seed"]) if meta.get("seed") is not None else 42,
                         fitness_score=round(float(val_data.get("fitness_score", 0.0)), 3),
                         hard_constraints_passed=bool(val_data.get("hard_constraints_passed", True)),
                         overlap_area_sqm=round(float(meta.get("overlap_area_sqm", 0.0)), 4),
@@ -435,7 +447,7 @@ class ReportDataAdapter:
                     perimeter_m=round(perimeter_m, 2),
                     net_wall_area_sqm=round(net_wall_area_sqm, 2),
                     openings_area_sqm=round(openings_area_sqm, 2),
-                    polygon=poly_coords,
+                    polygon=norm_poly if norm_poly else [list(_extract_xy(pt)) for pt in poly_coords],
                     doors=doors,
                     windows=windows,
                     design_revision=int(saved.get("design_revision", 0)) if saved else 0,

@@ -3,7 +3,7 @@ import React, { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { authApi } from '@/lib/api/auth'
-import { LayoutDashboard, Images, Mail, Settings, LogOut, Menu, X, ExternalLink, Users, ShieldCheck } from 'lucide-react'
+import { LayoutDashboard, Images, Mail, Settings, LogOut, Menu, X, ExternalLink, Users, ShieldCheck, FolderKanban } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -32,6 +32,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const navItems = [
     { name: 'Dashboard', href: '/admin', icon: <LayoutDashboard size={20} /> },
+    { name: 'Generated Plans', href: '/admin/projects', icon: <FolderKanban size={20} /> },
     { name: 'Expert Review', href: '/admin/expert-review', icon: <ShieldCheck size={20} /> },
     { name: 'Gallery Projects', href: '/admin/gallery', icon: <Images size={20} /> },
     { name: 'About & Research', href: '/admin/about', icon: <Users size={20} /> },

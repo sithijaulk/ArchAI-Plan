@@ -78,6 +78,7 @@ interface FloorPlan2DViewerProps {
   outerDimensions?: { top?: string; right?: string };
   markers?: PlanMarker[];
   onMarkerClick?: (marker: PlanMarker) => void;
+  isolateRoom?: boolean;
 }
 
 const ROOM_COLORS: Record<string, { fill: string; stroke: string; text: string }> = {
@@ -156,6 +157,7 @@ export function FloorPlan2DViewer({
   outerDimensions,
   markers = [],
   onMarkerClick,
+  isolateRoom = false,
 }: FloorPlan2DViewerProps) {
   const [hoveredRoom, setHoveredRoom] = useState<Room | null>(null)
   const [showVastuGrid, setShowVastuGrid] = useState<boolean>(showVastuGridDefault)
@@ -175,9 +177,23 @@ export function FloorPlan2DViewer({
   // Compute bounding box for auto-scaling
   const bounds = useMemo(() => {
     let allPoints: [number, number][] = []
-    rooms.forEach(r => { if (Array.isArray(r.polygon)) allPoints.push(...r.polygon) })
-    columns.forEach(c => { if (Array.isArray(c.polygon)) allPoints.push(...c.polygon) })
-    if (boundary.length > 0) allPoints.push(...boundary)
+
+    const targetRoom = highlightRoomId
+      ? rooms.find(r => {
+          const hl = (highlightRoomId || '').toLowerCase().trim()
+          return (r.id && r.id.toLowerCase().trim() === hl) ||
+                 (r.name && (r.name.toLowerCase().trim() === hl || r.name.toLowerCase().trim().includes(hl))) ||
+                 (r.type && (r.type.toLowerCase().trim() === hl || r.type.toLowerCase().trim().includes(hl)))
+        })
+      : null
+
+    if (isolateRoom && targetRoom && Array.isArray(targetRoom.polygon) && targetRoom.polygon.length > 0) {
+      allPoints = [...targetRoom.polygon]
+    } else {
+      rooms.forEach(r => { if (Array.isArray(r.polygon)) allPoints.push(...r.polygon) })
+      columns.forEach(c => { if (Array.isArray(c.polygon)) allPoints.push(...c.polygon) })
+      if (boundary.length > 0) allPoints.push(...boundary)
+    }
 
     if (allPoints.length === 0) {
       return { 
@@ -199,10 +215,11 @@ export function FloorPlan2DViewer({
     const baseDim = Math.max(rawW, rawH)
 
     const isCad = cadStyle || Boolean(outerDimensions)
-    const padLeft = isCad ? rawW * 0.08 : rawW * 0.06
-    const padRight = isCad ? rawW * 0.16 : rawW * 0.06
-    const padTop = isCad ? rawH * 0.14 : rawH * 0.06
-    const padBottom = isCad ? rawH * 0.08 : rawH * 0.06
+    const pad = Math.max(rawW, rawH) * 0.4
+    const padLeft = isolateRoom ? pad : (isCad ? rawW * 0.08 : rawW * 0.06)
+    const padRight = isolateRoom ? pad : (isCad ? rawW * 0.16 : rawW * 0.06)
+    const padTop = isolateRoom ? pad : (isCad ? rawH * 0.14 : rawH * 0.06)
+    const padBottom = isolateRoom ? pad : (isCad ? rawH * 0.08 : rawH * 0.06)
 
     return {
       minX: minX - padLeft,
@@ -655,8 +672,10 @@ export function FloorPlan2DViewer({
               )
             )
 
-            // Dim others when inspecting a specific room
-            const opacity = dimOthers && highlightRoomId && !isTargetHighlight ? 0.22 : 1.0
+            // Dim others when inspecting a specific room or isolate room
+            const opacity = isolateRoom && highlightRoomId && !isTargetHighlight
+              ? 0.1
+              : (dimOthers && highlightRoomId && !isTargetHighlight ? 0.22 : 1.0)
 
             return (
               <g 
@@ -760,9 +779,19 @@ export function FloorPlan2DViewer({
 
           {/* Architectural Windows (Double/Triple Line CAD Symbols on White Cutout Mask) */}
           {effectiveWindows.map((win, wIdx) => {
-            const center = win.center || win.position
-            if (!center || center.length < 2) return null
-            const [cx, cy] = center
+            const rawCenter = win.center || win.position
+            let cx: number = 0, cy: number = 0
+            if (Array.isArray(rawCenter) && rawCenter.length >= 2) {
+              cx = Number(rawCenter[0])
+              cy = Number(rawCenter[1])
+            } else if (rawCenter && typeof rawCenter === 'object' && 'x' in rawCenter && 'y' in rawCenter) {
+              cx = Number((rawCenter as any).x)
+              cy = Number((rawCenter as any).y)
+            } else {
+              return null
+            }
+            if (isNaN(cx) || isNaN(cy)) return null
+
             const w = win.width || 4.0
             const orient = getNearestWallOrientation(cx, cy, win.orientation)
             const isHoriz = orient === 'horizontal'
@@ -813,9 +842,19 @@ export function FloorPlan2DViewer({
 
           {/* Architectural Doors (Quarter-circle Swing Arc + Leaf in Black Ink on White Cutout Mask) */}
           {effectiveDoors.map((door, dIdx) => {
-            const center = door.center || door.position
-            if (!center || center.length < 2) return null
-            const [cx, cy] = center
+            const rawCenter = door.center || door.position
+            let cx: number = 0, cy: number = 0
+            if (Array.isArray(rawCenter) && rawCenter.length >= 2) {
+              cx = Number(rawCenter[0])
+              cy = Number(rawCenter[1])
+            } else if (rawCenter && typeof rawCenter === 'object' && 'x' in rawCenter && 'y' in rawCenter) {
+              cx = Number((rawCenter as any).x)
+              cy = Number((rawCenter as any).y)
+            } else {
+              return null
+            }
+            if (isNaN(cx) || isNaN(cy)) return null
+
             const w = door.width || 3.0
             const orient = getNearestWallOrientation(cx, cy, door.orientation)
             const isHoriz = orient === 'horizontal'
@@ -1018,7 +1057,11 @@ export function FloorPlan2DViewer({
                 textAnchor="middle"
                 fontWeight="700"
               >
-                {outerDimensions?.top || `${Math.round(bounds.rawWidth)}'-0"`}
+                {outerDimensions?.top || (
+                  bounds.rawWidth < 40
+                    ? `${bounds.rawWidth.toFixed(1)}m (${Math.round(bounds.rawWidth * 3.28084)}'-0")`
+                    : `${Math.round(bounds.rawWidth)}'-0"`
+                )}
               </text>
 
               {/* Right Dimension Line */}
@@ -1074,7 +1117,11 @@ export function FloorPlan2DViewer({
                 fontWeight="700"
                 transform={`rotate(90, ${bounds.rawMaxX + ((bounds as any).padRight || bounds.baseDim * 0.1) * 0.62}, ${(bounds.rawMinY + bounds.rawMaxY) / 2})`}
               >
-                {outerDimensions?.right || `${Math.round(bounds.rawHeight)}'-0"`}
+                {outerDimensions?.right || (
+                  bounds.rawHeight < 40
+                    ? `${bounds.rawHeight.toFixed(1)}m (${Math.round(bounds.rawHeight * 3.28084)}'-0")`
+                    : `${Math.round(bounds.rawHeight)}'-0"`
+                )}
               </text>
             </g>
           )}

@@ -20,7 +20,7 @@ from app.database import Base, get_db
 from app.dependencies import require_admin
 from app.main import app as fastapi_app
 from app.models.project import Project
-from tests.esai.fixtures import MULTI_FLOOR_PROJECT_FIXTURE
+from tests.esai.fixtures import GAB_GEN_DIRECT_FIXTURE, MULTI_FLOOR_PROJECT_FIXTURE
 
 
 @pytest.fixture
@@ -120,6 +120,36 @@ def test_scene_data_floor_and_room_filtering(client, in_memory_db):
     assert len(data["floors"]) == 1
     assert len(data["floors"][0]["rooms"]) == 1
     assert data["floors"][0]["rooms"][0]["room_id"] == "RM_BATH_01"
+
+
+def test_scene_data_uses_flat_gab_rooms_when_floor_list_is_empty(client, in_memory_db):
+    """
+    GAB-Gen also publishes a flat floor_plan.rooms view. Keep that geometry usable
+    by ESAI when an upstream Master JSON has an empty floors list.
+    """
+    master_json = deepcopy(GAB_GEN_DIRECT_FIXTURE)
+    master_json["floor_plan"]["rooms"] = [
+        room
+        for floor in master_json["floor_plan"]["floors"]
+        for room in floor["rooms"]
+    ]
+    master_json["floor_plan"]["floors"] = []
+    project = Project(
+        id="proj-scene-flat-gab",
+        project_name="Flat GAB Geometry",
+        master_json=master_json,
+        revision=1,
+    )
+    in_memory_db.add(project)
+    in_memory_db.commit()
+
+    response = client.get(f"/api/projects/{project.id}/esai-engine/scene")
+
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert len(data["floors"]) == 1
+    assert data["floors"][0]["floor_id"] == "F0"
+    assert len(data["floors"][0]["rooms"]) == 5
 
 
 def test_scene_data_read_only_master_json_integrity(client, in_memory_db):

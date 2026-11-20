@@ -42,10 +42,19 @@ def generate_blueprint_floors(
         # Position stair core at fixed corner of buildable bounds
         stair_box = box(min_x, min_y, min_x + stair_w, min_y + stair_h)
         stair_intersection = buildable_poly.intersection(stair_box)
-        if not stair_intersection.is_empty and stair_intersection.area >= 4.0:
+        if not stair_intersection.is_empty and stair_intersection.area >= 1.5:
             if isinstance(stair_intersection, MultiPolygon):
                 stair_intersection = max(stair_intersection.geoms, key=lambda p: p.area)
             stair_geom = stair_intersection
+        else:
+            rep_pt = buildable_poly.representative_point()
+            fb_box = box(rep_pt.x - stair_w / 2.0, rep_pt.y - stair_h / 2.0, rep_pt.x + stair_w / 2.0, rep_pt.y + stair_h / 2.0)
+            fb_intersect = buildable_poly.intersection(fb_box)
+            if not fb_intersect.is_empty:
+                if isinstance(fb_intersect, MultiPolygon):
+                    fb_intersect = max(fb_intersect.geoms, key=lambda p: p.area)
+                if fb_intersect.area > 1.0:
+                    stair_geom = fb_intersect
 
     # Step 2: Generate Floor Plans
     for fl in floor_allocations:
@@ -107,6 +116,15 @@ def generate_blueprint_floors(
 
             for idx, r_data in enumerate(other_rooms):
                 poly_geom = partitioned_geoms[idx] if idx < len(partitioned_geoms) else None
+                if poly_geom and not poly_geom.is_empty and poly_geom.area > 0.5:
+                    if stair_geom and poly_geom.intersects(stair_geom):
+                        diff_stair = poly_geom.difference(stair_geom)
+                        if isinstance(diff_stair, MultiPolygon):
+                            valid_geoms = [g for g in diff_stair.geoms if g.area > 0.5]
+                            poly_geom = max(valid_geoms, key=lambda p: p.area) if valid_geoms else None
+                        else:
+                            poly_geom = diff_stair if diff_stair.area > 0.5 else None
+
                 if poly_geom and not poly_geom.is_empty and poly_geom.area > 0.5:
                     coords = [Point2D(x=round(c[0], 3), y=round(c[1], 3)) for c in list(poly_geom.exterior.coords)[:-1]]
                     c_pt = poly_geom.centroid

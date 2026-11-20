@@ -1,5 +1,6 @@
 "use client"
 import React, { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useProjectStore } from '@/store/projectStore'
@@ -26,6 +27,7 @@ interface WorkflowShellProps {
 export function FeatureWorkflowShell({ 
   componentId, title, number, description, children, onNext, onPrev, onSkip 
 }: WorkflowShellProps) {
+  const router = useRouter()
   const { masterJson, componentStatuses } = useProjectStore()
   
   return (
@@ -49,19 +51,25 @@ export function FeatureWorkflowShell({
           const isActive = componentId === dbId;
           
           return (
-            <div key={step.id} className="flex flex-col items-center gap-2 bg-background px-2">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 
+            <button
+              key={step.id}
+              type="button"
+              onClick={() => router.push(`/features/${step.id}`)}
+              className="flex flex-col items-center gap-2 bg-background px-2 group cursor-pointer hover:opacity-80 transition-opacity"
+              title={`Go to ${step.name}`}
+            >
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-colors 
                 ${isActive ? 'border-primary bg-primary/20 text-primary' : 
-                  isCompleted ? 'border-green-500 bg-green-500/20 text-green-500' : 
-                  isSkipped ? 'border-orange-500 bg-orange-500/20 text-orange-500' : 'border-border bg-card text-muted-foreground'}`}>
+                  isCompleted ? 'border-green-500 bg-green-500/20 text-green-500 group-hover:border-green-400' : 
+                  isSkipped ? 'border-orange-500 bg-orange-500/20 text-orange-500 group-hover:border-orange-400' : 'border-border bg-card text-muted-foreground group-hover:border-primary/50'}`}>
                 {isCompleted ? <CheckCircle2 className="w-5 h-5" /> : 
                  isSkipped ? <SkipForward className="w-5 h-5" /> : 
                  <span className="text-sm font-bold">{step.num}</span>}
               </div>
-              <span className={`text-xs font-medium ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>
+              <span className={`text-xs font-medium ${isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}`}>
                 {step.name}
               </span>
-            </div>
+            </button>
           )
         })}
       </div>

@@ -139,13 +139,41 @@ export default function EsaiEnginePage() {
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null)
   const [orphanModal, setOrphanModal] = useState<any | null>(null)
   const [runModalOpen, setRunModalOpen] = useState(false)
+  const [isOptimizing, setIsOptimizing] = useState(false)
+  const [optimizationResult, setOptimizationResult] = useState<any | null>(null)
   const [gaDesignInput, setGaDesignInput] = useState<any | null>(null)
   const [isResolving, setIsResolving] = useState(false)
+
+  const handleRunOptimization = async () => {
+    if (!projectId) return
+    setIsOptimizing(true)
+    try {
+      const res = await esaiApi.runOptimization(projectId, {
+        scope: activeLevel === 'room' && selectedRoomId ? 'room' : (activeLevel === 'floor' && selectedFloorId ? 'floor' : 'building'),
+        room_id: activeLevel === 'room' ? selectedRoomId : undefined,
+        floor_id: activeLevel === 'floor' ? selectedFloorId : undefined,
+        auto_save: true,
+        generations: 10,
+        population_size: 15,
+        alternatives_count: 2
+      })
+      setOptimizationResult(res)
+      setStatusMessage({ type: 'success', text: 'ESAI Interior optimization completed and persisted to Master JSON!' })
+      // Reload scene data if tab switched
+      loadSceneData()
+    } catch (err: any) {
+      console.error('Optimization error:', err)
+      setStatusMessage({ type: 'error', text: err?.response?.data?.detail?.message || 'Failed to execute layout optimization.' })
+    } finally {
+      setIsOptimizing(false)
+    }
+  }
 
   // ── Phase 6: 3D Scene Visualization State ─────────────────────────────────
   const [workspaceTab, setWorkspaceTab] = useState<'preferences' | 'viewer'>('preferences')
   const [sceneData, setSceneData] = useState<SceneDataResponse | null>(null)
   const [isLoadingScene, setIsLoadingScene] = useState(false)
+  const [sceneError, setSceneError] = useState<string | null>(null)
 
   // Redirect if no project selected
   useEffect(() => {
@@ -155,12 +183,20 @@ export default function EsaiEnginePage() {
   const loadSceneData = useCallback(async () => {
     if (!projectId) return
     setIsLoadingScene(true)
+    setSceneError(null)
     try {
       const data = await esaiApi.getSceneData(projectId)
       setSceneData(data)
+      if (!data.floors?.length) {
+        setSceneError('The scene API returned no floors. Check that Component 1 has generated rooms in the project Master JSON.')
+      }
     } catch (err: any) {
       console.error('Failed to load scene data', err)
-      setStatusMessage({ type: 'error', text: 'Could not load 3D interior scene data.' })
+      const detail = err?.response?.data?.detail
+      const reason = typeof detail === 'string' ? detail : detail?.message || detail?.detail
+      const message = reason || err?.message || 'Unknown API error.'
+      setSceneError(`Could not load 3D interior scene data: ${message}`)
+      setStatusMessage({ type: 'error', text: `Could not load 3D interior scene data: ${message}` })
     } finally {
       setIsLoadingScene(false)
     }
@@ -559,7 +595,7 @@ export default function EsaiEnginePage() {
                 <span className="text-sm font-semibold text-slate-200">Loading Authoritative Scene Data...</span>
                 <span className="text-xs text-slate-500 mt-1">Retrieving floor polygons, walls, doors, and persisted interior layouts</span>
               </div>
-            ) : sceneData ? (
+            ) : sceneData && sceneData.floors?.length > 0 ? (
               <InteriorViewer
                 sceneData={sceneData}
                 initialFloorId={selectedFloorId}
@@ -570,7 +606,7 @@ export default function EsaiEnginePage() {
                 <AlertCircle className="w-10 h-10 text-amber-400 mb-3" />
                 <h4 className="text-sm font-semibold text-foreground">No Scene Data Loaded</h4>
                 <p className="text-xs text-muted-foreground max-w-md mt-1 mb-4">
-                  Could not retrieve 3D geometry for this project. Ensure upstream Component 1 geometry exists in the Master JSON.
+                  {sceneError || 'No floor geometry is available for this project. Ensure upstream Component 1 geometry exists in the Master JSON.'}
                 </p>
                 <Button size="sm" onClick={loadSceneData}>
                   Load Scene Data
@@ -579,8 +615,113 @@ export default function EsaiEnginePage() {
             )}
           </div>
         ) : (
-          /* ─── Main 3-Column Preferences Layout ─────────────────────────────── */
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          /* ─── Main Preferences Layout ─────────────────────────────── */
+          <div className="space-y-4">
+            {/* Quick Floor & Space Scope Selector Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-card/80 border border-border/80 shadow-sm text-xs">
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Floor Dropdown */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-muted-foreground font-medium text-xs flex items-center gap-1">
+                    <Layers className="w-3.5 h-3.5 text-blue-400" /> Floor:
+                  </span>
+                  <select
+                    value={activeLevel === 'building' ? 'all' : (selectedFloorId || 'all')}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      if (val === 'all') {
+                        setActiveLevel('building')
+                        setSelectedRoomId('')
+                      } else {
+                        setSelectedFloorId(val)
+                        setActiveLevel('floor')
+                        const fl = context?.floors.find((f) => f.floor_id === val)
+                        if (fl && fl.rooms.length > 0) {
+                          setSelectedRoomId(fl.rooms[0].room_id)
+                          setActiveLevel('room')
+                        } else {
+                          setSelectedRoomId('')
+                        }
+                      }
+                    }}
+                    className="bg-muted/50 text-foreground text-xs font-semibold rounded-lg px-2.5 py-1.5 border border-border/80 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                  >
+                    <option value="all">🏢 Building Defaults (All Floors)</option>
+                    {context?.floors.map((fl) => (
+                      <option key={fl.floor_id} value={fl.floor_id}>
+                        {fl.floor_name || fl.floor_id} ({fl.rooms.length} spaces)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Room / Space Dropdown */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-muted-foreground font-medium text-xs flex items-center gap-1">
+                    <Building2 className="w-3.5 h-3.5 text-indigo-400" /> Space:
+                  </span>
+                  <select
+                    value={activeLevel === 'room' && selectedRoomId ? selectedRoomId : 'all'}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      if (val === 'all') {
+                        if (selectedFloorId) {
+                          setActiveLevel('floor')
+                        } else {
+                          setActiveLevel('building')
+                        }
+                        setSelectedRoomId('')
+                      } else {
+                        const parentFloor = context?.floors.find((f) => f.rooms.some((r) => r.room_id === val))
+                        if (parentFloor) {
+                          setSelectedFloorId(parentFloor.floor_id)
+                        }
+                        setSelectedRoomId(val)
+                        setActiveLevel('room')
+                      }
+                    }}
+                    className="bg-muted/50 text-foreground text-xs font-semibold rounded-lg px-2.5 py-1.5 border border-border/80 focus:outline-none focus:ring-1 focus:ring-indigo-500 max-w-[240px] truncate cursor-pointer"
+                  >
+                    <option value="all">
+                      {activeLevel === 'building' ? 'All Spaces (Building-wide)' : `All Spaces on ${selectedFloor?.floor_name || 'Selected Floor'}`}
+                    </option>
+                    {(selectedFloorId
+                      ? context?.floors.find((f) => f.floor_id === selectedFloorId)?.rooms || []
+                      : context?.floors.flatMap((f) => f.rooms) || []
+                    ).map((rm) => (
+                      <option key={rm.room_id} value={rm.room_id}>
+                        {rm.name} ({rm.area_sqm.toFixed(1)} m²)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Quick Actions: View in 3D / 2D CAD */}
+              <div className="flex items-center gap-2">
+                {activeLevel === 'room' && selectedRoom && (
+                  <Badge variant="outline" className="border-purple-500/40 text-purple-300 bg-purple-500/10 text-xs">
+                    Customizing: {selectedRoom.name}
+                  </Badge>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs h-8 gap-1.5 border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10"
+                  onClick={() => {
+                    setWorkspaceTab('viewer')
+                    if (!sceneData) {
+                      loadSceneData()
+                    }
+                  }}
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  View in 3D / 2D CAD
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
           {/* ══════════════════════════════════════════════════════════════════════════
               COLUMN 1 (3 Cols): Spatial Hierarchy Tree Navigator
@@ -1744,6 +1885,7 @@ export default function EsaiEnginePage() {
             </Card>
           </div>
         </div>
+        </div>
         )}
       </div>
 
@@ -1762,17 +1904,56 @@ export default function EsaiEnginePage() {
             </div>
 
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Phase 2 is fully complete! All room-by-room architectural preferences, multi-floor hierarchies, and Neufert ergonomic constraints are validated and persisted in the Master JSON.
+              Run the Genetic Algorithm interior layout engine to generate Neufert-compliant asset placements, electrical points, ceiling fixtures, and realistic alternatives based on your configured preferences.
             </p>
 
             <div className="p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-xs text-cyan-300">
-              <span className="font-semibold">Stage 2 Roadmap:</span> Autonomous evolutionary placement, 3D glTF asset instancing, collision penalties, and clearance optimization will run against these saved preferences.
+              <span className="font-semibold">Execution Scope:</span> {activeLevel === 'room' && selectedRoom ? `Single Room (${selectedRoom.name})` : activeLevel === 'floor' && selectedFloor ? `Floor (${selectedFloor.floor_name})` : 'Entire Building (All Floors & Rooms)'}
             </div>
 
-            <div className="flex justify-end gap-2 pt-2">
+            {optimizationResult && (
+              <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300 space-y-2">
+                <div className="font-semibold flex items-center justify-between">
+                  <span>Optimization Status: {optimizationResult?.result?.status?.toUpperCase()}</span>
+                  <Badge variant="outline" className="border-emerald-500/50 text-emerald-300">
+                    {optimizationResult?.result?.successful_rooms_count} Rooms Solved
+                  </Badge>
+                </div>
+                <div className="text-[11px] text-emerald-200/80">
+                  Layouts saved to Master JSON. You can preview in 3D Scene Viewer, switch between generated alternatives, or modify room preferences further.
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-wrap justify-end gap-2 pt-2">
               <Button size="sm" variant="outline" className="text-xs" onClick={() => setRunModalOpen(false)}>
-                Dismiss
+                {optimizationResult ? 'Close & Edit Preferences' : 'Cancel'}
               </Button>
+              {!optimizationResult && (
+                <Button
+                  size="sm"
+                  className="text-xs bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white gap-1.5"
+                  onClick={handleRunOptimization}
+                  disabled={isOptimizing}
+                >
+                  <Sparkles className={`w-3.5 h-3.5 ${isOptimizing ? 'animate-spin' : ''}`} />
+                  {isOptimizing ? 'Solving Layouts...' : 'Execute GA Optimizer'}
+                </Button>
+              )}
+              {optimizationResult && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs border-cyan-500 text-cyan-400 hover:bg-cyan-500/10"
+                  onClick={() => {
+                    setRunModalOpen(false)
+                    setWorkspaceTab('viewer')
+                    loadSceneData()
+                  }}
+                >
+                  <Box className="w-3.5 h-3.5 mr-1" /> View in 3D Scene
+                </Button>
+              )}
               <Button
                 size="sm"
                 className="text-xs bg-cyan-600 hover:bg-cyan-700 text-white"

@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react'
 import { adminApi } from '@/lib/api/admin'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Images, Mail, Eye, Activity } from 'lucide-react'
+import { Images, Mail, Eye, Activity, FolderKanban } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 
@@ -21,16 +21,72 @@ export default function AdminDashboardPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Total Projects" value={stats?.totalProjects || 0} subtitle={`${stats?.publishedProjects || 0} published`} icon={<Images className="h-4 w-4 text-muted-foreground" />} />
-        <StatCard title="Published" value={stats?.publishedProjects || 0} subtitle="Live on public gallery" icon={<Eye className="h-4 w-4 text-green-500" />} />
+        <StatCard title="Generated CAD Plans" value={stats?.totalResearchProjects || 0} subtitle="Spatial AI floor plans" icon={<FolderKanban className="h-4 w-4 text-primary" />} />
+        <StatCard title="Gallery Projects" value={stats?.totalProjects || 0} subtitle={`${stats?.publishedProjects || 0} published`} icon={<Images className="h-4 w-4 text-muted-foreground" />} />
         <StatCard title="Gallery Images" value={stats?.totalImages || 0} subtitle="Across all projects" icon={<Activity className="h-4 w-4 text-blue-500" />} />
         <StatCard title="Unread Messages" value={stats?.unreadMessages || 0} subtitle="From contact form" icon={<Mail className="h-4 w-4 text-orange-500" />} />
       </div>
 
+      {/* GENERATED ARCHITECTURAL PROJECTS SECTION */}
+      <Card className="bg-card border-border/50">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <div>
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <FolderKanban className="w-5 h-5 text-primary" />
+              Generated Architectural Plans (GAB-Gen / VSAI / ESAI / ELIA)
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Live projects currently being planned and processed by users.
+            </p>
+          </div>
+          <Link href="/admin/projects">
+            <Button variant="outline" size="sm" className="text-xs h-8">
+              View All ({stats?.totalResearchProjects || 0})
+            </Button>
+          </Link>
+        </CardHeader>
+        <CardContent>
+          {stats?.recentGeneratedProjects && stats.recentGeneratedProjects.length > 0 ? (
+            <div className="divide-y divide-border/50">
+              {stats.recentGeneratedProjects.map((gp: any) => (
+                <div key={gp.id} className="py-3 flex items-center justify-between gap-4 first:pt-0 last:pb-0">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-foreground truncate">{gp.project_name || 'Untitled Project'}</p>
+                      <span className="text-[10px] font-mono text-muted-foreground/70 bg-muted px-1.5 py-0.5 rounded">
+                        Rev #{gp.revision || 1}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {gp.rooms_count > 0 ? (
+                        <span className="text-emerald-400 font-medium">{gp.rooms_count} Rooms defined</span>
+                      ) : (
+                        <span>Initial configuration</span>
+                      )}
+                      {gp.created_at && ` • Created ${new Date(gp.created_at).toLocaleDateString()}`}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Link href={`/features/vsai-rectifier?projectId=${gp.id}`}>
+                      <Button variant="ghost" size="sm" className="text-xs h-8 text-primary hover:text-primary hover:bg-primary/10">
+                        Inspect
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-4">No generated architectural projects found.</p>
+          )}
+        </CardContent>
+      </Card>
+
       <div className="grid gap-4 md:grid-cols-2">
         <Card className="bg-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-base font-semibold">Recent Projects</CardTitle>
+            <CardTitle className="text-base font-semibold">Recent Gallery Projects</CardTitle>
             <Link href="/admin/gallery">
               <Button variant="ghost" size="sm" className="text-xs h-8">View All</Button>
             </Link>

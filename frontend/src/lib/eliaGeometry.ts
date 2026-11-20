@@ -171,10 +171,18 @@ export function deduplicateGates(access?: ExteriorAccess | null): ExteriorFeatur
  */
 export function normalizePolygonCoordinates(raw: unknown): number[][][] | null {
   if (!raw) return null
-  if (typeof raw === 'object' && 'type' in (raw as Record<string, unknown>)) {
-    const geo = raw as GeoJsonGeometry
-    if (geo.type === 'Polygon' && Array.isArray((geo as any).coordinates)) {
-      return (geo as any).coordinates as number[][][]
+  if (typeof raw === 'object' && raw !== null && !Array.isArray(raw)) {
+    const rec = raw as Record<string, unknown>
+    if ('type' in rec) {
+      const geo = raw as GeoJsonGeometry
+      if (geo.type === 'Polygon' && Array.isArray((geo as any).coordinates)) {
+        return (geo as any).coordinates as number[][][]
+      }
+    }
+    for (const key of ['polygon', 'points', 'coordinates', 'vertices', 'boundary_points']) {
+      if (key in rec && rec[key]) {
+        return normalizePolygonCoordinates(rec[key])
+      }
     }
   }
   if (Array.isArray(raw)) {
@@ -443,16 +451,22 @@ export function extractNormalizedUpstreamGeometry(
     masterJson.land_info?.mathematical_polygon ||
     masterJson.land_info?.land_boundary_polygon ||
     masterJson.land_info?.boundary_polygon ||
-    masterJson.land_info?.boundary_points
+    masterJson.land_info?.boundary_points ||
+    masterJson.land_info?.bowditch_adjusted_polygon ||
+    masterJson.land_info?.source_land_polygon
 
   // Extract raw house footprint from authoritative paths
   const rawHouse =
     masterJson.house_exterior_polygon ||
     masterJson.buildable_footprint?.house_exterior_polygon ||
+    masterJson.buildable_footprint?.polygon ||
+    masterJson.building_footprint?.polygon ||
+    masterJson.building_footprint?.house_exterior_polygon ||
     masterJson.house?.exterior_polygon ||
     masterJson.building_footprint ||
     masterJson.floor_plan?.ground_floor?.house_exterior_polygon ||
-    masterJson.floor_plan?.ground_floor?.exterior_polygon
+    masterJson.floor_plan?.ground_floor?.exterior_polygon ||
+    masterJson.structural_rectification?.house_exterior_polygon
 
   const landCoords = normalizePolygonCoordinates(rawLand)
   const houseCoords = normalizePolygonCoordinates(rawHouse)

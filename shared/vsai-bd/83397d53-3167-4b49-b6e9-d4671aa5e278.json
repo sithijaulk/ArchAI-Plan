@@ -1,0 +1,25 @@
+{
+  "project_id": "83397d53-3167-4b49-b6e9-d4671aa5e278",
+  "project_name": "private",
+  "schema_version": "1.0",
+  "land_info": {},
+  "buildable_footprint": {},
+  "floor_plan": {},
+  "structural_rectification": {},
+  "interior_layout": {},
+  "exterior_landscape": {},
+  "processing": {
+    "gab_gen": {
+      "status": "pending"
+    },
+    "vsai_rectifier": {
+      "status": "pending"
+    },
+    "esai_engine": {
+      "status": "pending"
+    },
+    "elia_engine": {
+      "status": "pending"
+    }
+  }
+}

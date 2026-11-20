@@ -333,11 +333,29 @@ def convert_cubicasa_to_master_json(
         [footprint_margin, max(overall_height_ft - footprint_margin, footprint_margin + 1)],
     ]
 
+    # House exterior for ELIA: bounding box of the detected rooms (falls back to footprint).
+    all_room_pts = [pt for r in rooms_output for pt in r["polygon"]]
+    if all_room_pts:
+        hx = [p[0] for p in all_room_pts]
+        hy = [p[1] for p in all_room_pts]
+        min_x, max_x = max(0.0, min(hx)), min(overall_width_ft, max(hx))
+        min_y, max_y = max(0.0, min(hy)), min(overall_height_ft, max(hy))
+        house_exterior_polygon = [
+            [round(min_x, 2), round(min_y, 2)],
+            [round(max_x, 2), round(min_y, 2)],
+            [round(max_x, 2), round(max_y, 2)],
+            [round(min_x, 2), round(max_y, 2)],
+        ]
+    else:
+        house_exterior_polygon = [list(p) for p in footprint_polygon]
+
     master_json: Dict[str, Any] = {
         "project_id": project_id,
         "project_name": project_name,
         "schema_version": "1.0",
         "units": "ft",
+        "land_boundary_polygon": [list(p) for p in boundary_points],
+        "house_exterior_polygon": house_exterior_polygon,
         "land_info": {
             "boundary_points": boundary_points,
             "area_sqft": round(overall_width_ft * overall_height_ft, 1),

@@ -287,32 +287,63 @@ def detect_lines(binary_inv: np.ndarray) -> List[Dict[str, Any]]:
 
 def detect_north_arrow_candidates(binary_inv: np.ndarray) -> List[Dict[str, Any]]:
     """
-    Heuristic detection of North arrow symbols:
-    Finds isolated vertical or triangular contours with high aspect ratio or pointy vertices.
+    Detection of North arrow symbols and their true orientation angle:
+    Finds isolated vertical or triangular/arrowhead contours with high aspect ratio or pointy vertices,
+    and computes the orientation angle in degrees (0 to 360, where 0/360 is North pointing upward).
     """
     contours, _ = cv2.findContours(binary_inv, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     candidates = []
 
     for cnt in contours:
         area = cv2.contourArea(cnt)
-        # North arrows on typical 300DPI scans are usually between 200 and 8000 pixels
-        if area < 150 or area > 10000:
+        # North arrows on typical 300DPI scans are usually between 150 and 15000 pixels
+        if area < 150 or area > 15000:
             continue
 
         x, y, w, h = cv2.boundingRect(cnt)
         aspect = h / float(w) if w > 0 else 0
 
-        # Arrows are often elongated vertically (aspect 1.4 to 5.0) or triangular (3-4 approx vertices)
         peri = cv2.arcLength(cnt, True)
         approx = cv2.approxPolyDP(cnt, 0.04 * peri, True)
 
-        if (1.3 <= aspect <= 5.0) or (len(approx) in (3, 4, 5)):
+        if (1.2 <= aspect <= 6.0) or (len(approx) in (3, 4, 5, 6, 7)):
+            # Calculate moments to find the centroid
+            M = cv2.moments(cnt)
+            cx = int(M["m10"] / M["m00"]) if M["m00"] != 0 else x + w // 2
+            cy = int(M["m01"] / M["m00"]) if M["m00"] != 0 else y + h // 2
+
+            # Find furthest vertex from centroid as arrow tip
+            furthest_pt = None
+            max_dist_sq = -1
+            for p in cnt:
+                px, py = p[0]
+                dsq = (px - cx) ** 2 + (py - cy) ** 2
+                if dsq > max_dist_sq:
+                    max_dist_sq = dsq
+                    furthest_pt = (px, py)
+
+            # Angle pointing from centroid towards tip in standard navigational compass degrees
+            # (Up = 0 deg North, Right = 90 deg East, Down = 180 deg South, Left = 270 deg West)
+            arrow_angle = 0.0
+            if furthest_pt:
+                dx = furthest_pt[0] - cx
+                dy = cy - furthest_pt[1]  # Invert Y so up is positive
+                # Standard math atan2: 0 is Right, 90 is Up
+                math_deg = math.degrees(math.atan2(dy, dx))
+                # Convert to navigational compass bearing: 0 is Up, clockwise
+                compass_deg = (90.0 - math_deg) % 360.0
+                arrow_angle = round(compass_deg, 1)
+
             candidates.append({
                 "bbox": [x, y, w, h],
-                "center": [x + w // 2, y + h // 2],
+                "center": [cx, cy],
                 "area": area,
                 "aspect_ratio": round(aspect, 2),
-                "num_vertices": len(approx)
+                "num_vertices": len(approx),
+                "angle": arrow_angle,
+                "confidence": 0.85 if len(approx) in (3, 5) else 0.70
             })
 
+    # Sort candidates by area descending
+    candidates.sort(key=lambda c: c["area"], reverse=True)
     return candidates

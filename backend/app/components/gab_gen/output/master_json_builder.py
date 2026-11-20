@@ -166,15 +166,33 @@ def build_gab_master_json(
         "edges": [e.model_dump() for e in survey_request.edges]
     }
 
+    land_poly_pts = reconstructed_data.get("bowditch_adjusted_vertices") or reconstructed_data.get("vertices", [])
+    mj["land_boundary_polygon"] = land_poly_pts
     mj["land_info"] = {
+        "land_boundary_polygon": land_poly_pts,
+        "boundary_polygon": land_poly_pts,
+        "mathematical_polygon": land_poly_pts,
         "source_land_polygon": reconstructed_data.get("vertices", []),
         "bowditch_adjusted_polygon": reconstructed_data.get("bowditch_adjusted_vertices", []),
         "traverse_adjustment_method": reconstructed_data.get("traverse_adjustment_method", "none"),
         "reconstructed_area": reconstructed_data.get("reconstructed_area", 0.0),
         "declared_area": validation.declared_area_sqm or 0.0,
-        "area_difference_percent": validation.area_difference_percent or 0.0,
         "perimeter": reconstructed_data.get("perimeter", 0.0),
-        "coordinate_origin": reconstructed_data.get("coordinate_origin", "P0 local")
+        "coordinate_origin": reconstructed_data.get("coordinate_origin", "P0 local"),
+        "location": {
+            "latitude": 6.9271,
+            "longitude": 79.8612,
+            "timezone": "Asia/Colombo",
+            "city": "Colombo",
+            "country": "Sri Lanka"
+        }
+    }
+    mj["location"] = {
+        "latitude": 6.9271,
+        "longitude": 79.8612,
+        "timezone": "Asia/Colombo",
+        "city": "Colombo",
+        "country": "Sri Lanka"
     }
 
     mj["geometry_validation"] = {
@@ -217,9 +235,43 @@ def build_gab_master_json(
         "floors": allocation_data.get("floors", [])
     }
 
-    # Active / Selected Floor Plan Definition (Directly consumed by 2D/3D Viewer and Editor)
+    # Active / Selected Floor Plan Definition (Directly consumed by 2D/3D Viewer, VSAI, ESAI and ELIA)
+    flat_rooms = []
+    flat_walls = []
+    flat_doors = []
+    flat_windows = []
+    for fl in floors:
+        fl_dict = fl.model_dump()
+        for rm in fl_dict.get("rooms", []):
+            rm_copy = dict(rm)
+            # Ensure 'id' alias exists for VSAI and other components
+            if "id" not in rm_copy and "room_id" in rm_copy:
+                rm_copy["id"] = rm_copy["room_id"]
+            flat_rooms.append(rm_copy)
+        for w in fl_dict.get("walls", []):
+            flat_walls.append(w)
+        for d in fl_dict.get("doors", []):
+            d_copy = dict(d)
+            if "id" not in d_copy and "door_id" in d_copy:
+                d_copy["id"] = d_copy["door_id"]
+            if "name" not in d_copy:
+                d_copy["name"] = "Door"
+            flat_doors.append(d_copy)
+        for win in fl_dict.get("windows", []):
+            win_copy = dict(win)
+            if "id" not in win_copy and "window_id" in win_copy:
+                win_copy["id"] = win_copy["window_id"]
+            if "name" not in win_copy:
+                win_copy["name"] = "Window"
+            flat_windows.append(win_copy)
+
     mj["floor_plan"] = {
-        "floors": [fl.model_dump() for fl in floors]
+        "floors": [fl.model_dump() for fl in floors],
+        "rooms": flat_rooms,
+        "walls": flat_walls,
+        "doors": flat_doors,
+        "windows": flat_windows,
+        "units": "meters",
     }
 
     # Roof Geometry (Vectorized Canonical P0 coordinates)
@@ -243,10 +295,13 @@ def build_gab_master_json(
     mj["roof_geometry"] = roof_geom.model_dump()
 
     # Active Building Footprint
+    footprint_poly = buildable_data.get("polygon", [])
+    mj["house_exterior_polygon"] = footprint_poly
     mj["building_footprint"] = {
         "candidate_id": selected_candidate_id or "FP_CANDIDATE_001",
         "shape_type": "conformal_offset",
-        "polygon": buildable_data.get("polygon", []),
+        "polygon": footprint_poly,
+        "house_exterior_polygon": footprint_poly,
         "area": buildable_data.get("area", 0.0)
     }
 

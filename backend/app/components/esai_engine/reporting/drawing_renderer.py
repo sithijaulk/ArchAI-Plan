@@ -20,6 +20,14 @@ from reportlab.lib import colors
 from .contracts import RoomReportDataDTO, RoomScheduleItemDTO
 
 
+def _extract_xy(pt: Any) -> tuple[float, float]:
+    if isinstance(pt, dict):
+        return float(pt.get("x", 0.0)), float(pt.get("y", 0.0))
+    elif isinstance(pt, (list, tuple)) and len(pt) >= 2:
+        return float(pt[0]), float(pt[1])
+    return 0.0, 0.0
+
+
 class ArchitecturalDrawingRenderer:
     """
     Renders vector architectural layout drawings for room designs on ReportLab Drawings.
@@ -71,8 +79,8 @@ class ArchitecturalDrawingRenderer:
             return drawing
 
         # 1. Calculate Bounding Box in meters
-        xs = [pt[0] for pt in poly_coords]
-        ys = [pt[1] for pt in poly_coords]
+        xs = [_extract_xy(pt)[0] for pt in poly_coords]
+        ys = [_extract_xy(pt)[1] for pt in poly_coords]
         min_x, max_x = min(xs), max(xs)
         min_y, max_y = min(ys), max(ys)
         w_m = max(0.1, max_x - min_x)
@@ -138,7 +146,8 @@ class ArchitecturalDrawingRenderer:
         # 4. Room Floor Polygon
         flat_poly_points: List[float] = []
         for pt in poly_coords:
-            cx, cy = to_canvas(pt[0], pt[1])
+            px, py = _extract_xy(pt)
+            cx, cy = to_canvas(px, py)
             flat_poly_points.extend([cx, cy])
 
         drawing.add(
@@ -154,8 +163,10 @@ class ArchitecturalDrawingRenderer:
         for win in room.windows:
             start = win.get("start", [0, 0])
             end = win.get("end", [0, 0])
-            sx, sy = to_canvas(start[0], start[1])
-            ex, ey = to_canvas(end[0], end[1])
+            sx_m, sy_m = _extract_xy(start)
+            ex_m, ey_m = _extract_xy(end)
+            sx, sy = to_canvas(sx_m, sy_m)
+            ex, ey = to_canvas(ex_m, ey_m)
 
             # Draw aperture opening
             drawing.add(
@@ -179,8 +190,10 @@ class ArchitecturalDrawingRenderer:
         for dr in room.doors:
             start = dr.get("start", [0, 0])
             end = dr.get("end", [0, 0])
-            sx, sy = to_canvas(start[0], start[1])
-            ex, ey = to_canvas(end[0], end[1])
+            sx_m, sy_m = _extract_xy(start)
+            ex_m, ey_m = _extract_xy(end)
+            sx, sy = to_canvas(sx_m, sy_m)
+            ex, ey = to_canvas(ex_m, ey_m)
 
             # Door leaf line
             drawing.add(

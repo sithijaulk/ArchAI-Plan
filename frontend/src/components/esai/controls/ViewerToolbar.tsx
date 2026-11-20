@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { Layers, Building2, Focus } from 'lucide-react';
 import { FloorDTO, RoomDTO, ViewCameraMode } from '@/types/esai';
 
 interface ViewerToolbarProps {
@@ -9,6 +10,8 @@ interface ViewerToolbarProps {
   onSelectFloor: (floorId: string | null) => void;
   selectedRoomId: string | null;
   onSelectRoom: (roomId: string | null) => void;
+  isRoomIsolated?: boolean;
+  onToggleIsolateRoom?: () => void;
   viewMode: '3d' | '2d' | 'split';
   onChangeViewMode: (mode: '3d' | '2d' | 'split') => void;
   cameraMode: ViewCameraMode;
@@ -27,6 +30,8 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
   onSelectFloor,
   selectedRoomId,
   onSelectRoom,
+  isRoomIsolated = false,
+  onToggleIsolateRoom,
   viewMode,
   onChangeViewMode,
   cameraMode,
@@ -50,38 +55,75 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/90 backdrop-blur-md px-4 py-2.5 rounded-xl border border-slate-800 shadow-xl text-xs text-slate-200">
       {/* ── Floor & Room Navigation ────────────────────────────────────────── */}
-      <div className="flex items-center gap-2">
-        <label className="text-slate-400 font-medium">Floor:</label>
-        <select
-          value={selectedFloorId || ''}
-          onChange={(e) => {
-            const val = e.target.value || null;
-            onSelectFloor(val);
-            onSelectRoom(null);
-          }}
-          className="bg-slate-800 text-white rounded-lg px-2.5 py-1.5 border border-slate-700 focus:outline-none focus:ring-1 focus:ring-cyan-500 font-medium"
-        >
-          <option value="">All Floors ({floors.length})</option>
-          {floors.map((f) => (
-            <option key={f.floor_id} value={f.floor_id}>
-              {f.floor_name} (L{f.level_index})
-            </option>
-          ))}
-        </select>
+      <div className="flex flex-wrap items-center gap-2.5">
+        {/* Floor Dropdown */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-slate-400 font-medium text-[11px] flex items-center gap-1">
+            <Layers className="w-3.5 h-3.5 text-blue-400" /> Floor:
+          </span>
+          <select
+            value={selectedFloorId || ''}
+            onChange={(e) => {
+              const val = e.target.value || null;
+              onSelectFloor(val);
+              onSelectRoom(null);
+            }}
+            className="bg-slate-800 text-white text-[11px] font-semibold rounded-lg px-2.5 py-1.5 border border-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+          >
+            <option value="">All Floors ({floors.length})</option>
+            {floors.map((f) => (
+              <option key={f.floor_id} value={f.floor_id}>
+                {f.floor_name} (L{f.level_index}) — {f.rooms.length} spaces
+              </option>
+            ))}
+          </select>
+        </div>
 
-        <label className="text-slate-400 font-medium ml-2">Room:</label>
-        <select
-          value={selectedRoomId || ''}
-          onChange={(e) => onSelectRoom(e.target.value || null)}
-          className="bg-slate-800 text-white rounded-lg px-2.5 py-1.5 border border-slate-700 focus:outline-none focus:ring-1 focus:ring-cyan-500 font-medium max-w-[180px] truncate"
-        >
-          <option value="">All Rooms ({availableRooms.length})</option>
-          {availableRooms.map((r) => (
-            <option key={r.room_id} value={r.room_id}>
-              {r.name} ({r.area_sqm.toFixed(1)}m²)
-            </option>
-          ))}
-        </select>
+        {/* Room / Space Dropdown */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-slate-400 font-medium text-[11px] flex items-center gap-1">
+            <Building2 className="w-3.5 h-3.5 text-indigo-400" /> Space:
+          </span>
+          <select
+            value={selectedRoomId || ''}
+            onChange={(e) => onSelectRoom(e.target.value || null)}
+            className="bg-slate-800 text-white text-[11px] font-semibold rounded-lg px-2.5 py-1.5 border border-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 max-w-[210px] truncate cursor-pointer"
+          >
+            <option value="">All Spaces / Full Plan ({availableRooms.length})</option>
+            {availableRooms.map((r) => (
+              <option key={r.room_id} value={r.room_id}>
+                {r.name} ({r.area_sqm.toFixed(1)} m²)
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Isolate / Focus Room Button & Clear */}
+        {selectedRoomId && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onToggleIsolateRoom}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all border flex items-center gap-1 cursor-pointer ${
+                isRoomIsolated
+                  ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm'
+                  : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+              }`}
+            >
+              <Focus className="w-3 h-3" />
+              {isRoomIsolated ? 'Isolated View' : 'Isolate Room'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onSelectRoom(null);
+              }}
+              className="text-slate-400 hover:text-slate-200 text-[11px] underline cursor-pointer"
+            >
+              Clear
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ── 2D / 3D / Split Display Mode ───────────────────────────────────── */}

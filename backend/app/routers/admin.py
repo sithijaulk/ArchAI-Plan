@@ -24,6 +24,7 @@ def get_dashboard_stats(db: Session = Depends(get_db), admin: User = Depends(req
 
     recent_projects = db.query(GalleryProject).order_by(GalleryProject.created_at.desc()).limit(5).all()
     recent_messages = db.query(ContactMessage).order_by(ContactMessage.created_at.desc()).limit(5).all()
+    recent_generated = db.query(Project).order_by(Project.created_at.desc()).limit(5).all()
 
     return {
         "totalProjects": total_projects,
@@ -50,5 +51,19 @@ def get_dashboard_stats(db: Session = Depends(get_db), admin: User = Depends(req
                 "created_at": m.created_at.isoformat()
             }
             for m in recent_messages
+        ],
+        "recentGeneratedProjects": [
+            {
+                "id": gp.id,
+                "project_name": gp.project_name,
+                "description": gp.description,
+                "current_component": gp.current_component,
+                "revision": gp.revision,
+                "created_at": gp.created_at.isoformat() if gp.created_at else None,
+                "processing": gp.master_json.get("processing") if isinstance(gp.master_json, dict) else {},
+                "rooms_count": len(gp.master_json.get("floor_plan", {}).get("rooms", [])) if isinstance(gp.master_json, dict) else 0
+            }
+            for gp in recent_generated
         ]
     }
+

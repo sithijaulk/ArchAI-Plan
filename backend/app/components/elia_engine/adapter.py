@@ -16,8 +16,17 @@ def _value(document: Mapping[str, Any], path: Sequence[str]) -> Any:
     return current
 
 
+def _normalize_polygon_candidate(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        if "polygon" in value:
+            return value["polygon"]
+        if "house_exterior_polygon" in value:
+            return value["house_exterior_polygon"]
+    return value
+
+
 def _canonical_alias(document: Mapping[str, Any], paths: Sequence[Sequence[str]], field: str) -> Any:
-    candidates = [(path, _value(document, path)) for path in paths]
+    candidates = [(path, _normalize_polygon_candidate(_value(document, path))) for path in paths]
     candidates = [(path, value) for path, value in candidates if value is not None]
     if not candidates:
         return None
@@ -53,6 +62,11 @@ def resolve_upstream_road(document: Mapping[str, Any]) -> tuple[str | None, int 
             edges.append(document[key])
         if land_info.get(key) is not None:
             edges.append(land_info[key])
+    if not edges and isinstance(document.get("survey_extraction"), Mapping):
+        for idx, edge in enumerate(document["survey_extraction"].get("edges", [])):
+            if isinstance(edge, Mapping) and edge.get("edge_type") == "road_front":
+                edges.append(idx)
+                break
     try:
         canonical_edge = int(edges[0]) if edges else None
         if canonical_edge is not None and any(int(value) != canonical_edge for value in edges[1:]):
@@ -140,7 +154,8 @@ def normalize_master_json(document: Mapping[str, Any]) -> dict[str, Any]:
 
     north_values = []
     for path in (("north_angle",), ("calculated_north_bearing",),
-                 ("land_info", "calculated_north_bearing")):
+                 ("land_info", "calculated_north_bearing"),
+                 ("survey_extraction", "north_angle")):
         value = _value(document, path)
         if value is not None:
             try:
